@@ -600,7 +600,7 @@ export async function main(): Promise<void> {
     rapport: fejl.rapport,
   });
   console.log(`sky: status på ${new URL(config.publicUrl).origin}/status.json${statusSide ? ` (CORS for ${statusSide})` : ' (SKY_STATUS_ORIGIN ikke sat: ingen CORS)'}`);
-  const status: StatusDeps = { feed: feedCache({ bygg: () => byggFeed(db, new Date()) }), origin: statusSide };
+  const status: StatusDeps = { feed: feedCache({ bygg: () => byggFeed(db, new Date()) }), origin: statusSide, side: `${statusSide ?? new URL(config.publicUrl).origin}/status`, feedUrl: `${new URL(config.publicUrl).origin}/status.atom` };
   const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, ...fl });
   const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette });
   // KC-0188: Sky's log records each support grant's expiry once (the gateway already refuses it by clock on every request).

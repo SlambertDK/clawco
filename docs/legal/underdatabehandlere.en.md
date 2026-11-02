@@ -1,16 +1,16 @@
 ---
-version: 1.0
+version: 1.1
 dato: 2026-11-02
 status: udgivet
 sprog: en
 ---
-Version 1.0 · 2026-11-02
+Version 1.1 · 2026-11-02
 
 > English translation of the Danish text. If the two versions differ, the Danish text applies.
 
 # Subprocessors for Clawco Sky
 
-Last updated: [date]
+Last updated: 2026-11-02
 
 A subprocessor is a supplier that Henrik Lambert (a private individual, no company) uses to provide Clawco Sky and that comes into contact with personal data. This is the full list. It is public, so you can see who is involved.
 
@@ -51,7 +51,8 @@ We have a written agreement with each subprocessor. They have the same data prot
 
 | Date | Change |
 |---|---|
-| [date] | First version of the list. |
+| 2026-11-02 | First version of the list. |
+| 2026-11-02 | The list is now generated from a data file (same suppliers, same bases); the date at the top filled in. |
 
 ## Questions
 

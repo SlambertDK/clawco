@@ -128,20 +128,43 @@ export async function rydOp(db: Database, nu: Date, log: (linje: string) => void
   return { dage, slettet };
 }
 
-
-/** Each component's uptime over the last 90 days (today included, live from the raw rows); null without data. */
-export async function oppetid90(db: Database, nu: Date): Promise<Record<KomponentId, number | null>> {
+/** The 90-day window's numbers: the rolled day rows (the 89 whole days before today) and today live from the raw rows. */
+async function dageOgIdag(db: Database, nu: Date): Promise<{ idag: Date; rows: { dag: string; komponent: string; tal: DagTal }[]; idagTal: Map<KomponentId, DagTal> }> {
   const idag = dagStart(nu);
-  const rows = await db.query<{ komponent: string; ok: number; nedsat: number; nede: number; ukendt: number }>(
-    'SELECT komponent, ok, nedsat, nede, ukendt FROM drift.helbred_dag WHERE dag >= $1 AND dag < $2', [iso(new Date(idag.getTime() - (DAG_DAGE - 1) * DAG)), iso(idag)]);
+  const rows = await db.query<{ dag: string; komponent: string; ok: number; nedsat: number; nede: number; ukendt: number }>(
+    "SELECT to_char(dag, 'YYYY-MM-DD') AS dag, komponent, ok, nedsat, nede, ukendt FROM drift.helbred_dag WHERE dag >= $1 AND dag < $2", [iso(new Date(idag.getTime() - (DAG_DAGE - 1) * DAG)), iso(idag)]);
   const foerste = await foersteTid(db);
   const tal = await raaTal(db, idag, nu);
   const forventet = foerste ? forventedePas(idag, foerste, nu) : 0;
-  const ud = {} as Record<KomponentId, number | null>;
+  const idagTal = new Map<KomponentId, DagTal>();
   for (const k of KOMPONENTER) {
     const t = tal.get(k) ?? { ok: 0, nedsat: 0, nede: 0 };
-    const idagTal: DagTal = { ...t, ukendt: Math.max(0, forventet - (t.ok + t.nedsat + t.nede)) };
-    ud[k] = oppetid([...rows.filter((r) => r.komponent === k), idagTal]);
+    idagTal.set(k, { ...t, ukendt: Math.max(0, forventet - (t.ok + t.nedsat + t.nede)) });
+  }
+  return { idag, rows: rows.map((r) => ({ dag: r.dag, komponent: r.komponent, tal: { ok: r.ok, nedsat: r.nedsat, nede: r.nede, ukendt: r.ukendt } })), idagTal };
+}
+
+/** Each component's uptime over the last 90 days (today included, live from the raw rows); null without data. */
+export async function oppetid90(db: Database, nu: Date): Promise<Record<KomponentId, number | null>> {
+  const { rows, idagTal } = await dageOgIdag(db, nu);
+  const ud = {} as Record<KomponentId, number | null>;
+  for (const k of KOMPONENTER) ud[k] = oppetid([...rows.filter((r) => r.komponent === k).map((r) => r.tal), idagTal.get(k)!]);
+  return ud;
+}
+
+/** Each component's last 90 days, one entry per UTC day, oldest first, ending today: that day's uptime, or null for a day
+ *  with no row (never a made-up 100). Dates and percentages only. */
+export async function dage90(db: Database, nu: Date): Promise<Record<KomponentId, { dag: string; oppetid: number | null }[]>> {
+  const { idag, rows, idagTal } = await dageOgIdag(db, nu);
+  const perDag = new Map(rows.map((r) => [`${r.dag} ${r.komponent}`, r.tal]));
+  const ud = {} as Record<KomponentId, { dag: string; oppetid: number | null }[]>;
+  for (const k of KOMPONENTER) {
+    ud[k] = [];
+    for (let i = DAG_DAGE - 1; i >= 0; i--) {
+      const dag = iso(new Date(idag.getTime() - i * DAG));
+      const t = i === 0 ? idagTal.get(k)! : perDag.get(`${dag} ${k}`);
+      ud[k].push({ dag, oppetid: t ? oppetid([t]) : null });
+    }
   }
   return ud;
 }

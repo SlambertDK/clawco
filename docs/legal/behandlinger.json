@@ -1,0 +1,391 @@
+{
+  "regel": "Any code change that adds a new outbound call to a third party adds or updates an entry here; test/behandlinger.test.ts fails on a host in sky/ without an entry. Generated texts: never edit docs/legal/underdatabehandlere.*.md or fortegnelse-art30.md by hand; run `node scripts/behandlinger.ts --skriv`.",
+  "ansvarlig": {
+    "navn": "Henrik Lambert",
+    "form": { "da": "personligt drevet, uden selskab", "en": "a private individual, no company" },
+    "adresse": { "da": "Banevænget 13, 5270 Odense N, Danmark", "en": "Banevænget 13, 5270 Odense N, Denmark" },
+    "cvr": { "da": "intet CVR-nummer (ikke momsregistreret; registreres når lovens grænse nås)", "en": "no CVR number (not VAT-registered; registers when the legal threshold is reached)" },
+    "kontakt": "kontakt@clawco.work"
+  },
+  "dato": "2026-11-02",
+  "tjekketDPF": "2026-11-02",
+  "udgave": { "version": "1.1", "status": "udgivet" },
+  "behandlinger": [
+    {
+      "id": "konto-login",
+      "navn": { "da": "Konto og login", "en": "Account and sign-in" },
+      "rolle": "dataansvarlig",
+      "formaal": { "da": "At oprette og drive kundens konto og lade kunden logge ind.", "en": "To create and run the customer's account and let the customer sign in." },
+      "kategorier": {
+        "da": "E-mailadresse, land og sprog, navn (kun synligt for de andre medlemmer af en husstand), hvilke versioner af vilkår og privatlivspolitik der er sagt ja til og hvornår, den offentlige del af passkeys, de enheder kunden er logget ind på, sessioner og login-links, en hash af IP-adressen til at tælle loginforsøg, og tekniske logs (tidspunkter, uden IP-adresse og uden indhold).",
+        "en": "Email address, country and language, name (visible only to the other members of a household), which versions of the terms and the privacy policy were accepted and when, the public part of passkeys, the devices the customer is signed in on, sessions and sign-in links, a hash of the IP address used to count sign-in attempts, and technical logs (timestamps, without IP address and without content)."
+      },
+      "registrerede": { "da": "Personer med en konto hos Clawco Sky (fra 18 år).", "en": "People with an account with Clawco Sky (aged 18 or over)." },
+      "retsgrundlag": {
+        "da": "Kontrakt (GDPR art. 6(1)(b)): konto og drift. Berettiget interesse (art. 6(1)(f)): sikkerhed, fejlfinding og misbrugsforebyggelse.",
+        "en": "Contract (GDPR Art. 6(1)(b)): account and operations. Legitimate interest (Art. 6(1)(f)): security, troubleshooting and abuse prevention."
+      },
+      "opbevaring": {
+        "da": "Mens kontoen findes. Ved sletning fjernes e-mailadresse, land, sprog, passkeys og sessioner med det samme; tilbage er et kontonummer uden e-mail og det, regnskabet kræver. Tællingen af loginforsøg (en hash af IP-adressen): et døgn. Tekniske logs: højst 30 dage.",
+        "en": "While the account exists. On deletion the email address, country, language, passkeys and sessions are removed at once; what is left is an account number without email and what the accounts require. The count of sign-in attempts (a hash of the IP address): one day. Technical logs: at most 30 days."
+      },
+      "modtagere": ["cloudflare", "resend"],
+      "overfoersel": {
+        "tredjeland": true,
+        "grundlag": {
+          "da": "Cloudflare, Inc. (USA): står som aktiv deltager i EU-US Data Privacy Framework (tjekket {dpf}), og Cloudflares databehandleraftale indeholder desuden EU's standardkontrakter. Resend (Plus Five Five, Inc., USA) til login-links: standardkontrakter i Resends databehandleraftale. Se Underdatabehandlere.",
+          "en": "Cloudflare, Inc. (USA): listed as an active participant in the EU-US Data Privacy Framework (checked {dpf}), and Cloudflare's data processing agreement also contains the EU Standard Contractual Clauses. Resend (Plus Five Five, Inc., USA) for sign-in links: the Standard Contractual Clauses in Resend's data processing agreement. See Subprocessors."
+        }
+      },
+      "sikkerhed": {
+        "da": "TLS frem til Cloudflares kant og derfra en krypteret tunnel til serveren. Passkeys: kun den offentlige del gemmes. IP-adressen gemmes ikke i klartekst. Logs indeholder hverken IP-adresse eller indhold.",
+        "en": "TLS up to Cloudflare's edge and from there an encrypted tunnel to the server. Passkeys: only the public part is stored. The IP address is not stored in plain text. Logs contain neither IP address nor content."
+      }
+    },
+    {
+      "id": "betaling",
+      "navn": { "da": "Betaling og abonnement", "en": "Payment and subscription" },
+      "rolle": "dataansvarlig",
+      "formaal": { "da": "At tage imod betaling for abonnementet, udstede fakturaer og afregne moms.", "en": "To take payment for the subscription, issue invoices and account for VAT." },
+      "kategorier": {
+        "da": "Hos Stripe: kortoplysninger, betalingsstatus, abonnement, fakturaer og land (til moms). Hos os: Stripe-kundens id, land til moms, plan og status, hvad kunden blev vist ved købet (plan, pris, periode), hvilken version af vilkårene der blev sagt ja til og hvornår, samtykke til at starte med det samme, en eventuel fortrydelse, og navn, e-mail, beløb og dato på fakturaer. Vi gemmer aldrig kortnumre.",
+        "en": "At Stripe: card details, payment status, subscription, invoices and country (for VAT). With us: the Stripe customer's id, country for VAT, plan and status, what the customer was shown at purchase (plan, price, period), which version of the terms was accepted and when, consent to start at once, any withdrawal, and name, email, amount and date on invoices. We never hold card numbers."
+      },
+      "registrerede": { "da": "Kunder med et betalt abonnement.", "en": "Customers with a paid subscription." },
+      "retsgrundlag": {
+        "da": "Kontrakt (GDPR art. 6(1)(b)): abonnement og betaling. Retlig forpligtelse (art. 6(1)(c)): regnskab, jf. Bogføringsloven § 12.",
+        "en": "Contract (GDPR Art. 6(1)(b)): subscription and payment. Legal obligation (Art. 6(1)(c)): bookkeeping, see section 12 of the Danish Bookkeeping Act."
+      },
+      "opbevaring": {
+        "da": "Abonnementsoplysninger mens kontoen findes. Regnskabsbilag (fakturaer og betalinger): 5 år efter udgangen af regnskabsåret (Bogføringsloven § 12), også efter at kontoen er slettet. De indeholder kun det, der skal til: navn, e-mail, beløb og dato.",
+        "en": "Subscription data while the account exists. Accounting records (invoices and payments): 5 years after the end of the financial year (section 12 of the Danish Bookkeeping Act), also after the account is deleted. They hold only what is needed: name, email, amount and date."
+      },
+      "modtagere": ["stripe"],
+      "overfoersel": {
+        "tredjeland": true,
+        "grundlag": {
+          "da": "Stripe Payments Europe Ltd er i Irland. Hvis Stripe-koncernen overfører data til USA, bygger det på Stripes eget grundlag; Stripe, LLC (USA) står som aktiv deltager i EU-US Data Privacy Framework (tjekket {dpf}).",
+          "en": "Stripe Payments Europe Ltd is in Ireland. If the Stripe group transfers data to the USA, that rests on Stripe's own basis; Stripe, LLC (USA) is listed as an active participant in the EU-US Data Privacy Framework (checked {dpf})."
+        }
+      },
+      "sikkerhed": {
+        "da": "Kortoplysninger indtastes hos Stripe, ikke hos os. Stripe-nøglerne er begrænsede og ligger kun på serveren. Regnskabsbilag indeholder intet af kundens indhold.",
+        "en": "Card details are entered at Stripe, not with us. The Stripe keys are restricted and live only on the server. Accounting records hold none of the customer's content."
+      }
+    },
+    {
+      "id": "instans",
+      "navn": { "da": "Indholdet i kundens instans", "en": "The content of the customer's instance" },
+      "rolle": "databehandler",
+      "formaal": {
+        "da": "At hoste kundens isolerede Clawco-instans, så agenten kan læse og ordne kundens egne kilder og vise resultatet. Instansen er en egen beholder med eget volumen.",
+        "en": "To host the customer's isolated Clawco instance so the agent can read and sort the customer's own sources and show the result. The instance is its own container with its own volume."
+      },
+      "kategorier": {
+        "da": "Det, kunden selv kobler til og lægger ind: mail, kalender, noter, nyheder, beskeder, regninger, kontaktoplysninger. Kan indeholde følsomme oplysninger, hvis kunden selv lægger dem ind. Kunden bestemmer indholdet; vi læser det ikke.",
+        "en": "What the customer connects and puts in: email, calendar, notes, news, messages, bills, contact details. May contain sensitive data if the customer puts it in. The customer decides the content; we do not read it."
+      },
+      "registrerede": {
+        "da": "Kunden og personer, der omtales i kundens mail, kalender og noter, fx kundens husstand og børn.",
+        "en": "The customer and people mentioned in the customer's email, calendar and notes, for example the customer's household and children."
+      },
+      "retsgrundlag": {
+        "da": "Kunden bestemmer, hvad der kobles til, og vi er databehandler for indholdet (databehandleraftale efter GDPR art. 28 kan fås). Bruges Clawco til rent personlige formål, gælder forordningen måske ikke for kundens egen behandling (art. 2(2)(c)); den gælder altid for os. Selve leveringen bygger på kontrakten med kunden (art. 6(1)(b)).",
+        "en": "The customer decides what is connected, and we are the processor for the content (a data processing agreement under GDPR Art. 28 is available). If Clawco is used for purely personal purposes, the regulation may not apply to the customer's own processing (Art. 2(2)(c)); it always applies to us. The delivery itself rests on the contract with the customer (Art. 6(1)(b))."
+      },
+      "opbevaring": {
+        "da": "Til kunden sletter kontoen. Så stopper instansen, og volumenet slettes (dag 0). Sikkerhedskopier: se sikkerhedskopier.",
+        "en": "Until the customer deletes the account. Then the instance is stopped and the volume is wiped (day 0). Backups: see sikkerhedskopier."
+      },
+      "modtagere": ["cloudflare"],
+      "overfoersel": {
+        "tredjeland": true,
+        "grundlag": {
+          "da": "Indholdet hostes i EU, på vores egen server i Danmark. Trafikken til og fra instansen går gennem Cloudflare, Inc. (USA), hvor krypteringen (TLS) afsluttes: Cloudflare står som aktiv deltager i EU-US Data Privacy Framework (tjekket {dpf}), og Cloudflares databehandleraftale indeholder desuden EU's standardkontrakter.",
+          "en": "The content is hosted in the EU, on our own server in Denmark. Traffic to and from the instance goes through Cloudflare, Inc. (USA), where the encryption (TLS) ends: Cloudflare is listed as an active participant in the EU-US Data Privacy Framework (checked {dpf}), and Cloudflare's data processing agreement also contains the EU Standard Contractual Clauses."
+        }
+      },
+      "sikkerhed": {
+        "da": "Én beholder og ét volumen per kunde. Ingen instans har en offentlig port; al adgang går gennem vores gateway, som tjekker login ved indgangen. Modelnøgler ligger i en krypteret fil per kunde, og hver kunde har sin egen datanøgle. Logs og fejlrapporter indeholder aldrig mailtekster, beskeder eller prompts. Medarbejdere har ingen adgang til indhold, undtagen når kunden selv har slået \"Lad support se med\" til. Agenten kan ikke betale, skrive til andre eller slette uden kundens ja. I beta er diskene endnu ikke krypteret i hvile.",
+        "en": "One container and one volume per customer. No instance has a public port; all access goes through our gateway, which checks the sign-in at the door. Model keys are kept in an encrypted file per customer, and each customer has their own data key. Logs and error reports never contain email text, messages or prompts. Staff have no access to content, except when the customer has turned on \"Lad support se med\" themselves. The agent cannot pay, write to others or delete without the customer's yes. In beta the disks are not yet encrypted at rest."
+      },
+      "bemaerkning": {
+        "da": "Instansen sender de dele af indholdet, som modellen skal læse, til den modeludbyder, kunden selv har valgt med sin egen nøgle. Det er kundens eget valg og aftale, ikke vores underdatabehandler (se Hvad der ikke er en underdatabehandler).",
+        "en": "The instance sends the parts of the content that the model needs to read to the model provider the customer has chosen with their own key. That is the customer's own choice and agreement, not our subprocessor (see What is not a subprocessor)."
+      }
+    },
+    {
+      "id": "transaktionsmail",
+      "navn": { "da": "Mails fra os", "en": "Emails from us" },
+      "rolle": "dataansvarlig",
+      "formaal": {
+        "da": "At sende de mails, kunden har brug for: login-link, kvittering ved køb, bekræftelser (køb, opsigelse, fortrydelse), en besked, når \"Lad support se med\" er slået til, en bekræftelse, når kontoen er slettet, og besked om vigtige ændringer.",
+        "en": "To send the emails the customer needs: sign-in link, receipt on purchase, confirmations (purchase, cancellation, withdrawal), a notice when \"Lad support se med\" is turned on, a confirmation when the account is deleted, and notice of important changes."
+      },
+      "kategorier": {
+        "da": "E-mailadresse, mailens indhold (fx login-linket eller kvitteringens oplysninger) og tidspunkt. Hos Resend også kontodata, metadata og logs om mailene.",
+        "en": "Email address, the content of the email (for example the sign-in link or the receipt's details) and time. At Resend also account data, metadata and logs about the emails."
+      },
+      "registrerede": { "da": "Personer med en konto hos Clawco Sky.", "en": "People with an account with Clawco Sky." },
+      "retsgrundlag": {
+        "da": "Kontrakt (GDPR art. 6(1)(b)): de mails, der hører til kontoen og abonnementet. Samtykke (art. 6(1)(a)): nyhedsbreve og tilbud, som kun sendes, hvis kunden har sagt ja.",
+        "en": "Contract (GDPR Art. 6(1)(b)): the emails that belong to the account and the subscription. Consent (Art. 6(1)(a)): newsletters and offers, which are sent only if the customer has said yes."
+      },
+      "opbevaring": {
+        "da": "Ikke fastlagt i de udgivne tekster: hvor længe Resend gemmer mails og logs, skal afklares med leverandøren.",
+        "en": "Not stated in the published texts: how long Resend keeps emails and logs has to be clarified with the provider."
+      },
+      "modtagere": ["resend"],
+      "overfoersel": {
+        "tredjeland": true,
+        "grundlag": {
+          "da": "Mails sendes fra Resends EU-region i Irland, men Resend gemmer kontodata, metadata og logs om mailene i USA. Resend (Plus Five Five, Inc.) står {dpf} som \"Active - Re-certification under Review\"; overførslen bygger derfor på EU's standardkontrakter i Resends databehandleraftale. Data Privacy Framework er et ekstra grundlag, så længe certificeringen står som aktiv.",
+          "en": "Emails are sent from Resend's EU region in Ireland, but Resend keeps account data, metadata and logs about the emails in the USA. Resend (Plus Five Five, Inc.) is listed on {dpf} as \"Active - Re-certification under Review\"; the transfer therefore rests on the EU Standard Contractual Clauses in Resend's data processing agreement. The Data Privacy Framework is an extra basis for as long as the certification is listed as active."
+        }
+      },
+      "sikkerhed": {
+        "da": "Før afsendelse tjekkes det, at afsenderdomænet er verificeret, sender fra EU-regionen og har åbnings- og klikssporing slået fra; ellers sendes der ikke. Logs nævner skabelonen og en maskeret modtager, aldrig linket.",
+        "en": "Before sending it is checked that the sending domain is verified, sends from the EU region and has open and click tracking turned off; otherwise nothing is sent. Logs name the template and a masked recipient, never the link."
+      }
+    },
+    {
+      "id": "fejlrapporter",
+      "navn": { "da": "Fejlrapporter", "en": "Error reports" },
+      "rolle": "dataansvarlig",
+      "formaal": {
+        "da": "Ikke i brug. Fejlrapportering er bygget (renset, uden indhold; spec D16), men den er ikke slået til og sender intet nogen steder hen: fejl skrives kun i vores egne serverlogs.",
+        "en": "Not in use. Error reporting is built (scrubbed, without content; spec D16), but it is not switched on and sends nothing anywhere: errors are written only to our own server logs."
+      },
+      "kategorier": {
+        "da": "Når den bliver slået til: kun teknisk fejlinfo fra en fast tilladelsesliste (fejltype, kode, fil og funktion, kunde-instansens id, rute, version, miljø). Aldrig prompts, mailtekster, beskeder eller andet indhold.",
+        "en": "When it is switched on: only technical error information from a fixed allow-list (error type, code, file and function, the instance's id, route, version, environment). Never prompts, email text, messages or other content."
+      },
+      "registrerede": { "da": "Ingen personer, så længe den ikke er i brug.", "en": "No people, as long as it is not in use." },
+      "retsgrundlag": {
+        "da": "Berettiget interesse (GDPR art. 6(1)(f)): sikkerhed og fejlfinding, når den bliver brugt.",
+        "en": "Legitimate interest (GDPR Art. 6(1)(f)): security and troubleshooting, once it is used."
+      },
+      "opbevaring": { "da": "Ikke relevant, så længe den ikke er i brug. Serverlogs: højst 30 dage.", "en": "Not relevant while it is not in use. Server logs: at most 30 days." },
+      "modtagere": [],
+      "overfoersel": { "tredjeland": false },
+      "sikkerhed": {
+        "da": "Rapporten bygges kun af tilladte felter, og en renser, der fejler, kasserer rapporten. Tages en leverandør i brug, kommer den på listen over underdatabehandlere med 30 dages varsel.",
+        "en": "The report is built only from permitted fields, and a scrubber that fails drops the report. If a provider is taken into use, it joins the subprocessor list with 30 days' notice."
+      },
+      "bemaerkning": {
+        "da": "Intet udgående kald hertil i dag: DSN'en er ikke sat. Når den sættes, skal leverandøren stå som underdatabehandler (EU-region, spec D16), og afsenderen kan ikke nå nogen vært, før den er sat.",
+        "en": "No outbound call to this today: the DSN is not set. When it is set, the provider must be listed as a subprocessor (EU region, spec D16); the sender cannot reach any host until it is set."
+      }
+    },
+    {
+      "id": "sikkerhedskopier",
+      "navn": { "da": "Sikkerhedskopier", "en": "Backups" },
+      "rolle": "databehandler",
+      "formaal": {
+        "da": "At kunne gendanne en instans og vores database efter en fejl: krypterede nattekopier. Bygget, men endnu ikke slået til i beta.",
+        "en": "To be able to restore an instance and our database after a fault: encrypted nightly copies. Built, but not yet switched on in beta."
+      },
+      "kategorier": {
+        "da": "Kopier af kundens instans (indholdet, se instans), krypteret med kundens egen datanøgle, og af vores database (konto og abonnement).",
+        "en": "Copies of the customer's instance (the content, see instans), encrypted with the customer's own data key, and of our database (account and subscription)."
+      },
+      "registrerede": { "da": "Som for instans og konto-login.", "en": "As for instans and konto-login." },
+      "retsgrundlag": {
+        "da": "Som for instans (vi er databehandler for indholdet) og, for kontooplysninger, berettiget interesse (GDPR art. 6(1)(f)) i at kunne gendanne tjenesten.",
+        "en": "As for instans (we are the processor for the content) and, for account data, legitimate interest (GDPR Art. 6(1)(f)) in being able to restore the service."
+      },
+      "opbevaring": {
+        "da": "Højst 30 dage. Slettet indhold forsvinder fra sikkerhedskopierne inden for 30 dage, og nøglen, der kan åbne dem, destrueres. Vi bruger kopier til drift, ikke til at gendanne en slettet konto. I beta er de ikke slået til.",
+        "en": "At most 30 days. Deleted content disappears from the backups within 30 days, and the key that can open them is destroyed. We use copies for operations, not to restore a deleted account. In beta they are not switched on."
+      },
+      "modtagere": ["cloudflare"],
+      "overfoersel": {
+        "tredjeland": true,
+        "grundlag": {
+          "da": "Kopierne ligger hos Cloudflare R2 i EU-jurisdiktion. Cloudflare, Inc. er et amerikansk selskab: det står som aktiv deltager i EU-US Data Privacy Framework (tjekket {dpf}), og Cloudflares databehandleraftale indeholder desuden EU's standardkontrakter.",
+          "en": "The copies are held at Cloudflare R2 in the EU jurisdiction. Cloudflare, Inc. is a US company: it is listed as an active participant in the EU-US Data Privacy Framework (checked {dpf}), and Cloudflare's data processing agreement also contains the EU Standard Contractual Clauses."
+        }
+      },
+      "sikkerhed": {
+        "da": "Hver nat, krypteret per kunde, gemt højst 30 dage i EU. Kopierne er krypteret, før de forlader serveren.",
+        "en": "Every night, encrypted per customer, kept at most 30 days in the EU. The copies are encrypted before they leave the server."
+      }
+    },
+    {
+      "id": "support-indblik",
+      "navn": { "da": "Support-indblik (\"Lad support se med\")", "en": "Support access (\"Lad support se med\")" },
+      "rolle": "databehandler",
+      "formaal": {
+        "da": "At lade support hjælpe, når kunden som ejer selv slår \"Lad support se med\" til i 1, 4 eller 24 timer. Det er slået fra, indtil kunden gør det; imens kan én fra support se det samme som kunden, men ikke ændre noget.",
+        "en": "To let support help when the customer, as owner, turns on \"Lad support se med\" for 1, 4 or 24 hours. It is off until the customer does so; while it is on, one person from support can see what the customer sees but cannot change anything."
+      },
+      "kategorier": {
+        "da": "Selve adgangen og dens log: hvem der fik den (personalekontoens id), hvornår den blev givet, åbnet, tilbagekaldt eller udløb, og kundens eventuelle begrundelse på én linje (højst 120 tegn). Loggen indeholder aldrig sti, forespørgsel eller indhold. Mens adgangen er til, kan support se kundens indhold.",
+        "en": "The grant itself and its log: who got it (the staff account's id), when it was given, opened, revoked or expired, and the customer's optional one-line reason (at most 120 characters). The log never contains a path, query or content. While the grant is on, support can see the customer's content."
+      },
+      "registrerede": { "da": "Kunder, der slår adgangen til, og de personer, der omtales i deres indhold.", "en": "Customers who turn the access on, and the people mentioned in their content." },
+      "retsgrundlag": {
+        "da": "Kundens eget valg og instruks: adgangen findes kun, når ejeren slår den til, og kan slås fra når som helst. Kontrakt (GDPR art. 6(1)(b)).",
+        "en": "The customer's own choice and instruction: the access exists only when the owner turns it on and can be turned off at any time. Contract (GDPR Art. 6(1)(b))."
+      },
+      "opbevaring": {
+        "da": "Ikke fastlagt i de udgivne tekster: hvor længe loggen af en adgang gemmes, skal afklares. Loggen ligger i Skys database. Adgangen selv ophører af sig selv efter højst 24 timer og forlænges aldrig.",
+        "en": "Not stated in the published texts: how long the log of a grant is kept has to be clarified. The log is in Sky's database. The grant itself ends by itself after at most 24 hours and is never extended."
+      },
+      "modtagere": [],
+      "overfoersel": { "tredjeland": false },
+      "sikkerhed": {
+        "da": "Kun en personalekonto med passkey, logget ind med passkey i netop denne session, og kun den første personalekonto, der åbnede adgangen. Hvert kig logges, og en dårlig systemtid eller en databasefejl giver afvisning, aldrig adgang.",
+        "en": "Only a staff account with a passkey, signed in by passkey in this very session, and only the first staff account that opened the grant. Every look is logged, and a bad clock or a database error gives a refusal, never access."
+      }
+    },
+    {
+      "id": "statusfeed",
+      "navn": { "da": "Den offentlige statusfeed", "en": "The public status feed" },
+      "rolle": "dataansvarlig",
+      "formaal": {
+        "da": "At vise driftsstatus offentligt (hvordan det går med login, adgang, oprettelse, sikkerhedskopier og mail).",
+        "en": "To show operating status publicly (how login, access, sign-up, backups and email are doing)."
+      },
+      "kategorier": { "da": "Ingen. Statusfeedet indeholder ingen personoplysninger, kun driftsstatus og tidspunkter.", "en": "None. The status feed holds no personal data, only operating status and times." },
+      "registrerede": { "da": "Ingen.", "en": "None." },
+      "retsgrundlag": { "da": "Ikke relevant: der behandles ingen personoplysninger.", "en": "Not relevant: no personal data is processed." },
+      "opbevaring": { "da": "Ikke relevant: der behandles ingen personoplysninger.", "en": "Not relevant: no personal data is processed." },
+      "modtagere": [],
+      "overfoersel": { "tredjeland": false },
+      "sikkerhed": { "da": "Feedet bygges af driftssignaler (tilstande og tidspunkter), ikke af konto-, instans- eller indholdsdata.", "en": "The feed is built from operating signals (states and times), not from account, instance or content data." }
+    }
+  ],
+  "underdatabehandlere": [
+    {
+      "id": "cloudflare",
+      "navn": "Cloudflare, Inc.",
+      "hvad": {
+        "da": "Tunnel og DNS for clawco.work og adresserne under den. Krypteringen (TLS) afsluttes i Cloudflares kant, så Cloudflare kan teknisk se trafikken til og fra din Clawco dér, også indhold. R2 til krypterede sikkerhedskopier (bygget, endnu ikke slået til).",
+        "en": "Tunnel and DNS for clawco.work and the addresses under it. Encryption (TLS) ends at Cloudflare's edge, so Cloudflare can technically see the traffic to and from your Clawco there, content included. R2 for encrypted backups (built, not yet switched on)."
+      },
+      "hvor": {
+        "da": "Kanten: Cloudflares datacentre, normalt det nærmeste. R2: EU-jurisdiktion.",
+        "en": "The edge: Cloudflare's data centres, usually the nearest one. R2: EU jurisdiction."
+      },
+      "land": "USA",
+      "eu": false,
+      "grundlag": {
+        "da": "Cloudflare er et amerikansk selskab. Det står som aktiv deltager i EU-US Data Privacy Framework (tjekket {dpf}). Cloudflares databehandleraftale (cloudflare.com/cloudflare-customer-dpa/) indeholder desuden EU's standardkontrakter.",
+        "en": "Cloudflare is a US company. It is listed as an active participant in the EU-US Data Privacy Framework (checked {dpf}). Cloudflare's data processing agreement (cloudflare.com/cloudflare-customer-dpa/) also contains the EU Standard Contractual Clauses."
+      },
+      "dpa": "https://www.cloudflare.com/cloudflare-customer-dpa/",
+      "ibrugtagning": null,
+      "kunHvisValgt": false,
+      "vaerter": ["*.r2.cloudflarestorage.com"],
+      "noteVaerter": {
+        "da": "Kun R2 (sikkerhedskopier) er et udgående kald fra Skys kode. Tunnelen er ikke et udgående kald fra Skys kode: serverens tunnelprogram ligger uden for sky/.",
+        "en": "Only R2 (backups) is an outbound call from Sky's code. The tunnel is not an outbound call from Sky's code: the server's tunnel program lives outside sky/."
+      }
+    },
+    {
+      "id": "stripe",
+      "navn": "Stripe Payments Europe Ltd",
+      "hvad": { "da": "Betaling, abonnement, fakturaer og moms", "en": "Payment, subscription, invoices and VAT" },
+      "hvor": { "da": "Irland", "en": "Ireland" },
+      "land": "Irland",
+      "eu": true,
+      "grundlag": {
+        "da": "Selskabet er i EU. Hvis Stripe-koncernen overfører data til USA, bygger det på Stripes eget grundlag. Stripe, LLC (USA) står som aktiv deltager i EU-US Data Privacy Framework (tjekket {dpf}).",
+        "en": "The company is in the EU. If the Stripe group transfers data to the USA, that rests on Stripe's own basis. Stripe, LLC (USA) is listed as an active participant in the EU-US Data Privacy Framework (checked {dpf})."
+      },
+      "dpa": "https://stripe.com/legal/dpa",
+      "ibrugtagning": null,
+      "kunHvisValgt": false,
+      "vaerter": ["api.stripe.com", "checkout.stripe.com", "billing.stripe.com"]
+    },
+    {
+      "id": "resend",
+      "navn": "Resend (Plus Five Five, Inc.)",
+      "hvad": {
+        "da": "Sender mails fra os: login-links, kvitteringer og bekræftelser (køb, opsigelse, fortrydelse) og en bekræftelse, når en konto er slettet",
+        "en": "Sends emails from us: sign-in links, receipts and confirmations (purchase, cancellation, withdrawal) and a confirmation when an account is deleted"
+      },
+      "hvor": {
+        "da": "Afsendelse fra EU-regionen i Irland. Kontodata, metadata og logs om mailene i USA.",
+        "en": "Sending from its EU region in Ireland. Account data, metadata and logs about the emails in the USA."
+      },
+      "land": "USA",
+      "eu": false,
+      "grundlag": {
+        "da": "Resend er et amerikansk selskab. På dataprivacyframework.gov står Resend {dpf} som \"Active - Re-certification under Review\" (aktiv, fornyelsen er under behandling). Overførslen bygger derfor på EU's standardkontrakter i Resends databehandleraftale (resend.com/legal/dpa). Data Privacy Framework er et ekstra grundlag, så længe certificeringen står som aktiv.",
+        "en": "Resend is a US company. On dataprivacyframework.gov, Resend is listed on {dpf} as \"Active - Re-certification under Review\". The transfer therefore rests on the EU Standard Contractual Clauses in Resend's data processing agreement (resend.com/legal/dpa). The Data Privacy Framework is an extra basis for as long as the certification is listed as active."
+      },
+      "dpa": "https://resend.com/legal/dpa",
+      "ibrugtagning": null,
+      "kunHvisValgt": false,
+      "vaerter": ["api.resend.com"]
+    }
+  ],
+  "efterTabel": {
+    "da": "Der er ingen hostingleverandør på listen: din Clawco og vores database kører på vores egen server i Danmark. Vi bruger ingen ekstern fejlovervågning, og vi bruger ingen modeludbyder på dine vegne.",
+    "en": "There is no hosting provider on the list: your Clawco and our database run on our own server in Denmark. We use no external error monitoring, and we use no model provider on your behalf."
+  },
+  "ikkeUnderdatabehandlere": [
+    {
+      "titel": { "da": "Din egen modeludbyder", "en": "Your own model provider" },
+      "tekst": {
+        "da": "Bruger du din egen nøgle, vælger du selv udbyderen, og din instans sender dit indhold dertil efter din aftale med dem. I dag kan du vælge Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) eller OpenRouter (USA), eller en model, du selv kører (LM Studio eller Ollama). Det er dit valg og dit forhold til udbyderen. Tillægget \"inkluderet model\", hvor vi betaler modellen, findes ikke endnu. Når det kommer, kommer udbyderne på listen med 30 dages varsel.",
+        "en": "If you use your own key, you choose the provider yourself, and your instance sends your content there under your agreement with them. Today you can choose Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) or OpenRouter (USA), or a model you run yourself (LM Studio or Ollama). It is your choice and your relationship with the provider. The \"included model\" add-on, where we pay for the model, does not exist yet. When it comes, the providers join the list with 30 days' notice."
+      }
+    },
+    {
+      "titel": { "da": "De tjenester, du selv kobler på", "en": "The services you connect yourself" },
+      "tekst": {
+        "da": "Din mail, din kalender, dine noter og dine nyheder ligger hos de udbydere, du har valgt. Clawco læser dem for dig. De er ikke vores leverandører.",
+        "en": "Your email, calendar, notes and news live with the providers you chose. Clawco reads them for you. They are not our suppliers."
+      }
+    },
+    {
+      "titel": { "da": "Betalingsmetoden", "en": "Your payment method" },
+      "tekst": {
+        "da": "Din bank eller dit kortselskab er ikke vores underleverandør.",
+        "en": "Your bank or card company is not our subcontractor."
+      }
+    }
+  ],
+  "loefte": {
+    "indledning": { "da": "Vi gør dette, hver gang listen ændres:", "en": "We do this every time the list changes:" },
+    "punkter": [
+      {
+        "da": "Vi skriver til dig på e-mail mindst 30 dage, før en ny underdatabehandler begynder at behandle dine oplysninger, eller før vi skifter en ud.",
+        "en": "We write to you by email at least 30 days before a new subprocessor starts processing your data, or before we replace one."
+      },
+      {
+        "da": "Vi skriver, hvem det er, hvad de skal gøre, hvor de er, og på hvilket grundlag en eventuel overførsel sker.",
+        "en": "We say who it is, what they will do, where they are, and on what basis any transfer takes place."
+      },
+      {
+        "da": "Du kan gøre indsigelse inden for de 30 dage, hvis du har en saglig grund. Kan vi ikke imødekomme den, kan du sige abonnementet op uden ekstra omkostning. Vi refunderer det, du har betalt for tiden efter opsigelsen.",
+        "en": "You can object within the 30 days if you have a good reason. If we cannot meet it, you can cancel the subscription at no extra cost. We refund what you have paid for the time after cancellation."
+      },
+      {
+        "da": "Vi opdaterer listen og tilføjer en linje i ændringsloggen nedenfor. Datoen øverst ændres.",
+        "en": "We update the list and add a line to the change log below. The date at the top changes."
+      }
+    ],
+    "efter": [
+      {
+        "da": "Haster det af hensyn til sikkerhed, fx hvis en leverandør falder fra, kan vi skifte hurtigere. Så skriver vi til dig så hurtigt som muligt, og du har samme ret til at gøre indsigelse.",
+        "en": "If it is urgent for security reasons, for example if a supplier drops out, we may switch faster. Then we write to you as soon as possible, and you have the same right to object."
+      },
+      {
+        "da": "Vi har en skriftlig aftale med hver underdatabehandler. De har samme krav til databeskyttelse som os (GDPR art. 28, stk. 4). Vi hæfter for dem over for dig.",
+        "en": "We have a written agreement with each subprocessor. They have the same data protection requirements as we do (GDPR Art. 28(4)). We are liable for them towards you."
+      }
+    ]
+  },
+  "aendringslog": [
+    { "dato": "2026-11-02", "da": "Første udgave af listen.", "en": "First version of the list." },
+    {
+      "dato": "2026-11-02",
+      "da": "Listen genereres nu fra en datafil (samme leverandører, samme grundlag); datoen øverst udfyldt.",
+      "en": "The list is now generated from a data file (same suppliers, same bases); the date at the top filled in."
+    }
+  ]
+}

@@ -20,6 +20,10 @@ const INSTALL_KOMMANDO = 'curl -fsSL https://clawco.work/install.sh | bash';
 const EGEN_VAERT = 'clawco.work';
 /** Outbound hosts a visitor may be linked to (plain <a href> only; the browser makes no request until clicked). */
 const UDGAAENDE = new Set(['nodejs.org', 'docs.docker.com', 'tailscale.com', 'brew.sh', 'github.com']);
+/** KC-0202: Clawco's own account server, which serves the public status feed. The ONE other host the site may name, and
+ *  only on the status page, only as the Atom link (link[rel=alternate], a[href]). The status page's request to it is the
+ *  fetch in status.js, allowed by the /status block in _headers; test/site-status.test.ts holds both. */
+const STATUS_VAERT = 'konto.clawco.work';
 const FORBUDTE_ORD = ['supercharge', 'revolutionary', 'seamless', 'effortless', 'unlock', 'game-changer', 'ai-powered', '10x', 'magic'];
 
 const laes = (rel: string): string => readFileSync(path.join(ROD, rel), 'utf8');
@@ -115,7 +119,8 @@ test('every data-i key on every page exists, and the English HTML equals the Eng
 test('English copy follows the voice rules: no banned words, no exclamation marks, no pricing or hosted wording', () => {
   const t = laesTabel();
   // The pricing page (pr.*, KC-0199) is the one place that talks about plans and hosting; the rest of the table stays free of it.
-  const alt = Object.entries(t.en).filter(([k]) => !k.startsWith('pr.')).map(([, v]) => v).join('\n');
+  // KC-0202: the Atom link on the status page is a subscription to an incident feed, the one place "subscribe" is the right word.
+  const alt = Object.entries(t.en).filter(([k]) => !k.startsWith('pr.') && k !== 'st.atom').map(([, v]) => v).join('\n');
   for (const ord of FORBUDTE_ORD) assert.ok(!alt.toLowerCase().includes(ord), `banned word: ${ord}`);
   assert.ok(!alt.includes('!'), 'exclamation mark');
   assert.ok(!/(?<!self-)\bhosted\b/i.test(alt), '"hosted" wording (D3)');
@@ -151,6 +156,10 @@ test('no request to any other host: every src/href/content/url() is local, own h
     }
     const vaert = new URL(v, 'https://x.invalid').hostname;
     if (vaert === EGEN_VAERT) continue;
+    if (vaert === STATUS_VAERT && k.side === 'status.html') {
+      assert.ok((k.tag === 'a' && k.attr === 'href') || (k.tag === 'link' && k.attr === 'href'), `status.html: ${vaert} may only be the Atom link, not <${k.tag} ${k.attr}>`);
+      continue;
+    }
     assert.ok(UDGAAENDE.has(vaert), `${k.side}: ${k.tag}[${k.attr}] points to ${vaert}`);
     assert.ok(k.tag === 'a' && k.attr === 'href', `${k.side}: ${vaert} may only be an <a href>, not <${k.tag} ${k.attr}>`);
   }
@@ -377,7 +386,11 @@ test('_headers: a content-security policy that forbids everything but the site i
   const h = readFileSync(path.join(SITE, '_headers'), 'utf8');
   assert.match(h, /Content-Security-Policy: default-src 'none'/);
   for (const d of ["script-src 'self'", "style-src 'self'", "img-src 'self'", "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'"]) assert.ok(h.includes(d), d);
-  assert.ok(!/https?:\/\//.test(h.split('\n').filter((l) => l.includes('Content-Security-Policy')).join('')), 'CSP names no other host');
+  // The site-wide block (/*) names no other host; the one /status block that re-sets it (KC-0202) is judged in test/site-status.test.ts.
+  const alle = h.split(/\n\s*\n/).find((b) => b.startsWith('/*'))!;
+  assert.ok(!/https?:\/\//.test(alle.split('\n').filter((l) => l.includes('Content-Security-Policy')).join('')), 'CSP names no other host');
+  assert.equal(h.split('\n').filter((l) => /https?:\/\//.test(l) && l.includes('Content-Security-Policy')).length, 1, 'only the /status block names a host');
+  assert.ok(!/connect-src/.test(alle), 'the site-wide CSP allows no request at all (default-src none)');
   assert.match(h, /\/install\.sh\n\s+Content-Type: text\/plain; charset=utf-8/);
 });
 

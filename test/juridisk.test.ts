@@ -115,12 +115,13 @@ test('laesDokumenter: earlier versions are the archived files, newest first; non
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('the real files: all twelve are published as version 1.0, pass the publication check, and the pairs agree', () => {
+test('the real files: all twelve are published (1.0; the generated subprocessor list 1.1, KC-0205), pass the publication check, and the pairs agree', () => {
   const alle = laesDokumenter(DOCS);
   assert.equal(alle.length, 12);
   for (const d of alle) {
     // Published 2026-11-02 under the owner's standing decision (b); accounts that accepted 0.1-udkast re-accept 1.0.
-    assert.equal(d.meta.version, '1.0', d.fil);
+    // underdatabehandlere is generated from docs/legal/behandlinger.json (KC-0205) and is 1.1; its 1.0 is in arkiv/.
+    assert.equal(d.meta.version, d.id === 'underdatabehandlere' ? '1.1' : '1.0', d.fil);
     assert.equal(d.meta.status, 'udgivet', d.fil);
     assert.deepEqual(tjekUdgivelse(d.meta.status, readFileSync(path.join(DOCS, `${d.fil}.${d.sprog}.md`), 'utf8')), [], d.fil);
     assert.ok(d.titel.length > 3, `${d.fil} has an h1`);
@@ -149,6 +150,9 @@ test('byggJuridisk: a page per document and language, with title, one h1, lang, 
       assert.equal(d.querySelectorAll('h1').length, 1, `${rel}: one h1`);
       // KC-0201: the footer reaches the help page like every other page's footer.
       assert.equal(d.querySelector('footer a[href^="/hjaelp"]')?.textContent, sprog === 'da' ? 'Hjælp' : 'Help', `${rel}: help link`);
+      // KC-0202: and the status page, right after Help.
+      assert.equal(d.querySelector('footer a[href^="/status"]')?.textContent, 'Status', `${rel}: status link`);
+      assert.equal(d.querySelector('footer a[href^="/status"]')?.previousElementSibling?.getAttribute('href')?.startsWith('/hjaelp'), true, `${rel}: status after help`);
       assert.ok((d.querySelector('title')?.textContent ?? '').trim().length > 5, `${rel}: title`);
       assert.match(d.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '', /width=device-width/);
       const desc = d.querySelector('meta[name="description"]')?.getAttribute('content') ?? '';

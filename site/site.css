@@ -171,3 +171,40 @@ a.lang:hover { text-decoration: none; }
 @media (min-width: 760px) {
   .plans { grid-template-columns: repeat(3, 1fr); }
 }
+
+/* Status page (KC-0202). A state is never colour alone: every part carries its word, and the 90-day bars also differ in
+   height (down is shortest) or are outlined (unknown). Dark only, like the rest of the site. */
+.st-banner { font-size: clamp(20px, 4vw, 26px); font-weight: 650; line-height: 1.3; padding: 16px 18px; border-radius: 12px; border: 1px solid var(--line); border-left-width: 6px; background: var(--surface); }
+.st-banner[data-state="ok"] { border-color: var(--ordnet-line); background: var(--ordnet-bg); color: var(--ordnet); }
+.st-banner[data-state="nedsat"] { border-color: var(--kraever-line); background: var(--kraever-bg); color: var(--kraever); }
+.st-banner[data-state="nede"] { border-color: var(--graense-line); background: var(--graense-bg); color: var(--graense); }
+.st-banner[data-state="ukendt"] { border-style: dashed; border-color: var(--muted); color: var(--ink); }
+.st-sidst { font-size: 14px; }
+.st-liste { list-style: none; padding: 0 !important; display: grid; gap: 12px; margin-top: 20px !important; }
+.page .st-liste > li + li { margin-top: 0; }
+.st-k { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.st-rad { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.page .st-navn { margin: 0; font-size: 18px; }
+.st-status { display: inline-flex; align-items: center; min-height: 28px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--line); font-size: 14px; font-weight: 650; white-space: nowrap; }
+.st-status[data-state="ok"] { background: var(--ordnet-bg); border-color: var(--ordnet-line); color: var(--ordnet); }
+.st-status[data-state="nedsat"] { background: var(--kraever-bg); border-color: var(--kraever-line); color: var(--kraever); }
+.st-status[data-state="nede"] { background: var(--graense-bg); border-color: var(--graense-line); color: var(--graense); }
+.st-status[data-state="ukendt"] { background: transparent; border-style: dashed; border-color: var(--muted); color: var(--ink-2); }
+.st-oppetid, .st-andel { font-size: 15px; min-height: 0; }
+.st-oppetid:empty { display: none; }
+.st-dage { display: flex; align-items: flex-end; gap: 1px; height: 34px; list-style: none; padding: 0 !important; margin: 0; }
+.st-dage:empty { display: none; }
+.page .st-dage > li + li { margin-top: 0; }
+.st-dage > li { flex: 1 0 auto; min-width: 2px; border-radius: 1px; }
+.st-dage > li[data-state="ok"] { height: 100%; background: var(--ordnet); }
+.st-dage > li[data-state="nedsat"] { height: 65%; background: var(--kraever); }
+.st-dage > li[data-state="nede"] { height: 35%; background: var(--graense); }
+.st-dage > li[data-state="ukendt"] { height: 100%; background: transparent; border: 1px solid var(--muted); }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.st-sum:empty { display: none; }
+.st-haendelser { list-style: none; padding: 0 !important; display: grid; gap: 12px; }
+.page .st-haendelser > li + li { margin-top: 0; }
+.st-haendelser li { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.page .st-haendelser h3 { margin: 0 0 2px; }
+.st-haendelser p + p { margin-top: 6px; }
+.st-noscript { border: 1px dashed var(--muted); border-radius: 10px; padding: 10px 14px; }

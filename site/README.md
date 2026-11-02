@@ -76,6 +76,18 @@ Publishing the page is Henrik's yes (status `godkendt` in the config is gate G5 
 Before that, re-read the copy that states what exists today (the backups line says they are not switched on in the closed beta,
 `pr.sky.f3`; sign-up is by invitation in the closed beta) and add `/priser` to the footer or the nav of the other pages.
 
+## The status page (KC-0202)
+
+`/status` is `status.html` + `status.js`: a static page on Cloudflare Pages, so it does not share infrastructure with Clawco Sky.
+It reads Sky's public feed from the visitor's browser (`https://konto.clawco.work/status.json`, KC-0189) and is the only page that
+makes a request; `_headers` lets `/status` (and only `/status`) connect to that one host. Sky must name this site as the allowed
+origin (`SKY_STATUS_ORIGIN=https://clawco.work`), or the browser blocks the read and the page shows unknown.
+Invariant: fail closed. A feed that is missing, not a 200, unreadable, older than 5 minutes (`STALE_MS`) or dated that far ahead is
+unknown for every part and the banner; the HTML as written already says unknown. `vurder` in `status.js` is the only place a state is
+decided, and `test/site-status.test.ts` drives it with a table of feeds around the 5-minute boundary. The Atom feed of incidents is
+`https://konto.clawco.work/status.atom` (a plain link, never fetched by the page). Incidents are written by the operator in Sky
+(`sky/scripts/haendelse.mjs`), not in this folder.
+
 ## Build and check
 
 ```bash

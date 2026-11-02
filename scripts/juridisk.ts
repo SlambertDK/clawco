@@ -233,14 +233,14 @@ const T = {
   },
 } as const;
 
-type Chrome = { skip: string; install: string; docs: string; security: string; help: string; promise: string };
+type Chrome = { skip: string; install: string; docs: string; security: string; help: string; status: string; promise: string };
 function laesChrome(siteDir: string): Record<Sprog, Chrome> {
   const ctx: { globalThis?: unknown; CLAWCO_TEXT?: Record<Sprog, Record<string, string>> } = {};
   ctx.globalThis = ctx;
   vm.runInNewContext(readFileSync(path.join(siteDir, 'strings.js'), 'utf8'), ctx);
   const t = ctx.CLAWCO_TEXT;
   if (!t) throw new Error('strings.js defines no CLAWCO_TEXT');
-  const hent = (s: Sprog): Chrome => ({ skip: t[s]['c.skip']!, install: t[s]['c.nav.install']!, docs: t[s]['c.nav.docs']!, security: t[s]['c.nav.security']!, help: t[s]['c.nav.help']!, promise: t[s]['c.foot.promise']! });
+  const hent = (s: Sprog): Chrome => ({ skip: t[s]['c.skip']!, install: t[s]['c.nav.install']!, docs: t[s]['c.nav.docs']!, security: t[s]['c.nav.security']!, help: t[s]['c.nav.help']!, status: t[s]['c.nav.status']!, promise: t[s]['c.foot.promise']! });
   return { da: hent('da'), en: hent('en') };
 }
 
@@ -299,6 +299,7 @@ ${s.krop}
 <a href="/docs/${q}">${esc(ch.docs)}</a>
 <a href="/docs/security${q}">${esc(ch.security)}</a>
 <a href="/hjaelp${q}">${esc(ch.help)}</a>
+<a href="/status${q}">${esc(ch.status)}</a>
 <a href="${t.legalHref}">${t.legalNav}</a>
 </nav>
 <p class="muted">${esc(ch.promise)}</p>

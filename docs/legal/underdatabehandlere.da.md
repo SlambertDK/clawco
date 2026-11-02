@@ -1,14 +1,14 @@
 ---
-version: 1.0
+version: 1.1
 dato: 2026-11-02
 status: udgivet
 sprog: da
 ---
-Version 1.0 · 2026-11-02
+Version 1.1 · 2026-11-02
 
 # Underdatabehandlere for Clawco Sky
 
-Sidst opdateret: [dato]
+Sidst opdateret: 2026-11-02
 
 En underdatabehandler er en leverandør, som Henrik Lambert (personligt drevet, uden selskab) bruger til at levere Clawco Sky, og som kommer i kontakt med personoplysninger. Her er den fulde liste. Den er offentlig, så du kan se, hvem der er med.
 
@@ -49,7 +49,8 @@ Vi har en skriftlig aftale med hver underdatabehandler. De har samme krav til da
 
 | Dato | Ændring |
 |---|---|
-| [dato] | Første udgave af listen. |
+| 2026-11-02 | Første udgave af listen. |
+| 2026-11-02 | Listen genereres nu fra en datafil (samme leverandører, samme grundlag); datoen øverst udfyldt. |
 
 ## Spørgsmål
 

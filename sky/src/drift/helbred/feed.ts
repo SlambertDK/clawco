@@ -3,10 +3,11 @@
 // no slug, tenant id, account id, email, node name or address appears anywhere (a test greps a 50-tenant feed for
 // them). A component without a fresh pass — the poller stopped, Sky restarted, a probe failed — is `nedsat`, never a
 // stale or invented `ok`. Cached for 30 seconds; CORS open for the status page's origin only (SKY_STATUS_ORIGIN).
+import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
 import type { Database } from '../../db/pool.ts';
 import { haendelserTilFeed, type FeedHaendelse } from './haendelse.ts';
-import { oppetid90, senestePass } from './historik.ts';
+import { dage90, oppetid90, senestePass } from './historik.ts';
 import { KERNE, NAVNE } from './komponenter.ts';
 import { POLL_MS } from './poller.ts';
 import { andelSund, KOMPONENTER, type Antal, type KomponentId, type Status } from './vurder.ts';
@@ -15,7 +16,7 @@ import { andelSund, KOMPONENTER, type Antal, type KomponentId, type Status } fro
 export const FRISK_MS = 3 * POLL_MS;
 export const CACHE_MS = 30_000;
 
-export type FeedKomponent = { id: KomponentId; navn: string; status: Status; oppetid90d: number | null; andelSund?: number | null; antal?: Antal };
+export type FeedKomponent = { id: KomponentId; navn: string; status: Status; oppetid90d: number | null; dage: { dag: string; oppetid: number | null }[]; andelSund?: number | null; antal?: Antal };
 export type Feed = { opdateret: string; samlet: Status; komponenter: FeedKomponent[]; haendelser: FeedHaendelse[] };
 
 /** nede when a core component (login, adgang, the tenants) is nede; else nedsat when anything is not ok. */
@@ -29,8 +30,9 @@ export async function byggFeed(db: Database, nu: Date): Promise<Feed> {
   const alder = pas ? nu.getTime() - pas.tid.getTime() : Infinity;
   const frisk = pas !== null && alder >= -POLL_MS && alder <= FRISK_MS;
   const oppe = await oppetid90(db, nu);
+  const dage = await dage90(db, nu);
   const komponenter = KOMPONENTER.map((id): FeedKomponent => {
-    const k: FeedKomponent = { id, navn: NAVNE[id], status: frisk ? (pas.komponenter.get(id) ?? 'nedsat') : 'nedsat', oppetid90d: oppe[id] };
+    const k: FeedKomponent = { id, navn: NAVNE[id], status: frisk ? (pas.komponenter.get(id) ?? 'nedsat') : 'nedsat', oppetid90d: oppe[id], dage: dage[id] };
     if (id === 'clawco') {
       const antal: Antal = frisk ? { ...pas.antal } : { sund: 0, traeg: 0, syg: 0, opdaterer: 0 };
       k.andelSund = andelSund(antal);
@@ -66,18 +68,38 @@ export function statusOrigin(env: Record<string, string | undefined>): string | 
   return u.origin;
 }
 
-export type StatusDeps = { feed: () => Promise<Feed>; origin: string | null };
+/** side: the public status page (the alternate link); feedUrl: this feed's own address (the Atom id and self link). */
+export type StatusDeps = { feed: () => Promise<Feed>; origin: string | null; side: string; feedUrl: string };
+
+const esc = (v: string): string => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
+
+/** KC-0202: the incidents as an Atom 1.0 feed (the subscription: no addresses are stored). The entry id is the feed's
+ *  address plus a hash of start and title, so it is stable when an incident ends and names no incident number. */
+export function atom(o: { haendelser: FeedHaendelse[]; opdateret: string; side: string; feedUrl: string }): string {
+  const entries = o.haendelser.map((h) => {
+    const id = `${o.feedUrl}#${createHash('sha256').update(h.start + h.titel).digest('hex').slice(0, 16)}`;
+    const tekst = h.slut ? `${h.tekst} (ended ${h.slut})` : h.tekst;
+    return `<entry>\n<title>${esc(h.titel)}</title>\n<id>${esc(id)}</id>\n<published>${esc(h.start)}</published>\n<updated>${esc(h.slut ?? h.start)}</updated>\n<content type="text">${esc(tekst)}</content>\n</entry>\n`;
+  }).join('');
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<feed xmlns="http://www.w3.org/2005/Atom">\n<title>Clawco Sky status</title>\n<id>${esc(o.feedUrl)}</id>\n<updated>${esc(o.opdateret)}</updated>\n<link rel="alternate" href="${esc(o.side)}"/>\n<link rel="self" href="${esc(o.feedUrl)}"/>\n${entries}</feed>\n`;
+}
 
 export function statusRuter(o: StatusDeps): Hono {
   const app = new Hono();
-  app.get('/status.json', async (c) => {
-    const cors: Record<string, string> = o.origin ? { 'access-control-allow-origin': o.origin, vary: 'origin' } : {};
-    let f: Feed;
-    try { f = await o.feed(); } catch {
-      console.error('sky status: feedet kunne ikke bygges');
-      return c.json({ fejl: 'status kan ikke hentes lige nu' }, 503, { ...cors, 'cache-control': 'no-store' });
-    }
-    return c.json(f, 200, { ...cors, 'cache-control': `public, max-age=${CACHE_MS / 1000}`, 'x-content-type-options': 'nosniff' });
-  });
+  const svar = (sti: '/status.json' | '/status.atom'): void => {
+    app.get(sti, async (c) => {
+      const cors: Record<string, string> = o.origin ? { 'access-control-allow-origin': o.origin, vary: 'origin' } : {};
+      let f: Feed;
+      try { f = await o.feed(); } catch {
+        console.error('sky status: feedet kunne ikke bygges');
+        return c.json({ fejl: 'status kan ikke hentes lige nu' }, 503, { ...cors, 'cache-control': 'no-store' });
+      }
+      const fast = { ...cors, 'cache-control': `public, max-age=${CACHE_MS / 1000}`, 'x-content-type-options': 'nosniff' };
+      if (sti === '/status.json') return c.json(f, 200, fast);
+      return c.body(atom({ haendelser: f.haendelser, opdateret: f.opdateret, side: o.side, feedUrl: o.feedUrl }), 200, { ...fast, 'content-type': 'application/atom+xml; charset=utf-8' });
+    });
+  };
+  svar('/status.json');
+  svar('/status.atom');
   return app;
 }
