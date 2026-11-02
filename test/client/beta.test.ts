@@ -3,6 +3,7 @@
 // read on screen is what Henrik receives.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import '../../public/beta.js';
 import { parseFeedbackSvar } from '../../src/beta/feedback.ts';
 
@@ -41,4 +42,12 @@ test('the preview and the body are made from the same cleaned object, and the se
 
 test('the text is cut at 500 characters by the card itself (the same limit the server holds)', () => {
   assert.equal(KC.krop({ dag: 3, vurdering: 3, tekst: 'y'.repeat(600), betale: null })!.tekst!.length, 500);
+});
+
+test('KC-0203: the JSON preview on "Hvad deler jeg?" wraps, so a long feedback line never widens the phone page (live:tjek --test found 389 px)', () => {
+  const css = readFileSync(new URL('../../public/app.css', import.meta.url), 'utf8');
+  const regel = /pre\[data-beta-json\][^{]*\{([^}]*)\}/.exec(css);
+  assert.ok(regel, 'a rule for pre[data-beta-json]');
+  assert.match(regel![1]!, /white-space:\s*pre-wrap/);
+  assert.match(regel![1]!, /overflow-wrap:\s*anywhere/);
 });

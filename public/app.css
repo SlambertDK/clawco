@@ -293,6 +293,8 @@ nav, aside { position: sticky; top: 0; height: 100vh; overflow: auto; }
 .revision-head [aria-pressed="true"] { background: var(--raised); border-color: var(--graense-line); color: var(--graense); }
 /* KC-0203: the beta feedback card — the chosen rating / pay answer is marked (aria-pressed), and a rating is a tap target wide enough for a thumb. */
 button[data-beta-vurdering], button[data-beta-betale] { min-width: 44px; }
+/* KC-0203: "Hvad deler jeg?" shows the exact JSON that would be sent; a long feedback line wraps instead of widening the phone page. */
+pre[data-beta-json], pre[data-beta-json-hvis] { white-space: pre-wrap; overflow-wrap: anywhere; max-width: 100%; }
 button[data-beta-vurdering][aria-pressed="true"], button[data-beta-betale][aria-pressed="true"] { background: var(--handling-tint); border-color: var(--handling); color: var(--handling); }
 .revision-liste { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
 .revision-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--raised); }
