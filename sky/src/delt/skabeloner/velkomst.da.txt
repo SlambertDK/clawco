@@ -1,0 +1,23 @@
+Din Clawco er klar
+
+Hej
+
+Din Clawco er sat op og klar til dig. Her åbner du den:
+
+{{link}}
+
+To ting at gøre først:
+
+1. Kobl din kalender eller din mail til. Det gør du i Start, første gang du åbner Clawco.
+2. Vent et par minutter. Så ligger det første kort i Nu.
+
+{{abonnement}}
+
+Brug for hjælp? Svar på denne mail, eller skriv til {{hjaelp}}. {{svartid}}
+
+Din konto og dit abonnement finder du her:
+
+{{konto}}
+
+Clawco
+{{saelger}}

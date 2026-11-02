@@ -71,6 +71,8 @@ export async function sletKonto(
     await tx.query('DELETE FROM udfordring WHERE konto_id = $1', [k.id]);
     // KC-0196: which scheduled mails the account had (no content); nothing is mailed to a deleted account.
     await tx.query('DELETE FROM udsendte_mails WHERE konto_id = $1', [k.id]);
+    // KC-0200: the tips choice and the unsubscribe link's hash.
+    await tx.query('DELETE FROM mailvalg WHERE konto_id = $1', [k.id]);
     await tx.query('DELETE FROM loginkode WHERE email = $1', [k.email]);
     await tx.query('DELETE FROM graense WHERE noegle = $1', [emailNoegle(k.email)]);
     // KC-0184: household rows naming the person (a member has left through the seam above): her membership, the

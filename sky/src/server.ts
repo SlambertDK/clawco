@@ -32,6 +32,10 @@ import { destruktionsLoekke } from './hemmeligheder/dagligt.ts';
 import { laesOmkostninger } from './delt/omkostninger.ts';
 import { abonnementRuter, koebDeps, webhookDeps, type AbonnementDeps } from './abonnement/ruter.ts';
 import { fristLoekke } from './abonnement/frist-job.ts';
+import { velkomstLoekke, type VelkomstDeps } from './abonnement/velkomst-job.ts';
+import type { KoebDeps } from './abonnement/kvittering.ts';
+import { nytAfmeldLink, vilHaveTips } from './konto/mailvalg.ts';
+import { HJAELP, svartid } from './konto/hjaelp.ts';
 import { devStripeRuter, devHaendelser } from './abonnement/dev.ts';
 import { kontoHandlinger } from './abonnement/handlinger.ts';
 import { laesSaelgere } from './delt/saelger.ts';
@@ -64,7 +68,7 @@ import { gemProfil, hentProfil, noterTilmeldingstid } from './konto/profil.ts';
 import { LANDE } from './abonnement/lande.ts';
 import { hentKundeRaekke, kontoensCheckout } from './abonnement/kunde.ts';
 import { klargoerKonto } from './fleet/afstem.ts';
-import { hentTenant, klareTilUdrulning, noterKoersel, provisioneringerSiden, saetHold, saetOpdateres, tenantForEjer, tenanterTilKopi } from './fleet/tilstand.ts';
+import { hentTenant, klareTilUdrulning, noterKoersel, provisioneringerSiden, saetHold, saetOpdateres, tenantForEjer, tenanterTilKopi, nyligtKlareEjere } from './fleet/tilstand.ts';
 import { koerBinaer, lokalKopiNode, type KoerselBinaer } from './fleet/kopi.ts';
 import { kopiNoegler, slettedeNoegler } from './hemmeligheder/kopi.ts';
 import { lokalKopiLager, r2KopiLager } from './drift/backup/lager.ts';
@@ -343,6 +347,25 @@ export function helbredKomponenter(o: { config: SkyConfig; db: Database; sha: st
   };
 }
 
+/** KC-0200: the welcome mails' seams — billing's own deps, the fleet's klar time and the Clawco's address (the same link
+ *  /konto shows, clawcoFor), konto's tips choice and unsubscribe link, and support's mailbox as the reply-to. */
+export function velkomstDeps(o: { db: Database; basedomain: string; koeb: KoebDeps }): VelkomstDeps {
+  const { db, koeb: k } = o;
+  const link = clawcoFor({ db, basedomain: o.basedomain });
+  return {
+    db, priser: k.priser, post: k.post, publicUrl: k.publicUrl, nu: k.nu, kontakt: k.kontakt, saelger: k.saelger,
+    clawco: async (kontoId) => {
+      const t = await tenantForEjer(db, kontoId);
+      const c = await link(kontoId);
+      return t?.tilstand === 'klar' && t.tider.klar && c && 'url' in c ? { klarVed: t.tider.klar, link: c.url } : null;
+    },
+    nyligtKlare: (siden) => nyligtKlareEjere(db, siden),
+    tips: (kontoId) => vilHaveTips(db, kontoId),
+    afmeldLink: (kontoId, sprog) => nytAfmeldLink(db, { kontoId, publicUrl: k.publicUrl, sprog, nu: k.nu() }),
+    hjaelp: { postkasse: HJAELP.postkasse, svartid: (sprog) => svartid(sprog) },
+  };
+}
+
 export type GatewayForbindelse = { noegle: GatewayNoegle | null; fejl: string | null; status: 'ok' | 'mangler'; ruter: RuteTabel; loginVej: LoginVejDeps; stoette: StoetteSeams; stoetteSide: StoetteSideDeps };
 
 export async function forbind(config: SkyConfig, db: Database, env: Record<string, string | undefined>, n: Noegler = noeglering(env)): Promise<{ konto: KontoDeps; abonnement: AbonnementDeps; dev: DevStripe | null; flaade: AfstemDeps | null; noegler: 'ok' | 'mangler'; noeglefejl: string | null; gateway: GatewayForbindelse; adgang: ReturnType<typeof kontoAdgang>; tilmelding: TilmeldingDeps }> {
@@ -547,6 +570,8 @@ export async function main(): Promise<void> {
   const alarm = alarmLoekke({ signaler: (nu) => alarmSignaler(db, nu), alarm: regler, rapport: fejl.rapport, interval: 5 * 60_000 });
   // KC-0196: the grace stages' mails (day 7 needs no event; day 0 also goes out from the webhook). A pass now, then every 15 min.
   const fristJob = fristLoekke(koebDeps(f.abonnement), { interval: 15 * 60_000 });
+  // KC-0200: the welcome mails (welcome when the Clawco is klar, tips on day 3, trial ending on day 12). Every 5 min.
+  const velkomstJob = velkomstLoekke(velkomstDeps({ db, basedomain: config.basedomain, koeb: koebDeps(f.abonnement) }), { interval: 5 * 60_000 });
   console.log(`sky: alarmer ${til ? 'mailes til driftsadressen (SKY_ALARM_TIL)' : 'kun i loggen og fejlrapporten (SKY_ALARM_TIL ikke sat)'}`);
   // KC-0189: every minute each klar tenant's /health over the private network, the status components, and the
   // `tenant-usund` rule fed from the syg streaks (same rules instance, so an alert is never sent twice). Started once
@@ -581,7 +606,7 @@ export async function main(): Promise<void> {
   // KC-0221: never wait on an open stream; 5 s for busy requests, then exit (a timer or a proxy socket left
   // open must not keep Sky alive past systemd's stop timeout).
   const stop = () => {
-    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); fristJob.stop(); helbredLoekke?.stop(); }, efter: () => db.close() })
+    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); fristJob.stop(); helbredLoekke?.stop(); velkomstJob.stop(); }, efter: () => db.close() })
       .then((kode) => process.exit(kode));
   };
   process.once('SIGTERM', stop);

@@ -96,7 +96,11 @@ export function resendPost(i: ResendIndstillinger): Post {
       try {
         const mail = renderBesked(b);
         await tjekDomaene();
-        const svar = await kald('POST', '/emails', 'mailen', { from: i.afsender, to: [b.til], subject: mail.emne, text: mail.tekst, html: mail.html }) as { id?: unknown } | null;
+        const krop: Record<string, unknown> = { from: i.afsender, to: [b.til], subject: mail.emne, text: mail.tekst, html: mail.html };
+        if (b.svarTil) krop['reply_to'] = b.svarTil;
+        // KC-0200: one-click unsubscribe (RFC 8058): mail clients show their own button and POST to the link.
+        if (b.afmeld) krop['headers'] = { 'List-Unsubscribe': `<${b.afmeld}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' };
+        const svar = await kald('POST', '/emails', 'mailen', krop) as { id?: unknown } | null;
         if (typeof svar?.id !== 'string') throw new PostFejl('udbyder', 'Resend svarede uden et id');
         log(`sky post: ${til} sendt`);
       } catch (err) {

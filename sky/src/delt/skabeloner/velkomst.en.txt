@@ -1,0 +1,23 @@
+Your Clawco is ready
+
+Hello
+
+Your Clawco is set up and ready for you. Open it here:
+
+{{link}}
+
+Two things to do first:
+
+1. Connect your calendar or your mail. You do that in Start, the first time you open Clawco.
+2. Wait a few minutes. Then the first card is waiting in Nu, your home screen.
+
+{{abonnement}}
+
+Need help? Reply to this mail, or write to {{hjaelp}}. {{svartid}}
+
+Your account and your subscription are here:
+
+{{konto}}
+
+Clawco
+{{saelger}}

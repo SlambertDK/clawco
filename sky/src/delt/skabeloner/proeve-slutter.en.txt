@@ -1,0 +1,16 @@
+Your Clawco trial ends in two days
+
+Hello
+
+Your free Clawco trial ends on {{dato}}.
+
+If you want to continue, choose a plan here:
+
+{{link}}
+
+If you have already chosen a plan, there is nothing you need to do.
+
+If you do nothing, your subscription is paused when the trial ends. You are not charged anything, your Clawco and your data are not deleted, and you can always download everything from your account page.
+
+Clawco
+{{saelger}}

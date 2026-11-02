@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { afstem, afstemLoekke, klargoerKonto, type AfstemDeps } from '../../src/fleet/afstem.ts';
-import { bestil, hentTenant, laase, tenantForEjer } from '../../src/fleet/tilstand.ts';
+import { bestil, hentTenant, laase, nyligtKlareEjere, tenantForEjer } from '../../src/fleet/tilstand.ts';
 import { kontiMedAdgang, saetGave } from '../../src/abonnement/synk.ts';
 import { laesPriser } from '../../src/abonnement/priser.ts';
 import { findEllerOpretKonto } from '../../src/konto/konto.ts';
@@ -34,6 +34,17 @@ test('an account with an active plan gets a tenant ordered and carried to klar; 
   const r2 = await afstem(deps(o, f, () => kontiMedAdgang(o.db)));
   assert.deepEqual(r2.bestilt, []);
   assert.equal((await o.db.query('SELECT 1 FROM flaade.tenant')).length, 1);
+  await o.db.close();
+});
+
+test('KC-0200: nyligtKlareEjere names the owners whose tenant became klar since a time, and no one else', async () => {
+  const o = await opsaet('ny@example.test');
+  await saetGave(o.db, o.kontoId, 'sky-solo', laesPriser(), o.ur.nu());
+  const foer = o.ur.nu();
+  assert.deepEqual(await nyligtKlareEjere(o.db, foer), [], 'no tenant yet');
+  await afstem(deps(o, falskFlaade(), () => kontiMedAdgang(o.db)));
+  assert.deepEqual(await nyligtKlareEjere(o.db, foer), [o.kontoId]);
+  assert.deepEqual(await nyligtKlareEjere(o.db, new Date(foer.getTime() + 60_000)), [], 'klar before `siden` is not recent');
   await o.db.close();
 });
 

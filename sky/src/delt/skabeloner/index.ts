@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import { esc } from '../html.ts';
 
-export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse', 'stoette-startet', 'alarm', 'betaling-fejlet', 'betaling-paamindelse', 'proeve-slut'] as const;
+export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse', 'stoette-startet', 'alarm', 'betaling-fejlet', 'betaling-paamindelse', 'proeve-slut', 'velkomst', 'kom-i-gang', 'proeve-slutter'] as const;
 export type Skabelon = (typeof SKABELONER)[number];
 export const SPROG = ['da', 'en'] as const;
 export type Sprog = (typeof SPROG)[number];
@@ -31,6 +31,13 @@ export type SkabelonData = {
   'betaling-fejlet': { produkt: string; dato: string; link: string };
   'betaling-paamindelse': { produkt: string; dato: string; link: string };
   'proeve-slut': { dato: string; link: string };
+  // KC-0200: the welcome mails (abonnement/velkomst.ts). `link` opens the Clawco (velkomst), its Start room (kom-i-gang) or
+  // the subscription page (proeve-slutter); `abonnement` is one line on the trial built by the caller; `hjaelp` the support
+  // mailbox and `svartid` the response-time sentence (config/hjaelp.json); `afmeld` the one-click unsubscribe link (tips
+  // mail only); `saelger` the seller's identity read from the terms (delt/saelger.ts), closing every mail.
+  velkomst: { link: string; abonnement: string; hjaelp: string; svartid: string; konto: string; saelger: string };
+  'kom-i-gang': { link: string; afmeld: string; hjaelp: string; saelger: string };
+  'proeve-slutter': { dato: string; link: string; saelger: string };
 };
 
 export type Mail = { emne: string; tekst: string; html: string };
@@ -53,6 +60,9 @@ const FELTER: { [K in Skabelon]: Record<keyof SkabelonData[K], Felt> } = {
   'betaling-fejlet': { produkt: 'navn', dato: 'linje', link: 'link' },
   'betaling-paamindelse': { produkt: 'navn', dato: 'linje', link: 'link' },
   'proeve-slut': { dato: 'linje', link: 'link' },
+  velkomst: { link: 'link', abonnement: 'linje', hjaelp: 'linje', svartid: 'linje', konto: 'link', saelger: 'linje' },
+  'kom-i-gang': { link: 'link', afmeld: 'link', hjaelp: 'linje', saelger: 'linje' },
+  'proeve-slutter': { dato: 'linje', link: 'link', saelger: 'linje' },
 };
 
 const MAKS_NAVN = 80;
@@ -72,7 +82,8 @@ for (const s of SKABELONER) {
   }
 }
 
-function tjekLink(v: string): string {
+/** A link a mail may carry: https on normal form (http only on localhost). Also checks the unsubscribe header's link. */
+export function tjekLink(v: string): string {
   let u: URL;
   try { u = new URL(v); } catch { throw new SkabelonFejl('skabelon: link er ikke en adresse'); }
   // The exact string we were given must be what the URL parser keeps: no spaces, quotes or tricks.

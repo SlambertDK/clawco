@@ -72,6 +72,12 @@ export async function klare(db: Database): Promise<string[]> {
   return (await db.query<{ slug: string }>("SELECT slug FROM flaade.tenant WHERE tilstand = 'klar' ORDER BY id")).map((r) => r.slug);
 }
 
+/** KC-0200: owners whose tenant is `klar` and became so at or after `siden` (the welcome mails' candidates). */
+export async function nyligtKlareEjere(db: Database, siden: Date): Promise<number[]> {
+  return (await db.query<{ ejer_konto_id: unknown }>("SELECT ejer_konto_id FROM flaade.tenant WHERE tilstand = 'klar' AND klar >= $1 ORDER BY id", [siden.toISOString()]))
+    .map((r) => Number(r.ejer_konto_id));
+}
+
 /** Slugs of deprovisioned tenants among `slugs` (their leftovers are provably ours to remove). */
 export async function slettede(db: Database, slugs: string[]): Promise<Set<string>> {
   if (!slugs.length) return new Set();

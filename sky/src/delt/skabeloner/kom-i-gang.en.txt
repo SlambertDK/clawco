@@ -1,0 +1,21 @@
+Have you got started with Clawco?
+
+Hello
+
+You have had Clawco for a few days. If you have not connected a source yet, these are the first two steps:
+
+1. Open Start in your Clawco, and connect your calendar or your mail.
+2. Wait a few minutes. Then the first card is waiting in Nu, your home screen.
+
+{{link}}
+
+If you are already up and running, you can ignore this mail.
+
+Questions? Reply to this mail, or write to {{hjaelp}}.
+
+If you do not want more tips from Clawco, you can unsubscribe here. It does not change the mails about your account and your subscription.
+
+{{afmeld}}
+
+Clawco
+{{saelger}}

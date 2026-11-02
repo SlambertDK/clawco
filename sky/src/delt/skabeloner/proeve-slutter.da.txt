@@ -1,0 +1,16 @@
+Din prøve på Clawco slutter om to dage
+
+Hej
+
+Din gratis prøve på Clawco slutter {{dato}}.
+
+Vil du fortsætte, så vælg en plan her:
+
+{{link}}
+
+Har du allerede valgt en plan, skal du ikke gøre noget.
+
+Gør du ingenting, sættes dit abonnement på pause, når prøven slutter. Du bliver ikke trukket for noget, din Clawco og dine data bliver ikke slettet, og du kan altid hente alt ud fra din kontoside.
+
+Clawco
+{{saelger}}

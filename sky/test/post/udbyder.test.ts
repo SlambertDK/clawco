@@ -189,3 +189,33 @@ test('masking keeps the first character and the domain only', () => {
   assert.equal(maskerModtager('henrik@example.test'), 'h…@example.test');
   assert.equal(maskerModtager('ikke-en-adresse'), '…');
 });
+
+// KC-0200: a reply-to that reaches support on the welcome mails, and RFC 8058 one-click unsubscribe on the tips mail only.
+test('reply-to and List-Unsubscribe reach Resend only when the message carries them', async () => {
+  const r = await falskResend();
+  const { post } = opsaet(r.api);
+  const AFMELD = 'https://konto.example.test/post/afmeld?t=hemmeligt_afmeld';
+  await post.send(BESKED);
+  await post.send({ ...BESKED, svarTil: 'kontakt@hjaelp.example.test' });
+  await post.send({ ...BESKED, svarTil: 'kontakt@hjaelp.example.test', afmeld: AFMELD });
+  const kroppe = r.kald.filter((k) => k.metode === 'POST').map((k) => JSON.parse(k.krop) as Record<string, unknown>);
+  assert.equal(kroppe.length, 3);
+  assert.ok(!('reply_to' in kroppe[0]!) && !('headers' in kroppe[0]!), 'an ordinary mail has neither');
+  assert.equal(kroppe[1]!['reply_to'], 'kontakt@hjaelp.example.test');
+  assert.ok(!('headers' in kroppe[1]!), 'no unsubscribe header without an unsubscribe link');
+  assert.deepEqual(kroppe[2]!['headers'], { 'List-Unsubscribe': `<${AFMELD}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' });
+  await r.luk();
+});
+
+test('a reply-to that is not one address, or an unsubscribe link that is not https, is refused before Resend is asked', async () => {
+  const r = await falskResend();
+  const { post } = opsaet(r.api);
+  for (const b of [
+    { ...BESKED, svarTil: 'kontakt@hjaelp.example.test\r\nBcc: x@example.test' },
+    { ...BESKED, svarTil: 'ikke en adresse' },
+    { ...BESKED, afmeld: 'http://evil.example.test/afmeld' },
+    { ...BESKED, afmeld: 'https://konto.example.test/a>b' },
+  ]) assert.equal(await fejlKode(post.send(b)), 'ugyldig');
+  assert.ok(!r.kald.some((k) => k.metode === 'POST'));
+  await r.luk();
+});

@@ -58,3 +58,11 @@ test('the fake renders every message too, so development fails on bad data like 
   await assert.rejects(p.send(BESKED), PostFejl);
   await assert.rejects(ingenPost().send(BESKED), PostFejl);
 });
+
+test('KC-0200: the fake checks reply-to and the unsubscribe link like production does', async () => {
+  const p = falskPost();
+  await assert.rejects(p.send({ ...BESKED, svarTil: 'a@example.test\nBcc: b@example.test' }), (err: unknown) => err instanceof PostFejl && err.kode === 'ugyldig');
+  await assert.rejects(p.send({ ...BESKED, afmeld: 'javascript:alert(1)' }), (err: unknown) => err instanceof PostFejl && err.kode === 'ugyldig');
+  await p.send({ ...BESKED, svarTil: 'kontakt@example.test', afmeld: 'https://konto.example.test/post/afmeld?t=x' });
+  assert.equal(p.udbakke.length, 1);
+});

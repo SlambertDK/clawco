@@ -19,6 +19,9 @@ const DATA: Record<Skabelon, Record<string, string>> = {
   'betaling-fejlet': { produkt: 'Sky Solo', dato: '14. november 2026', link: LINK },
   'betaling-paamindelse': { produkt: 'Sky Solo', dato: '14. november 2026', link: LINK },
   'proeve-slut': { dato: '14. november 2026', link: LINK },
+  velkomst: { link: LINK, abonnement: 'Din gratis prøve slutter 16. november 2026.', hjaelp: 'kontakt@hjaelp.example.test', svartid: 'Vi svarer inden for 2 hverdage.', konto: 'https://konto.example.test/konto', saelger: 'Sælger Eksempel (personligt drevet), Eksempelvej 1, 5000 Odense C, Danmark.' },
+  'kom-i-gang': { link: LINK, afmeld: 'https://konto.example.test/post/afmeld?t=afmeld_TOKEN', hjaelp: 'kontakt@hjaelp.example.test', saelger: 'Sælger Eksempel (personligt drevet), Eksempelvej 1, 5000 Odense C, Danmark.' },
+  'proeve-slutter': { dato: '16. november 2026', link: LINK, saelger: 'Sælger Eksempel (personligt drevet), Eksempelvej 1, 5000 Odense C, Danmark.' },
 };
 
 /** Mails that carry no link of the generic kind (the account link): the deletion receipt, the withdrawal receipt and an operator alert. */
@@ -148,4 +151,40 @@ test('KC-0196: the grace mails name the date and the product, and promise nothin
   }
   assert.match(renderMail({ skabelon: 'betaling-fejlet', data: DATA['betaling-fejlet'] }).tekst, /ret(te)? kortet/i);
   assert.match(renderMail({ skabelon: 'proeve-slut', sprog: 'en', data: DATA['proeve-slut'] }).tekst, /paused until you choose a plan/);
+});
+
+// KC-0200: the welcome mails. Every value lands once in each part (escaped in HTML), the seller's identity closes every
+// mail, and only the tips mail carries an unsubscribe link (the other two are service messages).
+test('KC-0200: the welcome mails carry every value in both parts, the seller last, and the unsubscribe link only on the tips mail', () => {
+  for (const sprog of SPROG as readonly Sprog[]) {
+    for (const skabelon of ['velkomst', 'kom-i-gang', 'proeve-slutter'] as const) {
+      const data = DATA[skabelon];
+      const m = renderMail({ skabelon, sprog, data });
+      for (const [navn, v] of Object.entries(data)) {
+        assert.ok(m.tekst.includes(v), `${skabelon} ${sprog}: ${navn} i teksten`);
+        assert.ok(m.html.includes(esc(v)), `${skabelon} ${sprog}: ${navn} i HTML`);
+      }
+      assert.ok(m.tekst.trimEnd().endsWith(data['saelger']!), `${skabelon} ${sprog}: sælgeren står til sidst`);
+      assert.equal(/afmeld|unsubscribe/i.test(m.tekst), skabelon === 'kom-i-gang', `${skabelon} ${sprog}: afmeld kun i tips-mailen`);
+    }
+    const v = renderMail({ skabelon: 'velkomst', sprog, data: DATA.velkomst });
+    assert.match(v.tekst, sprog === 'da' ? /kalender eller din mail/ : /calendar or your mail/);
+    assert.match(v.tekst, sprog === 'da' ? /Svar på denne mail/ : /Reply to this mail/);
+    const k = renderMail({ skabelon: 'kom-i-gang', sprog, data: DATA['kom-i-gang'] });
+    // Clawco cannot know whether a source is connected (no read access, telemetry is opt-in): worded for everyone.
+    assert.match(k.tekst, sprog === 'da' ? /Har du endnu ikke koblet en kilde til/ : /If you have not connected a source yet/);
+    const p = renderMail({ skabelon: 'proeve-slutter', sprog, data: DATA['proeve-slutter'] });
+    assert.match(p.emne, sprog === 'da' ? /om to dage/ : /in two days/);
+    assert.match(p.tekst, sprog === 'da' ? /bliver ikke slettet/ : /not deleted/);
+    assert.match(p.tekst, sprog === 'da' ? /pause/ : /paused/);
+  }
+});
+
+test('KC-0200: a seller line with markup is escaped in HTML and kept as written in the text', () => {
+  for (const sprog of SPROG as readonly Sprog[]) {
+    const m = renderMail({ skabelon: 'velkomst', sprog, data: { ...DATA.velkomst, saelger: OND } });
+    assert.doesNotMatch(m.html, /<script/);
+    assert.ok(m.html.includes(esc(OND)));
+    assert.ok(m.tekst.includes(OND));
+  }
 });

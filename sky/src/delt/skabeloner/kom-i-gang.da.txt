@@ -1,0 +1,21 @@
+Er du kommet i gang med Clawco?
+
+Hej
+
+Du har haft Clawco i et par dage. Har du endnu ikke koblet en kilde til, er det her de to første skridt:
+
+1. Åbn Start i din Clawco, og kobl din kalender eller din mail til.
+2. Vent et par minutter. Så ligger det første kort i Nu.
+
+{{link}}
+
+Er du allerede i gang, kan du se bort fra denne mail.
+
+Spørgsmål? Svar på denne mail, eller skriv til {{hjaelp}}.
+
+Vil du ikke have flere tips fra Clawco, kan du afmelde dem her. Det ændrer ikke ved mails om din konto og dit abonnement.
+
+{{afmeld}}
+
+Clawco
+{{saelger}}

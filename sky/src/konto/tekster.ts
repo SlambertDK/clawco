@@ -162,4 +162,38 @@ export const T = {
 
   udbakkeTitel: 'Udbakke (kun udvikling)',
   udbakkeTom: 'Ingen mails endnu.',
+
+  // KC-0200: the tips mail can be turned off; mails about the account and the subscription cannot.
+  mailsTitel: 'Mails fra Clawco',
+  mailsLink: 'Vælg hvilke mails du får',
+  mailsIntro: 'Vi skriver kun, når det handler om dig: når din Clawco er klar, når din prøve snart slutter, og når der sker noget med din betaling. De mails får du altid.',
+  mailsTips: 'Et enkelt tip, når du har haft Clawco i et par dage',
+  mailsJa: 'Ja tak',
+  mailsNej: 'Nej tak',
+  mailsGem: 'Gem',
+  mailsGemt: 'Gemt.',
+} as const;
+
+/** KC-0200: the pages the unsubscribe link in the tips mail opens, in the mail's language (no login needed). */
+export const AFMELD = {
+  da: {
+    titel: 'Afmeld tips',
+    tekst: 'Vil du ikke have flere tips fra Clawco? Mails om din konto og dit abonnement får du stadig.',
+    knap: 'Afmeld tips',
+    faerdigTitel: 'Du er afmeldt',
+    faerdig: 'Du får ikke flere tips fra Clawco. Mails om din konto og dit abonnement får du stadig.',
+    fortrydLink: 'Skift mening på din kontoside',
+    ugyldigTitel: 'Linket virker ikke',
+    ugyldig: 'Dette link virker ikke længere. Du kan vælge, hvilke mails du får, på din kontoside.',
+  },
+  en: {
+    titel: 'Unsubscribe from tips',
+    tekst: 'Do you not want more tips from Clawco? You will still get mails about your account and your subscription.',
+    knap: 'Unsubscribe from tips',
+    faerdigTitel: 'You are unsubscribed',
+    faerdig: 'You will get no more tips from Clawco. You will still get mails about your account and your subscription.',
+    fortrydLink: 'Change your mind on your account page',
+    ugyldigTitel: 'This link does not work',
+    ugyldig: 'This link does not work any more. You can choose which mails you get on your account page.',
+  },
 } as const;

@@ -3,7 +3,7 @@
 import { html, type Markup } from '../delt/html.ts';
 import { side } from '../delt/side.ts';
 import type { Besked } from '../delt/post.ts';
-import { T } from './tekster.ts';
+import { T, AFMELD } from './tekster.ts';
 import type { SessionVisning } from './session.ts';
 import type { PasskeyVisning } from './passkey.ts';
 import type { SletOversigt } from './slet.ts';
@@ -89,6 +89,10 @@ ${a.husstand ? html`<section>
 <h2>${T.dataTitel}</h2>
 <p><a href="/konto/hent-alt">${T.dataLink}</a></p>
 </section>
+<section>
+<h2>${T.mailsTitel}</h2>
+<p><a href="/konto/mails">${T.mailsLink}</a></p>
+</section>
 ${a.hjaelp ? html`<section>
 <h2>${T.hjaelpTitel}</h2>
 <p><a href="${a.hjaelp.mailto}">${T.hjaelpKnap}</a> · <a href="/konto/hjaelp">${T.hjaelpSe}</a></p>
@@ -149,6 +153,36 @@ export function hjaelpVisning(a: { mail: HjaelpMail; hjaelpSide?: string }): str
 <p class="daempet">${svartid('da')}</p>
 ${a.hjaelpSide ? html`<p><a href="${a.hjaelpSide}">${T.hjaelpSide}</a></p>` : ''}
 <p><a href="/konto">${T.tilbage}</a></p>`);
+}
+
+// --- KC-0200: which mails the account gets, and the tips mail's unsubscribe link ---------------------------------
+export function mailsSide(a: { csrf: string; tips: boolean; gemt: boolean }): string {
+  const valg = (v: 'ja' | 'nej', tekst: string, valgt: boolean): Markup =>
+    valgt ? html`<label><input type="radio" name="tips" value="${v}" checked> ${tekst}</label>` : html`<label><input type="radio" name="tips" value="${v}"> ${tekst}</label>`;
+  return side(T.mailsTitel, html`<h1>${T.mailsTitel}</h1>
+<p>${T.mailsIntro}</p>
+${a.gemt ? html`<p class="besked">${T.mailsGemt}</p>` : ''}
+<form method="post" action="/konto/mails">${csrfFelt(a.csrf)}
+<fieldset><legend>${T.mailsTips}</legend>
+<p>${valg('ja', T.mailsJa, a.tips)}</p>
+<p>${valg('nej', T.mailsNej, !a.tips)}</p>
+</fieldset>
+<button type="submit" class="primaer">${T.mailsGem}</button>
+</form>
+<p><a href="/konto">${T.tilbage}</a></p>`, { csrf: a.csrf });
+}
+
+export type AfmeldTilstand = 'spoerg' | 'faerdig' | 'ugyldig';
+
+/** `handling`: this page's own path and query (the token stays in the form's target, never in a field). */
+export function afmeldSide(a: { sprog: 'da' | 'en'; tilstand: AfmeldTilstand; handling?: string }): string {
+  const t = AFMELD[a.sprog];
+  const konto = html`<p><a href="/konto/mails">${t.fortrydLink}</a></p>`;
+  if (a.tilstand === 'ugyldig') return side(t.ugyldigTitel, html`<h1>${t.ugyldigTitel}</h1><p>${t.ugyldig}</p>${konto}`, { sprog: a.sprog });
+  if (a.tilstand === 'faerdig') return side(t.faerdigTitel, html`<h1>${t.faerdigTitel}</h1><p>${t.faerdig}</p>${konto}`, { sprog: a.sprog });
+  return side(t.titel, html`<h1>${t.titel}</h1>
+<p>${t.tekst}</p>
+<form method="post" action="${a.handling ?? ''}"><button type="submit" class="primaer">${t.knap}</button></form>`, { sprog: a.sprog });
 }
 
 export function slettetSide(): string {

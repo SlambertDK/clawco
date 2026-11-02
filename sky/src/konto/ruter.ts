@@ -20,7 +20,8 @@ import { erSpaerret, fejlNoegle, taelOp, FEJL_PR_IP } from './graenser.ts';
 import { hjaelpMail, type HjaelpFelter } from './hjaelp.ts';
 import { annuller, ejersTenant, forbered, findInvitation, gensend, pladser, send, sidsteInviterer, ventendeInvitationer, erInviterRolle, type Entitlements, type Udkast } from './invitation.ts';
 import { accepter, fjernMedlem, forlad, medlemmer, medlemskabFor, skiftRolle, type HusstandKald, type MedlemskabDeps } from './medlemskab.ts';
-import { CSS, hjaelpVisning, logIndSide, type ClawcoVisning, tjekMailSide, linkSide, kontoSide, passkeySide, sletSide, slettetSide, udbakkeSide, hentAltSide, hentAltKlarSide, hentAltDoedSide, hentAltFejlSide, renderEksempel, galleriSide, husstandSide, invitationPreviewSide, invitationSide, type HusstandFelter } from './render.ts';
+import { afmeldMedToken, gyldigtAfmeldToken, saetTips, vilHaveTips } from './mailvalg.ts';
+import { CSS, hjaelpVisning, logIndSide, type ClawcoVisning, tjekMailSide, linkSide, kontoSide, passkeySide, sletSide, slettetSide, udbakkeSide, hentAltSide, hentAltKlarSide, hentAltDoedSide, hentAltFejlSide, renderEksempel, galleriSide, husstandSide, invitationPreviewSide, invitationSide, type HusstandFelter, mailsSide, afmeldSide } from './render.ts';
 import { T } from './tekster.ts';
 
 export type KontoDeps = {
@@ -60,7 +61,7 @@ const TIL_COOKIE = 'sky-til';
 const KLIENT_JS = fs.readFileSync(new URL('../../public/konto.js', import.meta.url), 'utf8');
 /** Where a login may send the person on; anything else goes to /konto (no open redirect). Besides our own
  *  pages, the gateway's /aabn (KC-0183) with its query: a same-origin path whose own signature is checked there. */
-const TIL = new Set(['/konto', '/konto/passkeys', '/konto/slet', '/konto/abonnement', '/konto/hent-alt', '/konto/hjaelp', '/konto/husstand', '/personale']); // KC-0188: the staff page
+const TIL = new Set(['/konto', '/konto/passkeys', '/konto/slet', '/konto/abonnement', '/konto/hent-alt', '/konto/hjaelp', '/konto/husstand', '/konto/mails', '/personale']); // KC-0188: the staff page
 const AABN = /^\/aabn\?[A-Za-z0-9_.~%=&+-]{1,3000}$/;
 /** KC-0198: the sign-up flow, with its own query (plan, interval, language) only. */
 const TILMELD = /^\/tilmeld(\?[A-Za-z0-9_.~%=&+-]{1,300})?$/;
@@ -351,6 +352,40 @@ export function kontoRuter(d: KontoDeps): Hono {
     const fejl = c.req.query('fejl');
     const felter: HjaelpFelter = { ...(await d.hjaelp(l.konto.id)), kontoId: l.konto.id, ...(fejl ? { sidsteFejl: fejl } : {}) };
     return c.html(hjaelpVisning({ mail: hjaelpMail(felter), ...(d.hjaelpSide ? { hjaelpSide: d.hjaelpSide } : {}) }));
+  });
+
+  // --- KC-0200: the tips mail can be turned off (service mails cannot) ----------------------------------------------
+  app.get('/konto/mails', async (c) => {
+    const l = await login(c);
+    if (!l) return c.redirect('/log-ind?til=/konto/mails', 303);
+    return c.html(mailsSide({ csrf: l.session.csrf, tips: await vilHaveTips(d.db, l.konto.id), gemt: c.req.query('gemt') === '1' }));
+  });
+
+  app.post('/konto/mails', async (c) => {
+    const f = await formular(c);
+    const l = await beskyttet(c, f['csrf']);
+    if (!l) return forbudt(c);
+    await saetTips(d.db, l.konto.id, f['tips'] !== 'nej', nu());
+    return c.redirect('/konto/mails?gemt=1', 303);
+  });
+
+  // The tips mail's unsubscribe link (RFC 8058). The token is the only key: no login, no Origin (the mail client's
+  // one-click POST comes from elsewhere). A GET only shows the button, since link scanners fetch every link in a mail.
+  const afmeldSprog = (c: Context): 'da' | 'en' | null => {
+    const s = c.req.query('sprog') ?? 'da';
+    return s === 'da' || s === 'en' ? s : null;
+  };
+  app.get('/post/afmeld', async (c) => {
+    const sprog = afmeldSprog(c);
+    const t = c.req.query('t') ?? '';
+    if (!sprog || !(await gyldigtAfmeldToken(d.db, t))) return c.html(afmeldSide({ sprog: sprog ?? 'da', tilstand: 'ugyldig' }), 404);
+    const u = new URL(c.req.url);
+    return c.html(afmeldSide({ sprog, tilstand: 'spoerg', handling: `${u.pathname}${u.search}` }));
+  });
+  app.post('/post/afmeld', async (c) => {
+    const sprog = afmeldSprog(c);
+    if (!sprog || !(await afmeldMedToken(d.db, c.req.query('t') ?? '', nu()))) return c.html(afmeldSide({ sprog: sprog ?? 'da', tilstand: 'ugyldig' }), 404);
+    return c.html(afmeldSide({ sprog, tilstand: 'faerdig' }));
   });
 
   app.post('/konto/sessioner/:id/afslut', async (c) => {
