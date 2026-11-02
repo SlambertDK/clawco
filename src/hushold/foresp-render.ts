@@ -12,8 +12,10 @@ import { beslutter, erPaamindet, erPart, kanFortrydes, ubesvaret, type Forespoer
 import type { LogEntry } from '../store/types.ts';
 import { datoLinje, klokke } from './render.ts';
 import type { Medlem } from './schema.ts';
+import { KANAL_NAVN, vurderSend, type SendSlags } from './kanal.ts';
 
-export type ForespBlokVisning = { f: Forespoergsel; person: PersonId; medlemmer: readonly Medlem[]; now: Date };
+/** `alle` (KC-0153): every request of the household, for the go-between's one-open-request rule; absent = only this one. */
+export type ForespBlokVisning = { f: Forespoergsel; person: PersonId; medlemmer: readonly Medlem[]; now: Date; alle?: readonly Forespoergsel[] };
 
 const navnAf = (v: ForespBlokVisning, id: string): string => (id === v.person ? 'Du' : v.medlemmer.find((m) => m.id === id)?.navn ?? 'en i husstanden');
 const dagAf = (iso: string): string => idagKbh(new Date(iso));
@@ -83,6 +85,34 @@ function knapper(v: ForespBlokVisning): Markup {
   return html``;
 }
 
+/**
+ * KC-0153, the go-between on the asker's card: the exact message and a red Send while it may go (kanal.ts vurderSend,
+ * the same rule the route checks); after it went, when, and a red "Send en påmindelse" once; why not, when she has not
+ * said ja or said stop. Her answers on the channel are marked, and her other words are text lines — escaped, never acting.
+ */
+function kanalBlok(v: ForespBlokVisning): Markup {
+  const { f, person, medlemmer } = v;
+  const m = medlemmer.find((x) => x.id === f.til);
+  const linjer = (f.kanal?.beskeder ?? []).map((b) => html`<p class="row-note kanal-fritekst" data-kanal-fritekst>${m?.navn ?? 'Hun'} skrev: ${b.tekst}</p>`);
+  const svar = f.historik.some((h) => h.via === 'kanal') ? html`<p class="row-note" data-kanal-svar>Svaret kom som besked på ${m?.kanal ? KANAL_NAVN[m.kanal.kanal] : 'kanalen'}.</p>` : html``;
+  if (person !== f.fra || !m?.kanal || f.tilstand !== 'spurgt') return html`${svar}${linjer}`;
+  const s = { forespoergsler: v.alle ?? [f], medlemmer };
+  const kanalNavn = KANAL_NAVN[m.kanal.kanal];
+  const sendt = f.kanal?.sendt.find((x) => x.slags === 'foresp');
+  const knapFor = (slags: SendSlags, label: string): Markup => {
+    const u = vurderSend(s, f.id, slags, person);
+    if (!u.ok) return html``;
+    return html`<p class="row-note">${slags === 'foresp' ? `Det får ${m.navn} på ${kanalNavn}:` : 'Påmindelsen lyder:'}</p>
+      <p class="row-note kanal-tekst" data-kanal-tekst="${f.id}">${u.tekst}</p>
+      ${handlinger(undefined, [knap({ label, slags: 'graense', attrs: { 'data-kanal-send': f.id, 'data-kanal-slags': slags, 'data-kanal-ja': u.jaId, 'data-status': 'sender' } })])}`;
+  };
+  if (!sendt) {
+    const u = vurderSend(s, f.id, 'foresp', person);
+    return html`${svar}${linjer}${u.ok ? knapFor('foresp', `Send til ${m.navn} på ${kanalNavn}`) : html`<p class="row-note" data-kanal-ikke>${u.hvorfor}</p>`}`;
+  }
+  return html`${svar}<p class="row-note" data-kanal-sendt>Sendt til ${m.navn} på ${kanalNavn} kl. ${klokke(sendt.tid)}.</p>${linjer}${knapFor('paamindelse', 'Send en påmindelse')}`;
+}
+
 export function forespBlok(v: ForespBlokVisning): Markup {
   const { f, person, now } = v;
   const [farve, tekst] = chip(f, person);
@@ -94,6 +124,7 @@ export function forespBlok(v: ForespBlokVisning): Markup {
     <span class="row-title">${f.titel}</span>
     ${tid ? html`<p class="row-note mono">${tidTekst(tid, now)}</p>` : ''}
     <p class="row-note foresp-anbefaling" data-foresp-anbefaling${paamindelse ? html` data-foresp-paamindelse` : ''}>${anbefaling(v)}</p>
+    ${kanalBlok(v)}
     ${knapper(v)}
   </article>`;
 }
@@ -118,7 +149,7 @@ function nyForm(medlemmer: readonly Medlem[], person: PersonId): Markup {
 /** The person's own requests (a third person sees none — only an accepted one, in the shared week), grouped, and the form. */
 export function forespSektion(v: { forespoergsler: readonly Forespoergsel[]; person: PersonId; medlemmer: readonly Medlem[]; now: Date }): Markup {
   const egne = v.forespoergsler.filter((f) => erPart(f, v.person));
-  const blok = (f: Forespoergsel): Markup => forespBlok({ f, person: v.person, medlemmer: v.medlemmer, now: v.now });
+  const blok = (f: Forespoergsel): Markup => forespBlok({ f, person: v.person, medlemmer: v.medlemmer, now: v.now, alle: v.forespoergsler });
   const kraever = egne.filter((f) => beslutter(f) === v.person || (f.fra === v.person && ubesvaret(f)));
   const venter = egne.filter((f) => !kraever.includes(f) && beslutter(f) !== null);
   const afgjort = egne.filter((f) => !kraever.includes(f) && beslutter(f) === null);

@@ -12,6 +12,7 @@ import { anvend, nyForespoergsel, type Forespoergsel, type Haendelse } from '../
 import type { BookingUdkast, HusstandState } from '../../hushold/schema.ts';
 import { loesSammenfald, nySammenfald, type Booking, type Ressource } from '../../hushold/ressource.ts';
 import { nytKonflikt, weekendKonflikter, type Blok, type Konflikt } from '../../hushold/konflikt.ts';
+import { lavFakeKanal } from '../../hushold/kanal.ts';
 
 export const TEST_EJER: Person = { id: 'henrik', login: 'henrik@test.invalid', navn: 'Henrik', rolle: 'ejer' };
 
@@ -94,7 +95,39 @@ export function husstandState(n: number, f: Fakta): HusstandState {
   // Between Maja and Ella only: Henrik never sees it.
   const kat = nyForespoergsel({ id: 'f-kat', fra: 'maja', til: 'ella', titel: 'Kan du fodre katten i weekenden?' }, t('06:20'));
   const { ressourcer, sammenfald } = husstandRessourcer(sen, f, n);
-  return { medlemmer: [], ressourcer, forespoergsler: [hent, handle, tandlaege, rydde, vvs, pakke, kat], sammenfald: [sammenfald], udkast: bilUdkast(n, f), konflikter: weekendKort(n, f) };
+  const k = kanalHusstand(handle, f);
+  return { medlemmer: k.medlemmer, ressourcer, forespoergsler: [hent, k.handle, tandlaege, rydde, vvs, pakke, kat], sammenfald: [sammenfald], udkast: bilUdkast(n, f), konflikter: weekendKort(n, f), kanalSidst: k.kanalSidst };
+}
+
+// ---------- KC-0153: the go-between (kept apart from the stories above) ----------
+// Maja is also reached on Telegram (a fictional bot chat id). Henrik sent the shopping request there; she answered
+// "kl 14" on the channel (her alternative, marked as a channel answer) and wrote a line of free text that changes
+// nothing. The parcel request has not gone to her channel yet: its card shows the exact message and the red Send.
+// The fake channel (testKanal) also holds a stranger's message, which the clock ignores.
+
+export const MAJA_TELEGRAM = '100000001';
+const FREMMED_TELEGRAM = '200000009';
+
+function kanalHusstand(handle: Forespoergsel, f: Fakta): { medlemmer: HusstandState['medlemmer']; handle: Forespoergsel; kanalSidst: string } {
+  const historik = handle.historik.map((h, i) => (i === 1 ? { ...h, via: 'kanal' as const } : h));
+  const medKanal: Forespoergsel = {
+    ...handle, historik,
+    kanal: { sendt: [{ tid: f.iso('06:31'), slags: 'foresp' }], beskeder: [{ tid: f.iso('06:52'), tekst: 'Jeg er til tandlæge om formiddagen, men kan godt bagefter' }] },
+  };
+  return {
+    medlemmer: [{ id: 'maja', navn: 'Maja', rolle: 'medlem', kanal: { kanal: 'telegram', handle: MAJA_TELEGRAM, status: 'aktiv' } }],
+    handle: medKanal,
+    kanalSidst: f.iso('06:52'),
+  };
+}
+
+/**
+ * The test world's channel: the fake (Send only records, it never reaches anyone). It holds a stranger's "ja" from
+ * before the household's read mark, so the world's clock never even reads it; test/server-foresp-send.test.ts holds
+ * that a stranger is ignored when it does.
+ */
+export function testKanal(): ReturnType<typeof lavFakeKanal> {
+  return lavFakeKanal({ indgaaende: [{ kanal: 'telegram', afsender: FREMMED_TELEGRAM, gruppe: false, tid: '2000-01-01T00:00:00.000Z', tekst: 'ja' }] });
 }
 
 // KC-0150: the household's things — two cars, the guest room, the drill, and Ella as a resource ("hun kan kun være ét

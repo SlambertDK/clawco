@@ -67,6 +67,9 @@ import { blokkeFraKalendere, erPartIKonflikt, konfliktResume, konfliktStatus, ny
 import { konfliktSektion } from './konflikt-render.ts';
 import { buildKonfliktRun } from './prompt.ts';
 import type { LogEntry } from '../store/types.ts';
+import { KANAL_NAVN, vurderSend, type KanalClient, type KanalStatus, type SendSlags } from './kanal.ts';
+import { afsenderAf, fortolk } from './svar.ts';
+import { MAX_KANAL_BESKEDER, MAX_KANAL_TEKST } from './schema.ts';
 
 /** The stored state; a file that does not validate reads as empty (and is said in the journal), never as a crash. */
 async function laesState(deps: RoomDeps): Promise<HusstandState> {
@@ -284,6 +287,132 @@ const lukket = (id: string, now: Date) => (s: HusstandState): HusstandState => {
   if (!f || !ubesvaret(f)) throw new ActionError('Forespørgslen er allerede ordnet.', 409);
   return { ...s, forespoergsler: s.forespoergsler.map((x) => (x.id === id ? { ...x, lukket: now.toISOString() } : x)) };
 };
+
+// ---------- KC-0153: the go-between ----------
+
+/** What may be sent for a request now, and the exact text (kanal.ts vurderSend over the person's household). Throws ActionError. */
+export async function kanalSendKlar(deps: RoomDeps, id: string, slags: SendSlags): Promise<{ tekst: string; jaId: string }> {
+  const h = await forAktion(deps);
+  const v = vurderSend({ forespoergsler: h.state.forespoergsler, medlemmer: h.medlemmer }, id, slags, deps.person.id);
+  if (!v.ok) throw new ActionError(v.hvorfor, v.status);
+  return { tekst: v.tekst, jaId: v.jaId };
+}
+
+/**
+ * The human tap's send (server.ts calls it only inside the policy layer, after a one-time yes for exactly this text).
+ * In the store's queue: checked again, sent once through the channel, then recorded — a second tap waiting in the
+ * queue finds it sent (409). A channel failure records nothing (KanalFejl reaches the route), so the tap can be retried.
+ */
+export async function kanalSend(deps: RoomDeps, kanal: KanalClient, id: string, slags: SendSlags, tekst: string): Promise<RunRecord> {
+  const h = await forAktion(deps);
+  const now = deps.now();
+  const v = await iKoe(async () => {
+    const s = await laesState(deps);
+    // Her channel state as stored now (a "stop" read a moment ago counts).
+    const medlemmer = medlemmerAf(await deps.husstand!.personer(), s.medlemmer);
+    const v = vurderSend({ forespoergsler: s.forespoergsler, medlemmer }, id, slags, deps.person.id);
+    if (!v.ok) throw new ActionError(v.hvorfor, v.status);
+    if (v.tekst !== tekst) throw new ActionError('Beskeden er ændret siden du så den. Se den igen, før du sender.', 409);
+    await kanal.send(v.til, v.tekst);
+    const tid = now.toISOString();
+    const forespoergsler = s.forespoergsler.map((x) => (x.id === id ? { ...x, kanal: { sendt: [...(x.kanal?.sendt ?? []), { tid, slags }], beskeder: x.kanal?.beskeder ?? [] } } : x));
+    await deps.store.writeState(RUM, { ...s, forespoergsler, kanalSidst: s.kanalSidst ?? tid });
+    return v;
+  });
+  const til = navnAf(h.medlemmer, v.f.til), fra = navnAf(h.medlemmer, v.f.fra);
+  const hvad = slags === 'paamindelse' ? 'en påmindelse om' : 'forespørgslen';
+  await logBegge(deps, v.f, (p) => (p === v.f.fra ? `Du sendte ${hvad} til ${til} på ${v.kanalNavn}: ${v.f.titel}` : `${fra} sendte dig ${hvad} på ${v.kanalNavn}: ${v.f.titel}`));
+  notify(deps);
+  return deps.runs.local('kanal-send', () => faerdig(deps, `Sendt til ${til} på ${v.kanalNavn}.`));
+}
+
+type KanalHaendelse =
+  | { slags: 'svar'; f: Forespoergsel; haendelse: Haendelse['slags']; af: PersonId; kanalNavn: string }
+  | { slags: 'tekst'; f: Forespoergsel; af: PersonId; tekst: string; kanalNavn: string }
+  | { slags: 'stop' | 'aktiv'; af: PersonId; kanalNavn: string; til: PersonId[] };
+
+/**
+ * Her replies on the channel (Path B), read by the room's clock. Deterministic (svar.ts): exactly ja / nej / kl from
+ * her registered handle moves the one open request sent to her there (`af` = her, `via: 'kanal'`); anything else is
+ * a text line on that request that never acts; stop ends her go-between; her first ja after the invitation opts her
+ * in. A sender who is not a member's handle is ignored (counted in the journal, never stored). Nothing is sent here.
+ */
+async function laesKanalSvar(deps: RoomDeps): Promise<void> {
+  const hent = deps.husstand?.kanalSvar;
+  if (!hent || !deps.husstand) return;
+  const foer = await laesState(deps);
+  // Nothing is read before the first send or invitation (an old "ja" of hers must never count).
+  const inviteret = foer.medlemmer.flatMap((m) => (m.kanal?.status === 'afventer-ja' && m.kanal.inviteret ? [m.kanal.inviteret] : [])).sort();
+  const siden = foer.kanalSidst ?? inviteret[0];
+  if (!siden) return;
+  const beskeder = await hent(siden);
+  if (!beskeder.length) return;
+  const personer = await deps.husstand.personer();
+  const ejer = personer.find((p) => p.rolle === 'ejer')?.id;
+  const now = deps.now();
+  let fremmede = 0;
+  const haendelser = await iKoe(async () => {
+    let s = await laesState(deps);
+    if ((s.kanalSidst ?? inviteret[0]) !== siden) return []; // another read got there first
+    const ud: KanalHaendelse[] = [];
+    for (const b of beskeder) {
+      s = { ...s, kanalSidst: !s.kanalSidst || b.tid > s.kanalSidst ? b.tid : s.kanalSidst };
+      const m = afsenderAf(medlemmerAf(personer, s.medlemmer), b);
+      if (!m?.kanal) { fremmede += 1; continue; }
+      const kanalNavn = KANAL_NAVN[m.kanal.kanal];
+      const saetStatus = (status: KanalStatus): void => { s = { ...s, medlemmer: s.medlemmer.map((x) => (x.id === m.id && x.kanal ? { ...x, kanal: { ...x.kanal, status } } : x)) }; };
+      const svar = fortolk(b.tekst);
+      if (m.kanal.status === 'stoppet') continue;
+      if (svar.slags === 'stop') {
+        saetStatus('stoppet');
+        const til = [...new Set(s.forespoergsler.filter((f) => f.til === m.id && f.kanal).map((f) => f.fra))];
+        ud.push({ slags: 'stop', af: m.id, kanalNavn, til: til.length ? til : ejer ? [ejer] : [] });
+        continue;
+      }
+      if (m.kanal.status === 'afventer-ja') {
+        if (svar.slags === 'ja') { saetStatus('aktiv'); ud.push({ slags: 'aktiv', af: m.id, kanalNavn, til: ejer ? [ejer] : [] }); }
+        continue;
+      }
+      const sendtTil = s.forespoergsler.filter((f) => f.til === m.id && (f.kanal?.sendt.length ?? 0) > 0);
+      const aabne = sendtTil.filter((f) => f.tilstand === 'spurgt');
+      const maal = aabne.length === 1 ? aabne[0]! : null;
+      if (maal && svar.slags !== 'tekst') {
+        const h: Haendelse | null = svar.slags === 'kl'
+          ? (() => { const alt = alternativFraKl(maal, svar.kl, `Kan ${svar.kl.replace(':', '.')}`); return alt ? { slags: 'alternativ', af: m.id, alternativ: alt } : null; })()
+          : { slags: svar.slags, af: m.id };
+        const u = h ? anvend(maal, h, now) : null;
+        if (h && u?.ok && u.aendret) {
+          const f = { ...u.f, historik: u.f.historik.map((x, i, a) => (i === a.length - 1 ? { ...x, via: 'kanal' as const } : x)) };
+          s = { ...s, forespoergsler: s.forespoergsler.map((x) => (x.id === f.id ? f : x)) };
+          ud.push({ slags: 'svar', f, haendelse: h.slags, af: m.id, kanalNavn });
+          continue;
+        }
+      }
+      // Text, or an answer with no open request to answer: a line on her latest request, which never acts.
+      const tekst = b.tekst.trim().slice(0, MAX_KANAL_TEKST);
+      const sidste = maal ?? [...sendtTil].sort((a, z) => (a.kanal!.sendt.at(-1)!.tid < z.kanal!.sendt.at(-1)!.tid ? 1 : -1))[0];
+      if (!tekst || !sidste) continue;
+      const kanalFelt = { sendt: sidste.kanal?.sendt ?? [], beskeder: [...(sidste.kanal?.beskeder ?? []), { tid: b.tid, tekst }].slice(-MAX_KANAL_BESKEDER) };
+      const f = { ...sidste, kanal: kanalFelt };
+      s = { ...s, forespoergsler: s.forespoergsler.map((x) => (x.id === f.id ? f : x)) };
+      ud.push({ slags: 'tekst', f, af: m.id, tekst, kanalNavn });
+    }
+    await deps.store.writeState(RUM, s);
+    return ud;
+  });
+  if (fremmede) console.info(`husstand: ${fremmede} besked(er) fra afsendere uden for husstanden blev ignoreret`);
+  const medlemmer = medlemmerAf(personer, (await laesState(deps)).medlemmer);
+  for (const e of haendelser) {
+    const navn = navnAf(medlemmer, e.af);
+    if (e.slags === 'svar') await logBegge(deps, e.f, (p) => `${trinTekst(e.f, e.haendelse, e.af, medlemmer)(p)} (på ${e.kanalNavn})`);
+    else if (e.slags === 'tekst') await deps.store.appendLog(RUM, { kilde: 'system', tekst: `${navn} skrev på ${e.kanalNavn}: ${e.tekst}`.slice(0, 300), zone: 'privat', ejer: e.f.fra });
+    else {
+      const tekst = e.slags === 'stop' ? `${navn} skrev stop på ${e.kanalNavn}. Clawco sender ikke flere beskeder til ${navn}.` : `${navn} sagde ja til beskeder fra Clawco på ${e.kanalNavn}.`;
+      for (const p of e.til) await deps.store.appendLog(RUM, { kilde: 'system', tekst, zone: 'privat', ejer: p });
+    }
+  }
+  if (haendelser.length) notify(deps);
+}
 
 // ---------- KC-0150: the resource ----------
 
@@ -1092,6 +1221,8 @@ async function tik(deps: RoomDeps): Promise<void> {
   });
   for (const f of udloebne.udloebne) await logBegge(deps, f, () => `Udløb uden svar: ${f.titel}`, { kilde: 'system' });
   if (udloebne.aendret) notify(deps);
+  // KC-0153: replies on the go-between's channel (read only; the clock never sends).
+  await laesKanalSvar(deps);
 }
 
 /** iCalendar text: backslash, semicolon, comma and newlines escaped (RFC 5545 §3.3.11). */

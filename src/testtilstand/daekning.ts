@@ -107,6 +107,9 @@ const HAAND: [string, string][] = [
   ['start-kilde-fejl', 'data-kilde-fejl="'],                                  // KC-0128: a connected source whose first read failed (the moment "kilden svarer ikke")
   ['foresp-udloeb-paamindelse', 'data-foresp-paamindelse'],                  // KC-0149: a reminder to whoever decides a request (Maja asks Henrik)
   ['foresp-venter-paa-andre', 'data-gruppe="Venter på andre"'],              // KC-0149: Nu's I gang line for a request the other has not answered
+  ['kanal-send', 'data-kanal-send="'],                                        // KC-0153: the red Send of a request to Maja's channel, with the exact message (indhold/husstand.ts)
+  ['kanal-svar', 'data-kanal-svar'],                                          // KC-0153: an answer that came as a message on her channel (Maja's "kl 14")
+  ['kanal-fritekst', 'data-kanal-fritekst'],                                  // KC-0153: her free text on the channel, a line that never acts
   ['sammenfald', 'data-sammenfald="'],                                        // KC-0150: a clash card for its two bookers (Henrik ↔ Maja, the big car)
   ['lordag-konflikt', 'data-konflikt="'],                                    // KC-0152: the weekend card for both adults (Henrik ↔ Maja, Ella; the moment "Tirsdag før weekenden")
   ['bil-lordag', 'data-booking="b-kursus"'],                                  // KC-0151: the Saturday of the cars — Maja's course holds the big car (the moment "Lørdag i næste uge")

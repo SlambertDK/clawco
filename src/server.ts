@@ -76,7 +76,9 @@ import { SENERE, synligeKort, type Senere } from './kurator/senere.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { erAfvist, HUSSTAND_ULAESELIG, INGEN, kunSigneret, peerAf, vaelgKigger, type Identitetsvalg, type Person } from './identitet/identitet.ts';
 import { kontoFraMiljoe } from './identitet/konto.ts';
-import { husstandSynlig, weekendTjek } from './hushold/room.ts';
+import { husstandSynlig, kanalSend, kanalSendKlar, weekendTjek } from './hushold/room.ts';
+import { KanalFejl, lavFakeKanal, lavHermesKanal, type KanalClient } from './hushold/kanal.ts';
+import { laesLog as laesBeskedLog } from './kilder/beskeder/jsonl.ts';
 import { delerTitelRegel, type OptagetKalender } from './hushold/konflikt.ts';
 import type { KalenderLaesning } from './hushold/uge.ts';
 import { synligFor, zoneAf } from './identitet/zoner.ts';
@@ -190,6 +192,11 @@ export type AppDeps = {
   regelforslag?: RegelSeam;
   /** KC-0129: where Start's import keeps raw uploads while a proposal is made (default `<os tmp>/clawco-import`); tests point it into their own dir. */
   importTmp?: string;
+  /**
+   * KC-0153: the go-between's channel (src/hushold/kanal.ts: hermes or fake). Only the human-tap send route holds it;
+   * the rooms' clock gets its read side alone. Absent = no Send on a request (the route answers 503).
+   */
+  kanal?: KanalClient;
 };
 
 /** KC-0116: who is looking, set once per request by the identity middleware. */
@@ -483,6 +490,8 @@ export function createApp(deps: AppDeps) {
       return ud;
     },
     synlig: () => husstandSynlig(d),
+    // KC-0153: the channel's read side only — send stays with the human-tap route below.
+    ...(deps.kanal ? { kanalSvar: (siden: string) => deps.kanal!.hentSvar(siden) } : {}),
   };
   // KC-0129: Start's import writes people and the profile through the notes connector's writers (the vault chosen on the
   // notes card, or the env paths); "Lav en mappe til mig" sets the notes connector up as the card does.
@@ -723,7 +732,9 @@ export function createApp(deps: AppDeps) {
     const videnRegel = rum === 'viden' && slags === 'regel';
     // KC-0144: Ja on a rule proposal in Nu (id = the proposal's id) is a tap too.
     const hjemForslag = rum === HJEM && slags === 'forslag';
-    if (!videnRegel && !hjemForslag && ((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
+    // KC-0153: Send on a request in Husstanden (id = request:kind:hash of the text shown) is a tap too.
+    const kanalSend = rum === 'husstand' && slags === 'send';
+    if (!videnRegel && !hjemForslag && !kanalSend &&((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
     const id = slags === 'aktion' ? aktionId(typeof b['id'] === 'string' ? b['id'] : '', typeof b['body'] === 'object' && b['body'] !== null ? b['body'] as Record<string, unknown> : {}) : typeof b['id'] === 'string' ? b['id'] : '';
     if (!id) return c.json({ error: 'Ukendt knap' }, 400);
     return c.json({ ja: TEGN.udsted({ person: c.get('person').id, rum, slags, id }) });
@@ -1435,6 +1446,27 @@ export function createApp(deps: AppDeps) {
     }
   });
 
+  // KC-0153: the go-between's Send — a human tap only. The text is the app's (kanal.ts beskedTekst), checked before the
+  // policy layer, which needs a one-time yes bound to this request, kind and exact text (verb send-til-andre: never by
+  // voice, never on its own); then sent once inside the store's queue. Nothing in the body is sent.
+  app.post('/api/hushold/foresp/:id/send', async (c) => {
+    const kanal = deps.kanal;
+    if (!kanal) return c.json({ error: 'Clawco kan ikke sende beskeder herfra.' }, 503);
+    const b = await body(c);
+    const slags = b['slags'] === 'paamindelse' ? 'paamindelse' : 'foresp';
+    const id = c.req.param('id');
+    try {
+      const klar = await kanalSendKlar(d, id, slags);
+      const run = await gennem(d, { rum: 'husstand', id: klar.jaId, verb: 'send-til-andre', zoner: ['husstand'] }, 'send', { kanal: 'knap', ...(typeof b['ja'] === 'string' ? { ja: b['ja'] } : {}) },
+        () => kanalSend(d, kanal, id, slags, klar.tekst));
+      return accepted(c, tag(run, 'husstand'));
+    } catch (err) {
+      if (err instanceof ActionError) return c.json({ error: err.message }, err.status);
+      if (err instanceof KanalFejl) return c.json({ error: err.message }, 502);
+      throw err;
+    }
+  });
+
   app.post('/api/rum/:id/chat', async (c) => {
     const id = c.req.param('id');
     const mod = getRoomModule(id);
@@ -1814,6 +1846,24 @@ export function lavAgent(e: Record<string, string | undefined>, o: { env?: Recor
   });
 }
 
+/**
+ * KC-0153: the go-between's channel. KC_KANAL (hermes | fake | fra); default fake beside the fake agent (it never
+ * reaches anyone), hermes beside Hermes, none for the direct agent (no gateway). hermes runs `KC_HERMES_CLI send`
+ * (default `hermes`; systemd's PATH lacks ~/.local/bin, deploy/hermes/README.md) and reads replies from the gateway
+ * hook's inbound log in the data dir.
+ */
+export function lavKanal(e: Record<string, string | undefined>, mode: AgentClient['mode']): KanalClient | undefined {
+  const valgt = (e['KC_KANAL'] ?? '').trim() || (mode === 'fake' ? 'fake' : mode === 'hermes-http' ? 'hermes' : 'fra');
+  if (valgt === 'fra') return undefined;
+  if (valgt === 'fake') {
+    if (mode !== 'fake') throw new Error('KC_KANAL=fake kræver KC_AGENT=fake (den falske kanal findes kun i udvikling)');
+    return lavFakeKanal();
+  }
+  if (valgt !== 'hermes') throw new Error('KC_KANAL skal være hermes, fake eller fra');
+  const dir = path.join((e['KC_DATA_DIR'] ?? '').trim() || './data', 'beskeder');
+  return lavHermesKanal({ cli: (e['KC_HERMES_CLI'] ?? '').trim() || 'hermes', laesLog: () => laesBeskedLog(dir) });
+}
+
 export async function main(): Promise<void> {
   redigerKonsol(); // KC-0125: nothing printed holds a secret value
   const mode = agentValg(process.env);
@@ -1828,6 +1878,7 @@ export async function main(): Promise<void> {
   const adresse = egenAdresse(process.env, hostname, port);
   const stemmeMode = env('KC_STEMME_MODE', mode === 'fake' ? 'fake' : 'elevenlabs');
   const stemme = stemmeMode === 'fake' ? createFakeStemme() : env('KC_ELEVENLABS_API_KEY') ? createElevenLabs({ apiKey: env('KC_ELEVENLABS_API_KEY') }) : undefined;
+  const kanal = lavKanal(process.env, mode);
   const { app, frontload, kurator, konflikt, soendag, moedeTik, rumTik, helbredTik } = createApp({
     store: createFileStore(env('KC_DATA_DIR', './data')),
     hermes,
@@ -1859,6 +1910,7 @@ export async function main(): Promise<void> {
     // KC-0212: the operator's ledger (absent in a tenant image: no card). No paid customers are read yet, so MRR is 0.
     omkostninger: { laes: () => laesOmkostningsfil(env('KC_OMKOSTNINGER', OMKOSTNINGSFIL)), mrr: () => 0 },
     ...(konto ? { identitet: { konto } } : {}),
+    ...(kanal ? { kanal } : {}),
   });
   frontload(env('KC_FRONTLOAD', standardFrontload(process.env)));
   kurator(env('KC_KURATOR', '07-22/60'));

@@ -27,7 +27,7 @@ import { skrivFroe, testMailRunner } from './skriv.ts';
 import { ALLE_MOMENTER, froe as lavFroe, MOMENTER, svar } from './indhold.ts';
 import { erKold, KOLD_GOOGLE, modelTestUdfald } from './indhold/start.ts';
 import { fakta, momentNr, momentPlus, plusDag } from './indhold/fakta.ts';
-import { familiekalender, TEST_EJER } from './indhold/husstand.ts';
+import { familiekalender, TEST_EJER, testKanal } from './indhold/husstand.ts';
 import { lavReglerLager } from '../tillid/lager.ts';
 import { falskeKilder } from '../kilder/falsk/falsk.ts';
 import type { Slags } from '../kilder/types.ts';
@@ -249,6 +249,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     ],
     // KC-0138: the real Beskeder connector over the hook files each moment seeds; senders from the world's people register.
     beskeder: (b) => beskederKilde({ dataDir: dir, ...b }),
+    // KC-0153: the go-between's channel is the fake (Send records, never reaches anyone); a stranger's number waits in it.
+    kanal: testKanal(),
     // KC-0212: the owner's cost card reads the moment's invented ledger and MRR (green, amber in the evening, red late).
     omkostninger: { laes: async () => testOmkostninger(nu.id).regnskab, mrr: () => testOmkostninger(nu.id).mrr },
     ...(o.publicDir ? { publicDir: o.publicDir } : {}),

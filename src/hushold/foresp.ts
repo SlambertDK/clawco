@@ -19,8 +19,13 @@ export type Tilstand = (typeof TILSTANDE)[number];
 export type PersonId = string;
 export type Tidsrum = { start: string; slut: string };
 export type Alternativ = Tidsrum & { tekst: string };
-/** `af`: the person who tapped, or 'ur' for the clock's expiry. */
-export type Historik = { tid: string; tilstand: Tilstand; af: string };
+/** `af`: the person who tapped, or 'ur' for the clock's expiry. `via: 'kanal'` (KC-0153): she answered on her channel, not in the app. */
+export type Historik = { tid: string; tilstand: Tilstand; af: string; via?: 'kanal' };
+/**
+ * KC-0153, the go-between: what went to the recipient on her channel (each on a human tap) and what she wrote back
+ * that was not an answer (text the asker sees, which never acts).
+ */
+export type ForespKanal = { sendt: { tid: string; slags: 'foresp' | 'paamindelse' }[]; beskeder: { tid: string; tekst: string }[] };
 /** Hermes' suggestions for the decider (prompt.ts): advice beside the state, never a state. */
 export type ForespForslag = { anbefaling?: string; alternativer: { kl: string; tekst: string }[] };
 
@@ -37,6 +42,8 @@ export type Forespoergsel = {
   lukket?: string;
   /** Parties who took the agreement to their own calendar (the one-tap card is gone for them). */
   iKalender?: PersonId[];
+  /** KC-0153: the go-between on the recipient's channel; absent = never sent there. */
+  kanal?: ForespKanal;
 };
 
 export type Haendelse =

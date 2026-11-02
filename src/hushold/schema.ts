@@ -9,7 +9,8 @@
 
 import { erRolle, type Rolle } from '../identitet/roller.ts';
 import type { DataZone } from '../identitet/zoner.ts';
-import { TILSTANDE, type ForespForslag, type Forespoergsel, type Historik, type Tilstand } from './foresp.ts';
+import { TILSTANDE, type ForespForslag, type ForespKanal, type Forespoergsel, type Historik, type Tilstand } from './foresp.ts';
+import { erKanal, gyldigHandle, KANAL_STATUSSER, type Kanalforbindelse, type KanalStatus } from './kanal.ts';
 import type { BookingUdkast } from './bil.ts';
 import type { Blok, Konflikt, KonfliktValg } from './konflikt.ts';
 import { dobbeltBooket, MAX_VALG, SLAGS, type Booking, type Ressource, type Sammenfald, type Slags, type Valg } from './ressource.ts';
@@ -23,9 +24,13 @@ export type { Konflikt } from './konflikt.ts';
 export const RUM = 'husstand';
 export const KORSEL: DataZone = 'husstand';
 
-export type Medlem = { id: string; navn: string; rolle: Rolle; relation?: string; tailnetLogin?: string; telefon?: string };
-/** `konflikter` (KC-0152): the Saturday cards; `konfliktTjek`: the Saturday the Tuesday check last looked at (it runs once per weekend). */
-export type HusstandState = { medlemmer: Medlem[]; ressourcer: Ressource[]; forespoergsler: Forespoergsel[]; sammenfald: Sammenfald[]; udkast: BookingUdkast[]; konflikter: Konflikt[]; konfliktTjek?: string };
+/** `kanal` (KC-0153): the channel the go-between reaches her on, and where her opt-in stands. */
+export type Medlem = { id: string; navn: string; rolle: Rolle; relation?: string; tailnetLogin?: string; telefon?: string; kanal?: Kanalforbindelse };
+/**
+ * `konflikter` (KC-0152): the Saturday cards; `konfliktTjek`: the Saturday the Tuesday check last looked at (it runs once per weekend).
+ * `kanalSidst` (KC-0153): the time of the last channel message read (nothing is read before the go-between's first send).
+ */
+export type HusstandState = { medlemmer: Medlem[]; ressourcer: Ressource[]; forespoergsler: Forespoergsel[]; sammenfald: Sammenfald[]; udkast: BookingUdkast[]; konflikter: Konflikt[]; konfliktTjek?: string; kanalSidst?: string };
 
 export const TOM_HUSSTAND: HusstandState = { medlemmer: [], ressourcer: [], forespoergsler: [], sammenfald: [], udkast: [], konflikter: [] };
 
@@ -80,7 +85,20 @@ export function parseMedlem(raw: unknown): Medlem {
     if (typeof o['telefon'] !== 'string' || !TELEFON.test(o['telefon'].trim())) throw new HusholdFejl(`medlem ${m.id}: ugyldigt telefonnummer`);
     m.telefon = o['telefon'].trim();
   }
+  if (o['kanal'] !== undefined && o['kanal'] !== null) m.kanal = parseKanalforbindelse(o['kanal'], m.id);
   return m;
+}
+
+/** KC-0153: a member's channel — a known channel, a valid handle for it (stored normalised), an opt-in state. */
+function parseKanalforbindelse(raw: unknown, hvem: string): Kanalforbindelse {
+  const o = obj(raw, 'kanal');
+  if (!erKanal(o['kanal'])) throw new HusholdFejl(`medlem ${hvem}: ukendt kanal`);
+  const handle = typeof o['handle'] === 'string' ? gyldigHandle(o['kanal'], o['handle']) : null;
+  if (!handle) throw new HusholdFejl(`medlem ${hvem}: ugyldigt nummer eller id på kanalen`);
+  if (typeof o['status'] !== 'string' || !(KANAL_STATUSSER as readonly string[]).includes(o['status'])) throw new HusholdFejl(`medlem ${hvem}: ukendt kanalstatus`);
+  const k: Kanalforbindelse = { kanal: o['kanal'], handle, status: o['status'] as KanalStatus };
+  if (o['inviteret'] !== undefined && o['inviteret'] !== null) k.inviteret = tid(o['inviteret'], 'kanal');
+  return k;
 }
 
 function parseBooking(raw: unknown): Booking {
@@ -217,7 +235,34 @@ function strenge(v: unknown, max: number, hvad: string, gyldig: (x: string) => b
 }
 function parseHistorik(raw: unknown): Historik {
   const o = obj(raw, 'historik');
-  return { tid: tid(o['tid'], 'historik'), tilstand: tilstandAf(o['tilstand'], 'historik'), af: o['af'] === 'ur' ? 'ur' : id(o['af'], 'historik') };
+  const h: Historik = { tid: tid(o['tid'], 'historik'), tilstand: tilstandAf(o['tilstand'], 'historik'), af: o['af'] === 'ur' ? 'ur' : id(o['af'], 'historik') };
+  if (o['via'] !== undefined && o['via'] !== null) {
+    if (o['via'] !== 'kanal') throw new HusholdFejl('historik: ukendt kilde');
+    h.via = 'kanal';
+  }
+  return h;
+}
+
+const MAX_KANAL_SENDT = 10;
+export const MAX_KANAL_BESKEDER = 20;
+export const MAX_KANAL_TEKST = 500;
+/** KC-0153: what went on the channel and what she wrote back, capped. */
+function parseForespKanal(raw: unknown): ForespKanal {
+  const o = obj(raw, 'kanal');
+  const sendt = o['sendt'] ?? [], beskeder = o['beskeder'] ?? [];
+  if (!Array.isArray(sendt) || sendt.length > MAX_KANAL_SENDT || !Array.isArray(beskeder) || beskeder.length > MAX_KANAL_BESKEDER) throw new HusholdFejl('kanal: ugyldige lister');
+  return {
+    sendt: sendt.map((x) => {
+      const s = obj(x, 'kanal');
+      if (s['slags'] !== 'foresp' && s['slags'] !== 'paamindelse') throw new HusholdFejl('kanal: ukendt slags');
+      return { tid: tid(s['tid'], 'kanal'), slags: s['slags'] };
+    }),
+    beskeder: beskeder.map((x) => {
+      const b = obj(x, 'kanal');
+      if (typeof b['tekst'] !== 'string' || b['tekst'].length > MAX_KANAL_TEKST) throw new HusholdFejl('kanal: ugyldig tekst');
+      return { tid: tid(b['tid'], 'kanal'), tekst: b['tekst'] };
+    }),
+  };
 }
 function parseForslag(raw: unknown): ForespForslag {
   const o = obj(raw, 'forslag');
@@ -263,6 +308,7 @@ function parseForespoergsel(raw: unknown): Forespoergsel {
   if (o['lukket'] !== undefined && o['lukket'] !== null) f.lukket = tid(o['lukket'], 'forespørgsel');
   const iKalender = strenge(o['iKalender'], 2, 'kalender', (x) => ID.test(x));
   if (iKalender.length) f.iKalender = iKalender;
+  if (o['kanal'] !== undefined && o['kanal'] !== null) f.kanal = parseForespKanal(o['kanal']);
   return f;
 }
 
@@ -274,6 +320,7 @@ export function parseHusstandState(raw: unknown): HusstandState {
   if (new Set(konflikter.map((k) => k.noegle)).size !== konflikter.length) throw new HusholdFejl('konflikter: samme behov to gange');
   const tjek = o['konfliktTjek'] === undefined || o['konfliktTjek'] === null ? undefined : o['konfliktTjek'];
   if (tjek !== undefined && (typeof tjek !== 'string' || !DATO.test(tjek))) throw new HusholdFejl('konfliktTjek: ugyldig dag');
+  const kanalSidst = o['kanalSidst'] === undefined || o['kanalSidst'] === null ? undefined : tid(o['kanalSidst'], 'kanalSidst');
   return {
     medlemmer: liste(o['medlemmer'], 'medlemmer', parseMedlem),
     ressourcer: liste(o['ressourcer'], 'ressourcer', parseRessource),
@@ -282,5 +329,6 @@ export function parseHusstandState(raw: unknown): HusstandState {
     udkast: liste(o['udkast'], 'udkast', parseUdkast),
     konflikter,
     ...(tjek ? { konfliktTjek: tjek } : {}),
+    ...(kanalSidst ? { kanalSidst } : {}),
   };
 }

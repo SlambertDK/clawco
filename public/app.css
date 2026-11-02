@@ -628,3 +628,6 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 .ugetal-soejler figcaption { margin-top: 6px; }
 /* On a phone it is one line, no chart (the text alternative goes with the figure). */
 @media (max-width: 600px) { .ugetal-soejler { display: none; } .ugetal-linje { font-size: 14px; } }
+/* KC-0153: the exact message the go-between sends, line breaks kept; her own words below it. */
+.kanal-tekst { white-space: pre-line; color: var(--ink-2); background: var(--raised); border-left: 2px solid var(--graense-line); padding: 8px 10px; border-radius: 6px; overflow-wrap: anywhere; }
+.kanal-fritekst { overflow-wrap: anywhere; }

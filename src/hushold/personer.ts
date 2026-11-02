@@ -20,6 +20,7 @@ export function medlemmerAf(personer: readonly Person[], gemte: readonly Medlem[
     const g = gemte.find((x) => x.id === p.id);
     if (g?.relation) m.relation = g.relation;
     if (g?.telefon) m.telefon = g.telefon;
+    if (g?.kanal) m.kanal = { ...g.kanal }; // KC-0153: the go-between's channel
     return m;
   });
 }

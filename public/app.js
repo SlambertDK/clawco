@@ -775,6 +775,14 @@
           start('/api/rum/' + roomId + '/opdater', { mode: btn.dataset.opdater }, { startText: btn.dataset.opdater === 'hent' ? 'henter dagens data …' : 'bygger rummet …' });
           return;
         }
+        // KC-0153: Send on a request goes to her channel — a one-time yes for exactly the text on screen, then the send.
+        if (btn.dataset.kanalSend) {
+          btn.disabled = true;
+          setBusy(elementOf(btn), 'sender …');
+          var slagsK = btn.dataset.kanalSlags === 'paamindelse' ? 'paamindelse' : 'foresp';
+          start('/api/hushold/foresp/' + encodeURIComponent(btn.dataset.kanalSend) + '/send', slagsK === 'paamindelse' ? { slags: slagsK } : {}, { ja: { rum: 'husstand', slags: 'send', id: btn.dataset.kanalJa }, startText: 'sender …' });
+          return;
+        }
         if (btn.dataset.aktion) {
           if (btn.dataset.confirm && !window.confirm(btn.dataset.confirm)) return;
           var arg = {};

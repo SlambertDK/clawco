@@ -19,6 +19,7 @@ import type { ProfilLager } from '../store/profil.ts';
 import type { ModelSyn, ModelTestSyn, Niveau } from './start/trin.ts';
 import type { KalenderLaesning } from '../hushold/uge.ts';
 import type { OptagetKalender } from '../hushold/konflikt.ts';
+import type { IndkommendeBesked } from '../hushold/kanal.ts';
 import type { RetBus } from './rethaendelse.ts';
 import type { RegelSeam } from './start/regelforslag.ts';
 import type { ImportSkriver } from './start/import/skriver.ts';
@@ -134,6 +135,11 @@ export type ModelVindue = {
 export type HusstandKilder = {
   /** The persons of the household (E1 identity, husstand.json); empty = single-user. */
   personer(): Promise<Person[]>;
+  /**
+   * KC-0153: the go-between's inbound messages after a time (the channel client's read side only). Absent = no channel.
+   * Sending is never reachable from here: only the human-tap route holds the client.
+   */
+  kanalSvar?(siden: string): Promise<IndkommendeBesked[]>;
   /** Every connected calendar as read, with its zone and who connected it; one that cannot be read is left out. */
   kalendere(): Promise<KalenderLaesning[]>;
   /**
