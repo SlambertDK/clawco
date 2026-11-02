@@ -23,6 +23,7 @@ test('the real price file is approved and carries the prices Henrik said yes to'
   assert.deepEqual(p.moms, { aktiv: false });
   assert.deepEqual(p.proeve, { dage: 14, kort: false });
   assert.equal(p.fristVedFejl, 14);
+  assert.equal(p.paamindelseVedFejl, 7);
   assert.deepEqual(Object.keys(p.planer), ['sky-solo', 'sky-husstand']);
   assert.deepEqual(p.planer['sky-solo'], { navn: 'Sky Solo', medlemmer: 1, maanedlig: { dkk: 7900, eur: 1060 }, aarlig: { dkk: 79000, eur: 10600 } });
   assert.deepEqual(p.planer['sky-husstand'], { navn: 'Sky Husstand', medlemmer: 6, maanedlig: { dkk: 12900, eur: 1730 }, aarlig: { dkk: 129000, eur: 17300 } });
@@ -82,6 +83,9 @@ test('trial, grace period and add-ons are checked', () => {
   afviser((r) => { r.proeve.dage = -1; }, 'proeve.dage');
   afviser((r) => { r.proeve.kort = 'nej'; }, 'proeve.kort');
   afviser((r) => { r.fristVedFejl = 0; }, 'fristVedFejl');
+  // KC-0196: the second (sharper) mail comes after the first and before the read-only day.
+  afviser((r) => { r.paamindelseVedFejl = 0; }, 'paamindelseVedFejl');
+  afviser((r) => { r.paamindelseVedFejl = r.fristVedFejl; }, 'paamindelseVedFejl');
   afviser((r) => { r.tilvalg['inkluderet-model'].status = 'måske'; }, 'tilvalg.inkluderet-model.status');
   afviser((r) => { delete r.tilvalg['inkluderet-model'].fraMaanedlig.eur; }, 'tilvalg.inkluderet-model.fraMaanedlig.eur');
 });

@@ -21,6 +21,7 @@
     "restore": "node --env-file-if-exists=.env scripts/arkiv.mjs restore",
     "hemmeligheder": "node --env-file-if-exists=.env scripts/hemmeligheder.mjs",
     "live:tjek": "node scripts/live-tjek.mjs",
+    "betaling:tjek": "node scripts/betaling-tjek.mjs",
     "koldstart": "node --test test/testtilstand/koldstart.test.ts",
     "docker:tjek": "node scripts/docker-tjek.mjs"
   },

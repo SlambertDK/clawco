@@ -17,6 +17,8 @@ export type Priser = {
   proeve: { dage: number; kort: boolean };
   /** Days from a failed payment to read-only (KC-0196). */
   fristVedFejl: number;
+  /** Days from a failed payment to the second, sharper mail (KC-0196); after day 0, before fristVedFejl. */
+  paamindelseVedFejl: number;
   /** Plan id → plan. Plan ids and member limits live here and nowhere else. */
   planer: Record<string, Plan>;
   tilvalg: Record<string, Tilvalg>;
@@ -72,7 +74,7 @@ function ordbog<T>(v: unknown, sti: string, del: (v: unknown, sti: string) => T)
 }
 
 export function validerPriser(raw: unknown): Priser {
-  const r = objekt(raw, '', ['status', 'moms', 'proeve', 'fristVedFejl', 'planer', 'tilvalg']);
+  const r = objekt(raw, '', ['status', 'moms', 'proeve', 'fristVedFejl', 'paamindelseVedFejl', 'planer', 'tilvalg']);
   const status = r['status'];
   if (status !== 'udkast' && status !== 'godkendt') throw fejl('status', 'skal være "udkast" eller "godkendt"');
 
@@ -100,7 +102,10 @@ export function validerPriser(raw: unknown): Priser {
     return { navn: tekst(o['navn'], `${sti}.navn`), status: s, fraMaanedlig: beloeb(o['fraMaanedlig'], `${sti}.fraMaanedlig`) } satisfies Tilvalg;
   });
 
-  return { status, moms: { aktiv: false }, proeve, fristVedFejl: heltal(r['fristVedFejl'], 'fristVedFejl', 1), planer, tilvalg };
+  const fristVedFejl = heltal(r['fristVedFejl'], 'fristVedFejl', 1);
+  const paamindelseVedFejl = heltal(r['paamindelseVedFejl'], 'paamindelseVedFejl', 1);
+  if (paamindelseVedFejl >= fristVedFejl) throw fejl('paamindelseVedFejl', 'skal komme før fristVedFejl');
+  return { status, moms: { aktiv: false }, proeve, fristVedFejl, paamindelseVedFejl, planer, tilvalg };
 }
 
 export function laesPriser(sti: string = PRISFIL): Priser {

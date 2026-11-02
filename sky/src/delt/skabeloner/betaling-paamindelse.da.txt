@@ -1,0 +1,13 @@
+Betalingen for Clawco mangler stadig
+
+Hej
+
+Betalingen for dit abonnement mangler stadig. Den fejlede {{dato}}.
+
+Abonnement: {{produkt}}
+
+Ret kortet på din kontoside, så betalingen kan gå igennem. Vi skriver til dig, før vi gør noget ved din Clawco, og intet bliver slettet, fordi en betaling mangler.
+
+{{link}}
+
+Clawco

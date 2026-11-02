@@ -1,0 +1,13 @@
+Your Clawco payment did not go through
+
+Hello
+
+We could not take the payment for your subscription on {{dato}}.
+
+Subscription: {{produkt}}
+
+Stripe will try to charge again. You can fix the card on your account page. Your Clawco keeps running meanwhile, and nothing is deleted because a payment is missing.
+
+{{link}}
+
+Clawco

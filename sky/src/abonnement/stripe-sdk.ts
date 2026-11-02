@@ -70,6 +70,7 @@ export function fraStripeAbonnement(s: Stripe.Subscription): AbonnementSnapshot 
     opsigVedPeriodeslut: s.cancel_at_period_end,
     opsigesVed: dato(s.cancel_at),
     forfaldenSiden: faktura?.status === 'open' ? dato(faktura.status_transitions.finalized_at) : null,
+    prisPlan: item?.price.metadata?.['clawco_plan'] ?? null,
     metadata: { ...s.metadata },
   };
 }

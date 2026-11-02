@@ -4,6 +4,7 @@
   "moms": { "aktiv": false },
   "proeve": { "dage": 14, "kort": false },
   "fristVedFejl": 14,
+  "paamindelseVedFejl": 7,
   "planer": {
     "sky-solo": {
       "navn": "Sky Solo",

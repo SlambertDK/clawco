@@ -27,6 +27,7 @@ import { opretBestilling } from './bestilling.ts';
 import { opsig, opsigOversigt } from './opsig.ts';
 import { fortryd, fortrydOversigt } from './fortryd.ts';
 import { kontoHandlinger } from './handlinger.ts';
+import { fristForKonto } from './frist-job.ts';
 
 /** The logged-in person, as konto's session sees it. */
 export type Indlogget = { kontoId: number; email: string; sprog: 'da' | 'en'; csrf: string };
@@ -80,8 +81,12 @@ export function koebDeps(d: AbonnementDeps): KoebDeps {
 export function webhookDeps(d: AbonnementDeps): WebhookDeps {
   const w: WebhookDeps = {
     db: d.db, klient: d.klient, priser: d.priser, hemmelighed: d.webhookHemmelighed, nu: d.nu ?? (() => new Date()), taeller: d.taeller ?? { afvist: 0 },
-    // KC-0209: when a purchase has gone through, tie it to its order and send the receipt.
-    efter: (kontoId) => efterKoeb(koebDeps(d), kontoId),
+    // KC-0209: when a purchase has gone through, tie it to its order and send the receipt. KC-0196: then the mail the
+    // account's grace stage owes (a failed payment's first mail goes out within the webhook's round trip).
+    efter: async (kontoId) => {
+      const k = koebDeps(d);
+      try { await efterKoeb(k, kontoId); } finally { await fristForKonto(k, kontoId); }
+    },
   };
   if (d.verificer) w.verificer = d.verificer;
   return w;

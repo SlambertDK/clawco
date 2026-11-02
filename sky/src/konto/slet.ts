@@ -69,6 +69,8 @@ export async function sletKonto(
     await tx.query('DELETE FROM session WHERE konto_id = $1', [k.id]);
     await tx.query('DELETE FROM passkey WHERE konto_id = $1', [k.id]);
     await tx.query('DELETE FROM udfordring WHERE konto_id = $1', [k.id]);
+    // KC-0196: which scheduled mails the account had (no content); nothing is mailed to a deleted account.
+    await tx.query('DELETE FROM udsendte_mails WHERE konto_id = $1', [k.id]);
     await tx.query('DELETE FROM loginkode WHERE email = $1', [k.email]);
     await tx.query('DELETE FROM graense WHERE noegle = $1', [emailNoegle(k.email)]);
     // The row stays as a tombstone without the email, so billing (KC-0173) can still refer to the id.

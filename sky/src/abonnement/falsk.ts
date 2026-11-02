@@ -3,12 +3,16 @@
 // only metadata.clawco products listed, archive instead of delete. Scripted failures via fejlNaeste.
 // KC-0191/KC-0192: customers, Checkout sessions and subscriptions, with test helpers that play the
 // person on Stripe's page (fuldfoerCheckout) and Stripe's own state changes (saetAbonnement, sletKunde).
+// KC-0193: a time model, so the scenario table (sky/test/abonnement/betaling/) runs here as it does on Stripe's
+// test clocks: spolFrem plays trial ends, renewals and period-end cancellations up to a moment; a test payment
+// method decides each charge; every change is recorded as the event Stripe would send (haendelser()). A
+// subscription is read with its price's current lookup key, as Stripe expands it.
 import type Stripe from 'stripe';
 import { CLAWCO_MAERKE, kontoIdFra } from './stripe-klient.ts';
 import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPris, NytProdukt, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
 
 export type FalskKald = {
-  metode: 'opretProdukt' | 'opdaterProdukt' | 'opretPris' | 'arkiverPris' | 'opretKunde' | 'opretCheckout' | 'udloebCheckout' | 'opsigAbonnement' | 'opsigVedPeriodeslut' | 'opretPortal';
+  metode: 'opretProdukt' | 'opdaterProdukt' | 'opretPris' | 'arkiverPris' | 'opretKunde' | 'opretCheckout' | 'udloebCheckout' | 'opsigAbonnement' | 'opsigVedPeriodeslut' | 'opretPortal' | 'vedhaeftBetalingsmiddel' | 'skiftPris' | 'betalAabne';
   args: unknown;
   idempotensNoegle?: string;
 };
@@ -17,6 +21,13 @@ type FalskKunde = { id: string; email: string; sprog: string; metadata: Record<s
 type FalskSession = CheckoutSession & { params: Stripe.Checkout.SessionCreateParams };
 
 const DAG_MS = 86_400_000;
+
+/** An event as Stripe would POST it (the body is unsigned; the receiver signs it with its own test secret). */
+export type FalskHaendelse = { id: string; type: string; kunde: string; krop: string };
+
+/** Stripe's published test payment methods the model knows: true = every charge succeeds. */
+export const TEST_BETALINGSMIDLER: Readonly<Record<string, boolean>> = { pm_card_visa: true, pm_card_chargeCustomerFail: false };
+
 
 type Metode = keyof BetalingsKlient;
 
@@ -34,6 +45,12 @@ export class FalskBetalingsKlient implements BetalingsKlient {
   private sessioner = new Map<string, FalskSession>();
   private abonnementer = new Map<string, AbonnementSnapshot>();
   private fakturaer: (Faktura & { kunde: string })[] = [];
+  private log: FalskHaendelse[] = [];
+  private naesteHaendelse = 1;
+  /** The customer's default payment method: whether charges succeed. */
+  private betaler = new Map<string, boolean>();
+  /** What the trial does at its end without a payment method (trial_settings.end_behavior). */
+  private slutAdfaerd = new Map<string, string>();
   private readonly checkoutUrl: (id: string) => string;
   /** Development and smoke tests: what Stripe would send as a webhook after a change it made itself (a cancellation).
    *  Set by server.ts in SKY_DEV so the real handler hears about it, the way production does; null in unit tests. */
@@ -165,7 +182,7 @@ export class FalskBetalingsKlient implements BetalingsKlient {
 
   private session(s: FalskSession): CheckoutSession {
     const { params: _params, ...ud } = structuredClone(s);
-    if (ud.abonnement) ud.abonnement = structuredClone(this.abonnementer.get(ud.abonnement.id) ?? null);
+    if (ud.abonnement) { const a = this.abonnementer.get(ud.abonnement.id); ud.abonnement = a ? this.medPris(a) : null; }
     return ud;
   }
 
@@ -218,17 +235,28 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     const ab: AbonnementSnapshot = {
       id: `sub_falsk_${this.naesteId++}`, kunde: s.kunde!, status: dage ? 'trialing' : 'active', prisId: pris?.id ?? null, lookupKey: pris?.lookupKey ?? null,
       oprettet: new Date(nu), proeveStart: dage ? new Date(nu) : null, proeveSlut, periodeSlut: proeveSlut ?? periode,
-      opsigVedPeriodeslut: false, opsigesVed: null, forfaldenSiden: null, metadata: { ...(p.subscription_data?.metadata as Record<string, string> | undefined) },
+      opsigVedPeriodeslut: false, opsigesVed: null, forfaldenSiden: null, prisPlan: pris?.metadata['clawco_plan'] ?? null, metadata: { ...(p.subscription_data?.metadata as Record<string, string> | undefined) },
     };
     this.abonnementer.set(ab.id, ab);
+    this.slutAdfaerd.set(ab.id, p.subscription_data?.trial_settings?.end_behavior?.missing_payment_method ?? 'create_invoice');
     s.status = 'complete';
     s.abonnement = structuredClone(ab);
+    this.udsend('checkout.session.completed', ab.kunde, { id, object: 'checkout.session' });
+    this.udsend('customer.subscription.created', ab.kunde, { id: ab.id, object: 'subscription' });
     return (p.success_url ?? '').replace('{CHECKOUT_SESSION_ID}', id);
   }
 
   async listAbonnementer(kunde: string): Promise<AbonnementSnapshot[]> {
     this.tjekFejl('listAbonnementer');
-    return [...this.abonnementer.values()].filter((a) => a.kunde === kunde).map((a) => structuredClone(a));
+    return [...this.abonnementer.values()].filter((a) => a.kunde === kunde).map((a) => this.medPris(a));
+  }
+
+  /** As Stripe expands it: the lookup key is the one the price holds now (a config change moves it away). */
+  private medPris(a: AbonnementSnapshot): AbonnementSnapshot {
+    const ud = structuredClone(a);
+    const pris = a.prisId === null ? undefined : this.priser.get(a.prisId);
+    if (pris) { ud.lookupKey = pris.lookupKey; ud.prisPlan = pris.metadata['clawco_plan'] ?? null; }
+    return ud;
   }
 
   /** Test helper: Stripe changed a subscription (a payment failed, a plan changed, …). */
@@ -242,6 +270,7 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     const a = this.abonnementer.get(id);
     if (!a) throw new Error(`intet abonnement ${id}`);
     a.status = 'canceled';
+    this.udsend('customer.subscription.deleted', a.kunde, { id: a.id, object: 'subscription' });
     await this.haendelsesSink?.('customer.subscription.deleted', a.kunde);
   }
 
@@ -251,7 +280,122 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     const a = this.abonnementer.get(id);
     if (!a) throw new Error(`intet abonnement ${id}`);
     a.opsigVedPeriodeslut = true;
+    this.udsend('customer.subscription.updated', a.kunde, { id: a.id, object: 'subscription' });
     await this.haendelsesSink?.('customer.subscription.updated', a.kunde);
+  }
+
+  // --- KC-0193: the time model ---------------------------------------------------------------------------
+
+  private udsend(type: string, kunde: string, objekt: { id: string; object: string }): void {
+    const id = `evt_falsk_${this.naesteHaendelse++}`;
+    const data = objekt.object === 'customer' ? { id: kunde, object: 'customer' } : { ...objekt, customer: kunde };
+    this.log.push({ id, type, kunde, krop: JSON.stringify({ id, object: 'event', type, data: { object: data } }) });
+  }
+
+  /** Every event so far, oldest first. */
+  haendelser(): FalskHaendelse[] {
+    return structuredClone(this.log);
+  }
+
+  /** Test helper: the customer's default payment method becomes one of Stripe's published test ids (through the API,
+   *  never a card number). */
+  vedhaeftBetalingsmiddel(kunde: string, betalingsmiddel: string): void {
+    this.kald.push({ metode: 'vedhaeftBetalingsmiddel', args: { kunde, betalingsmiddel } });
+    if (!this.kunder.has(kunde)) throw new Error(`ingen kunde ${kunde}`);
+    const betaler = TEST_BETALINGSMIDLER[betalingsmiddel];
+    if (betaler === undefined || !Object.hasOwn(TEST_BETALINGSMIDLER, betalingsmiddel)) throw new Error(`ukendt testbetalingsmiddel ${betalingsmiddel}`);
+    this.betaler.set(kunde, betaler);
+    const pm = `pm_falsk_${this.naesteId++}`;
+    this.udsend('payment_method.attached', kunde, { id: pm, object: 'payment_method' });
+    this.udsend('customer.updated', kunde, { id: kunde, object: 'customer' });
+  }
+
+  /** Test helper: a plan change (the Portal's); takes effect at once. The amounts are Stripe's arithmetic, not modelled. */
+  skiftPris(abonnementId: string, prisId: string): void {
+    this.kald.push({ metode: 'skiftPris', args: { abonnementId, prisId } });
+    const a = this.abonnementer.get(abonnementId);
+    if (!a) throw new Error(`intet abonnement ${abonnementId}`);
+    const pris = this.priser.get(prisId);
+    if (!pris?.aktiv) throw new Error(`ingen aktiv pris ${prisId}`);
+    a.prisId = pris.id;
+    a.lookupKey = pris.lookupKey;
+    a.prisPlan = pris.metadata['clawco_plan'] ?? null;
+    this.udsend('customer.subscription.updated', a.kunde, { id: a.id, object: 'subscription' });
+  }
+
+  /** Test helper: time reaches `til` (for one customer, like a test clock, or all). Every boundary on the way is
+   *  played in time order: a trial ends, a period renews (a charge), a cancellation at period end takes effect. */
+  spolFrem(til: Date, kunde?: string): void {
+    for (;;) {
+      let naeste: { a: AbonnementSnapshot; ved: Date } | null = null;
+      for (const a of this.abonnementer.values()) {
+        if (kunde !== undefined && a.kunde !== kunde) continue;
+        const ved = a.status === 'trialing' ? a.proeveSlut : a.status === 'active' || a.status === 'past_due' ? a.periodeSlut : null;
+        if (ved && ved.getTime() <= til.getTime() && (!naeste || ved.getTime() < naeste.ved.getTime())) naeste = { a, ved };
+      }
+      if (!naeste) return;
+      this.overgang(naeste.a, naeste.ved);
+    }
+  }
+
+  private overgang(a: AbonnementSnapshot, ved: Date): void {
+    const objekt = { id: a.id, object: 'subscription' };
+    if (a.opsigVedPeriodeslut || (a.opsigesVed !== null && a.opsigesVed.getTime() <= ved.getTime())) {
+      a.status = 'canceled';
+      this.udsend('customer.subscription.deleted', a.kunde, objekt);
+      return;
+    }
+    const betaler = this.betaler.get(a.kunde);
+    if (a.status === 'trialing' && betaler === undefined) {
+      const adfaerd = this.slutAdfaerd.get(a.id) ?? 'create_invoice';
+      if (adfaerd === 'pause') {
+        a.status = 'paused';
+        this.udsend('customer.subscription.paused', a.kunde, objekt);
+        this.udsend('customer.subscription.updated', a.kunde, objekt);
+        return;
+      }
+      if (adfaerd === 'cancel') {
+        a.status = 'canceled';
+        this.udsend('customer.subscription.deleted', a.kunde, objekt);
+        return;
+      }
+    }
+    // A charge for the next period (no payment method = it fails, as create_invoice would).
+    const pris = a.prisId === null ? undefined : this.priser.get(a.prisId);
+    const periode = new Date(ved);
+    if (pris?.interval === 'year') periode.setUTCFullYear(periode.getUTCFullYear() + 1); else periode.setUTCMonth(periode.getUTCMonth() + 1);
+    a.periodeSlut = periode;
+    const faktura = `in_falsk_${this.naesteId++}`;
+    const ok = betaler === true;
+    this.fakturaer.push({ id: faktura, nummer: null, oprettet: new Date(ved), beloeb: pris?.dkk ?? 0, valuta: 'dkk', status: ok ? 'paid' : 'open', url: null, kunde: a.kunde });
+    if (ok) {
+      a.status = 'active';
+      a.forfaldenSiden = null;
+      this.udsend('invoice.paid', a.kunde, { id: faktura, object: 'invoice' });
+    } else {
+      a.status = 'past_due';
+      a.forfaldenSiden = a.forfaldenSiden ?? new Date(ved);
+      this.udsend('invoice.payment_failed', a.kunde, { id: faktura, object: 'invoice' });
+    }
+    this.udsend('customer.subscription.updated', a.kunde, objekt);
+  }
+
+  /** Test helper (KC-0196): the customer's open invoices are charged again now with its current payment method (what
+   *  the Portal does once the card is fixed). Paid: a past_due subscription is active again. Declined: one more failure. */
+  betalAabne(kunde: string): void {
+    this.kald.push({ metode: 'betalAabne', args: { kunde } });
+    const aabne = this.fakturaer.filter((f) => f.kunde === kunde && f.status === 'open');
+    if (this.betaler.get(kunde) !== true) {
+      for (const f of aabne) this.udsend('invoice.payment_failed', kunde, { id: f.id, object: 'invoice' });
+      return;
+    }
+    for (const f of aabne) { f.status = 'paid'; this.udsend('invoice.paid', kunde, { id: f.id, object: 'invoice' }); }
+    for (const a of this.abonnementer.values()) {
+      if (a.kunde !== kunde || (a.status !== 'past_due' && a.status !== 'unpaid')) continue;
+      a.status = 'active';
+      a.forfaldenSiden = null;
+      this.udsend('customer.subscription.updated', kunde, { id: a.id, object: 'subscription' });
+    }
   }
 
   /** Test helper: the customer is deleted in Stripe; its subscriptions are canceled. */

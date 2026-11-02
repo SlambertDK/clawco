@@ -5,7 +5,7 @@
 // (the route) and by mail (here); a mail that fails does not undo the cancellation.
 import type { AbonnementSnapshot } from './stripe-klient.ts';
 import { hentKundeRaekke } from './kunde.ts';
-import { planFraLookupKey, vaelgAbonnement } from './rettigheder.ts';
+import { planFraAbonnement, vaelgAbonnement } from './rettigheder.ts';
 import { dato, type Sprog } from './forbrugerret.ts';
 import { kontoLink, produktNavn, sendMail, type KoebDeps } from './kvittering.ts';
 
@@ -44,7 +44,7 @@ export async function opsig(d: KoebDeps, a: { kontoId: number; email: string; sp
   if (straks) await klient.opsigAbonnement(ab.id); else await klient.opsigVedPeriodeslut(ab.id);
   const slut = straks ? nu : slutter({ ...ab, opsigVedPeriodeslut: true }, nu);
   console.log(`sky abonnement: konto ${a.kontoId} opsagde abonnement ${ab.id}${straks ? ' (på pause: afsluttet nu)' : ' (slutter ved periodens udgang)'}`);
-  const plan = planFraLookupKey(ab.lookupKey, d.priser);
+  const plan = planFraAbonnement(ab, d.priser);
   const mail = await sendMail(d, {
     til: a.email, skabelon: 'opsigelse', sprog: a.sprog,
     data: { saelger: d.saelger(a.sprog), produkt: plan ? produktNavn(d, plan) : 'Clawco Sky', slutter: dato(slut, a.sprog), link: kontoLink(d) },

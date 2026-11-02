@@ -62,6 +62,9 @@ export type AbonnementSnapshot = {
   opsigesVed: Date | null;
   /** When the open invoice behind a failed payment was finalized; null when nothing is owed. */
   forfaldenSiden: Date | null;
+  /** The price's metadata.clawco_plan (opsaet.ts sets it on every Clawco price). A config price change moves the
+   *  lookup key to a new price; existing subscribers keep the old one, and this keeps their plan known (KC-0193 S7). */
+  prisPlan: string | null;
   metadata: Metadata;
 };
 

@@ -1,0 +1,13 @@
+Betalingen for Clawco gik ikke igennem
+
+Hej
+
+Vi kunne ikke trække betalingen for dit abonnement {{dato}}.
+
+Abonnement: {{produkt}}
+
+Stripe prøver at trække beløbet igen. Du kan rette kortet på din kontoside. Din Clawco kører videre imens, og intet bliver slettet, fordi en betaling mangler.
+
+{{link}}
+
+Clawco

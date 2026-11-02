@@ -85,9 +85,16 @@ test('a Stripe subscription becomes a snapshot: price and period from the first 
   assert.deepEqual(fraStripeAbonnement(abonnement()), {
     id: 'sub_1', kunde: 'cus_1', status: 'trialing', prisId: 'price_9', lookupKey: 'clawco-sky-solo-maaned',
     oprettet: new Date('2026-10-31T10:00:00Z'), proeveStart: new Date('2026-10-31T10:00:00Z'), proeveSlut: new Date('2026-11-14T10:00:00Z'),
-    periodeSlut: new Date('2026-11-14T10:00:00Z'), opsigVedPeriodeslut: false, opsigesVed: null, forfaldenSiden: null,
+    periodeSlut: new Date('2026-11-14T10:00:00Z'), opsigVedPeriodeslut: false, opsigesVed: null, forfaldenSiden: null, prisPlan: null,
     metadata: { clawco: 'ja', konto_id: '7', plan: 'sky-solo' },
   });
+});
+
+test('KC-0193: the price\'s clawco_plan metadata rides along, so an archived price without a lookup key still names its plan', () => {
+  const item = { id: 'si_1', current_period_end: sek('2026-11-14T10:00:00Z'), price: { id: 'price_gammel', lookup_key: null, metadata: { clawco: 'ja', clawco_plan: 'sky-solo' } } };
+  const a = fraStripeAbonnement(abonnement({ items: { object: 'list', data: [item] } }));
+  assert.equal(a.lookupKey, null);
+  assert.equal(a.prisPlan, 'sky-solo');
 });
 
 test('a past_due subscription is overdue since its open latest invoice was finalized; a paid one is not', () => {

@@ -1,0 +1,11 @@
+Your Clawco trial has ended
+
+Hello
+
+Your trial ended on {{dato}}. Your subscription is paused until you choose a plan.
+
+Choose a plan on your account page. Your Clawco and your data are not deleted because the trial ended.
+
+{{link}}
+
+Clawco

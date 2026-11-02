@@ -30,7 +30,8 @@ import { flaadeNoegler, ingenMasternoegle } from './hemmeligheder/flaade.ts';
 import { koerMedInput, noegleRunFlag } from './hemmeligheder/levering.ts';
 import { destruktionsLoekke } from './hemmeligheder/dagligt.ts';
 import { laesOmkostninger } from './delt/omkostninger.ts';
-import { abonnementRuter, webhookDeps, type AbonnementDeps } from './abonnement/ruter.ts';
+import { abonnementRuter, koebDeps, webhookDeps, type AbonnementDeps } from './abonnement/ruter.ts';
+import { fristLoekke } from './abonnement/frist-job.ts';
 import { devStripeRuter, devHaendelser } from './abonnement/dev.ts';
 import { kontoHandlinger } from './abonnement/handlinger.ts';
 import { laesSaelgere } from './delt/saelger.ts';
@@ -480,6 +481,8 @@ export async function main(): Promise<void> {
   // KC-0187: the alert rules every 5 min on the signals Sky has (backups, drills, rollouts), by mail to SKY_ALARM_TIL.
   const til = alarmModtager(process.env);
   const alarm = alarmLoekke({ signaler: (nu) => alarmSignaler(db, nu), alarm: alarmer({ post: f.konto.post, til, rapport: fejl.rapport }), rapport: fejl.rapport, interval: 5 * 60_000 });
+  // KC-0196: the grace stages' mails (day 7 needs no event; day 0 also goes out from the webhook). A pass now, then every 15 min.
+  const fristJob = fristLoekke(koebDeps(f.abonnement), { interval: 15 * 60_000 });
   console.log(`sky: alarmer ${til ? 'mailes til driftsadressen (SKY_ALARM_TIL)' : 'kun i loggen og fejlrapporten (SKY_ALARM_TIL ikke sat)'}`);
   const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, ...(f.flaade ? { flaade: f.flaade.flaade.navn } : {}) });
   const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette });
@@ -497,7 +500,7 @@ export async function main(): Promise<void> {
   // KC-0221: never wait on an open stream; 5 s for busy requests, then exit (a timer or a proxy socket left
   // open must not keep Sky alive past systemd's stop timeout).
   const stop = () => {
-    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); }, efter: () => db.close() })
+    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); fristJob.stop(); }, efter: () => db.close() })
       .then((kode) => process.exit(kode));
   };
   process.once('SIGTERM', stop);

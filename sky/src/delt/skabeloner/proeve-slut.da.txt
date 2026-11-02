@@ -1,0 +1,11 @@
+Din prøveperiode på Clawco er slut
+
+Hej
+
+Din prøveperiode sluttede {{dato}}. Dit abonnement er sat på pause, indtil du vælger en plan.
+
+Vælg en plan på din kontoside. Din Clawco og dine data bliver ikke slettet, fordi prøven er slut.
+
+{{link}}
+
+Clawco

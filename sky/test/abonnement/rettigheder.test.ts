@@ -15,7 +15,7 @@ function snapshot(over: Partial<AbonnementSnapshot> = {}): AbonnementSnapshot {
   return {
     id: 'sub_1', kunde: 'cus_1', status: 'trialing', prisId: 'price_1', lookupKey: 'clawco-sky-solo-maaned', oprettet: new Date('2026-10-31T10:00:00Z'),
     proeveStart: new Date('2026-10-31T10:00:00Z'), proeveSlut: new Date('2026-11-14T10:00:00Z'), periodeSlut: new Date('2026-11-14T10:00:00Z'),
-    opsigVedPeriodeslut: false, opsigesVed: null, forfaldenSiden: null, metadata: {}, ...over,
+    opsigVedPeriodeslut: false, opsigesVed: null, forfaldenSiden: null, prisPlan: null, metadata: {}, ...over,
   };
 }
 
@@ -84,6 +84,22 @@ test('an unknown price or lookup key grants nothing new: the previous entitlemen
   }
   const intet = beregnRettigheder({ snapshot: snapshot({ lookupKey: 'clawco-sky-guld-maaned' }), forrige: null }, priser, NU);
   assert.deepEqual(intet.rettighed, INGEN);
+});
+
+test('KC-0193 S7: a price that lost its lookup key to a config price change still maps by its clawco_plan metadata', () => {
+  // The setup moves the lookup key to the new price and archives the old one; existing subscribers keep paying the old.
+  const gammel = beregnRettigheder({ snapshot: snapshot({ status: 'active', lookupKey: null, prisId: 'price_gammel', prisPlan: 'sky-husstand' }), forrige: null }, priser, NU);
+  assert.equal(gammel.advarsel, null);
+  assert.equal(gammel.rettighed.status, 'aktiv');
+  assert.equal(gammel.rettighed.plan, 'sky-husstand');
+  assert.equal(gammel.rettighed.medlemmerMax, priser.planer['sky-husstand']!.medlemmer);
+  // The lookup key wins when both are there; a metadata plan the config does not know is still unknown (fail closed).
+  assert.equal(beregnRettigheder({ snapshot: snapshot({ status: 'active', prisPlan: 'sky-husstand' }), forrige: null }, priser, NU).rettighed.plan, 'sky-solo');
+  for (const prisPlan of ['sky-guld', 'toString', '']) {
+    const r = beregnRettigheder({ snapshot: snapshot({ status: 'active', lookupKey: null, prisPlan }), forrige: null }, priser, NU);
+    assert.deepEqual(r.rettighed, INGEN);
+    assert.match(r.advarsel ?? '', /ukendt pris/);
+  }
 });
 
 test('an unknown Stripe status fails closed the same way', () => {

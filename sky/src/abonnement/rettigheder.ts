@@ -42,6 +42,12 @@ export function planFraLookupKey(key: string | null, priser: Priser): string | n
   return null;
 }
 
+/** The subscription's plan: from its price's lookup key, else (an archived price whose key moved to a new price
+ *  after a config change, KC-0193 S7) from the price's clawco_plan metadata. Null when the config knows neither. */
+export function planFraAbonnement(s: Pick<AbonnementSnapshot, 'lookupKey' | 'prisPlan'>, priser: Priser): string | null {
+  return planFraLookupKey(s.lookupKey, priser) ?? (s.prisPlan && Object.hasOwn(priser.planer, s.prisPlan) ? s.prisPlan : null);
+}
+
 const LEVENDE = new Set(['trialing', 'active', 'past_due', 'unpaid', 'paused']);
 const KENDTE = new Set([...LEVENDE, 'canceled', 'incomplete', 'incomplete_expired']);
 const rang = (s: string): number => (LEVENDE.has(s) ? 3 : !KENDTE.has(s) ? 2 : s === 'incomplete' ? 1 : 0);
@@ -74,7 +80,7 @@ export function beregnRettigheder(
   const behold = (advarsel: string) => ({ rettighed: forrige ?? { ...INGEN }, advarsel });
 
   if (!KENDTE.has(s.status)) return behold(`ukendt status ${s.status} på abonnement ${s.id}: intet ændret`);
-  const plan = planFraLookupKey(s.lookupKey, priser);
+  const plan = planFraAbonnement(s, priser);
   if (plan === null) return behold(`ukendt pris ${s.prisId ?? '?'} (lookup key ${s.lookupKey ?? 'ingen'}) på abonnement ${s.id}: intet ændret`);
 
   const opsiges = iso(s.opsigesVed ?? (s.opsigVedPeriodeslut ? s.periodeSlut : null));

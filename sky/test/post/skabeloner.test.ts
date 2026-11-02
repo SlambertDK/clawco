@@ -16,6 +16,9 @@ const DATA: Record<Skabelon, Record<string, string>> = {
   fornyelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', pris: '790 kr. om året', dato: '2. november 2027', link: LINK },
   'stoette-startet': { timer: '4', til: '14.05' },
   alarm: { titel: 'Få ledige pladser', tekst: 'Kun 2 ledige kundepladser tilbage (grænsen er 3).' },
+  'betaling-fejlet': { produkt: 'Sky Solo', dato: '14. november 2026', link: LINK },
+  'betaling-paamindelse': { produkt: 'Sky Solo', dato: '14. november 2026', link: LINK },
+  'proeve-slut': { dato: '14. november 2026', link: LINK },
 };
 
 /** Mails that carry no link of the generic kind (the account link): the deletion receipt, the withdrawal receipt and an operator alert. */
@@ -130,4 +133,19 @@ test('the consumer-rights mails refuse a line with a newline or an over-long lin
   nej('kvittering', { ...DATA.kvittering, pris: 'x'.repeat(301) });
   nej('fortrydelse', { ...DATA.fortrydelse, tilbage: '' });
   nej('opsigelse', { ...DATA.opsigelse, link: 'http://evil.example.test/x' });
+});
+
+test('KC-0196: the grace mails name the date and the product, and promise nothing is deleted (as the published terms do)', () => {
+  for (const sprog of SPROG as readonly Sprog[]) {
+    for (const skabelon of ['betaling-fejlet', 'betaling-paamindelse', 'proeve-slut'] as const) {
+      const m = renderMail({ skabelon, sprog, data: DATA[skabelon] });
+      assert.ok(m.tekst.includes('14. november 2026'), `${skabelon} ${sprog}: datoen`);
+      assert.match(m.tekst, sprog === 'da' ? /bliver ikke slettet|intet bliver slettet/ : /not deleted|nothing is deleted/);
+      if (skabelon !== 'proeve-slut') assert.ok(m.tekst.includes('Sky Solo'), `${skabelon} ${sprog}: produktet`);
+      // Never a card number or an amount: the card is fixed on Stripe's page, reached from the account page.
+      assert.doesNotMatch(m.tekst, /\d{4}[ -]?\d{4}[ -]?\d{4}/);
+    }
+  }
+  assert.match(renderMail({ skabelon: 'betaling-fejlet', data: DATA['betaling-fejlet'] }).tekst, /ret(te)? kortet/i);
+  assert.match(renderMail({ skabelon: 'proeve-slut', sprog: 'en', data: DATA['proeve-slut'] }).tekst, /paused until you choose a plan/);
 });

@@ -1,0 +1,13 @@
+Your Clawco payment is still missing
+
+Hello
+
+The payment for your subscription is still missing. It failed on {{dato}}.
+
+Subscription: {{produkt}}
+
+Fix the card on your account page so the payment can go through. We write to you before we do anything to your Clawco, and nothing is deleted because a payment is missing.
+
+{{link}}
+
+Clawco

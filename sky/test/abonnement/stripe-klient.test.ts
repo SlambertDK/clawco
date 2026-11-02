@@ -192,3 +192,56 @@ test('the fake cancels a subscription, deletes a customer (its subscriptions can
   k.sletKunde(kunde.id);
   assert.deepEqual(await k.hentKunde(kunde.id), { id: kunde.id, slettet: true, kontoId: null });
 });
+
+// --- KC-0193: the fake's time model -------------------------------------------------------------------------
+
+async function proeveMedFalsk(): Promise<{ k: FalskBetalingsKlient; kunde: string; start: Date }> {
+  const k = new FalskBetalingsKlient('test');
+  await k.opretProdukt({ id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', metadata: { clawco: 'ja' } }, 'p');
+  const pris = await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja', clawco_plan: 'sky-solo' }, transferLookupKey: false }, 'pr');
+  const kunde = (await k.opretKunde({ kontoId: 7, email: 'kunde@example.com', sprog: 'da' }, 'k')).id;
+  const start = new Date('2026-10-31T10:00:00.000Z');
+  const s = await k.opretCheckout({ mode: 'subscription', customer: kunde, line_items: [{ price: pris.id, quantity: 1 }], subscription_data: { trial_period_days: 14, trial_settings: { end_behavior: { missing_payment_method: 'pause' } } } }, 'c');
+  k.fuldfoerCheckout(s.id, start);
+  return { k, kunde, start };
+}
+
+test('KC-0193: a declining test card turns the first charge into past_due, overdue since the trial end; a renewal with a good card pays it', async () => {
+  const { k, kunde, start } = await proeveMedFalsk();
+  k.vedhaeftBetalingsmiddel(kunde, 'pm_card_chargeCustomerFail');
+  const slut = new Date(start.getTime() + 14 * 86_400_000);
+  k.spolFrem(new Date(slut.getTime() - 1));
+  assert.equal((await k.listAbonnementer(kunde))[0]!.status, 'trialing', 'nothing happens before the boundary');
+  k.spolFrem(slut);
+  let a = (await k.listAbonnementer(kunde))[0]!;
+  assert.equal(a.status, 'past_due');
+  assert.deepEqual(a.forfaldenSiden, slut);
+  assert.deepEqual((await k.listFakturaer(kunde)).map((f) => f.status), ['open']);
+  k.vedhaeftBetalingsmiddel(kunde, 'pm_card_visa');
+  k.spolFrem(a.periodeSlut!);
+  a = (await k.listAbonnementer(kunde))[0]!;
+  assert.equal(a.status, 'active');
+  assert.equal(a.forfaldenSiden, null);
+  assert.deepEqual(k.haendelser().map((h) => h.type).filter((t) => t.startsWith('invoice.')), ['invoice.payment_failed', 'invoice.paid']);
+});
+
+test('KC-0193: only Stripe\'s published test payment method ids are accepted; a clock moves its own customer only', async () => {
+  const { k, kunde, start } = await proeveMedFalsk();
+  assert.throws(() => k.vedhaeftBetalingsmiddel(kunde, '4242424242424242'), /ukendt testbetalingsmiddel/);
+  assert.throws(() => k.vedhaeftBetalingsmiddel(kunde, 'toString'), /ukendt testbetalingsmiddel/);
+  const senere = new Date(start.getTime() + 30 * 86_400_000);
+  k.spolFrem(senere, 'cus_en_anden');
+  assert.equal((await k.listAbonnementer(kunde))[0]!.status, 'trialing');
+  k.spolFrem(senere, kunde);
+  assert.equal((await k.listAbonnementer(kunde))[0]!.status, 'paused');
+  assert.deepEqual(k.haendelser().map((h) => h.type), ['checkout.session.completed', 'customer.subscription.created', 'customer.subscription.paused', 'customer.subscription.updated']);
+  for (const h of k.haendelser()) assert.equal(JSON.parse(h.krop).data.object.customer, kunde);
+});
+
+test('KC-0193: a subscription is read with its price\'s current lookup key and plan, as Stripe expands it', async () => {
+  const { k, kunde } = await proeveMedFalsk();
+  await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 8900, eur: 1190, interval: 'month', metadata: { clawco: 'ja', clawco_plan: 'sky-solo' }, transferLookupKey: true }, 'ny');
+  const a = (await k.listAbonnementer(kunde))[0]!;
+  assert.equal(a.lookupKey, null);
+  assert.equal(a.prisPlan, 'sky-solo');
+});

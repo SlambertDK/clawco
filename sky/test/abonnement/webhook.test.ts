@@ -170,7 +170,7 @@ test('an unknown price grants nothing new: the row stays, an alert is logged, no
   await send(deps(s), haendelse('checkout.session.completed', s.kunde));
   const foer = await raekke(s);
   const [ab] = await s.klient.listAbonnementer(s.kunde);
-  s.klient.saetAbonnement({ ...ab!, status: 'active', lookupKey: 'clawco-sky-guld-maaned', prisId: 'price_guld' });
+  s.klient.saetAbonnement({ ...ab!, status: 'active', lookupKey: 'clawco-sky-guld-maaned', prisId: 'price_guld', prisPlan: null });
   const { log } = await fangLog(() => send(deps(s), haendelse('customer.subscription.updated', s.kunde)));
   assert.match(log, /ukendt pris/);
   assert.deepEqual(await raekke(s), foer);
