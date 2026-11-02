@@ -1,0 +1,7 @@
+Clawco Sky alert: {{titel}}
+
+{{tekst}}
+
+Check the status and the log on the Sky server. You will not get this alert again until it has cleared and comes back.
+
+Clawco Sky

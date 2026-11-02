@@ -15,10 +15,11 @@ const DATA: Record<Skabelon, Record<string, string>> = {
   opsigelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', slutter: '2. december 2026', link: LINK },
   fornyelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', pris: '790 kr. om året', dato: '2. november 2027', link: LINK },
   'stoette-startet': { timer: '4', til: '14.05' },
+  alarm: { titel: 'Få ledige pladser', tekst: 'Kun 2 ledige kundepladser tilbage (grænsen er 3).' },
 };
 
-/** Mails that carry no link of the generic kind (the account link): the deletion receipt and the withdrawal receipt. */
-const UDEN_LINK = new Set<Skabelon>(['konto-slettet', 'fortrydelse']);
+/** Mails that carry no link of the generic kind (the account link): the deletion receipt, the withdrawal receipt and an operator alert. */
+const UDEN_LINK = new Set<Skabelon>(['konto-slettet', 'fortrydelse', 'alarm']);
 
 function antal(hoe: string, naal: string): number {
   return hoe.split(naal).length - 1;

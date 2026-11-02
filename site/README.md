@@ -42,6 +42,27 @@ lock on a lapsed payment, import of clawco.zip) fail their test the day someone 
 `/.well-known/security.txt` (RFC 9116) expires on the date in the file; the test fails 30 days before, so move `Expires` out (at most a
 year ahead) and redeploy. A dot folder is copied by the build like any other; the test builds the site and checks it arrived.
 
+## The price page (KC-0199)
+
+`/priser` is not a file here: `scripts/site-byg.mjs` renders it from `site/priser.template.html` and `config/priser.json`
+(`scripts/priser-side.ts`), the same file Stripe is set up from, so no amount is typed into the page or into `strings.js`
+and the yearly saving is computed (12 x monthly minus yearly). Every amount sits in a `<span class="amt" data-minor="…">`;
+`site.js` only picks which currency and interval are shown (default currency from the browser language, never an IP lookup)
+and formats the amount for the language. Without a script every currency and interval is visible. The texts are the `pr.*`
+keys in `strings.js`; a plan or add-on in the config that has no `pr.plan.<id>.*` / `pr.addon.<id>.*` words stops the build.
+The three limits are `sec.three.p`, the security page's own key, never a copy.
+
+The normal build **leaves the page out**, so a plain build and deploy cannot publish it:
+
+```bash
+node scripts/site-byg.mjs --preview   # include priser.html; the red draft banner and noindex while config status is "udkast"
+node scripts/site-byg.mjs --live      # the publish build: refuses (exit 1, KC-0169) while the status is "udkast"; adds /priser to the sitemap
+```
+
+Publishing the page is Henrik's yes (status `godkendt` in the config is gate G5 only): build with `--live`, then deploy as below.
+Before that, re-read the copy that states what exists today (the backups line says they are not switched on in the closed beta,
+`pr.sky.f3`; sign-up is by invitation in the closed beta) and add `/priser` to the footer or the nav of the other pages.
+
 ## Build and check
 
 ```bash

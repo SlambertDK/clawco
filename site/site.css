@@ -138,3 +138,36 @@ details p { color: var(--ink-2); padding: 0 0 14px 0; }
 .tabel th { background: var(--surface); }
 .tidligere ul { list-style: none; padding-left: 0 !important; }
 a.lang:hover { text-decoration: none; }
+
+/* Pricing page (KC-0199): the amounts are written at build time; without a script every currency and interval shows. */
+[hidden] { display: none !important; }
+.plans { display: grid; gap: 14px; margin-top: 24px; }
+.plan { gap: 12px; }
+.plan .plan-name { font-size: 22px; margin-top: 0; }
+.plan .blurb { min-height: 3em; }
+.plan .price { font-size: 15px; color: var(--ink-2); }
+.plan .price .amt { font-size: 30px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em; }
+.plan .pricefree { font-size: 30px; font-weight: 700; color: var(--ink); }
+.plan .save { margin-top: 2px; color: var(--ordnet); }
+.plan .save .amt { font-size: inherit; font-weight: 600; color: inherit; }
+.plan .intv + .intv { margin-top: -4px; }
+.plan .trial { color: var(--ink-2); font-size: 15px; }
+.plan .trial .num { font-weight: 600; color: var(--ink); }
+.plan .actions { margin-top: 2px; }
+.plan .actions .btn { width: 100%; }
+.feat { list-style: none; padding: 0 !important; display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px !important; color: var(--ink-2); font-size: 16px; }
+.feat li + li { margin-top: 0 !important; }
+.toggles { display: flex; flex-wrap: wrap; gap: 10px 16px; margin-top: 20px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.segbtn { min-height: 44px; padding: 0 16px; border: 0; background: transparent; color: var(--ink-2); font: inherit; font-weight: 600; cursor: pointer; }
+.segbtn + .segbtn { border-left: 1px solid var(--line); }
+.segbtn:hover { background: var(--raised); color: var(--ink); }
+.segbtn[aria-pressed="true"] { background: var(--handling-tint); color: var(--handling); box-shadow: inset 0 0 0 1px var(--handling-ring); }
+.addon { margin-top: 18px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 12px; display: flex; flex-direction: column; gap: 4px; }
+.addon p { color: var(--ink-2); }
+.addon.senere { opacity: 0.62; }
+.addon .price { margin-right: 6px; }
+.addon .price .amt { font-weight: 600; color: var(--ink); }
+@media (min-width: 760px) {
+  .plans { grid-template-columns: repeat(3, 1fr); }
+}

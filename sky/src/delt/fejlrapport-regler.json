@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "om": "KC-0187: what an error report may carry. Byte-identical in src/shell/ and sky/src/delt/ (test/fejlrapport.test.ts compares them). An event is rebuilt from these fields only; a value that does not match its form is left out.",
+  "former": {
+    "type": "^[A-Za-z][A-Za-z0-9_]{0,60}$",
+    "kode": "^[A-Z0-9][A-Z0-9_]{0,39}$",
+    "fil": "^[A-Za-z0-9_@][A-Za-z0-9_./@-]{0,199}$",
+    "funktion": "^[A-Za-z0-9_$.<>\\[\\] ]{1,100}$",
+    "tenant": "^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$",
+    "rute": "^/[A-Za-z0-9_/:.*-]{0,199}$",
+    "release": "^[A-Za-z0-9][A-Za-z0-9._-]{0,39}$",
+    "miljoe": "^[a-z]{1,20}$",
+    "alarm": "^[a-z][a-z-]{0,39}$"
+  },
+  "forbudteNavne": ["input", "instructions", "prompt", "svar", "output", "tekst", "body", "mail", "email", "noegle", "key", "token", "authorization", "cookie", "header", "password", "secret", "hemmelighed", "user", "ip_address", "query", "extra", "breadcrumb", "request", "vars", "data"],
+  "redaktioner": [
+    { "navn": "email", "moenster": "[^\\s@<>\"'`]+@[^\\s@<>\"'`]+", "erstat": "[email]" },
+    { "navn": "adresse", "moenster": "[a-zA-Z][a-zA-Z0-9+.-]*://\\S+", "erstat": "[adresse]" },
+    { "navn": "citat", "moenster": "\"[^\"]*\"|'[^']*'|`[^`]*`", "erstat": "[tekst]" },
+    { "navn": "navngivet", "moenster": "\\b(input|instructions|prompt|svar|output|tekst|body|mail|email|noegle|key|token|authorization|cookie|password|secret|hemmelighed)\\b\\s*[:=]\\s*\\S+", "erstat": "$1=[fjernet]" },
+    { "navn": "langt-token", "moenster": "[A-Za-z0-9_+/=-]{24,}", "erstat": "[token]" },
+    { "navn": "efter-kolon", "moenster": ":\\s[\\s\\S]*$", "erstat": "" }
+  ],
+  "maks": { "besked": 200, "rammer": 40, "varighedMs": 3600000, "perTiMinutter": 30 }
+}

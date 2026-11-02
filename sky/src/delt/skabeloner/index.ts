@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import { esc } from '../html.ts';
 
-export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse', 'stoette-startet'] as const;
+export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse', 'stoette-startet', 'alarm'] as const;
 export type Skabelon = (typeof SKABELONER)[number];
 export const SPROG = ['da', 'en'] as const;
 export type Sprog = (typeof SPROG)[number];
@@ -24,6 +24,8 @@ export type SkabelonData = {
   fornyelse: { saelger: string; produkt: string; pris: string; dato: string; link: string };
   /** KC-0188: support started — the hours (1, 4 or 24) and the Copenhagen time it ends, e.g. 14.05. */
   'stoette-startet': { timer: string; til: string };
+  // KC-0187: an operator alert (drift/alarm.ts): the rule's fixed title and a line of counts and tenant ids.
+  alarm: { titel: string; tekst: string };
 };
 
 export type Mail = { emne: string; tekst: string; html: string };
@@ -42,6 +44,7 @@ const FELTER: { [K in Skabelon]: Record<keyof SkabelonData[K], Felt> } = {
   opsigelse: { saelger: 'linje', produkt: 'navn', slutter: 'linje', link: 'link' },
   fornyelse: { saelger: 'linje', produkt: 'navn', pris: 'linje', dato: 'linje', link: 'link' },
   'stoette-startet': { timer: 'tal', til: 'navn' },
+  alarm: { titel: 'navn', tekst: 'linje' },
 };
 
 const MAKS_NAVN = 80;

@@ -1,0 +1,7 @@
+Clawco Sky-alarm: {{titel}}
+
+{{tekst}}
+
+Se status og log på Sky-serveren. Du får ikke denne alarm igen, før den har været løst og kommer tilbage.
+
+Clawco Sky

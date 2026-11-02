@@ -31,7 +31,8 @@ function sider(dir = SITE, rel = ''): string[] {
     if (e.name === 'node_modules') continue;
     const r = rel ? `${rel}/${e.name}` : e.name;
     if (e.isDirectory()) ud.push(...sider(dir, r));
-    else if (e.name.endsWith('.html')) ud.push(r);
+    // KC-0199: the price page's template is source, not a page; test/site-priser.test.ts judges the page it renders.
+    else if (e.name.endsWith('.html') && e.name !== 'priser.template.html') ud.push(r);
   }
   return ud.sort();
 }
@@ -105,13 +106,16 @@ test('every data-i key on every page exists, and the English HTML equals the Eng
       }
     }
   }
-  const ubrugt = Object.keys(t.en).filter((k) => !brugt.has(k) && !k.endsWith('.2') && !k.startsWith('js.'));
+  // KC-0199: the keys of the generated price page (pr.*, c.nav.plans) are used by that page, not by a file here;
+  // test/site-priser.test.ts renders it and holds that every one of them is used and that the English HTML equals the table.
+  const ubrugt = Object.keys(t.en).filter((k) => !brugt.has(k) && !k.endsWith('.2') && !k.startsWith('js.') && !k.startsWith('pr.') && k !== 'c.nav.plans');
   assert.deepEqual(ubrugt, [], 'keys in the table that no page uses');
 });
 
 test('English copy follows the voice rules: no banned words, no exclamation marks, no pricing or hosted wording', () => {
   const t = laesTabel();
-  const alt = Object.values(t.en).join('\n');
+  // The pricing page (pr.*, KC-0199) is the one place that talks about plans and hosting; the rest of the table stays free of it.
+  const alt = Object.entries(t.en).filter(([k]) => !k.startsWith('pr.')).map(([, v]) => v).join('\n');
   for (const ord of FORBUDTE_ORD) assert.ok(!alt.toLowerCase().includes(ord), `banned word: ${ord}`);
   assert.ok(!alt.includes('!'), 'exclamation mark');
   assert.ok(!/(?<!self-)\bhosted\b/i.test(alt), '"hosted" wording (D3)');

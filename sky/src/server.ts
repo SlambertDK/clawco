@@ -4,6 +4,7 @@ import path from 'node:path';
 import http, { type IncomingMessage, type ServerResponse, type RequestListener } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { getRequestListener } from '@hono/node-server';
 import { laesConfig, laesKopiConfig, type KopiConfig, type SkyConfig } from './config.ts';
 import { pgDatabase, type Database } from './db/pool.ts';
@@ -68,12 +69,22 @@ import { pgDump } from './drift/backup/pgdump.ts';
 import { kopiLoekke } from './drift/backup/loekke.ts';
 import type { ProeveDeps } from './drift/backup/proeve.ts';
 import type { KopiNode } from './drift/backup/typer.ts';
+import { skyFejlrapport, type Fejlrapport } from './delt/fejlrapport.ts';
+import { alarmer, alarmLoekke, alarmModtager, alarmSignaler } from './drift/alarm.ts';
 
 export type DevStripe = Parameters<typeof devStripeRuter>[0];
-export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps };
+export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport };
 
 export function createSkyApp(deps: SkyDeps): Hono {
   const app = new Hono();
+  // KC-0187: an unexpected error is reported, scrubbed (delt/fejlrapport-kerne.ts), with the route template only.
+  // An HTTPException is an answer, not a bug: it keeps Hono's own response.
+  app.onError((err, c) => {
+    if (err instanceof HTTPException) return err.getResponse();
+    console.error(err); // as Hono's default handler: the journal on Sky's own server keeps the full error
+    deps.fejlrapport?.rapporter(err, { rute: c.req.routePath, status: 500 });
+    return c.text('Internal Server Error', 500);
+  });
   app.get('/health', async (c) => {
     const h = await helbred({ db: deps.db, sha: deps.sha, startet: deps.startet, ...(deps.flaade ? { flaade: deps.flaade } : {}), ...(deps.noegler ? { noegler: deps.noegler } : {}), ...(deps.gateway ? { gateway: deps.gateway } : {}) });
     return c.json(h, h.ok ? 200 : 503);
@@ -431,6 +442,9 @@ export async function main(): Promise<void> {
   }
   // KC-0185: read (and remove from the environment) the R2 credentials before any child process is started.
   const kopiConfig = laesKopiConfig(process.env);
+  // KC-0187 (D16): error reports, always on with a DSN; read (and removed from env) before any child process starts.
+  const fejl = skyFejlrapport(process.env, { release: gitSha() });
+  console.log(`sky: ${fejl.grund}`);
   const db = pgDatabase(config.databaseUrl);
   try {
     const m = await migrer(db);
@@ -463,7 +477,11 @@ export async function main(): Promise<void> {
   console.log(`sky: nøgler ${f.noegler === 'ok' ? 'masternøgle indlæst' : 'ingen masternøgle (ingen flåde, så intet kræver den)'}`);
   console.log(`sky: tilmelding ${config.tilmelding === 'open' ? 'åben (planvalg og Checkout med prøve)' : 'kun med invitation (lukket beta)'} på ${new URL(config.publicUrl).origin}/tilmeld`);
   console.log(`sky: gateway ${f.gateway.noegle ? `nøgle indlæst (id ${f.gateway.noegle.id}), kunder på *.${config.basedomain}` : `${f.gateway.fejl}`}`);
-  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, stoetteSide: f.gateway.stoetteSide, ...(f.flaade ? { flaade: f.flaade.flaade.navn } : {}) });
+  // KC-0187: the alert rules every 5 min on the signals Sky has (backups, drills, rollouts), by mail to SKY_ALARM_TIL.
+  const til = alarmModtager(process.env);
+  const alarm = alarmLoekke({ signaler: (nu) => alarmSignaler(db, nu), alarm: alarmer({ post: f.konto.post, til, rapport: fejl.rapport }), rapport: fejl.rapport, interval: 5 * 60_000 });
+  console.log(`sky: alarmer ${til ? 'mailes til driftsadressen (SKY_ALARM_TIL)' : 'kun i loggen og fejlrapporten (SKY_ALARM_TIL ikke sat)'}`);
+  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, ...(f.flaade ? { flaade: f.flaade.flaade.navn } : {}) });
   const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette });
   // KC-0188: Sky's log records each support grant's expiry once (the gateway already refuses it by clock on every request).
   const udloeb = setInterval(() => {
@@ -479,7 +497,7 @@ export async function main(): Promise<void> {
   // KC-0221: never wait on an open stream; 5 s for busy requests, then exit (a timer or a proxy socket left
   // open must not keep Sky alive past systemd's stop timeout).
   const stop = () => {
-    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); }, efter: () => db.close() })
+    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); }, efter: () => db.close() })
       .then((kode) => process.exit(kode));
   };
   process.once('SIGTERM', stop);

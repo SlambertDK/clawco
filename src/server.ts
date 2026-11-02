@@ -26,6 +26,7 @@ import { ROOMS } from './rooms/registry.ts';
 import { shell } from './shell/layout.ts';
 import { html, type Markup } from './shell/html.ts';
 import { renderIkkeFundet, ikkeFundetOverskrift, type IkkeFundetSlags } from './shell/ikkefundet.ts';
+import { tenantFejlrapport, type Fejlrapport } from './shell/fejlrapport.ts';
 import { renderUdenForbindelse } from './shell/udenforbindelse.ts';
 import { findRoom } from './rooms/registry.ts';
 import { UNIVERS, findUnivers, laesIndeks, laesUnivers, universRum } from './rooms/univers/lager.ts';
@@ -218,6 +219,8 @@ export type AppDeps = {
    * /_sky/stoette and /_sky/stoette/slaa-fra). Absent = no card, no band, and no support identity is ever accepted.
    */
   stoette?: { slaaTil: string; slaaFra: string };
+  /** KC-0187: an unexpected 500 is reported, scrubbed (shell/fejlrapport.ts; off unless KC_FEJLRAPPORT_DSN is set). */
+  fejlrapport?: Fejlrapport;
 };
 
 /** KC-0116: who is looking, set once per request by the identity middleware. */
@@ -836,6 +839,7 @@ export function createApp(deps: AppDeps) {
     if (err instanceof KildeFejl) return c.json({ error: err.message }, err.status);
     if (err instanceof KonfigFejl) { console.error('kilder:', err.message); return c.json({ error: 'Forbindelserne kunne ikke læses. Ejeren skal rette kilder.json.' }, 503); }
     console.error(err);
+    deps.fejlrapport?.rapporter(err, { rute: c.req.routePath, status: 500 });
     return c.text('Internal Server Error', 500);
   });
 
@@ -2098,6 +2102,8 @@ export async function main(): Promise<void> {
     ...(hjaelp ? { hjaelp } : {}),
     // KC-0188: "Lad support se med" exists only under the Sky gateway (konto identity): the gateway answers the switch.
     ...(konto ? { stoette: { slaaTil: '/_sky/stoette', slaaFra: '/_sky/stoette/slaa-fra' } } : {}),
+    // KC-0187: scrubbed error reports only when KC_FEJLRAPPORT_DSN is set (the owner's switch under Sky; default off).
+    fejlrapport: tenantFejlrapport(process.env, { release: gitSha(path.join(here, '..')) }),
   });
   frontload(env('KC_FRONTLOAD', standardFrontload(process.env)));
   kurator(env('KC_KURATOR', '07-22/60'));
