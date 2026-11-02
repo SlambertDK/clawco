@@ -18,7 +18,7 @@ const AT: Record<string, string> = {
   laes: 'læse', sorter: 'sortere', bogfoer: 'skrive det ned', forbered: 'forberede', 'udfoer-med-fortryd': 'udføre en handling',
   'send-til-andre': 'skrive til andre', slet: 'slette noget', betal: 'betale', 'kopier-paa-tvaers': 'kopiere mellem zonerne',
 };
-const KANAL: Record<Kanal, string> = { knap: 'fra en knap', stemme: 'fra stemmen', chat: 'fra chatten', agent: 'fra Hermes', planlagt: 'planlagt' };
+const KANAL: Record<Kanal, string> = { knap: 'fra en knap', stemme: 'fra stemmen', chat: 'fra chatten', agent: 'fra Hermes', planlagt: 'planlagt', stoette: 'support' };
 
 const dag = (d: Date): string => new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 export const klokkeKbh = (d: Date): string => new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit', hour12: false }).format(d).replace(':', '.');
@@ -37,7 +37,23 @@ function rumNavn(rum: string): string {
   return findRoom(rum)?.navn ?? rum;
 }
 
+/** KC-0188: the support lines (kilde 'stoette'): who turned it on and off, each session and each page support opened. */
+const STOETTE_PERSON = /^stoette:(\d{1,18})$/;
+function stoetteTitel(e: Revisionslinje, navn: string): string {
+  const hvem = STOETTE_PERSON.exec(e.person) ? `Support (medarbejder ${STOETTE_PERSON.exec(e.person)![1]})` : 'Support';
+  const side = /^\/rum\/[a-z0-9-]+$/.test(e.rum) ? rumNavn(e.rum.slice(5)) : e.rum;
+  switch (e.verb) {
+    case 'stoette-givet': return `${navn} lod support se med`;
+    case 'stoette-start': return `${hvem} begyndte at kigge med`;
+    case 'stoette-aabnet': return e.udfald === 'afvist' ? `${hvem} fik nej til ${side}` : `${hvem} åbnede ${side}`;
+    case 'stoette-slut': return `${navn} slog support fra`;
+    case 'stoette-udloeb': return 'Supportadgangen sluttede af sig selv';
+    default: return 'Support';
+  }
+}
+
 function titel(e: Revisionslinje, navn: string): string {
+  if (e.kilde === 'stoette') return stoetteTitel(e, navn);
   if (e.udfald === 'stop') return `${navn} trykkede Stop alt`;
   if (e.udfald === 'genoptag') return `${navn} startede Clawco igen`;
   const rum = rumNavn(e.rum);
@@ -51,7 +67,7 @@ export function renderRevision(linjer: readonly Revisionslinje[], o: { nu: Date;
   const ingenNej = !linjer.some(erNej);
   return html`<ul class="revision-liste">${linjer.map((e) => {
     const navn = o.navne[e.person] ?? e.person;
-    const note = [erNej(e) || e.udfald === 'stop' ? e.hvorfor : '', KANAL[e.kanal] ?? ''].filter(Boolean).join(' · ');
+    const note = [erNej(e) || e.udfald === 'stop' || (e.kilde === 'stoette' && e.verb !== 'stoette-aabnet') ? e.hvorfor : '', KANAL[e.kanal] ?? ''].filter(Boolean).join(' · ');
     return html`<li class="revision-row" data-revision-linje data-udfald="${e.udfald}"${erNej(e) ? html` data-nej` : ''}><span class="mono revision-tid">${hvornaar(e.tid, o.nu)}</span><span class="row-main"><span class="row-title">${titel(e, navn)}</span>${note ? html`<span class="row-note">${note}</span>` : ''}</span></li>`;
   })}</ul>${ingenNej ? html`<p class="row-note revision-ingen-nej" data-ingen-nej>Clawco har ikke sagt nej til noget af det seneste.</p>` : ''}`;
 }

@@ -22,6 +22,7 @@ import { reglerTekst } from './tillid.ts';
 import { erKold, koldFroe, startFaerdig } from './start.ts';
 import { mandagFor } from '../../tillid/dagstal.ts';
 import { skjulteFroe, soendagForslag, stikbogFroe } from './stikproeve.ts';
+import { STOETTE_MOMENT, stoetteFroe } from './stoette.ts';
 
 /** When Henrik opened each room (moment index it is true from, room, Copenhagen time): the nav shows what is relevant now (KC-0052). */
 const AABNET: [number, string, string][] = [
@@ -70,5 +71,5 @@ export function froe(momentId: string, dag: string): Froe {
   const stikbog = stikbogFroe(momentId, mandag, new Date(nu));
   const pause = soendagForslag(momentId, mandag, new Date(nu), reglerTekst(momentId, dag));
   if (pause.length) { const h = rum['hjem']!.state as { regelforslag?: unknown[] }; h.regelforslag = [...(h.regelforslag ?? []), ...pause]; }
-  return { ...(stikbog ? { skjulte: [...skjulteFroe(plusDag(mandag, -14)), ...skjulteFroe(plusDag(mandag, -7)), ...skjulteFroe(mandag)], stikproever: stikbog } : {}), rum, mappe: mappe(s, f), avis: avisFil(f), mailPlan: mailPlan(), husstand: { personer: [...TEST_HUSSTAND.personer, ...TEST_INVITEREDE] } /* KC-0154: two invitations waiting */, regler: reglerTekst(momentId, dag), dagstal: dagstalFroe(plusDag(dag, plus)), kilder: kilderKonfig(momentId, f), beskeder: beskedFroe(n, f, momentId), ...(helbredFroe(momentId, f) ? { helbred: helbredFroe(momentId, f) as NonNullable<ReturnType<typeof helbredFroe>> } : {}), ...(momentId === 'pause' ? pauseFroe(f) : {}) };
+  return { ...(stikbog ? { skjulte: [...skjulteFroe(plusDag(mandag, -14)), ...skjulteFroe(plusDag(mandag, -7)), ...skjulteFroe(mandag)], stikproever: stikbog } : {}), rum, mappe: mappe(s, f), avis: avisFil(f), mailPlan: mailPlan(), husstand: { personer: [...TEST_HUSSTAND.personer, ...TEST_INVITEREDE] } /* KC-0154: two invitations waiting */, regler: reglerTekst(momentId, dag), dagstal: dagstalFroe(plusDag(dag, plus)), kilder: kilderKonfig(momentId, f), beskeder: beskedFroe(n, f, momentId), ...(helbredFroe(momentId, f) ? { helbred: helbredFroe(momentId, f) as NonNullable<ReturnType<typeof helbredFroe>> } : {}), ...(momentId === 'pause' ? pauseFroe(f) : {}), ...(momentId === STOETTE_MOMENT ? stoetteFroe(f) : {}) /* KC-0188: support looks along */ };
 }

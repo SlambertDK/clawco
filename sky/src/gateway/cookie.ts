@@ -12,14 +12,18 @@ export const TOKEN_MS = 15 * 60_000;
 /** The cookie lives as long as a Sky session can (30 days); the token inside is what expires. */
 const COOKIE_SEK = 30 * 86_400;
 
-export type TokenIndhold = { t: string; k: number; s: number; e: string; iat: number; exp: number };
+/** KC-0188: a support session (kind `stoette`) also names its grant `g` and its random session id `n`; it never lives
+ *  past the grant (`til`), and the gateway still asks the database on every request. */
+export type TokenIndhold = { t: string; k: number; s: number; e: string; iat: number; exp: number; g?: number; n?: string };
 export type TokenUdfald = { ok: true; p: TokenIndhold; udloebet: boolean } | { ok: false };
 
 const mac = (n: Buffer, s: string): Buffer => createHmac('sha256', n).update(s).digest();
 
-export function udstedToken(n: Buffer, p: { t: string; k: number; s: number; e: string }, nu: Date): string {
+export function udstedToken(n: Buffer, p: { t: string; k: number; s: number; e: string; g?: number; n?: string }, nu: Date, til?: Date): string {
   const iat = nu.getTime();
-  const payload = Buffer.from(JSON.stringify({ t: p.t, k: p.k, s: p.s, e: p.e, iat, exp: iat + TOKEN_MS })).toString('base64url');
+  const exp = Math.min(iat + TOKEN_MS, til ? til.getTime() : Number.POSITIVE_INFINITY);
+  const stoette = p.g !== undefined ? { g: p.g, n: p.n } : {};
+  const payload = Buffer.from(JSON.stringify({ t: p.t, k: p.k, s: p.s, e: p.e, iat, exp, ...stoette })).toString('base64url');
   return `v1.${payload}.${mac(n, `v1.${payload}`).toString('base64url')}`;
 }
 
@@ -32,6 +36,7 @@ export function laesToken(n: Buffer, vaerdi: string | undefined, slug: string, n
   let p: TokenIndhold;
   try { p = JSON.parse(Buffer.from(m[1]!, 'base64url').toString('utf8')) as TokenIndhold; } catch { return { ok: false }; }
   if (p.t !== slug || !Number.isSafeInteger(p.k) || !Number.isSafeInteger(p.s) || typeof p.e !== 'string' || !p.e || !Number.isSafeInteger(p.exp)) return { ok: false };
+  if ((p.g !== undefined || p.n !== undefined) && (!Number.isSafeInteger(p.g) || typeof p.n !== 'string' || !/^[a-f0-9]{16}$/.test(p.n))) return { ok: false };
   return { ok: true, p, udloebet: nu.getTime() >= p.exp };
 }
 

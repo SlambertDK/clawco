@@ -54,7 +54,7 @@ const TIL_COOKIE = 'sky-til';
 const KLIENT_JS = fs.readFileSync(new URL('../../public/konto.js', import.meta.url), 'utf8');
 /** Where a login may send the person on; anything else goes to /konto (no open redirect). Besides our own
  *  pages, the gateway's /aabn (KC-0183) with its query: a same-origin path whose own signature is checked there. */
-const TIL = new Set(['/konto', '/konto/passkeys', '/konto/slet', '/konto/abonnement', '/konto/hent-alt', '/konto/hjaelp']);
+const TIL = new Set(['/konto', '/konto/passkeys', '/konto/slet', '/konto/abonnement', '/konto/hent-alt', '/konto/hjaelp', '/personale']); // KC-0188: the staff page
 const AABN = /^\/aabn\?[A-Za-z0-9_.~%=&+-]{1,3000}$/;
 /** KC-0198: the sign-up flow, with its own query (plan, interval, language) only. */
 const TILMELD = /^\/tilmeld(\?[A-Za-z0-9_.~%=&+-]{1,300})?$/;

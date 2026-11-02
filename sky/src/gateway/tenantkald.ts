@@ -10,7 +10,9 @@ import type { GatewayNoegle } from './noegle.ts';
 
 export type Ejer = { slug: string; adresse: string; kontoId: number; email: string };
 
-export type TenantKald = { eksport(e: Ejer): Promise<Buffer>; sletAlt(e: Ejer): Promise<void> };
+/** KC-0188: support on and off. `stoetteStart` hands the tenant Sky's signed bevis (signer.ts) for a grant its owner
+ *  just made; `stoetteSlut` tells it the owner turned support off. Both as the owner, both only from Sky. */
+export type TenantKald = { eksport(e: Ejer): Promise<Buffer>; sletAlt(e: Ejer): Promise<void>; stoetteStart(e: Ejer, bevis: string): Promise<void>; stoetteSlut(e: Ejer): Promise<void> };
 
 export function tenantKald(o: { noegle: GatewayNoegle | null; fetch?: typeof fetch; nu?: () => Date; timeoutMs?: number }): TenantKald {
   const f = o.fetch ?? fetch;
@@ -32,6 +34,16 @@ export function tenantKald(o: { noegle: GatewayNoegle | null; fetch?: typeof fet
       const r = await kald(e, '/api/tillid/slet-alt', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ bekraeft: 'SLET' }) });
       const svar: unknown = await r.json().catch(() => null);
       if (r.status !== 200 || (svar as { slettet?: unknown } | null)?.slettet !== true) throw new Error(`kundens Clawco svarede ${r.status} på Slet alt`);
+    },
+    async stoetteStart(e, bevis) {
+      const r = await kald(e, '/api/stoette/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ bevis }) });
+      const svar: unknown = await r.json().catch(() => null);
+      if (r.status !== 200 || (svar as { aktiv?: unknown } | null)?.aktiv !== true) throw new Error(`kundens Clawco svarede ${r.status} på støtteadgang`);
+    },
+    async stoetteSlut(e) {
+      const r = await kald(e, '/api/stoette/slaa-fra', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+      const svar: unknown = await r.json().catch(() => null);
+      if (r.status !== 200 || (svar as { aktiv?: unknown } | null)?.aktiv !== false) throw new Error(`kundens Clawco svarede ${r.status} på slå support fra`);
     },
   };
 }

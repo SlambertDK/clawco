@@ -19,6 +19,7 @@
 import { createHash, createPublicKey, verify, type KeyObject } from 'node:crypto';
 import { isIP } from 'node:net';
 import type { Anmodning } from './identitet.ts';
+import type { StoetteKlaim } from './stoette.ts';
 
 export const KONTO_HEADER = 'clawco-konto';
 /** Seconds a signature is good for after `iat`, and the clock skew allowed before it. */
@@ -26,7 +27,9 @@ export const VINDUE_FORTID = 60;
 export const VINDUE_FREMTID = 10;
 
 export type KontoIndstilling = { tenant: string; gateway: string; noegler: ReadonlyMap<string, KeyObject> };
-export type KontoUdfald = { ok: true; email: string } | { ok: false; grund: string };
+/** `stoette` (KC-0188): the gateway's support claims (sa: grant id, su: its end in unix seconds, sn: the session), present
+ *  only on a support session; the caller accepts them only beside the tenant's own record (identitet/stoette.ts). */
+export type KontoUdfald = { ok: true; email: string; stoette?: StoetteKlaim } | { ok: false; grund: string };
 
 const TENANT = /^[a-z0-9][a-z0-9-]{0,39}$/; // as Sky's fleet names tenants (sky/src/fleet/flaade.ts)
 const NOEGLE = /^[A-Za-z0-9_-]{43}$/; // 32 raw bytes, base64url without padding
@@ -77,10 +80,14 @@ export function verificerKonto(a: Anmodning, k: KontoIndstilling, nuSek: number)
   try { p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { return { ok: false, grund: 'payload er ikke JSON' }; }
   if (typeof p !== 'object' || p === null || Array.isArray(p)) return { ok: false, grund: 'payload er ikke et objekt' };
   const o = p as Record<string, unknown>;
-  if (Object.keys(o).sort().join() !== 'e,iat,k,t' || !tekst(o['t'], 40) || !tekst(o['k'], 100) || !tekst(o['e'], 200) || !Number.isSafeInteger(o['iat'])) return { ok: false, grund: 'payload har forkert form' };
+  const noegler = Object.keys(o).sort().join();
+  const stoette = noegler === 'e,iat,k,sa,sn,su,t';
+  if ((noegler !== 'e,iat,k,t' && !stoette) || !tekst(o['t'], 40) || !tekst(o['k'], 100) || !tekst(o['e'], 200) || !Number.isSafeInteger(o['iat'])) return { ok: false, grund: 'payload har forkert form' };
+  if (stoette && (typeof o['sa'] !== 'string' || !/^\d{1,18}$/.test(o['sa']) || !Number.isSafeInteger(o['su']) || typeof o['sn'] !== 'string' || !/^[a-f0-9]{16}$/.test(o['sn']))) return { ok: false, grund: 'støttepåstanden har forkert form' };
   if (o['t'] !== k.tenant) return { ok: false, grund: 'en anden tenant' };
   const alder = nuSek - (o['iat'] as number);
   if (alder > VINDUE_FORTID) return { ok: false, grund: 'udløbet' };
   if (alder < -VINDUE_FREMTID) return { ok: false, grund: 'fra fremtiden' };
+  if (stoette) return { ok: true, email: o['e'] as string, stoette: { adgang: o['sa'] as string, udloeber: o['su'] as number, session: o['sn'] as string, personale: o['k'] as string } };
   return { ok: true, email: o['e'] as string };
 }

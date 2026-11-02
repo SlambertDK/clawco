@@ -95,6 +95,8 @@ const HAAND: [string, string][] = [
   ['telefon-tilstand', 'fold-knap'],                           // the phone's core first, the rest one tap away (KC-0024)
   ['nodstop-knap', 'data-nodstop="stop"'],                     // Stop alt in the Kø panel (KC-0124)
   ['pause-baand', 'data-nodstop="pause"'],                     // the band while Clawco is paused (KC-0124; the moment "Sat på pause")
+  ['stoette-slaaet-fra', 'data-stoette="fra"'],                // the owner's card "Lad support se med", off (KC-0188; every moment but one)
+  ['stoette-aktiv', 'data-stoette="baand"'],                    // the red band while support looks along (KC-0188; the moment "Mailen svarer ikke")
   ['revision-liste', 'data-revision="liste"'],                 // "Hvad Clawco har gjort" in the Kø panel (KC-0124)
   ['regler-ulaeselig', 'data-regler="ulaeselig"'],             // Nu: the rules file cannot be read, Hermes is on trin 0 (KC-0142; the moment "Næste morgen")
   ['start-trin-aabent', 'data-trin="velkommen" data-trin-status="ikke-startet"'], // Start: step 1 open (KC-0126; the moment "Kold start")

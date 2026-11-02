@@ -30,13 +30,13 @@ Your content in the instance is a special case, see section 3.
 
 **Usage patterns.** We collect no usage statistics. If anonymous figures about how the product is used ever come, it will only happen if you switch it on yourself, and you can switch it off again at any time.
 
-**Emails from us.** We send the emails you need: sign-in links, a receipt when you buy, a confirmation when you cancel or withdraw, and a confirmation when you delete your account. If we need to tell you about an important change, we write to you as well. We do not yet send reminders about the trial or renewal. We send newsletters and offers only if you have said yes.
+**Emails from us.** We send the emails you need: sign-in links, a receipt when you buy, a confirmation when you cancel or withdraw, a notice when you have turned on “Lad support se med”, and a confirmation when you delete your account. If we need to tell you about an important change, we write to you as well. We do not yet send reminders about the trial or renewal. We send newsletters and offers only if you have said yes.
 
 ## 3. Your content in your instance
 
 You can connect your email, calendar, notes and more to Clawco. It is your content. We process it only to provide the service to you, inside your own isolated instance. In addition:
 
-- We do not read it. There is no support feature that gives us access to your instance. If you need help, you write to kontakt@clawco.work, and we see only what you send yourself.
+- We do not read it. Our support gets in only if you, the owner, turn on “Lad support se med” for 1, 4 or 24 hours; it is off until you do. While it is on, one person from support sees what you see but cannot change anything, every look is logged, and you can turn it off at any time. Otherwise we see only what you send to kontakt@clawco.work yourself.
 - Whoever runs the server has technical access to its disks, and in beta the disks are not yet encrypted at rest. We use that access only for operations, never to read your content.
 - We do not sell it.
 - We do not use it to train models, neither ours nor anyone else's.

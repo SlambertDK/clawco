@@ -28,13 +28,13 @@ Dit indhold i instansen er en særlig sag, se afsnit 3.
 
 **Brugsmønstre.** Vi indsamler ingen brugsstatistik. Kommer der en dag anonyme tal om, hvordan produktet bruges, sker det kun, hvis du selv slår det til, og du kan slå det fra igen når som helst.
 
-**Mails fra os.** Vi sender de mails, du har brug for: login-link, en kvittering, når du køber, en bekræftelse, når du siger op eller fortryder, og en bekræftelse, når du sletter din konto. Skal vi fortælle dig om en vigtig ændring, skriver vi også til dig. Vi sender ingen påmindelser om prøveperiode eller fornyelse endnu. Nyhedsbreve og tilbud sender vi kun, hvis du har sagt ja.
+**Mails fra os.** Vi sender de mails, du har brug for: login-link, en kvittering, når du køber, en bekræftelse, når du siger op eller fortryder, en besked, når du har slået “Lad support se med” til, og en bekræftelse, når du sletter din konto. Skal vi fortælle dig om en vigtig ændring, skriver vi også til dig. Vi sender ingen påmindelser om prøveperiode eller fornyelse endnu. Nyhedsbreve og tilbud sender vi kun, hvis du har sagt ja.
 
 ## 3. Dit indhold i din instans
 
 Du kan koble din mail, din kalender, dine noter og andet til Clawco. Det er dit indhold. Vi behandler det kun for at levere tjenesten til dig, inde i din egen isolerede instans. Derudover gælder:
 
-- Vi læser det ikke. Der findes ingen supportfunktion, der giver os adgang til din instans. Har du brug for hjælp, skriver du til kontakt@clawco.work, og vi ser kun det, du selv sender.
+- Vi læser det ikke. Vores support kommer kun ind, hvis du som ejer selv slår “Lad support se med” til i 1, 4 eller 24 timer; det er slået fra, indtil du gør det. Imens kan én fra support se det samme som dig, men ikke ændre noget, hvert kig logges, og du kan slå det fra når som helst. Ellers ser vi kun det, du selv sender til kontakt@clawco.work.
 - Den, der driver serveren, har teknisk adgang til dens diske, og i beta er diskene endnu ikke krypteret i hvile. Den adgang bruger vi kun til drift, aldrig til at læse dit indhold.
 - Vi sælger det ikke.
 - Vi bruger det ikke til at træne modeller, hverken vores egne eller andres.

@@ -215,6 +215,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     identitet: { fast: TEST_EJER },
     // KC-0161: the Tailscale card reads a scripted CLI per moment; the real one is never run from the test world.
     tailscale: { koerer: falskTailscale(() => ({ id: nu.id, kold: erKold(nu.id) }), tailscaleDelt), port: 8750, laptop: () => tailscaleLaptop(nu.id) },
+    // KC-0188: the support switch (not under Sky: on is refused by the app; the band's Slå fra is the app's own route).
+    stoette: { slaaTil: '/api/stoette/start', slaaFra: '/api/stoette/slaa-fra' },
     // No run queue: the generation is captured when a run reaches Hermes, so a run queued before a jump must not
     // wait until after it (it would carry the new generation and write into the new moment).
     maxParallel: Number.MAX_SAFE_INTEGER,

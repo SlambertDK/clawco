@@ -53,5 +53,6 @@ export const blandetZoner = (kilder: readonly DataZone[]): boolean => new Set(ki
 export function synligFor(person: Person, el: Zoneret): boolean {
   const zone = zoneAf(el);
   if (zone === 'husstand') return kan(person.rolle, 'se-husstand');
-  return el.ejer ? el.ejer === person.id : person.rolle === 'ejer';
+  // KC-0188: support looks through the owner's eyes (its id is the owner's): what the owner could see, never more.
+  return el.ejer ? el.ejer === person.id : person.rolle === 'ejer' || person.rolle === 'stoette';
 }

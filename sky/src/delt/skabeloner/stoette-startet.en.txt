@@ -1,0 +1,13 @@
+Support is looking at your Clawco
+
+Hi
+
+You just turned on "Lad support se med" in your Clawco for {{timer}} hours, until {{til}}.
+
+Until then one person at Clawco can see what you see, including your mail and your calendar. They cannot change, send or delete anything, and everything they open is listed under "Hvad Clawco har gjort" in your Clawco.
+
+You can turn it off at any time with "Slå fra" in the red band at the top of your Clawco. Otherwise it turns itself off at {{til}}.
+
+If this was not you, press "Slå fra" right away and write to us.
+
+Clawco

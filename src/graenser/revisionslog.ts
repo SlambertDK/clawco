@@ -13,7 +13,8 @@ import path from 'node:path';
 import { redigeres } from './redaktion.ts';
 import { erDataZone, type DataZone } from '../identitet/zoner.ts';
 
-export const KANALER = ['knap', 'stemme', 'chat', 'agent', 'planlagt'] as const;
+// KC-0188: 'stoette' = Clawco support looking along under the owner's time-boxed grant ("Lad support se med").
+export const KANALER = ['knap', 'stemme', 'chat', 'agent', 'planlagt', 'stoette'] as const;
 export type Kanal = (typeof KANALER)[number];
 export const REVISION_UDFALD = ['tillad', 'kraever-ja', 'afvist', 'stop', 'genoptag'] as const;
 export type RevisionUdfald = (typeof REVISION_UDFALD)[number];

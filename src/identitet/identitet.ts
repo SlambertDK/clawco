@@ -10,6 +10,7 @@
 
 import type { Husstand, Person } from './husstand.ts';
 import { verificerKonto, type KontoIndstilling } from './konto.ts';
+import { stoettePerson, type StoetteAdgang } from './stoette.ts';
 
 export type { Person } from './husstand.ts';
 /** `log` (konto only): which check failed, for the server log; never shown, never the header value. */
@@ -66,15 +67,20 @@ export function hvemKigger(a: Anmodning, husstand: Husstand | null): Person | Af
  * KC-0179: who is looking under KC_IDENTITET=konto. Only the gateway's signature counts (konto.ts); every
  * Tailscale header is ignored, and there is no single-user mode: without a household nobody is the owner.
  */
-export function hvemKontoKigger(a: Anmodning, husstand: Husstand | null, k: KontoIndstilling, nuSek: number): Person | AfvistAdgang {
+/** KC-0188: this tenant's own record of a support grant as read for the request ('ulaeselig' = could not be read). */
+export type StoetteLokal = StoetteAdgang | null | 'ulaeselig';
+
+export function hvemKontoKigger(a: Anmodning, husstand: Husstand | null, k: KontoIndstilling, nuSek: number, stoette?: StoetteLokal): Person | AfvistAdgang {
   const v = verificerKonto(a, k, nuSek);
   if (!v.ok) return { afvist: 401, hvorfor: KONTO_UKENDT, log: `konto afvist: ${v.grund}` };
   const personer = husstand?.personer ?? [];
   if (personer.length === 0) return { afvist: 503, hvorfor: HUSSTAND_ULAESELIG, log: 'konto: ingen husstand' };
+  // KC-0188: a support session is accepted only beside this tenant's own live record of the same grant (fail closed).
+  if (v.stoette) return stoettePerson(v.stoette, stoette, personer, nuSek) ?? { afvist: 401, hvorfor: KONTO_UKENDT, log: 'konto: støtteadgangen er ikke åben her' };
   return medLogin(personer, v.email) ?? { ...AFVIST_FREMMED, log: 'konto: e-mailen er ikke i husstanden' };
 }
 
-export type Kigger = (a: Anmodning, husstand: Husstand | null) => Person | AfvistAdgang;
+export type Kigger = (a: Anmodning, husstand: Husstand | null, stoette?: StoetteLokal) => Person | AfvistAdgang;
 /** Which provider the app runs: a fixed person (the test world), konto (Sky), else the tailnet. */
 export type Identitetsvalg = { fast: Person } | { konto: KontoIndstilling };
 
@@ -82,7 +88,7 @@ export function vaelgKigger(valg: Identitetsvalg | undefined, nu: () => Date): K
   if (!valg) return hvemKigger;
   // A fixed person (the test world) still never answers Funnel traffic.
   if ('fast' in valg) return (a) => (erFunnel(a.headers) ? AFVIST_FUNNEL : valg.fast);
-  return (a, husstand) => hvemKontoKigger(a, husstand, valg.konto, Math.floor(nu().getTime() / 1000));
+  return (a, husstand, stoette) => hvemKontoKigger(a, husstand, valg.konto, Math.floor(nu().getTime() / 1000), stoette);
 }
 
 /** The TCP peer from @hono/node-server's bindings (the env of a request); undefined without them. */

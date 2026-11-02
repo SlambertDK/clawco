@@ -204,10 +204,8 @@ test('every button label an article quotes (data-etiket) is in the code and in b
     }
   }
   assert.ok(antal >= 18, `only ${antal} quoted labels`);
-  // A label that does not exist (yet) is named data-findes-ikke: it must stay out of the code, or the article is out of date.
-  const ikke = Array.from(dok('hjaelp/let-support-look.html').querySelectorAll('[data-findes-ikke]'));
-  assert.equal(ikke.length, 1);
-  assert.ok(!kode.includes(ikke[0]!.getAttribute('data-findes-ikke')!), '"Lad support se med" exists in the code now (KC-0188): rewrite let-support-look');
+  // KC-0188: let-support-look quotes the switch and its Slå fra as they are built (the owner's card and the red band).
+  assert.ok(dok('hjaelp/let-support-look.html').querySelector('[data-etiket="Lad support se med"]') && dok('hjaelp/let-support-look.html').querySelector('[data-etiket="Slå fra"]'));
 });
 
 test('every number in an article is the constant behind it', () => {
@@ -236,9 +234,16 @@ test('the checkout asks for no card on a trial and pauses (never charges) when t
 
 test('claims about what is NOT built are guarded: building it fails the test until the article is rewritten', () => {
   const alle = [...SKY_FILER, ...KLIENT_FILER];
-  // let-support-look: no support access exists (KC-0188). Any file, route or identifier for it means the article is out of date.
-  const stoette = alle.filter((f) => /stoette|støtte|lad-support|ladsupport/i.test(f) || /\bstoette(Adgang|_adgang|Rolle)?\b|Lad support se med/.test(laes(f)));
-  assert.deepEqual(stoette, [], 'support look-along code exists now (KC-0188): rewrite hjaelp/let-support-look and its test');
+  // let-support-look (KC-0188): what the article says about the built switch is what the code holds — 1, 4 or 24 hours in both
+  // halves (the tenant's card and Sky's grant), off until the owner turns it on, read-only, and every look logged.
+  for (const f of ['src/identitet/stoette.ts', 'sky/src/konto/stoette.ts']) {
+    assert.match(laes(f), /export const STOETTE_TIMER = \[1, 4, 24\] as const;/, f);
+    assert.match(laes(f), /export const STOETTE_MAKS_TIMER = 24;/, f);
+  }
+  const stoetteTekst = (sprog: 'en' | 'da') => Array.from(dok('hjaelp/let-support-look.html').querySelectorAll('main [data-i]')).map((e) => T[sprog][e.getAttribute('data-i')!]).join(' ');
+  assert.ok(stoetteTekst('en').includes('1, 4 or 24 hours') && stoetteTekst('da').includes('1, 4 eller 24 timer'));
+  assert.match(laes('src/identitet/roller.ts'), /stoette: \['laese', 'se-husstand'\]/, 'support reads only: the article says it cannot change anything');
+  assert.ok(alle.includes('src/identitet/stoette.ts') && alle.includes('sky/src/gateway/stoette-vej.ts'));
   // trial, payment-failed: nothing switches a Clawco off or locks it for a paused, overdue or cancelled subscription.
   // `skrivebeskyttet` is computed and stored by billing and shown nowhere else; if the gateway, the fleet or the Clawco app
   // starts to act on it, the articles "trial" and "payment-failed" must say what it does.
@@ -247,7 +252,7 @@ test('claims about what is NOT built are guarded: building it fails the test unt
   assert.deepEqual(bruger, [], 'something now acts on skrivebeskyttet: update the articles marked data-gaelder="ingen-haandhaevelse"');
   assert.ok(!/skrivebeskyttet/.test(KLIENT_FILER.map(laes).join('\n')), 'the Clawco app knows nothing of a read-only state yet');
   for (const a of ['trial', 'payment-failed']) assert.ok(dok(`hjaelp/${a}.html`).querySelector('[data-gaelder="ingen-haandhaevelse"]'), `${a} carries the guarded claim`);
-  assert.ok(dok('hjaelp/let-support-look.html').querySelector('[data-gaelder="ingen-stoette"]'));
+  assert.ok(dok('hjaelp/let-support-look.html').querySelector('[data-gaelder="stoette"]'));
   // get-your-data: no importer for clawco.zip in a self-installed Clawco.
   assert.ok(!/clawco\.zip/.test(KLIENT_FILER.map(laes).join('\n')) || KLIENT_FILER.filter((f) => /clawco\.zip/.test(laes(f))).every((f) => !/import|laes.*zip|pak/i.test(f)), 'an importer for clawco.zip may exist now: update get-your-data');
   assert.ok(dok('hjaelp/get-your-data.html').querySelector('[data-gaelder="ingen-import"]'));

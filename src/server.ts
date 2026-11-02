@@ -110,6 +110,8 @@ import { skulleVises } from './kurator/stikproeve.ts';
 import { erMandag, faerdigeDage, fortrudtPaaDag, lavDagstal, raekke as ugeraekke, ugeAf, ugeLinje, ugeVisning } from './tillid/dagstal.ts';
 import { laesPersoner } from './kilder/noter/personer.ts';
 import { kan } from './identitet/roller.ts';
+import { aktiv, lavStoetteLager, slaaStoetteFra, startStoette, stoettePersonId, StoetteFejl, type StoetteAdgang } from './identitet/stoette.ts';
+import { klokkeKbh } from './shell/revision.ts';
 import { KonfigFejl, lavRegister } from './kilder/register.ts';
 import { lavHelbredStyring, type HelbredStyring } from './kilder/helbred-fil.ts';
 import { genforbindFelter, stemmeSaetning } from './kilder/helbred-tekst.ts';
@@ -211,11 +213,17 @@ export type AppDeps = {
   laptop?: boolean;
   /** KC-0201: under Clawco Sky (KC_SKY=ja, shell/hjaelp.ts) the account app's help page; the Kø panel shows "Få hjælp". Absent = no link. */
   hjaelp?: { href: string };
+  /**
+   * KC-0188: "Lad support se med" — where the owner's card and the band's Slå fra post to (under Sky: the gateway's
+   * /_sky/stoette and /_sky/stoette/slaa-fra). Absent = no card, no band, and no support identity is ever accepted.
+   */
+  stoette?: { slaaTil: string; slaaFra: string };
 };
 
 /** KC-0116: who is looking, set once per request by the identity middleware. */
 type Hvem = { person: Person; husstand: Person[] };
-type Env = { Variables: Hvem };
+/** KC-0188: this tenant's record of a support grant, as read for this request (null = none or unreadable). */
+type Env = { Variables: Hvem & { stoette: StoetteAdgang | null } };
 
 /**
  * KC-0124: which audit lines a person reads. The owner reads all (the household's oversight; metadata only); a member
@@ -554,6 +562,8 @@ export function createApp(deps: AppDeps) {
   const husstandDir = deps.dataDir ?? './data';
   // KC-0160: laptop mode (one person, loopback only) ignores every identity header: the one owner, unless the caller fixed a person.
   const kigger = vaelgKigger(deps.laptop === true && !deps.identitet ? { fast: ENEBRUGER } : deps.identitet, now);
+  // KC-0188: this tenant's own record of a support grant (none without the switch: then no support identity passes).
+  const stoetteLager = deps.stoette && deps.dataDir ? lavStoetteLager(deps.dataDir) : undefined;
   app.use('/*', async (c, next) => {
     if (c.req.path === '/health') return next();
     let husstand;
@@ -562,16 +572,28 @@ export function createApp(deps: AppDeps) {
       console.error('identitet:', err.message);
       return afvis(c, 503, HUSSTAND_ULAESELIG);
     }
-    const hvem = kigger({ headers: c.req.raw.headers, peer: peerAf(c.env) }, husstand);
+    // An unreadable record is no grant (fail closed): a support identity is refused, and no band is shown.
+    let stoetteNu: StoetteAdgang | null | 'ulaeselig' = null;
+    if (stoetteLager) {
+      try { stoetteNu = await stoetteLager.laes(); } catch (err) {
+        if (!(err instanceof StoetteFejl)) throw err;
+        console.error('stoette:', err.message);
+        stoetteNu = 'ulaeselig';
+      }
+    }
+    const hvem = kigger({ headers: c.req.raw.headers, peer: peerAf(c.env) }, husstand, stoetteNu);
     if (erAfvist(hvem)) {
       if (hvem.log) console.warn('identitet:', hvem.log);
       return afvis(c, hvem.afvist, hvem.hvorfor);
     }
     c.set('person', hvem);
     c.set('husstand', husstand?.personer ?? []);
+    c.set('stoette', stoetteNu === 'ulaeselig' ? null : stoetteNu);
+    if (stoetteNu && stoetteNu !== 'ulaeselig') await noterStoetteUdloeb(stoetteNu);
     await hvemNu.run(hvem, async () => {
       // KC-0154: her first request through this path activates a member the owner pre-created (once; never a static file).
-      if ((husstand?.personer.length ?? 0) > 1 && !/\.[a-z0-9]+$/i.test(c.req.path)) {
+      // KC-0188: support only looks; its visit activates nobody.
+      if (hvem.rolle !== 'stoette' && (husstand?.personer.length ?? 0) > 1 && !/\.[a-z0-9]+$/i.test(c.req.path)) {
         try { await vedBesoeg(d); } catch (err) { console.error('husstand: indgangen kunne ikke markeres:', err); }
       }
       await next();
@@ -581,8 +603,58 @@ export function createApp(deps: AppDeps) {
     if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: hvorfor }, status);
     return c.html(renderIngenAdgang(hvorfor), status);
   }
+
+  // KC-0188: support reads only. Every method but GET and HEAD is refused here, before any route (the policy layer and
+  // the owner-only checks refuse it again behind this). Each support session's start and every page it opens (the route
+  // template: never a query string, never content) goes to the audit log with the staff account's id; an /api read is
+  // logged once per session. The owner reads it in "Hvad Clawco har gjort".
+  const KUN_SE = 'Support kan kun se med og kan ikke ændre noget. Det kan kun ejeren.';
+  const stoetteLogget = new Set<string>();
+  const stoetteLinje = (verb: string, rum: string, hvorfor: string, person: string, adgang: string, udfald: 'tillad' | 'afvist' = 'tillad') =>
+    revision?.skriv({ person, kanal: 'stoette', rum: rum.slice(0, 80), verb, udfald, hvorfor, handlingId: `adgang:${adgang}`, zoner: [], kilde: 'stoette' });
+  async function noterStoetteUdloeb(a: StoetteAdgang): Promise<void> {
+    const slut = Date.parse(a.udloeber);
+    if (!stoetteLager || a.tilbagekaldt || a.udloebLogget || !(now().getTime() >= slut) || stoetteLogget.has(`udloeb:${a.id}`)) return;
+    stoetteLogget.add(`udloeb:${a.id}`);
+    await stoetteLager.skriv({ ...a, udloebLogget: now().toISOString() });
+    await stoetteLinje('stoette-udloeb', 'stoette', `Supportadgangen sluttede af sig selv kl. ${klokkeKbh(new Date(a.udloeber))}.`, 'stoette', a.id);
+  }
+  app.use('/*', async (c, next) => {
+    const p = c.get('person');
+    if (p?.rolle !== 'stoette' || !p.stoette) return next();
+    if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return afvis(c, 403, KUN_SE);
+    const s = p.stoette;
+    const hvem = stoettePersonId(s.personale);
+    const sessionNoegle = `${s.adgang}:${s.session}`;
+    if (!stoetteLogget.has(sessionNoegle) && stoetteLager) {
+      stoetteLogget.add(sessionNoegle);
+      const a = await stoetteLager.laes();
+      if (a && a.id === s.adgang && !a.sessioner.includes(s.session)) {
+        await stoetteLager.skriv({ ...a, sessioner: [...a.sessioner, s.session].slice(-200) });
+        await stoetteLinje('stoette-start', 'stoette', 'Support begyndte at kigge med.', hvem, s.adgang);
+      }
+    }
+    await next();
+    if (/\.[a-z0-9]+$/i.test(c.req.path)) return; // a static file is not something opened
+    let sti = c.req.routePath;
+    if (!sti || sti === '/*') return;
+    if (sti === '/rum/:id' && ROOMS.some((r) => r.id === c.req.param('id'))) sti = `/rum/${c.req.param('id')}`;
+    if (sti.startsWith('/api/')) {
+      if (stoetteLogget.has(`${sessionNoegle}:${sti}`)) return;
+      stoetteLogget.add(`${sessionNoegle}:${sti}`);
+    }
+    // A page support was refused (an owner-only page, a missing one) is logged as a no, so the owner sees the attempt too.
+    if (c.res.status >= 400) await stoetteLinje('stoette-aabnet', sti, 'Support fik nej til en side.', hvem, s.adgang, 'afvist');
+    else await stoetteLinje('stoette-aabnet', sti, 'Support åbnede en side.', hvem, s.adgang);
+  });
   // KC-0154: the shell names the household only to whom may see who is in it (rettigheder.ts; not a guest).
-  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand>; hjaelp?: { href: string } } => ({ person: c.get('person'), husstand: maaSe(c.get('person'), { slags: 'medlem' }) ? c.get('husstand') : [], ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}), ...(deps.hjaelp ? { hjaelp: deps.hjaelp } : {}) });
+  // KC-0188: the band and the owner's card come from the record (shell/layout.ts), on every page that has the skeleton.
+  const stoetteSyn = (c: Context<Env>): { stoette?: { adgang: { udloeber: string; grund: string } | null; slaaTil: string; slaaFra: string } } => {
+    if (!deps.stoette) return {};
+    const a = c.get('stoette');
+    return { stoette: { adgang: aktiv(a, now()) ? { udloeber: a.udloeber, grund: a.grund } : null, slaaTil: deps.stoette.slaaTil, slaaFra: deps.stoette.slaaFra } };
+  };
+  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand>; hjaelp?: { href: string }; stoette?: { adgang: { udloeber: string; grund: string } | null; slaaTil: string; slaaFra: string } } => ({ person: c.get('person'), husstand: maaSe(c.get('person'), { slags: 'medlem' }) ? c.get('husstand') : [], ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}), ...(deps.hjaelp ? { hjaelp: deps.hjaelp } : {}), ...stoetteSyn(c) });
 
   // KC-0018: no-cache = always revalidate, so a deploy reaches the browser and the home-screen app.
   app.use('/*', async (c, next) => { c.header('Cache-Control', 'no-cache'); await next(); });
@@ -859,6 +931,36 @@ export function createApp(deps: AppDeps) {
     const p = await personerListe();
     const zip = await eksporter(brugermappe(), p ? { personer: { dir: p.dir, filer: p.liste.map((x) => x.sti) } } : {}, now());
     return c.body(new Uint8Array(zip), 200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="clawco-${copenhagenDate(now())}.zip"`, 'Cache-Control': 'no-store' });
+  });
+
+  // KC-0188: support on (only from Sky, with its signed bevis, for the owner) and off (the owner). Neither is a
+  // handling: no room, chat phrase, voice id, rule or clock reaches these routes, and startStoette is called only here.
+  app.post('/api/stoette/start', async (c) => {
+    if (!stoetteLager) return c.json({ error: 'Findes ikke' }, 404);
+    const b = erForm(c) ? {} : await body(c);
+    try {
+      const a = await startStoette(stoetteLager, { person: c.get('person'), bevis: b['bevis'], konto: deps.identitet && 'konto' in deps.identitet ? deps.identitet.konto : undefined, nu: now() });
+      await stoetteLinje('stoette-givet', 'stoette', `Ejeren lod support se med til kl. ${klokkeKbh(new Date(a.udloeber))}.`, c.get('person').id, a.id);
+      for (const r of ROOMS) live.notify(r.id);
+      return c.json({ aktiv: true });
+    } catch (err) {
+      if (!(err instanceof StoetteFejl)) throw err;
+      return afvis(c, 403, err.message);
+    }
+  });
+  app.post('/api/stoette/slaa-fra', async (c) => {
+    if (!stoetteLager) return c.json({ error: 'Findes ikke' }, 404);
+    try {
+      const a = await slaaStoetteFra(stoetteLager, { person: c.get('person'), nu: now() });
+      if (a) {
+        await stoetteLinje('stoette-slut', 'stoette', 'Ejeren slog support fra.', c.get('person').id, a.id);
+        for (const r of ROOMS) live.notify(r.id);
+      }
+    } catch (err) {
+      if (!(err instanceof StoetteFejl)) throw err;
+      return afvis(c, 403, err.message);
+    }
+    return erForm(c) ? c.redirect('/', 303) : c.json({ aktiv: false });
   });
   app.post('/api/tillid/slet-alt', async (c) => {
     if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan slette alt.');
@@ -1343,7 +1445,8 @@ export function createApp(deps: AppDeps) {
     const room = findRoom(c.req.param('id'));
     if (!room) return ikkeFundet(c, 'rum');
     const mod = getRoomModule(room.id);
-    if (mod || room.id === HJEM) await markerAabnet(deps.store, room.id, now());
+    // KC-0188: support's visit marks nothing as seen for the owner.
+    if ((mod || room.id === HJEM) && c.get('person').rolle !== 'stoette') await markerAabnet(deps.store, room.id, now());
     const { venter: v, univers, synlige: syn } = await navData(room.id);
     if (mod) {
       const view = await mod.view(d);
@@ -1993,6 +2096,8 @@ export async function main(): Promise<void> {
     ...(kanal ? { kanal } : {}),
     // KC-0201: "Få hjælp" in the settings, only under Clawco Sky (KC_SKY=ja plus KC_SKY_URL).
     ...(hjaelp ? { hjaelp } : {}),
+    // KC-0188: "Lad support se med" exists only under the Sky gateway (konto identity): the gateway answers the switch.
+    ...(konto ? { stoette: { slaaTil: '/_sky/stoette', slaaFra: '/_sky/stoette/slaa-fra' } } : {}),
   });
   frontload(env('KC_FRONTLOAD', standardFrontload(process.env)));
   kurator(env('KC_KURATOR', '07-22/60'));

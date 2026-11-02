@@ -14,6 +14,7 @@ const DATA: Record<Skabelon, Record<string, string>> = {
   fortrydelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', tidspunkt: '5. november 2026 kl. 11.00', tilbage: 'Vi tilbagebetaler 65,83 kr. inden for 14 dage.' },
   opsigelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', slutter: '2. december 2026', link: LINK },
   fornyelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', pris: '790 kr. om året', dato: '2. november 2027', link: LINK },
+  'stoette-startet': { timer: '4', til: '14.05' },
 };
 
 /** Mails that carry no link of the generic kind (the account link): the deletion receipt and the withdrawal receipt. */
@@ -43,6 +44,12 @@ for (const skabelon of SKABELONER) {
         // KC-0206: the receipt says when the backups are gone and that invoices are kept for bookkeeping.
         assert.match(m.tekst, sprog === 'da' ? /inden for 30 dage/ : /within 30 days/);
         assert.match(m.tekst, sprog === 'da' ? /bogføringsloven/ : /bookkeeping law/);
+      } else if (skabelon === 'stoette-startet') {
+        // KC-0188: the owner's notice when support starts: how long, until when, that it includes mail and calendar, how to stop it.
+        assert.doesNotMatch(m.tekst + m.html, /https?:\/\//);
+        assert.match(m.tekst, sprog === 'da' ? /i 4 timer, til kl\. 14\.05/ : /for 4 hours, until 14\.05/);
+        assert.match(m.tekst, sprog === 'da' ? /din mail og din kalender/ : /your mail and your calendar/);
+        assert.match(m.tekst, /Slå fra/);
       } else if (UDEN_LINK.has(skabelon)) {
         assert.doesNotMatch(m.tekst + m.html, /https?:\/\//);
       } else {

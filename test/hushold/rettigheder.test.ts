@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { AKTION_HANDLING, ELEMENT_SLAGS, HANDLING_SLAGS, maaHandle, maaSe, type ElementSlags, type HandlingSlags } from '../../src/hushold/rettigheder.ts';
-import { ROLLER, type Rolle } from '../../src/identitet/roller.ts';
+import { ROLLER, type HusRolle as Rolle } from '../../src/identitet/roller.ts';
 import { DATAZONER } from '../../src/identitet/zoner.ts';
 import type { Person } from '../../src/identitet/husstand.ts';
 import { husstandRoom } from '../../src/hushold/room.ts';

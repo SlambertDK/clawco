@@ -59,8 +59,10 @@ export function rensUd(h: IncomingHttpHeaders): Ud {
   return ud;
 }
 
-/** One request, one line: method, slug, status, duration, konto id. Nothing else, by construction. */
-export function logLinje(a: { metode: string; slug: string; status: number; ms: number; konto: number | null }): string {
+/** One request, one line: method, slug, status, duration, konto id, and (KC-0188) the support grant of a support
+ *  session — so Sky's log names the staff account behind every request. Nothing else, by construction. */
+export function logLinje(a: { metode: string; slug: string; status: number; ms: number; konto: number | null; stoette?: number | null }): string {
   const metode = /^[A-Z]{1,10}$/.test(a.metode) ? a.metode : '?';
-  return `gateway: ${metode} ${a.slug} ${a.status} ${Math.round(a.ms)}ms konto=${a.konto ?? '-'}`;
+  const stoette = Number.isSafeInteger(a.stoette) ? ` stoette=${a.stoette}` : '';
+  return `gateway: ${metode} ${a.slug} ${a.status} ${Math.round(a.ms)}ms konto=${a.konto ?? '-'}${stoette}`;
 }

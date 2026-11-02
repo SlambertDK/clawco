@@ -9,7 +9,11 @@
 import { createHash, createPrivateKey, createPublicKey, sign, type KeyObject } from 'node:crypto';
 
 export const KONTO_HEADER = 'Clawco-Konto';
-export type KontoPaastand = { t: string; k: string; e: string; iat: number };
+/** KC-0188: a support session adds three claims, in this order after iat: sa (the grant's id), su (when the grant
+ *  ends, unix seconds) and sn (this session's random id). The tenant accepts them only beside its own record of the
+ *  grant (src/identitet/stoette.ts), so a gateway bug cannot extend one. */
+export type StoettePaastand = { sa: string; su: number; sn: string };
+export type KontoPaastand = { t: string; k: string; e: string; iat: number } & Partial<StoettePaastand>;
 
 /** The key id of a raw 32-byte Ed25519 public key. */
 export function noegleId(offentligRaw: Buffer): string {
@@ -36,8 +40,24 @@ function offentligAf(privat: KeyObject): { offentlig: string; id: string } {
 export function signerKonto(privat: KeyObject, p: KontoPaastand): string {
   for (const felt of ['t', 'k', 'e'] as const) if (typeof p[felt] !== 'string' || !p[felt]) throw new Error(`påstanden mangler ${felt}`);
   if (!Number.isSafeInteger(p.iat) || p.iat < 0) throw new Error('iat skal være hele sekunder');
+  const stoette = p.sa !== undefined || p.su !== undefined || p.sn !== undefined;
+  if (stoette && (typeof p.sa !== 'string' || !/^\d{1,18}$/.test(p.sa) || !Number.isSafeInteger(p.su) || typeof p.sn !== 'string' || !/^[a-f0-9]{16}$/.test(p.sn))) throw new Error('støttepåstanden er ufuldstændig');
   const { id } = offentligAf(privat);
-  const payload = Buffer.from(JSON.stringify({ t: p.t, k: p.k, e: p.e, iat: p.iat })).toString('base64url');
-  const til = `v1.${id}.${payload}`;
+  const krop = stoette ? { t: p.t, k: p.k, e: p.e, iat: p.iat, sa: p.sa, su: p.su, sn: p.sn } : { t: p.t, k: p.k, e: p.e, iat: p.iat };
+  return signer(privat, 'v1', id, krop);
+}
+
+function signer(privat: KeyObject, version: 'v1' | 's1', id: string, krop: unknown): string {
+  const til = `${version}.${id}.${Buffer.from(JSON.stringify(krop)).toString('base64url')}`;
   return `${til}.${sign(null, Buffer.from(til), privat).toString('base64url')}`;
+}
+
+/** KC-0188: the bevis Sky sends a tenant when its owner turns support on: the grant, signed with the gateway key under
+ *  its own prefix `s1.` (so a Clawco-Konto header can never pass as a bevis, nor a bevis as a header). payload =
+ *  {t: tenant, a: grant id, g: given, u: ends (unix seconds), h: hours, r: the owner's reason, iat}, in that order. */
+export type StoetteBevis = { t: string; a: string; g: number; u: number; h: number; r: string; iat: number };
+
+export function signerStoetteBevis(privat: KeyObject, b: StoetteBevis): string {
+  if (!b.t || !/^\d{1,18}$/.test(b.a) || ![b.g, b.u, b.h, b.iat].every(Number.isSafeInteger) || b.u <= b.g || typeof b.r !== 'string') throw new Error('beviset er ugyldigt');
+  return signer(privat, 's1', offentligAf(privat).id, { t: b.t, a: b.a, g: b.g, u: b.u, h: b.h, r: b.r, iat: b.iat });
 }

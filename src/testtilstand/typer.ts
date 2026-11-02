@@ -6,6 +6,7 @@ import type { ChatEntry, LogEntry } from '../store/types.ts';
 import type { Husstand } from '../identitet/husstand.ts';
 import type { PauseTilstand } from '../graenser/nodstop.ts';
 import type { Revision } from '../graenser/revisionslog.ts';
+import type { StoetteAdgang } from '../identitet/stoette.ts';
 import type { KilderKonfig } from '../kilder/register.ts';
 import type { Profil } from '../store/profil.ts';
 import type { Settings } from '../settings.ts';
@@ -54,6 +55,8 @@ export type Froe = {
   husstand: Husstand;
   /** KC-0124: pause.json for a paused moment; absent = Clawco runs. */
   pause?: PauseTilstand;
+  /** KC-0188: stoette.json — support looking along at this moment; absent = the switch is off. */
+  stoette?: StoetteAdgang;
   /** KC-0124: the audit lines the moment starts with, oldest first (written through the audit log, so the chain holds). */
   revision?: Revision[];
   /** KC-0142: the rules file's text (<vault>/Clawco/regler.md); absent = no file. */

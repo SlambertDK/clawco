@@ -271,6 +271,15 @@ nav, aside { position: sticky; top: 0; height: 100vh; overflow: auto; }
 .pause-baand { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 12px 24px 0; padding: 12px 16px; background: var(--surface); border: 1px solid var(--graense-line); border-radius: 14px; color: var(--ink); }
 .pause-baand .pause-tekst { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; }
 .pause-baand strong { color: var(--graense); font-weight: 600; }
+/* KC-0188: support looking along — a fixed red band above everything, on every page of the tenant. */
+.stoette-baand { position: sticky; top: 0; z-index: 50; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); background: var(--graense-bg); border-bottom: 2px solid var(--graense); color: var(--ink); }
+.stoette-baand .stoette-tekst { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.stoette-baand strong { color: var(--graense); font-weight: 700; }
+.stoette-baand form { margin: 0; }
+.stoette-kort { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-top: 1px solid var(--raised); }
+.stoette-kort .eyebrow { margin: 0; }
+.stoette-tid { border: 0; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.stoette-valg { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; color: var(--ink); }
 .revision { border-top: 1px solid var(--raised); margin-top: 6px; padding-top: 6px; }
 .revision-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 6px 12px; }
 .revision-head .eyebrow { margin: 0; }

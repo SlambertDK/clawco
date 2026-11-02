@@ -1,0 +1,13 @@
+Support kigger med i din Clawco
+
+Hej
+
+Du har lige slået "Lad support se med" til i din Clawco i {{timer}} timer, til kl. {{til}}.
+
+Imens kan én medarbejder hos Clawco se det samme som dig, også din mail og din kalender. Medarbejderen kan ikke ændre, sende eller slette noget, og alt, hvad der bliver åbnet, står under "Hvad Clawco har gjort" i din Clawco.
+
+Du kan slå det fra når som helst med "Slå fra" i det røde bånd øverst i din Clawco. Ellers slukker det af sig selv kl. {{til}}.
+
+Var det ikke dig, så tryk "Slå fra" med det samme, og skriv til os.
+
+Clawco

@@ -9,14 +9,22 @@ export type Modtaget = { metode: string; url: string; headers: IncomingHttpHeade
 
 export type FalskTenant = { adresse: string; modtaget: Modtaget[]; sseSlut: () => void; luk: () => Promise<void> };
 
-export async function falskTenant(): Promise<FalskTenant> {
+/** `svar` (KC-0188): answer chosen requests yourself (status and JSON body); null = the default echo. */
+export async function falskTenant(svar?: (m: Modtaget) => { status: number; json: unknown } | null): Promise<FalskTenant> {
   const modtaget: Modtaget[] = [];
   let slut: (() => void) | null = null;
   const server = http.createServer((req, res) => {
     let krop = '';
     req.setEncoding('utf8').on('data', (d: string) => { krop += d; });
     req.on('end', () => {
-      modtaget.push({ metode: req.method ?? '', url: req.url ?? '', headers: req.headers, krop });
+      const m = { metode: req.method ?? '', url: req.url ?? '', headers: req.headers, krop };
+      modtaget.push(m);
+      const eget = svar?.(m);
+      if (eget) {
+        res.writeHead(eget.status, { 'content-type': 'application/json; charset=utf-8' });
+        res.end(JSON.stringify(eget.json));
+        return;
+      }
       if (req.url === '/sse') {
         res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
         res.write('data: foerste\n\n');

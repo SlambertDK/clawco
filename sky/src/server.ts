@@ -45,6 +45,8 @@ import { laesGatewayNoegle, type GatewayNoegle } from './gateway/noegle.ts';
 import { ruteTabel, vaertsArt, type RuteTabel } from './gateway/rute.ts';
 import { loginVejRuter, type LoginVejDeps } from './gateway/login-vej.ts';
 import { gateway } from './gateway/proxy.ts';
+import { stoetteVejRuter, type StoetteSeams, type StoetteSideDeps } from './gateway/stoette-vej.ts';
+import { aabnStoette, aktiveStoetter, annullerStoette, erPersonale, givStoette, noterUdloebne, sendStoetteKvittering, sessionStartet, stoetteGyldig, tilbagekaldStoette } from './konto/stoette.ts';
 import { tenantKald, type TenantKald } from './gateway/tenantkald.ts';
 import { abonnementEksport } from './abonnement/eksport.ts';
 import { hentKonto } from './konto/konto.ts';
@@ -68,7 +70,7 @@ import type { ProeveDeps } from './drift/backup/proeve.ts';
 import type { KopiNode } from './drift/backup/typer.ts';
 
 export type DevStripe = Parameters<typeof devStripeRuter>[0];
-export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps };
+export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps };
 
 export function createSkyApp(deps: SkyDeps): Hono {
   const app = new Hono();
@@ -82,6 +84,8 @@ export function createSkyApp(deps: SkyDeps): Hono {
   if (deps.dev) app.route('/', devStripeRuter(deps.dev));
   // KC-0183: /aabn, the account host's half of the way into a tenant (its handler ends the chain too).
   if (deps.loginVej) app.route('/', loginVejRuter(deps.loginVej));
+  // KC-0188: the staff page (/personale): only staff logged in by passkey; it opens a customer's grant, nothing else.
+  if (deps.stoetteSide) app.route('/', stoetteVejRuter(deps.stoetteSide));
   // KC-0198: sign-up, before konto too (its pages allow Checkout as a form target; konto's CSP does not).
   if (deps.tilmelding) app.route('/', tilmeldingRuter(deps.tilmelding));
   if (deps.konto) app.route('/', kontoRuter(deps.konto));
@@ -289,7 +293,7 @@ export function udrulFra(o: { config: SkyConfig; db: Database; ring: Noeglering 
   };
 }
 
-export type GatewayForbindelse = { noegle: GatewayNoegle | null; fejl: string | null; status: 'ok' | 'mangler'; ruter: RuteTabel; loginVej: LoginVejDeps };
+export type GatewayForbindelse = { noegle: GatewayNoegle | null; fejl: string | null; status: 'ok' | 'mangler'; ruter: RuteTabel; loginVej: LoginVejDeps; stoette: StoetteSeams; stoetteSide: StoetteSideDeps };
 
 export async function forbind(config: SkyConfig, db: Database, env: Record<string, string | undefined>, n: Noegler = noeglering(env)): Promise<{ konto: KontoDeps; abonnement: AbonnementDeps; dev: DevStripe | null; flaade: AfstemDeps | null; noegler: 'ok' | 'mangler'; noeglefejl: string | null; gateway: GatewayForbindelse; adgang: ReturnType<typeof kontoAdgang>; tilmelding: TilmeldingDeps }> {
   // KC-0183: the gateway's signing key (removed from env here); with the lokal fleet it must be the private half
@@ -371,7 +375,28 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
     login: async (c) => { const l = await adgang.login(c); return l ? { kontoId: l.konto.id, sessionId: l.session.id } : null; },
     samtykkeOk,
   };
-  const gw: GatewayForbindelse = { noegle: gk.noegle, fejl: gk.fejl, status: gk.noegle ? 'ok' : 'mangler', ruter, loginVej };
+  // KC-0188: "Lad support se med". The grant lives in konto/stoette.ts; the gateway gets it as seams (gateway/ never
+  // imports konto/). givStoette is wired here and nowhere else: only the owner's switch on the tenant's own page
+  // (gateway/stoette-vej.ts) turns support on; never sign-up, the fleet, billing or a script (a test holds this).
+  const stoette: StoetteSeams = {
+    giv: (a) => givStoette(db, a),
+    annuller: (id, nu) => annullerStoette(db, id, nu),
+    tilbagekald: (a) => tilbagekaldStoette(db, a),
+    gyldig: (a) => stoetteGyldig(db, a),
+    sessionStartet: (a) => sessionStartet(db, a),
+    kvittering: (kontoId, a) => sendStoetteKvittering({ db, post: konto.post }, kontoId, a),
+    kald,
+  };
+  const somPersonale = async (l: Awaited<ReturnType<typeof adgang.login>>) =>
+    (l && await erPersonale(db, { kontoId: l.konto.id, sessionId: l.session.id, nu: new Date() }) ? { kontoId: l.konto.id, sessionId: l.session.id, csrf: l.session.csrf } : null);
+  const stoetteSide: StoetteSideDeps = {
+    db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: gk.noegle,
+    personale: async (c) => { const l = await adgang.login(c); return l ? somPersonale(l) : 'ikke-logget-ind'; },
+    personaleBeskyttet: async (c, csrf) => somPersonale(await adgang.beskyttet(c, csrf)),
+    aktive: (nu) => aktiveStoetter(db, nu),
+    aabn: (a) => aabnStoette(db, a),
+  };
+  const gw: GatewayForbindelse = { noegle: gk.noegle, fejl: gk.fejl, status: gk.noegle ? 'ok' : 'mangler', ruter, loginVej, stoette, stoetteSide };
   const tilmelding = tilmeldingDeps({ config, db, adgang, abonnement, flaade, gateway: gk.noegle });
   return { konto, abonnement, dev, flaade, noegler: n.ring ? 'ok' : 'mangler', noeglefejl: n.fejl, gateway: gw, adgang, tilmelding };
 }
@@ -438,8 +463,15 @@ export async function main(): Promise<void> {
   console.log(`sky: nøgler ${f.noegler === 'ok' ? 'masternøgle indlæst' : 'ingen masternøgle (ingen flåde, så intet kræver den)'}`);
   console.log(`sky: tilmelding ${config.tilmelding === 'open' ? 'åben (planvalg og Checkout med prøve)' : 'kun med invitation (lukket beta)'} på ${new URL(config.publicUrl).origin}/tilmeld`);
   console.log(`sky: gateway ${f.gateway.noegle ? `nøgle indlæst (id ${f.gateway.noegle.id}), kunder på *.${config.basedomain}` : `${f.gateway.fejl}`}`);
-  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, ...(f.flaade ? { flaade: f.flaade.flaade.navn } : {}) });
-  const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk });
+  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, stoetteSide: f.gateway.stoetteSide, ...(f.flaade ? { flaade: f.flaade.flaade.navn } : {}) });
+  const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette });
+  // KC-0188: Sky's log records each support grant's expiry once (the gateway already refuses it by clock on every request).
+  const udloeb = setInterval(() => {
+    noterUdloebne(db, new Date())
+      .then((ud) => { for (const a of ud) console.log(`sky stoette: udloebet ${a.slug} adgang=${a.id} personale=${a.personaleKontoId ?? '-'}`); })
+      .catch((err: Error) => { console.error(`sky stoette: udløb kunne ikke noteres: ${err.message}`); });
+  }, 60_000);
+  udloeb.unref();
   const server = http.createServer(fordeler({ kontoVaert: new URL(config.publicUrl).hostname, basedomain: config.basedomain, sky: getRequestListener(skyApp.fetch), gateway: gw }));
   server.listen(config.port, '127.0.0.1', () => {
     console.log(`Clawco Sky lytter på http://127.0.0.1:${config.port}`);
@@ -447,7 +479,7 @@ export async function main(): Promise<void> {
   // KC-0221: never wait on an open stream; 5 s for busy requests, then exit (a timer or a proxy socket left
   // open must not keep Sky alive past systemd's stop timeout).
   const stop = () => {
-    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); }, efter: () => db.close() })
+    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); }, efter: () => db.close() })
       .then((kode) => process.exit(kode));
   };
   process.once('SIGTERM', stop);

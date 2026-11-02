@@ -7,7 +7,8 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { erRolle, type Rolle } from './roller.ts';
 
-export type Person = { id: string; login: string | null; navn: string; rolle: Rolle };
+/** `stoette` (KC-0188): set only on the support person made from the gateway's claim (identitet/stoette.ts); never in husstand.json. */
+export type Person = { id: string; login: string | null; navn: string; rolle: Rolle; stoette?: { adgang: string; personale: string; session: string } };
 export type Husstand = { personer: Person[] };
 
 export class HusstandFejl extends Error {}

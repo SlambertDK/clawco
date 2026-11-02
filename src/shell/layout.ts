@@ -44,6 +44,11 @@ export type ShellOpts = {
   pause?: PauseTilstand;
   /** KC-0201: under Clawco Sky (KC_SKY=ja) the address of the account app's help page; shown as "Få hjælp" in the Kø panel. Absent = no link. */
   hjaelp?: { href: string };
+  /**
+   * KC-0188: "Lad support se med". `adgang` = the grant that is on now (from the tenant's own record), null = off;
+   * `slaaTil`/`slaaFra` = where the owner's card and the band's Slå fra post. Absent = no switch: no band, no card.
+   */
+  stoette?: { adgang: { udloeber: string; grund: string } | null; slaaTil: string; slaaFra: string };
 };
 
 export const ELEVENLABS_SDK = 'https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.32.0/dist/lib.iife.js';
@@ -65,6 +70,31 @@ function pauseBaand(o: ShellOpts): Markup {
   const naar = Number.isNaN(Date.parse(p.tid)) ? '' : ` kl. ${klokkeKbh(new Date(p.tid))}`;
   const hvad = hvem ? `${hvem} stoppede alt${naar}.` : `Alt blev stoppet${naar}.`;
   return html`<div class="pause-baand" data-nodstop="pause" role="status"><span class="pause-tekst"><strong>${PRODUKT} er sat på pause</strong><span class="row-note">${hvad} Intet kører, og intet nyt starter. ${maa(o, 'genoptag') ? '' : `Kun ejeren kan starte ${PRODUKT} igen.`}</span></span>${maa(o, 'genoptag') ? html`<button type="button" class="btn btn-primary" data-nodstop="genoptag">Start igen</button>` : ''}</div>`;
+}
+
+/** KC-0188: the owner of the household (no person = the single-user owner of a bare shell test). */
+const erEjer = (o: ShellOpts): boolean => !o.person || o.person.rolle === 'ejer';
+
+/** KC-0188: the fixed red band while support looks along — above the skeleton, so no room can leave it out. */
+function stoetteBaand(o: ShellOpts): Markup {
+  const a = o.stoette?.adgang;
+  if (!o.stoette || !a) return html``;
+  const til = Number.isNaN(Date.parse(a.udloeber)) ? '' : klokkeKbh(new Date(a.udloeber));
+  return html`<div class="stoette-baand" data-stoette="baand" role="status"><span class="stoette-tekst"><strong>Support kigger med til ${til}</strong><span class="row-note">Support kan se det samme som ejeren, men ikke ændre noget. Alt, hvad der bliver åbnet, står i loggen.${a.grund ? html` Grund: ${a.grund}` : ''}</span></span>${erEjer(o) ? html`<form method="post" action="${o.stoette.slaaFra}"><button type="submit" class="btn btn-primary" data-stoette="slaa-fra">Slå fra</button></form>` : ''}</div>`;
+}
+
+/** KC-0188: the owner's switch in the settings area (the Kø panel): off by default; 1, 4 or 24 hours; one optional line. */
+function stoetteKort(o: ShellOpts): Markup {
+  if (!o.stoette || !erEjer(o)) return html``;
+  const a = o.stoette.adgang;
+  if (a) return html`<div class="stoette-kort" data-stoette="til"><span class="eyebrow">Lad support se med</span><p class="row-note">Support kigger med til ${Number.isNaN(Date.parse(a.udloeber)) ? '' : klokkeKbh(new Date(a.udloeber))}. Du kan slå det fra i det røde bånd.</p></div>`;
+  return html`<form class="stoette-kort" data-stoette="fra" method="post" action="${o.stoette.slaaTil}">
+        <span class="eyebrow">Lad support se med</span>
+        <p class="row-note">Slået fra. Slår du det til, kan én hos ${PRODUKT}s support se det samme som dig, også din mail og din kalender, men ikke ændre noget. Alt, hvad de åbner, står i loggen, og det slukker af sig selv.</p>
+        <fieldset class="stoette-tid"><legend class="row-note">Hvor længe</legend>${[1, 4, 24].map((t, i) => html`<label class="stoette-valg"><input type="radio" name="timer" value="${t}"${i === 0 ? html` checked` : ''}> ${t === 1 ? '1 time' : `${t} timer`}</label>`)}</fieldset>
+        <label class="field"><span class="row-note">Hvad skal de kigge på? (valgfrit, én linje)</span><input name="grund" type="text" maxlength="120" autocomplete="off"></label>
+        <div class="actions"><button type="submit" class="btn">Lad support se med</button></div>
+      </form>`;
 }
 
 export function shell(o: ShellOpts): Markup {
@@ -96,6 +126,7 @@ export function shell(o: ShellOpts): Markup {
 <link rel="stylesheet" href="/app.css">
 </head>
 <body data-room="${o.roomId}" data-titel="${titel}"${o.live ? html` data-live="1"` : ''}${o.stemme ? html` data-stemme="${o.stemme}"` : ''}${o.person ? html` data-person="${o.person.id}" data-rolle="${o.person.rolle}"` : ''}${Object.entries(o.bodyData ?? {}).filter(([k]) => /^[a-z][a-z0-9-]*$/.test(k)).map(([k, v]) => html` data-${k}="${v}"`)}>
+${stoetteBaand(o)}
 <div class="frame">
   <nav aria-label="Rum">
     <div class="brand"><span class="dot"></span>${PRODUKT}</div>
@@ -131,6 +162,7 @@ export function shell(o: ShellOpts): Markup {
       ${!o.person || o.person.rolle === 'ejer' ? html`<div class="omkostninger-panel" data-omkostninger="panel" hidden></div>` : ''}
       ${!o.person || o.person.rolle === 'ejer' ? html`<div class="viden-link"><a class="btn btn-ghost" href="/viden">Hvad ${PRODUKT} ved om dig</a></div>` : ''}
       ${o.hjaelp ? html`<div class="viden-link"><a class="btn btn-ghost" href="${o.hjaelp.href}" data-hjaelp>Få hjælp</a></div>` : ''}
+      ${stoetteKort(o)}
       <form id="indstillinger" class="indstillinger" onsubmit="return false">
         <span class="eyebrow">Tænkeniveau</span>
         <label class="field"><span class="row-note">Småting (chat, handlinger, kladder)</span><input name="lille" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="lille"></span></label>

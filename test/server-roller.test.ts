@@ -13,7 +13,7 @@ import { createFileStore } from '../src/store/fileStore.ts';
 import { createFakeAgent } from '../src/agent/fake.ts';
 import { laesHusstand, skrivHusstand, type Person } from '../src/identitet/husstand.ts';
 import { lavFakeKanal } from '../src/hushold/kanal.ts';
-import { ROLLER, type Rolle } from '../src/identitet/roller.ts';
+import { ROLLER, type HusRolle as Rolle } from '../src/identitet/roller.ts';
 import { FAMILIE } from '../src/testtilstand/familie.ts';
 
 const rod = await mkdtemp(path.join(tmpdir(), 'kc-srv-roller-'));

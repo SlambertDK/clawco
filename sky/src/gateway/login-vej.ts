@@ -50,25 +50,27 @@ export function loginUrl(o: { publicUrl: string; noegle: GatewayNoegle; slug: st
   return u.href;
 }
 
-export async function opretKode(db: Database, a: { kontoId: number; sessionId: number; slug: string; naeste: string; nu: Date }): Promise<string> {
+/** `stoetteId` (KC-0188): a staff member's code from the staff page names the support grant it opens. */
+export async function opretKode(db: Database, a: { kontoId: number; sessionId: number; slug: string; naeste: string; nu: Date; stoetteId?: number }): Promise<string> {
   // Spent and expired codes are worthless; clear them as we go (the table stays small).
   await db.query('DELETE FROM gateway.kode WHERE udloeber < $1', [new Date(a.nu.getTime() - 3_600_000).toISOString()]);
   const kode = randomBytes(32).toString('base64url');
   await db.query(
-    'INSERT INTO gateway.kode (hash, konto_id, session_id, slug, naeste, oprettet, udloeber) VALUES ($1, $2, $3, $4, $5, $6, $7)',
-    [hash(kode), a.kontoId, a.sessionId, a.slug, sikkerNaeste(a.naeste), a.nu.toISOString(), new Date(a.nu.getTime() + KODE_MS).toISOString()],
+    'INSERT INTO gateway.kode (hash, konto_id, session_id, slug, naeste, oprettet, udloeber, stoette_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)',
+    [hash(kode), a.kontoId, a.sessionId, a.slug, sikkerNaeste(a.naeste), a.nu.toISOString(), new Date(a.nu.getTime() + KODE_MS).toISOString(), a.stoetteId ?? null],
   );
   return kode;
 }
 
 /** Spends the code for this tenant: who it was for and where they were going, or null (unknown, spent, expired,
  *  another tenant's). A single conditional UPDATE, so two concurrent exchanges cannot both succeed. */
-export async function indloesKode(db: Database, kode: string, slug: string, nu: Date): Promise<{ kontoId: number; sessionId: number; naeste: string } | null> {
+export async function indloesKode(db: Database, kode: string, slug: string, nu: Date): Promise<{ kontoId: number; sessionId: number; naeste: string; stoetteId?: number } | null> {
   if (!/^[A-Za-z0-9_-]{43}$/.test(kode)) return null;
-  const [r] = await db.query<{ konto_id: unknown; session_id: unknown; naeste: string }>(
+  const [r] = await db.query<{ konto_id: unknown; session_id: unknown; naeste: string; stoette_id: unknown }>(
     `UPDATE gateway.kode SET brugt = $3 WHERE hash = $1 AND slug = $2 AND brugt IS NULL AND udloeber > $3
-     RETURNING konto_id, session_id, naeste`, [hash(kode), slug, nu.toISOString()]);
-  return r ? { kontoId: Number(r.konto_id), sessionId: Number(r.session_id), naeste: r.naeste } : null;
+     RETURNING konto_id, session_id, naeste, stoette_id`, [hash(kode), slug, nu.toISOString()]);
+  if (!r) return null;
+  return { kontoId: Number(r.konto_id), sessionId: Number(r.session_id), naeste: r.naeste, ...(r.stoette_id === null || r.stoette_id === undefined ? {} : { stoetteId: Number(r.stoette_id) }) };
 }
 
 export type LoginVejDeps = {

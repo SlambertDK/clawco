@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import { esc } from '../html.ts';
 
-export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse'] as const;
+export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse', 'stoette-startet'] as const;
 export type Skabelon = (typeof SKABELONER)[number];
 export const SPROG = ['da', 'en'] as const;
 export type Sprog = (typeof SPROG)[number];
@@ -22,6 +22,8 @@ export type SkabelonData = {
   fortrydelse: { saelger: string; produkt: string; tidspunkt: string; tilbage: string };
   opsigelse: { saelger: string; produkt: string; slutter: string; link: string };
   fornyelse: { saelger: string; produkt: string; pris: string; dato: string; link: string };
+  /** KC-0188: support started — the hours (1, 4 or 24) and the Copenhagen time it ends, e.g. 14.05. */
+  'stoette-startet': { timer: string; til: string };
 };
 
 export type Mail = { emne: string; tekst: string; html: string };
@@ -39,6 +41,7 @@ const FELTER: { [K in Skabelon]: Record<keyof SkabelonData[K], Felt> } = {
   fortrydelse: { saelger: 'linje', produkt: 'navn', tidspunkt: 'linje', tilbage: 'linje' },
   opsigelse: { saelger: 'linje', produkt: 'navn', slutter: 'linje', link: 'link' },
   fornyelse: { saelger: 'linje', produkt: 'navn', pris: 'linje', dato: 'linje', link: 'link' },
+  'stoette-startet': { timer: 'tal', til: 'navn' },
 };
 
 const MAKS_NAVN = 80;
@@ -112,6 +115,7 @@ export function renderMail(b: { skabelon: Skabelon; sprog?: Sprog; data: Record<
 /** The typed entry points (callers that know their template get their data checked by the compiler). */
 export const maillink = (data: SkabelonData['maillink'], sprog?: Sprog): Mail => renderMail({ skabelon: 'maillink', data, ...(sprog ? { sprog } : {}) });
 export const invitation = (data: SkabelonData['invitation'], sprog?: Sprog): Mail => renderMail({ skabelon: 'invitation', data, ...(sprog ? { sprog } : {}) });
+export const stoetteStartet = (data: SkabelonData['stoette-startet'], sprog?: Sprog): Mail => renderMail({ skabelon: 'stoette-startet', data, ...(sprog ? { sprog } : {}) });
 export const kontoSlettet = (sprog?: Sprog): Mail => renderMail({ skabelon: 'konto-slettet', data: {}, ...(sprog ? { sprog } : {}) });
 export const kvittering = (data: SkabelonData['kvittering'], sprog?: Sprog): Mail => renderMail({ skabelon: 'kvittering', data, ...(sprog ? { sprog } : {}) });
 export const fortrydelse = (data: SkabelonData['fortrydelse'], sprog?: Sprog): Mail => renderMail({ skabelon: 'fortrydelse', data, ...(sprog ? { sprog } : {}) });
