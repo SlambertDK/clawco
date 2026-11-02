@@ -67,7 +67,9 @@ const health = await fetch(`${ADRESSE}/health`, { signal: AbortSignal.timeout(80
 if (health.fejl) fejl(`/health svarer ikke: ${health.fejl}`);
 else {
   console.log(`health sha=${health.sha} (forventet ${forventetSha ?? 'denne checkout'}) hermes=${health.hermes?.reachable ? 'ok' : 'nede'} oppe=${health.uptimeSec}s`);
-  if (forventetSha && !forventetSha.startsWith(health.sha) && !health.sha.startsWith(forventetSha)) fejl('live kører ikke den forventede sha');
+  // A deploy runs main's tip, which may be a docs-only commit after the newest code commit: same code, so it counts.
+  const sammeKode = (sha) => { try { execFileSync('git', ['diff', '--quiet', forventetSha, sha, '--', '.', ':!docs'], { stdio: 'ignore' }); return true; } catch { return false; } };
+  if (forventetSha && !forventetSha.startsWith(health.sha) && !health.sha.startsWith(forventetSha) && !sammeKode(health.sha)) fejl('live kører ikke den forventede sha');
   if (!health.hermes?.reachable) fejl('Hermes svarer ikke');
 }
 
