@@ -112,6 +112,19 @@ const da = {
   udenEmne: '(uden emne)',
   ukendtAfsender: '(ukendt afsender)',
   foelger: 'Holder øje med Handling',
+
+  /** The spoken view (stemme.ts): the fixed words around what Hermes wrote. */
+  stemme: {
+    fra: (afsender: string, emne: string): string => `Mail fra ${afsender}: ${emne}`,
+    /** The date words come from tale.ts. */
+    frist: (dato: string): string => `Fristen er ${dato}.`,
+    udkastKlar: 'Hermes har et udkast til svar klar.',
+    ingenVenter: 'Ingen mails venter.',
+    enVenter: 'Én mail venter på din beslutning.',
+    flereVenter: (antal: number): string => `${antal} mails venter på din beslutning.`,
+    /** The spoken choice that marks a mail as dealt with. */
+    faerdig: 'Færdig',
+  },
 };
 
 export type MailTekster = typeof da;
@@ -206,6 +219,16 @@ const en: MailTekster = {
   udenEmne: '(no subject)',
   ukendtAfsender: '(unknown sender)',
   foelger: 'Watching Handling',
+
+  stemme: {
+    fra: (afsender, emne) => `Mail from ${afsender}: ${emne}`,
+    frist: (dato) => `The deadline is ${dato}.`,
+    udkastKlar: 'Hermes has a draft reply ready.',
+    ingenVenter: 'No mails are waiting.',
+    enVenter: 'One mail is waiting for your decision.',
+    flereVenter: (antal) => `${antal} mails are waiting for your decision.`,
+    faerdig: 'Done',
+  },
 };
 
 export const MAIL_TEKSTER = { da, en };

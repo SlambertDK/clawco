@@ -6,6 +6,7 @@
 // rules: KC-0064. forespoergsel (KC-0149) and ressource (KC-0150) are built.
 
 import { BILLEDER, TONER, VISUEL_SKEMA, ZONER, visuelRegler } from './visuel.ts';
+import { sprogNu } from '../store/sprog.ts';
 import { IKONER } from './ikoner.ts';
 import { TILSTANDE } from '../hushold/foresp.ts';
 import { SLAGS } from '../hushold/ressource.ts';
@@ -128,8 +129,29 @@ export function passer(s: JsonSkema | undefined, v: unknown, rod: { $defs: Recor
   return true;
 }
 
+// KC-0241: the catalog section of a prompt in the language of the run. Danish is what BLOKKE says (derived, never copied);
+// English has the same seven keys. Block ids, field names and the JSON schema above stay as they are in both.
+const dansk = { overskrift: 'Byggeklodserne (kun disse findes på skærmen):', visuel: 'Feltet "visuel":', formaal: Object.fromEntries(BLOKKE.map((b) => [b.id, b.formaal])) as Record<BlokId, string> };
+export const KATALOG_FORMAAL: { da: typeof dansk; en: typeof dansk } = {
+  da: dansk,
+  en: {
+    overskrift: 'The building blocks (only these exist on the screen):',
+    visuel: 'The field "visuel":',
+    formaal: {
+      kort: 'One thing that calls on the user, with what they need to know and the one recommended action.',
+      beslutning: 'Something only the user can decide, with the options as buttons.',
+      bunke: 'Many small things of the same kind, one button per line.',
+      ordnet: 'What Hermes has done, so the user can see and undo it.',
+      samtale: 'The user asks, Hermes answers, about the room or the marked element.',
+      forespoergsel: 'A member of the household asks another for something; both see the state. Only a person\'s tap moves it; Hermes at most suggests a reply.',
+      ressource: 'A shared thing (e.g. the car) with owners and a calendar; an overlap becomes a decision for the two who booked.',
+    },
+  },
+};
+
 /** The catalog section of a prompt: the built blocks and the rules of the visual field. */
 export function katalogTekst(): string {
-  const linjer = BLOKKE.filter((b) => b.status === 'bygget').map((b) => `- ${b.id}: ${b.formaal}`);
-  return `Byggeklodserne (kun disse findes på skærmen):\n${linjer.join('\n')}\n\nFeltet "visuel":\n${visuelRegler()}`;
+  const T = KATALOG_FORMAAL[sprogNu()];
+  const linjer = BLOKKE.filter((b) => b.status === 'bygget').map((b) => `- ${b.id}: ${T.formaal[b.id]}`);
+  return `${T.overskrift}\n${linjer.join('\n')}\n\n${T.visuel}\n${visuelRegler()}`;
 }

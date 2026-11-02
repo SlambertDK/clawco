@@ -1,0 +1,8 @@
+[
+ {
+  "kilde": "element",
+  "zone": "privat",
+  "tillid": "afledt",
+  "tekst": "Henrik peger på et element: \"Om: Mødet kl. 10\"."
+ }
+]

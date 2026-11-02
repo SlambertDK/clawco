@@ -1,0 +1,5 @@
+{
+  "rum": "skrive",
+  "resume": "Et udkast er i gang: Brev til Søren.",
+  "punkter": []
+}

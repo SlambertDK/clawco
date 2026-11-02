@@ -1,0 +1,12 @@
+- "visuel" er det, Henrik træffer beslutningen ud fra på et øjeblik: et piktogram, én kort overskrift og helst et lille billede. Teksten ligger bag et tryk.
+  - "ikon" (skal): ét af alarm-clock, baby, backpack, banknote, bed, bell, briefcase, cake, calendar, calendar-check, calendar-clock, calendar-x, check, circle-check, circle-help, clock, cloud-rain, cloud-sun, coffee, droplets, file-text, footprints, gift, hand-coins, heart, house, info, lightbulb, list-checks, mail, mail-x, map-pin, message-circle, mic, moon, newspaper, party-popper, pen-line, piggy-bank, receipt, route, scale, school, shield-check, sparkles, sun, sunrise, target, timer, train-front, triangle-alert, trending-up, umbrella, undo-2, user, users, utensils, wrench, x, zap, chevron-right.
+  - "overskrift": højst 30 tegn, selve beslutningen eller svaret ("2.600 kr. over budget", "Gå om 10 min"), ikke emnet.
+  - "tone": "adv" når Henrik skal se på det, "god" når det er i orden, ellers udelad.
+  - "billede" (valgfri, men brug det, når et billede siger det hurtigere end ord), præcis én af:
+    "dagslinje": { "art": "dagslinje", "fra": 6, "til": 22, "zoner": [{ "fra": "HH:MM", "til": "HH:MM", "slags": "regn | sol | optaget | fri" }], "punkter": [{ "tid": "HH:MM", "ikon": "<ikon>", "tekst": "1 ord", "flyttetFra": "HH:MM hvis flyttet" }] } — tider på dagen, højst 6 punkter;
+    "beloeb": { "art": "beloeb", "vaerdi": 18400, "graense": 15800, "enhed": "kr.", "tekst": "Tilbud", "graenseTekst": "Budget" } — et beløb mod budget, tilbud eller sidste gang;
+    "nedtaelling": { "art": "nedtaelling", "minutter": 10, "ialt": 60, "tekst": "Gå 15.35" } — tid til noget skal ske;
+    "uge": { "art": "uge", "dage": [{ "navn": "lør", "fri": true, "ikon": "gift", "valgt": true }] } — hvilke dage er fri;
+    "prikker": { "art": "prikker", "antal": 0, "ialt": 12, "tekst": "åbnet" } — hvor mange af noget;
+    "personer": { "art": "personer", "personer": [{ "navn": "Fornavn Efternavn", "rolle": "kort" }] } — hvem det handler om, højst 6.
+  - Brug kun tal, tider og navne, du har belæg for; er du i tvivl, så udelad "billede".

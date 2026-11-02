@@ -14,7 +14,7 @@ test('KC-0126: every run is told the profile (name, language, alone or household
   const med = hermes.calls.at(-1)?.instructions ?? '';
   assert.match(med, /Alma/);
   assert.match(med, /Answer in English/);
-  assert.match(med, /husstand/);
+  assert.match(med, /household/); // KC-0241: English instructions for an English profile
   profil = null;
   await runs.start({ kind: 'chat', spec: { input: 'x', instructions: 'y' }, onDone: async () => ({}) }).finished;
   assert.ok(!(hermes.calls.at(-1)?.instructions ?? '').includes('Alma'));
@@ -389,4 +389,21 @@ test('KC-0100: a run knows when it began running, not just when it was queued', 
   assert.equal(first.begyndtAt, 1_000);
   assert.equal(second.begyndtAt, 5_000);
   assert.equal(runs.local('x', async () => ({})).begyndtAt, 5_000);
+});
+
+// KC-0241: an English profile gets English instructions end to end: the people and profile lines and the correction run.
+test('KC-0241: a run for an English profile carries English words only in the lines the registry adds', async () => {
+  const hermes = createFakeAgent({ answer: (r) => (r.input === 'x' ? 'forkert' : 'ok') });
+  const runs = createRunRegistry(hermes, { profil: () => ({ navn: 'Alma', sprog: 'en', husstand: 'alene' }) });
+  await runs.start({ kind: 'chat', spec: { input: 'x', instructions: 'y' }, onDone: async (o) => { if (o === 'forkert') throw new SvarFejl('bad'); return {}; } }).finished;
+  const [forste, rettet] = hermes.calls;
+  assert.match(forste!.instructions, /When you mention people/);
+  assert.match(forste!.instructions, /The user is called Alma; address them so\. Answer in English\. The user lives alone\.$/);
+  assert.doesNotMatch(forste!.instructions, /Når du omtaler|even though/);
+  assert.match(rettet!.instructions, /You are now correcting an answer you already gave\./);
+  assert.match(rettet!.input, /Your previous answer could not be used: bad/);
+  // The same run with no language and no profile stays Danish.
+  const hermesDa = createFakeAgent({ answer: () => 'ok' });
+  await createRunRegistry(hermesDa).start({ kind: 'chat', spec: { input: 'x', instructions: 'y' }, onDone: async () => ({}) }).finished;
+  assert.match(hermesDa.calls[0]!.instructions, /Når du omtaler mennesker/);
 });

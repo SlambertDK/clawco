@@ -24,10 +24,8 @@ const tabel = (t: unknown): Record<string, unknown> => t as Record<string, unkno
 /** Strings that are the same in both languages on purpose (a name, or a word English borrows). */
 const ENS = new Set<string>();
 
-/** One phrase the room does not own and that stays Danish until the voice's slice (D10): the data-sig attribute, the spoken passage (src/rooms/dagen/stemme.ts). Left out of the check. */
-const udenAndres = (doc: string): string => doc.replace(/\sdata-sig="[^"]*"/g, '');
 // The reason of a line for what Clawco never does comes from src/graenser/afgoer.ts, Danish for now.
-const dansk = (doc: string): string[] => danskeLinjer(udenAndres(doc)).filter((l) => !/betaler aldrig/.test(l));
+const dansk = (doc: string): string[] => danskeLinjer(doc).filter((l) => !/betaler aldrig/.test(l));
 
 test('English has exactly Danish\'s keys and shapes; no string is empty; no Danish string copied over', () => {
   assert.deepEqual(form(DAGEN_TEKSTER.en), form(DAGEN_TEKSTER.da));
@@ -109,4 +107,14 @@ test('the room view\'s empty state says why in the chosen language', async () =>
   const en = String((await medSprog('en', () => dagenRoom.view(tom()))).main);
   assert.match(en, /No data for today yet\./);
   assert.deepEqual(dansk(en), []);
+});
+
+test('KC-0241: the spoken passages have their own section: same shape in both languages, none empty, no Danish copied, no Danish in English', () => {
+  const da = DAGEN_TEKSTER.da.stemme as Record<string, unknown>;
+  const en = DAGEN_TEKSTER.en.stemme as Record<string, unknown>;
+  assert.ok(da && en && Object.keys(da).length > 0);
+  assert.deepEqual(form(en), form(da));
+  assert.deepEqual(tomme(en), []);
+  assert.deepEqual(ensStrenge(da, en), []);
+  assert.deepEqual(danskeLinjer(Object.values(en).filter((v): v is string => typeof v === 'string').join('\n')), []);
 });

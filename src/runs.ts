@@ -9,6 +9,7 @@ import { SvarFejl } from './svarfejl.ts';
 import type { IgangRaekke } from './shell/sprog.ts';
 import type { DataZone } from './identitet/zoner.ts';
 import { omslutData } from './agent/prompt.ts';
+import { PROMPT_TEKSTER, promptTekst } from './agent/prompt-tekster.ts';
 import { STANDARD_VERB, VERB_NU, vaerktoejTilladt } from './graenser/opsyn.ts';
 import { lavPause, PauseFejl, pauseTekst, type Pause, type PauseTilstand } from './graenser/nodstop.ts';
 import type { Profil } from './store/profil.ts';
@@ -51,20 +52,15 @@ export type RunRecord = {
 /** KC-0023: said to Hermes on every run, whatever the room. Who Henrik's people are lives in his vault's
  * people register (personer) and Hermes' own memory, never in this code. */
 export function omMennesker(personer?: string): string {
-  const kilde = personer
-    ? `Slå personen op i Henriks kartotek over mennesker i hans vault (${personer}: familie/, arbejde/, andre/ — én fil pr. person med relation, fødselsdag m.m.) og i din hukommelse. Kan du koble en e-mailadresse til en person derfra, så notér adressen under "Vigtige fakta" i personens fil, så du genkender den næste gang.`
-    : 'Brug det du ved om Henrik og hans familie i din hukommelse.';
-  return `Når du omtaler mennesker (fx hvem der har oprettet en aftale, en afsender eller en deltager), så sig navn og relation til Henrik — fx "<fornavn>, din kone", "<fornavn>, din datter" eller "dig selv" — og aldrig en e-mailadresse, medmindre Henrik beder om adressen. ${kilde} Kender du ikke personen, så sig navnet og at du ikke ved hvem det er.
-
-Kalenderen er fælles for familien: en aftale tilhører den, der har oprettet den, eller den titlen nævner — ikke automatisk Henrik. To aftaler på samme tid er ikke en konflikt, hvis de tilhører hver sin person; kald det kun en konflikt, når samme person er dobbeltbooket, eller når Henrik selv skal noget i begge (fx køre, hente eller være hjemme).`;
+  return promptTekst().mennesker(personer);
 }
 
 /** KC-0126: the profile from Start's step 1, said to Hermes on every run — how to address the user and which language to answer in. */
 export function omProfil(p: Profil | null): string {
   if (!p) return '';
-  // KC-0170: the instructions above are Danish and say "Sprog: dansk"; the user's choice wins over that line.
-  const sprog = p.sprog === 'en' ? 'Answer in English, even though these instructions are in Danish and say "Sprog: dansk".' : 'Svar på dansk.';
-  return `Brugeren hedder ${p.navn}; tiltal brugeren sådan. ${sprog} Brugeren bor ${p.husstand === 'husstand' ? 'i en husstand med andre' : 'alene'}.`;
+  // KC-0241: built before the run's language is set, so the profile's own language picks the words (English instructions
+  // for an English user: nothing says "Sprog: dansk" any more).
+  return PROMPT_TEKSTER[p.sprog].profil(p.navn, p.husstand === 'husstand');
 }
 
 /** KC-0064: runs that are a chat answer, never shown as I gang. */
@@ -90,7 +86,6 @@ type StartOpts = {
 };
 
 const KEEP_MS = 6 * 60 * 60 * 1000;
-const RET_REGEL = 'Du retter nu et svar, du allerede har givet. Brug ingen værktøjer og gentag ingen handlinger: send kun hele svaret igen, rettet, i det format instruktionerne ovenfor beskriver.';
 const RET_MAX = 40_000;
 
 /**
@@ -98,11 +93,12 @@ const RET_MAX = 40_000;
  * both go back as afledt blocks with a fresh boundary; `linje` names that boundary in the retry's instructions.
  */
 function returInput(output: string, fejl: string, zone: DataZone): { input: string; linje: string | null } {
-  const svar = output.length > RET_MAX ? `${output.slice(0, RET_MAX)}\n[… afkortet]` : output;
+  const T = promptTekst();
+  const svar = output.length > RET_MAX ? `${output.slice(0, RET_MAX)}\n${T.retAfkortet}` : output;
   return omslutData([
-    { kilde: 'app', zone, tillid: 'betroet', tekst: 'Dit forrige svar kunne ikke bruges. Grunden og dit forrige svar står nedenfor som afledt data.' },
-    { kilde: 'grund', zone, tillid: 'afledt', tekst: `Dit forrige svar kunne ikke bruges: ${fejl}` },
-    { kilde: 'dit-svar', zone, tillid: 'afledt', tekst: `Dit forrige svar var:\n${svar}` },
+    { kilde: 'app', zone, tillid: 'betroet', tekst: T.retIntro },
+    { kilde: 'grund', zone, tillid: 'afledt', tekst: T.retGrund(fejl) },
+    { kilde: 'dit-svar', zone, tillid: 'afledt', tekst: T.retSvar(svar) },
   ]);
 }
 /** What a tool call is called on a Kø row; the words are the shell table's (tekst().vaerktoej), in the language being rendered. */
@@ -253,7 +249,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
           emit(id, { type: 'status', text: tekst().retterSvar });
           // Its text is not streamed: the chat bubble keeps the first answer until `done` replaces it.
           const retur = returInput(output, err.message, rec.zone ?? 'privat');
-          const instructions = [spec.instructions, RET_REGEL, retur.linje].filter((d): d is string => Boolean(d)).join('\n\n');
+          const instructions = [spec.instructions, promptTekst().retRegel, retur.linje].filter((d): d is string => Boolean(d)).join('\n\n');
           const rettet = await kaldAgent({ ...spec, input: retur.input, instructions, onEvent: (e) => { if (e.type !== 'message.delta') onEvent(e); }, signal: stop.signal });
           if (stoppet) throw new Error(stoppet);
           if (afgjort) return;

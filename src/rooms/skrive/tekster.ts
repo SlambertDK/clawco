@@ -92,6 +92,12 @@ const da = {
   klar: 'Klar til at skrive',
   skriverMed: (titel: string): string => `Skriver med på "${titel}"`,
   kilderOverskrift: 'Kilder',
+
+  /** The spoken view (stemme.ts). */
+  stemme: {
+    igang: (titel: string): string => `Et udkast er i gang: ${titel}.`,
+    intet: 'Intet udkast i gang.',
+  },
 };
 
 export type SkriveTekster = typeof da;
@@ -168,6 +174,11 @@ const en: SkriveTekster = {
   klar: 'Ready to write',
   skriverMed: (titel: string): string => `Writing along on "${titel}"`,
   kilderOverskrift: 'Sources',
+
+  stemme: {
+    igang: (titel) => `A draft is in progress: ${titel}.`,
+    intet: 'No draft in progress.',
+  },
 };
 
 export const SKRIVE_TEKSTER = { da, en };

@@ -1,0 +1,1 @@
+Peger brugeren på et element, står det som afledt data i beskeden ("Om: …"); svar om det.

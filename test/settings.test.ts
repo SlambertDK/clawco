@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createSettings, modelRevision } from '../src/settings.ts';
@@ -33,6 +33,28 @@ test('stemme: voice id and agent ids survive a round trip and setModels keeps th
     await s.setStemme({ voiceId: '' });
     assert.equal((await s.read()).stemme.voiceId, undefined);
     assert.equal((await s.read()).stemme.agentId, 'ag_1');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+// KC-0241: the English agent's ids live under stemme.en; the top level (voiceId, agentId, toolIds) stays the Danish agent.
+test('stemme.en: the English agent\'s ids are validated and merged; today\'s stored shape round-trips unchanged', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'kc-set-'));
+  try {
+    const hoved = { modeller: {}, stemme: { voiceId: 'abc123', agentId: 'ag_1', toolIds: { udfoer: 't1', hent_oversigt: 't2' } } };
+    const fil = path.join(dir, 'indstillinger.json');
+    await writeFile(fil, JSON.stringify(hoved, null, 2), 'utf8');
+    const s = createSettings(dir);
+    await s.setStemme({});
+    assert.equal(await readFile(fil, 'utf8'), JSON.stringify(hoved, null, 2), 'a read and a write of today\'s shape changes nothing');
+    await s.setStemme({ en: { agentId: 'ag_en', toolIds: { udfoer: 'e1', 'bad key!': 'e2' } } });
+    assert.deepEqual((await s.read()).stemme, { ...hoved.stemme, en: { agentId: 'ag_en', toolIds: { udfoer: 'e1' } } });
+    await s.setStemme({ en: { toolIds: { udfoer: 'e9', luk: 'e3' } } });
+    assert.deepEqual((await s.read()).stemme.en, { agentId: 'ag_en', toolIds: { udfoer: 'e9', luk: 'e3' } }, 'a patch of en merges into en');
+    await s.setStemme({ agentId: 'ag_2' });
+    assert.equal((await s.read()).stemme.en?.agentId, 'ag_en', 'a Danish patch leaves en alone');
+    assert.equal((await s.read()).stemme.agentId, 'ag_2');
+    await writeFile(fil, JSON.stringify({ modeller: {}, stemme: { en: { agentId: 'bad id!', toolIds: 'x' } } }), 'utf8');
+    assert.deepEqual((await s.read()).stemme, { en: {} }, 'invalid ids are dropped');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

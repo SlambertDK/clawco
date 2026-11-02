@@ -9,7 +9,9 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export type Modeller = { lille?: string; taenker?: string };
-export type Stemme = { voiceId?: string; agentId?: string; toolIds?: Record<string, string> };
+/** The ids of one synced agent (KC-0241: the English agent's live under `Stemme.en`; the top level is the Danish one). */
+export type AgentIds = { agentId?: string; toolIds?: Record<string, string> };
+export type Stemme = { voiceId?: string; agentId?: string; toolIds?: Record<string, string>; en?: AgentIds };
 /** One tier's last live test (KC-0127): passed or not, when, how fast, for which revision, and the kind of failure. */
 export type ModelTest = { ok: boolean; tid: string; ms: number; rev: string; fejl?: string };
 export type ModelTests = Partial<Record<keyof Modeller, ModelTest>>;
@@ -56,17 +58,23 @@ export function createSettings(dataDir: string) {
       return { modeller: out, stemme: cleanStemme(raw.stemme), ...(udbyder ? { udbyder } : {}), ...(modelTest ? { modelTest } : {}), ...(typeof raw.soendagstjek === 'boolean' ? { soendagstjek: raw.soendagstjek } : {}) };
     } catch { return { modeller: {}, stemme: {} }; }
   }
-  function cleanStemme(v: unknown): Stemme {
-    if (typeof v !== 'object' || v === null) return {};
-    const r = v as Record<string, unknown>;
-    const out: Stemme = {};
-    if (typeof r['voiceId'] === 'string' && NAME.test(r['voiceId'])) out.voiceId = r['voiceId'];
+  function cleanAgent(r: Record<string, unknown>): AgentIds {
+    const out: AgentIds = {};
     if (typeof r['agentId'] === 'string' && NAME.test(r['agentId'])) out.agentId = r['agentId'];
     if (typeof r['toolIds'] === 'object' && r['toolIds'] !== null) {
       const ids: Record<string, string> = {};
       for (const [k, x] of Object.entries(r['toolIds'] as Record<string, unknown>)) if (typeof x === 'string' && NAME.test(x) && NAME.test(k)) ids[k] = x;
       out.toolIds = ids;
     }
+    return out;
+  }
+  function cleanStemme(v: unknown): Stemme {
+    if (typeof v !== 'object' || v === null) return {};
+    const r = v as Record<string, unknown>;
+    const out: Stemme = {};
+    if (typeof r['voiceId'] === 'string' && NAME.test(r['voiceId'])) out.voiceId = r['voiceId'];
+    Object.assign(out, cleanAgent(r));
+    if (typeof r['en'] === 'object' && r['en'] !== null) out.en = cleanAgent(r['en'] as Record<string, unknown>);
     return out;
   }
   async function write(s: Settings): Promise<void> {
@@ -98,10 +106,11 @@ export function createSettings(dataDir: string) {
     await write(s);
     return s;
   }
-  /** Merges into the stored stemme block (voice chosen by Henrik, ids from the agent sync). */
+  /** Merges into the stored stemme block (voice chosen by Henrik, ids from the agent sync); a patch's `en` merges into the stored `en`. */
   async function setStemme(patch: Partial<Stemme>): Promise<Settings> {
     const cur = await read();
-    const s: Settings = { ...cur, stemme: cleanStemme({ ...cur.stemme, ...patch }) };
+    const en = patch.en ? { ...cur.stemme.en, ...patch.en } : cur.stemme.en;
+    const s: Settings = { ...cur, stemme: cleanStemme({ ...cur.stemme, ...patch, ...(en ? { en } : {}) }) };
     await write(s);
     return s;
   }

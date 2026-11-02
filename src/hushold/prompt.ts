@@ -3,46 +3,43 @@
 // shared week, in the husstand zone only. Members' names are the household
 // file's; calendar titles are untrusted (D6).
 
-import { byggPrompt, elementSegment, PEGER } from '../agent/prompt.ts';
-import { ROLLE_NAVN } from '../identitet/roller.ts';
+import { byggPrompt, elementSegment, pegerTekst } from '../agent/prompt.ts';
 import { KORSEL, type Medlem } from './schema.ts';
 import type { FaellesDag } from './uge.ts';
 import type { ForespForslag, Forespoergsel } from './foresp.ts';
 import { idagKbh } from '../shell/tid.ts';
 import { klokke } from './render.ts';
+import { sprogNu } from '../store/sprog.ts';
+import { tekst } from '../shell/tekster.ts';
+import { HUSSTAND_TEKSTER, husstandTekst } from './tekster.ts';
+import { husstandPrompt } from './prompt-tekster.ts';
 import { konfliktResume, type Konflikt } from './konflikt.ts';
 import { valgNeutralt, type Ressource, type Sammenfald, type SammenfaldForslag } from './ressource.ts';
 
-const ROLLE = 'Du er Hermes og arbejder i rummet "Husstanden": hvem der er med i husstanden, og en fælles uge med det, der gælder dem alle. Du ser kun husstandens fælles ting, aldrig nogens private eller arbejdsting, og du gætter ikke på dem.';
-
-// KC-0151: when the household has things to book, the chat may answer a wish to use one with one fenced block. It only
-// proposes: the app validates it (bil.ts) and shows a card, and only a person's tap on that card books.
-const BOOKING_REGEL = `- Beder personen om at bruge eller booke en af tingene i listen (en bil, et rum, et værktøj), så skriv én kort sætning og ellers præcis én JSON-blok. Du booker aldrig selv: appen lægger et kort frem, og personen trykker selv. Brug id'et fra listen og lokal dansk tid:
-\`\`\`json
-{"booking": {"ressource": "stor-bil", "start": "2026-11-07T10:00", "slut": "2026-11-07T15:00", "titel": "kort tekst"}}
-\`\`\`
-  "start" og "slut" er ÅÅÅÅ-MM-DDTTT:MM. Regn dage som "lørdag" ud fra dagens dato i beskeden. Kender du ikke tingen eller tidspunktet, så spørg i stedet.`;
+// KC-0241: the words are in prompt-tekster.ts, Danish and English, read at call time; the room's name is the nav's.
+const rum = (): string => tekst().rum['husstand']!;
 
 /** Today as the prompt says it: "mandag 2026-11-02 09.00" (Copenhagen). */
-const uret = (nu: Date): string => `${new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', weekday: 'long' }).format(nu)} ${idagKbh(nu)} ${klokke(nu.toISOString())}`;
+const uret = (nu: Date): string => `${new Intl.DateTimeFormat(husstandPrompt().locale, { timeZone: 'Europe/Copenhagen', weekday: 'long' }).format(nu)} ${idagKbh(nu)} ${klokke(nu.toISOString(), sprogNu())}`;
 
 export function buildHusstandChatRun(besked: string, kontekst: string | undefined, medlemmer: readonly Medlem[], uge: readonly FaellesDag[], ressourcer: readonly Ressource[] = [], nu: Date = new Date()): ReturnType<typeof byggPrompt> {
+  const T = husstandPrompt();
   const navn = (id: string): string => medlemmer.find((m) => m.id === id)?.navn ?? id;
-  const hvem = medlemmer.map((m) => `- ${m.navn}: ${ROLLE_NAVN[m.rolle]}${m.relation ? ` (${m.relation})` : ''}`).join('\n') || '- (ingen)';
-  const linjer = uge.flatMap((d) => d.poster.map((p) => `- ${d.dato} ${p.heldag ? 'hele dagen' : p.start}: ${p.titel} (${p.hvem.length ? p.hvem.map(navn).join(', ') : 'alle'})`)).join('\n') || '- (intet fælles)';
-  const ting = ressourcer.map((r) => `- ${r.id}: ${r.navn} (${r.slags}; ejere: ${r.ejere.map(navn).join(', ') || 'ingen'})`).join('\n');
+  const hvem = medlemmer.map((m) => T.medlemLinje(m.navn, husstandTekst().rolleOrd[m.rolle], m.relation)).join('\n') || T.ingen;
+  const linjer = uge.flatMap((d) => d.poster.map((p) => T.ugeLinje(d.dato, p.heldag ? T.heleDagen : p.start, p.titel, p.hvem.length ? p.hvem.map(navn).join(', ') : T.alle))).join('\n') || T.intetFaelles;
+  const ting = ressourcer.map((r) => T.tingLinje(r.id, r.navn, T.slags[r.slags], r.ejere.map(navn).join(', '))).join('\n');
   return byggPrompt({
     rum: 'husstand',
     zone: KORSEL,
-    opgave: `${ROLLE}\n${PEGER}\n\nRegler for chatten:\n- Svar kort, som i en samtale.\n- Du må aldrig sende beskeder til andre i husstanden, købe noget eller slette noget.${ressourcer.length ? `\n${BOOKING_REGEL}` : ''}`,
+    opgave: `${T.rolle(rum())}\n${pegerTekst(T.hvem)}\n\n${T.chatRegler}${ressourcer.length ? `\n${T.bookingRegel}` : ''}`,
     data: [
-      { kilde: 'husstand', zone: KORSEL, tillid: 'afledt', tekst: `Hvem er med:\n${hvem}` },
-      { kilde: 'kalender', zone: KORSEL, tillid: 'utroet', tekst: `Den fælles uge:\n${linjer}` },
+      { kilde: 'husstand', zone: KORSEL, tillid: 'afledt', tekst: `${T.hvemOverskrift}\n${hvem}` },
+      { kilde: 'kalender', zone: KORSEL, tillid: 'utroet', tekst: `${T.ugeOverskrift}\n${linjer}` },
       ...(ressourcer.length ? [
-        { kilde: 'ressource', zone: KORSEL, tillid: 'utroet' as const, tekst: `Tingene i husstanden:\n${ting}` },
-        { kilde: 'ur', zone: KORSEL, tillid: 'afledt' as const, tekst: `Nu: ${uret(nu)}.` },
+        { kilde: 'ressource', zone: KORSEL, tillid: 'utroet' as const, tekst: `${T.tingeOverskrift}\n${ting}` },
+        { kilde: 'ur', zone: KORSEL, tillid: 'afledt' as const, tekst: T.nu(uret(nu)) },
       ] : []),
-      ...elementSegment(kontekst, KORSEL),
+      ...elementSegment(kontekst, KORSEL, T.hvem),
       { kilde: 'henrik', zone: KORSEL, tillid: 'betroet', tekst: besked },
     ],
   });
@@ -52,19 +49,18 @@ export function buildHusstandChatRun(besked: string, kontekst: string | undefine
 // advice. Neutral: it takes no side and decides nothing. Its answer is validated here and stored beside the state
 // (Forespoergsel.forslag); nothing in it can move a request (foresp.ts is only called by a person's tap or the clock).
 
-const FORSLAG_OPGAVE = 'Du er Hermes og hjælper i rummet "Husstanden" med en forespørgsel: ét medlem af husstanden har bedt et andet om noget. Du er neutral: du tager ikke parti, du afgør intet, og du svarer ikke på nogens vegne. Kun et menneske ændrer forespørgslen, med et tryk i appen.\n\nGiv den, der skal svare, højst to andre tidspunkter samme dag, hvis tidspunktet ser ud til at støde ind i den fælles uge, og én kort sætning, der hjælper med at svare. Svar med præcis én JSON-blok:\n```json\n{"anbefaling": "én kort sætning", "alternativer": [{"kl": "16:30", "tekst": "Kan 16.30"}]}\n```\n"kl" er TT:MM, "tekst" højst 40 tegn. Ingen alternativer er en tom liste.';
-
 export function buildForespForslagRun(f: Forespoergsel, medlemmer: readonly Medlem[], uge: readonly FaellesDag[]): ReturnType<typeof byggPrompt> {
+  const T = husstandPrompt();
   const navn = (id: string): string => medlemmer.find((m) => m.id === id)?.navn ?? id;
   const tid = f.tid ? ` (${f.tid.start}–${f.tid.slut})` : '';
-  const linjer = uge.flatMap((d) => d.poster.map((p) => `- ${d.dato} ${p.heldag ? 'hele dagen' : p.start}: ${p.titel}`)).join('\n') || '- (intet fælles)';
+  const linjer = uge.flatMap((d) => d.poster.map((p) => T.ugeLinje(d.dato, p.heldag ? T.heleDagen : p.start, p.titel, null))).join('\n') || T.intetFaelles;
   return byggPrompt({
     rum: 'husstand',
     zone: KORSEL,
-    opgave: FORSLAG_OPGAVE,
+    opgave: T.forespOpgave(rum()),
     data: [
-      { kilde: 'forespoergsel', zone: KORSEL, tillid: 'utroet', tekst: `${navn(f.fra)} spørger ${navn(f.til)}: ${f.titel}${tid}` },
-      { kilde: 'kalender', zone: KORSEL, tillid: 'utroet', tekst: `Den fælles uge:\n${linjer}` },
+      { kilde: 'forespoergsel', zone: KORSEL, tillid: 'utroet', tekst: T.forespLinje(navn(f.fra), navn(f.til), f.titel, tid) },
+      { kilde: 'kalender', zone: KORSEL, tillid: 'utroet', tekst: `${T.ugeOverskrift}\n${linjer}` },
     ],
   });
 }
@@ -94,20 +90,19 @@ export function parseForespForslag(svar: string): ForespForslag | null {
 // reads the clashing resource's calendar and the two bookings only (no other resource, no week, no third person's
 // name), and its answer is validated against the clash's own option ids; nothing it writes books or decides anything.
 
-const SAMMENFALD_OPGAVE = 'Du er Hermes og hjælper i rummet "Husstanden": to i husstanden har booket den samme ting på samme tid. Du er neutral: du tager ikke parti, du afgør intet, og du booker ikke. Begge ser præcis det samme kort, så skriv om dem ved navn, aldrig "du".\n\nVælg den mulighed, der ser ud til at løse det bedst for dem begge, og skriv én kort sætning om hvorfor. Svar med præcis én JSON-blok:\n```json\n{"foerste": "v1", "anbefaling": "én kort sætning"}\n```\n"foerste" er id\'et på én af mulighederne.';
-
 export function buildSammenfaldForslagRun(s: Sammenfald, r: Ressource, medlemmer: readonly Medlem[], ressourcer: readonly Ressource[]): ReturnType<typeof byggPrompt> {
+  const T = husstandPrompt();
   const parter = [s.ny.af, s.mod.af];
-  const navn = (id: string): string => (parter.includes(id) ? medlemmer.find((m) => m.id === id)?.navn ?? id : 'en anden');
-  const kalender = [...r.kalender].sort((a, b) => Date.parse(a.start) - Date.parse(b.start)).map((b) => `- ${b.start}–${b.slut}: ${b.titel} (${navn(b.af)})`).join('\n') || '- (tom)';
+  const navn = (id: string): string => (parter.includes(id) ? medlemmer.find((m) => m.id === id)?.navn ?? id : T.enAnden);
+  const kalender = [...r.kalender].sort((a, b) => Date.parse(a.start) - Date.parse(b.start)).map((b) => T.bookingLinje(b.start, b.slut, b.titel, navn(b.af))).join('\n') || T.tomKalender;
   return byggPrompt({
     rum: 'husstand',
     zone: KORSEL,
-    opgave: SAMMENFALD_OPGAVE,
+    opgave: T.sammenfaldOpgave(rum()),
     data: [
-      { kilde: 'ressource', zone: KORSEL, tillid: 'utroet', tekst: `${r.navn}s kalender:\n${kalender}` },
-      { kilde: 'sammenfald', zone: KORSEL, tillid: 'utroet', tekst: `${navn(s.mod.af)} har den ${s.mod.start}–${s.mod.slut} (${s.mod.titel}). ${navn(s.ny.af)} vil gerne have den ${s.ny.start}–${s.ny.slut} (${s.ny.titel}).` },
-      { kilde: 'valg', zone: KORSEL, tillid: 'afledt', tekst: `Mulighederne:\n${s.valg.map((v) => `- ${v.id}: ${valgNeutralt(s, v, navn, ressourcer)}`).join('\n')}` },
+      { kilde: 'ressource', zone: KORSEL, tillid: 'utroet', tekst: `${T.kalenderAf(r.navn)}\n${kalender}` },
+      { kilde: 'sammenfald', zone: KORSEL, tillid: 'utroet', tekst: T.sammenfald(navn(s.mod.af), s.mod.start, s.mod.slut, s.mod.titel, navn(s.ny.af), s.ny.start, s.ny.slut, s.ny.titel) },
+      { kilde: 'valg', zone: KORSEL, tillid: 'afledt', tekst: `${T.mulighederne}\n${s.valg.map((v) => `- ${v.id}: ${valgNeutralt(s, v, navn, ressourcer, HUSSTAND_TEKSTER[sprogNu()])}`).join('\n')}` },
     ],
   });
 }
@@ -133,19 +128,18 @@ export function parseSammenfaldForslag(svar: string, s: Pick<Sammenfald, 'valg'>
 // never the week, a third person or an event body, and answers with the summary and the question in neutral words.
 // The options are not its to change: the app keeps them symmetrical. A bad answer writes nothing (parseKonfliktTekst).
 
-const KONFLIKT_OPGAVE = 'Du er Hermes og hjælper i rummet "Husstanden" med et weekendkort: to voksne i husstanden er optaget på samme tid i weekenden, og der er noget, der skal dækkes. Begge voksne får præcis det samme kort. Du er neutral: du tager ikke parti, du afgør intet, og du skriver aldrig "du", "dig" eller "jeg" — kun de to ved navn. Skriv ét kort resumé af, hvad hver af dem har, og ét kort spørgsmål om, hvem der tager sig af det. Brug kun det, du har fået, og gæt ikke på mere. Svar med præcis én JSON-blok:\n```json\n{"resume": "Lørdag er Henrik … og Rikke …", "spoergsmaal": "Hvem har Nora?"}\n```\nBegge navne skal stå i "resume", højst 300 tegn; "spoergsmaal" højst 100 tegn.';
-
 export function buildKonfliktRun(k: Konflikt, medlemmer: readonly Medlem[]): ReturnType<typeof byggPrompt> {
+  const T = husstandPrompt();
   const { tekst: _tidligere, ...uden } = k; // the fixed words, never Hermes' own earlier phrasing
   const fast = konfliktResume(uden, medlemmer);
-  const hvem = k.parter.map((id) => medlemmer.find((m) => m.id === id)?.navn ?? 'en').join(' og ');
+  const hvem = k.parter.map((id) => medlemmer.find((m) => m.id === id)?.navn ?? T.enUkendt).join(` ${T.og} `);
   return byggPrompt({
     rum: 'husstand',
     zone: KORSEL,
-    opgave: KONFLIKT_OPGAVE,
+    opgave: T.konfliktOpgave(rum()),
     data: [
       { kilde: 'weekend', zone: KORSEL, tillid: 'utroet', tekst: `${fast.resume} ${fast.spoergsmaal}` },
-      { kilde: 'voksne', zone: KORSEL, tillid: 'afledt', tekst: `De to voksne: ${hvem}.` },
+      { kilde: 'voksne', zone: KORSEL, tillid: 'afledt', tekst: T.voksne(hvem) },
     ],
   });
 }

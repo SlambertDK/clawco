@@ -1,0 +1,16 @@
+{
+  "rum": "mail",
+  "resume": "2 mails venter på din beslutning.",
+  "punkter": [
+    {
+      "id": "242",
+      "sig": "Mail fra Acme Electric: Quote for <b>the panel</b>. Reply before Friday. Fristen er fredag den 30. oktober.",
+      "valg": []
+    },
+    {
+      "id": "243",
+      "sig": "Mail fra Newsletter: Weekly energy news. You never open it.",
+      "valg": []
+    }
+  ]
+}

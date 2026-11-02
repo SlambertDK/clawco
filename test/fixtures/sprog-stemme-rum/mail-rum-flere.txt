@@ -1,0 +1,34 @@
+{
+  "rum": "mail",
+  "resume": "2 mails venter på din beslutning.",
+  "punkter": [
+    {
+      "id": "242",
+      "sig": "Mail fra Acme Electric: Quote for <b>the panel</b>. Reply before Friday. Fristen er fredag den 30. oktober. Hermes har et udkast til svar klar.",
+      "valg": [
+        {
+          "id": "242-call",
+          "label": "Call them"
+        },
+        {
+          "id": "aktion:faerdig:242",
+          "label": "Færdig"
+        }
+      ]
+    },
+    {
+      "id": "243",
+      "sig": "Mail fra Newsletter: Weekly energy news. You never open it.",
+      "valg": [
+        {
+          "id": "243-unsub",
+          "label": "Unsubscribe"
+        },
+        {
+          "id": "aktion:faerdig:243",
+          "label": "Færdig"
+        }
+      ]
+    }
+  ]
+}

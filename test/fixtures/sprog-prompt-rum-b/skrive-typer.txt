@@ -1,0 +1,8 @@
+=== instructions ===
+Stram op: fjern fyld og gentagelser, kortere sætninger, samme indhold.
+Gør mere konkret: erstat vage ord med tal, navne, datoer og eksempler; hvis du mangler fakta, skriv [SÆT IND: ...] i stedet for at opfinde.
+Gør kortere: halver længden og behold det vigtigste.
+Gør tonen varmere og mere personlig uden at blive højtidelig.
+something-else
+=== input ===
+

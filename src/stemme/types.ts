@@ -2,6 +2,8 @@
 // cross-room overview, the agent definition, and the one seam to ElevenLabs.
 // Rooms depend on StemmeRum/StemmePunkt only; the server depends on the rest.
 
+import type { Sprog } from '../store/sprog.ts';
+
 /** One thing Henrik can choose by voice; id is a handling id in that room, or `aktion:<name>:<arg>`. */
 export type StemmeValg = { id: string; label: string };
 
@@ -52,10 +54,10 @@ export class StemmeError extends Error {
 /** The one seam to ElevenLabs. Two implementations: elevenlabs (HTTP) and fake (dev/tests). */
 export interface StemmeClient {
   readonly mode: 'elevenlabs' | 'fake';
-  /** Speech → Danish text. mime is the recording's type without codec params. */
-  lyt(audio: Uint8Array, mime: string, keyterms: string[]): Promise<string>;
-  /** Text → audio stream (mp3 for elevenlabs, wav for fake). */
-  sig(tekst: string, voiceId: string): Promise<{ body: ReadableStream<Uint8Array>; contentType: string }>;
+  /** Speech → text in `sprog` (default Danish, KC-0241). mime is the recording's type without codec params. */
+  lyt(audio: Uint8Array, mime: string, keyterms: string[], sprog?: Sprog): Promise<string>;
+  /** Text in `sprog` (default Danish) → audio stream (mp3 for elevenlabs, wav for fake). */
+  sig(tekst: string, voiceId: string, sprog?: Sprog): Promise<{ body: ReadableStream<Uint8Array>; contentType: string }>;
   /** A short-lived WebRTC conversation token for the agent. */
   samtaleToken(agentId: string): Promise<string>;
   /** Creates or updates the agent and its client tools so they match `config`; returns the ids to store. */

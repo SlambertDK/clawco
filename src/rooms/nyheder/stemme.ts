@@ -6,9 +6,10 @@ import type { StemmePunkt, StemmeRum } from '../../stemme/types.ts';
 import { saetning } from '../../stemme/tale.ts';
 import { senesteResultater } from '../../shell/log.ts';
 import type { NyhederState } from './schema.ts';
+import { nyhederTekst } from './tekster.ts';
 
 export function stemmeNyheder(state: NyhederState | null, log: LogEntry[]): StemmeRum {
-  if (!state) return { rum: 'nyheder', resume: 'Avisen er ikke bygget endnu.', punkter: [] };
+  if (!state) return { rum: 'nyheder', resume: nyhederTekst().stemme.ikkeBygget, punkter: [] };
   const resultater = senesteResultater(log);
   const punkter: StemmePunkt[] = [];
   for (const f of state.forslag) {

@@ -82,3 +82,13 @@ test('Nyheder: the Nu line is in the language of the request', async () => {
     assert.deepEqual(await nu('en'), ['News: Shall I build a test room?']);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('KC-0241: the spoken passages have their own section: same shape in both languages, none empty, no Danish copied, no Danish in English', () => {
+  const da = NYHEDER_TEKSTER.da.stemme as Record<string, unknown>;
+  const en = NYHEDER_TEKSTER.en.stemme as Record<string, unknown>;
+  assert.ok(da && en && Object.keys(da).length > 0);
+  assert.deepEqual(form(en), form(da));
+  assert.deepEqual(tomme(en), []);
+  assert.deepEqual(ensStrenge(da, en), []);
+  assert.deepEqual(danskeLinjer(Object.values(en).filter((v): v is string => typeof v === 'string').join('\n')), []);
+});

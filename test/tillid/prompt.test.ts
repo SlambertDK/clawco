@@ -11,6 +11,8 @@ import type { ReglerLaest } from '../../src/tillid/lager.ts';
 import { buildKuratorRun } from '../../src/kurator/prompt.ts';
 import { buildHjemChatRun } from '../../src/rooms/hjem/prompt.ts';
 import { byggPrompt } from '../../src/agent/prompt.ts';
+import { medSprog } from '../../src/store/sprog.ts';
+import { REGELFORSLAG_TEKST, regelforslagTekst } from '../../src/tillid/prompt.ts';
 
 const MD = `naeste-id: R-0005
 
@@ -113,4 +115,18 @@ test('Nu chat: the rules are in the instructions, Henrik\'s message in the input
   assert.ok(spec.instructions.includes('R-0001 · trin 1'));
   assert.ok(!spec.instructions.includes(UTROVAERDIG));
   assert.ok(spec.input.includes(UTROVAERDIG));
+});
+
+// KC-0241: the rules block in English (the rules' own text is the user's and passes through).
+test('English: the block says step, not trin, keeps ids and the user\'s own rule text, and the proposal block shape is unchanged', () => {
+  const b = medSprog('en', () => reglerTilPrompt(ok));
+  assert.ok(b.startsWith('Rules the user has approved'));
+  assert.match(b, /- R-0001 · step 1 · mail \/ indbakke: Sortér mail i mapper — Flyt fra Indbakken til mapperne\. Aldrig papirkurven\./);
+  assert.match(b, /The steps: 0 look · 1 sort · 2 keep the ledger · 3 prepare · 4 act with undo\./);
+  assert.match(b, /cite its id \(e\.g\. "R-0001"\)/);
+  assert.ok(!b.includes('Henrik') && !b.includes('Trinene'));
+  assert.match(medSprog('en', () => reglerTilPrompt({ tilstand: 'mangler' })), /The user has not approved any rules yet\./);
+  const f = medSprog('en', () => regelforslagTekst());
+  assert.notEqual(f, REGELFORSLAG_TEKST);
+  assert.ok(f.includes('{"regelforslag": {"titel": "short title", "tekst": '));
 });

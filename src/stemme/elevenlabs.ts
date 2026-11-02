@@ -5,6 +5,7 @@
 import { StemmeError } from './types.ts';
 import type { AgentConfig, ClientToolDef, StemmeClient, StemmeIds } from './types.ts';
 import { PRODUKT } from '../shell/navn.ts';
+import type { Sprog } from '../store/sprog.ts';
 
 const DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const MAX_KEYTERMS = 50;
@@ -133,11 +134,11 @@ export function createElevenLabs(opts: { apiKey: string; fetch?: typeof fetch; b
     return send(what, method, path, JSON.stringify(body), 'application/json');
   }
 
-  async function lyt(audio: Uint8Array, mime: string, keyterms: string[]): Promise<string> {
+  async function lyt(audio: Uint8Array, mime: string, keyterms: string[], sprog: Sprog = 'da'): Promise<string> {
     const cleanMime = (mime.split(';')[0] ?? '').trim() || 'audio/webm';
     const form = new FormData();
     form.append('model_id', 'scribe_v2');
-    form.append('language_code', 'da');
+    form.append('language_code', sprog);
     form.append('tag_audio_events', 'false');
     form.append('diarize', 'false');
     for (const t of cleanKeyterms(keyterms)) form.append('keyterms', t);
@@ -147,14 +148,14 @@ export function createElevenLabs(opts: { apiKey: string; fetch?: typeof fetch; b
     return typeof text === 'string' ? text.trim() : '';
   }
 
-  async function sig(tekst: string, voiceId: string): Promise<{ body: ReadableStream<Uint8Array>; contentType: string }> {
+  async function sig(tekst: string, voiceId: string, sprog: Sprog = 'da'): Promise<{ body: ReadableStream<Uint8Array>; contentType: string }> {
     const path = `/v1/text-to-speech/${encodeURIComponent(voiceId)}/stream?output_format=mp3_44100_64`;
     const res = await ok(
       'tekst-til-tale',
       await sendJson('tekst-til-tale', 'POST', path, {
         text: tekst,
         model_id: 'eleven_flash_v2_5',
-        language_code: 'da',
+        language_code: sprog,
         voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1 },
       }),
     );

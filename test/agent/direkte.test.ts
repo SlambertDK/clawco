@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { createDirekte, UDEN_VAERKTOEJ, type DirekteFejlArt, type DirekteUdbyder } from '../../src/agent/direkte.ts';
 import { envNoegleLager, type NoegleLager } from '../../src/agent/noeglelager.ts';
 import { AFBRUDT, AgentError, type AgentEvent } from '../../src/agent/types.ts';
+import { medSprog } from '../../src/store/sprog.ts';
 import { anthropicStream, openaiStream, startFalskUdbyder, type FalskSvar, type Modtaget } from '../helpers/falsk-udbyder.ts';
 
 const NOEGLE = 'sk-ant-test-HEMMELIG-0180abcdef';
@@ -220,4 +221,17 @@ test('status is klar (there is no key to an agent); health needs a key and a pas
     assert.equal(await s.agent.health(), false, 'no provider chosen');
     assert.equal(s.modtaget.length, 0, 'health never calls the provider');
   }, { testet: async () => testet });
+});
+
+// KC-0241: the no-tools line follows the language of the run, so an English run carries no Danish sentence.
+test('the no-tools line is English inside an English run and Danish otherwise', async () => {
+  await med(() => ({ stream: anthropicStream(['ok']) }), async (s) => {
+    await s.lager.saet('anthropic', NOEGLE);
+    const req = { instructions: 'SYSTEM', input: 'INPUT', model: 'claude-haiku-4-5', provider: 'anthropic' };
+    await medSprog('en', () => s.agent.run(req));
+    await s.agent.run(req);
+    const [en, da] = s.modtaget.map((m) => String(m.body['system']));
+    assert.match(en!, /^SYSTEM\n\nYou run without tools: /);
+    assert.equal(da, `SYSTEM\n\n${UDEN_VAERKTOEJ}`);
+  });
 });

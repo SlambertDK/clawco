@@ -82,13 +82,14 @@ test('Fortryd of the save that chose English reloads back into Danish', async ()
   });
 });
 
-test('a run after choosing English tells Hermes to answer in English, over the Danish language line', async () => {
+test('a run after choosing English tells Hermes to answer in English (KC-0241: in English instructions, no "even though" caveat)', async () => {
   await medApp(async (s) => {
     await gem(s, 'en');
     await s.runs.start({ kind: 'chat', spec: { input: 'x', instructions: 'Sprog: dansk, kort og konkret.' }, onDone: async () => ({}) }).finished;
     const ins = s.hermes.calls.at(-1)?.instructions ?? '';
     assert.match(ins, /Answer in English/);
-    assert.match(ins, /even though/i);
+    assert.doesNotMatch(ins, /even though/i);
+    assert.match(ins, /The user is called /);
   });
 });
 

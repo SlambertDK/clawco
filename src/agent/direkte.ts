@@ -15,6 +15,7 @@ import type { AgentClient, AgentEvent, AgentRunRequest, AgentRunResult, AgentSta
 import type { NoegleLager } from './noeglelager.ts';
 import { parseSseChunks } from './sse.ts';
 import { agentTekst } from './tekster.ts';
+import { PROMPT_TEKSTER, promptTekst } from './prompt-tekster.ts';
 
 /** How a provider is called directly; no url = the saved local address + /chat/completions. */
 export type DirekteApi = { api: 'anthropic-messages' | 'openai-chat'; url?: string };
@@ -23,7 +24,9 @@ export type DirekteUdbyder = { id: string; envNavn: string; hermesProvider: stri
 export type DirekteFejlArt = 'model-noegle' | 'kun-hermes' | 'noegle' | 'kredit' | 'model' | 'forbindelse' | 'ukendt';
 
 /** Appended to every run's system text: the model has no tools and must say so rather than claim it did something. */
-export const UDEN_VAERKTOEJ = 'Du kører uden værktøjer: du kan ikke læse filer eller mails, hente websider, køre kommandoer eller ændre noget nogen steder. Brug kun det, der står her og i beskeden. Kræver opgaven et værktøj, så sig kort, at det ikke kan gøres herfra, og påstå aldrig, at du har gjort noget.';
+export const UDEN_VAERKTOEJ = PROMPT_TEKSTER.da.udenVaerktoej;
+/** KC-0241: the same line in the language of the run. */
+export const udenVaerktoej = (): string => promptTekst().udenVaerktoej;
 
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 const DEFAULT_MAX_TOKENS = 8192;
@@ -75,7 +78,7 @@ export function createDirekte(o: {
     if (!noegle) throw fejl('model-noegle');
     const api = u.direkte.api;
     const url = u.direkte.url ?? `${noegle.replace(/\/+$/, '')}/chat/completions`;
-    const system = `${req.instructions}\n\n${UDEN_VAERKTOEJ}`;
+    const system = `${req.instructions}\n\n${udenVaerktoej()}`;
 
     const headers: Record<string, string> = { 'content-type': 'application/json', accept: 'text/event-stream' };
     let body: Wire;

@@ -1,0 +1,36 @@
+{
+  "rum": "dagen",
+  "resume": "Four meetings today. Rain in the afternoon. The bill is due.",
+  "punkter": [
+    {
+      "id": "rec-move",
+      "sig": "Min anbefaling: Move the meeting to 14 <soon>.",
+      "valg": [
+        {
+          "id": "rec-move",
+          "label": "Move the meeting"
+        }
+      ]
+    },
+    {
+      "id": "cal-1-call",
+      "sig": "Klokken 10 har du Status meeting. Jeg kan: Call Anne.",
+      "valg": [
+        {
+          "id": "cal-1-call",
+          "label": "Call Anne"
+        }
+      ]
+    },
+    {
+      "id": "cal-3-cancel",
+      "sig": "Klokken 15 har du Review. Jeg kan: Cancel.",
+      "valg": [
+        {
+          "id": "cal-3-cancel",
+          "label": "Cancel"
+        }
+      ]
+    }
+  ]
+}

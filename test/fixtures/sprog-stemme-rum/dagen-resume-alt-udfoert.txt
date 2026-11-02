@@ -1,0 +1,5 @@
+{
+  "rum": "dagen",
+  "resume": "Four meetings today. Rain in the afternoon. The bill is due.",
+  "punkter": []
+}

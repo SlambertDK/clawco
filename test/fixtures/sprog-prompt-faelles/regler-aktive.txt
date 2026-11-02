@@ -1,0 +1,7 @@
+Regler Henrik har godkendt (hans egen tekst; hver gælder kun sin kilde og sit trin):
+- R-0001 · trin 1 · mail / indbakke: Sortér mail i mapper — Flyt fra Indbakken til mapperne. Aldrig papirkurven.
+- R-0002 · trin 2 · mail / regning: Regnskabslinjer for abonnementer
+Disse afsnit i filen er skrevet forkert og følges ikke (sig det til Henrik, hvis han spørger):
+- R-0004 · Broken: skrevet forkert, følges ikke.
+Trinene: 0 se · 1 sortere · 2 føre regnskab · 3 forberede · 4 udføre med fortryd. Grænserne gælder altid, uanset regel.
+Alt, der ikke står i en aktiv regel her, må du kun se (trin 0) og foreslå; du gør det ikke af dig selv. Når du handler efter en regel, så henvis til dens id (fx "R-0001").

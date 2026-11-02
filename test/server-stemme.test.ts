@@ -21,13 +21,13 @@ const dagenJson = {
   kalender: [], morgenavis: [], hermesStatus: 'Klar',
 };
 
-async function withApp(stemme: StemmeClient | undefined, fn: (sut: ReturnType<typeof createApp>, dir: string) => Promise<void>) {
+async function withApp(stemme: StemmeClient | undefined, fn: (sut: ReturnType<typeof createApp>, dir: string) => Promise<void>, ekstra: { standardSprog?: 'da' | 'en' } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-stemme-'));
   try {
     const store = createFileStore(path.join(dir, 'data'));
     await store.writeState('dagen', parseDagenState(dagenJson, NOW));
     const hermes = createFakeAgent({ answer: () => 'Gjort.' });
-    const opts = { store, hermes, sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW, ...noMail };
+    const opts = { store, hermes, sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW, ...noMail, ...ekstra };
     await fn(createApp(stemme ? { ...opts, stemme } : opts), dir);
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
@@ -176,4 +176,46 @@ test('oversigt begins with the top card\'s titel (up to three, by prioritet) and
     await store.writeState('hjem', { kort: [kort('a', 'Eneste', 2)], intet: [], afvist: [], sete: [] });
     assert.match((await (await sut.app.request('/api/stemme/oversigt')).json() as { tekst: string }).tekst, /^Kuratoren har ét kort til dig\.\nEneste: Gør Eneste\./);
   });
+});
+
+// KC-0241: an English installation gets the English agent (its own ids under stemme.en), English dynamic variables, and
+// Scribe/TTS are told the language; the Danish ids at the top of the stemme block are left alone.
+test('samtale in English: the English agent is synced and stored under stemme.en; lyt and sig get the language', async () => {
+  const calls: { config: AgentConfig; known: Partial<StemmeIds> | undefined }[] = [];
+  const lytSprog: unknown[] = [];
+  const sigSprog: unknown[] = [];
+  const fake = createFakeStemme();
+  const stub: StemmeClient = {
+    ...fake,
+    mode: 'elevenlabs',
+    samtaleToken: async (agentId) => `tok-for-${agentId}`,
+    ensureVoice: async (v) => v || 'voice-da',
+    ensureAgent: async (config, _voiceId, known) => { calls.push({ config, known }); return { agentId: config.language === 'en' ? 'ag_en' : 'ag_da', toolIds: { udfoer: 't1', hent_oversigt: 't2', spoerg_hermes: 't3' } }; },
+    lyt: async (...a) => { lytSprog.push(a[3]); return 'hello'; },
+    sig: async (...a) => { sigSprog.push(a[2]); return fake.sig(a[0], a[1]); },
+  };
+  await withApp(stub, async (sut, dir) => {
+    const res = await json('/api/stemme/samtale', { rum: 'dagen' }, sut.app);
+    const b = (await res.json()) as { agentId: string; dynamiskeVariabler: Record<string, string> };
+    assert.equal(res.status, 200);
+    assert.equal(b.agentId, 'ag_en');
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0]?.config.language, 'en');
+    assert.match(calls[0]?.config.name ?? '', /English/);
+    assert.deepEqual(calls[0]?.known, {}, 'nothing stored for the English agent yet');
+    assert.equal(b.dynamiskeVariabler['rum'], 'Today');
+    assert.equal(b.dynamiskeVariabler['antal_tekst'], 'One thing is waiting for you.');
+    assert.match(b.dynamiskeVariabler['oversigt'] ?? '', /^One thing is waiting\.\n/);
+    const ind = (await (await sut.app.request('/api/indstillinger')).json()) as { stemme: { agentId?: string; en?: { agentId?: string } } };
+    assert.equal(ind.stemme.en?.agentId, 'ag_en');
+    assert.equal(ind.stemme.agentId, undefined, 'the Danish ids are not touched');
+    const fd = new FormData();
+    fd.append('file', new Blob([new Uint8Array([1, 2, 3])], { type: 'audio/webm' }), 'a.webm');
+    fd.append('rum', 'dagen');
+    assert.equal((await sut.app.request('/api/stemme/lyt', { method: 'POST', body: fd })).status, 200);
+    assert.deepEqual(lytSprog, ['en']);
+    assert.equal((await json('/api/stemme/sig', { tekst: 'hello' }, sut.app)).status, 200);
+    assert.deepEqual(sigSprog, ['en']);
+    void dir;
+  }, { standardSprog: 'en' });
 });

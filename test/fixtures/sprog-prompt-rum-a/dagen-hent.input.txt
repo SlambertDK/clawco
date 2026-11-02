@@ -1,0 +1,3 @@
+Nu er det 2026-10-26 kl. 07.12 (Europe/Copenhagen).
+
+Hent dagens data med morgenavis_cron.py og byg rummet Dagen.

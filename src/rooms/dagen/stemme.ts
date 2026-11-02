@@ -6,18 +6,20 @@ import type { StemmePunkt, StemmeRum } from '../../stemme/types.ts';
 import { saetning, taleKlokken } from '../../stemme/tale.ts';
 import { senesteResultater } from '../../shell/log.ts';
 import type { DagenState, KalenderPost } from './schema.ts';
+import { dagenTekst } from './tekster.ts';
 
 export function sigAnbefaling(a: DagenState['anbefaling']): string {
-  return `Min anbefaling: ${saetning(a.tekst)}`;
+  return dagenTekst().stemme.anbefaling(saetning(a.tekst));
 }
 
 export function sigKalender(k: KalenderPost): string {
-  const hvad = k.handling ? ` Jeg kan: ${saetning(k.handling.label)}` : '';
-  return `${saetning(`${taleKlokken(k.tid)} har du ${k.titel}`)}${hvad}`.replace(/^k/, 'K');
+  const t = dagenTekst().stemme;
+  const hvad = k.handling ? ` ${t.jegKan(saetning(k.handling.label))}` : '';
+  return t.storStart(`${saetning(t.harDu(taleKlokken(k.tid), k.titel))}${hvad}`);
 }
 
 export function stemmeDagen(state: DagenState | null, log: LogEntry[]): StemmeRum {
-  if (!state) return { rum: 'dagen', resume: 'Dagen er ikke bygget endnu.', punkter: [] };
+  if (!state) return { rum: 'dagen', resume: dagenTekst().stemme.ikkeBygget, punkter: [] };
   const resultater = senesteResultater(log);
   const punkter: StemmePunkt[] = [];
   const a = state.anbefaling;

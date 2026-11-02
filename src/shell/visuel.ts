@@ -8,6 +8,7 @@ import { html, raw, type Markup } from './html.ts';
 import { IKONER, type IkonNavn } from './ikoner.ts';
 import { tilstandFraTone } from './sprog.ts';
 import { tekst } from './tekster.ts';
+import { sprogNu } from '../store/sprog.ts';
 
 export type { IkonNavn } from './ikoner.ts';
 export type Tone = 'god' | 'adv' | 'rolig';
@@ -200,18 +201,14 @@ export function mere(indhold: Markup, navn = tekst().billede.hvorfor): Markup {
   return html`<details class="vis-mere"><summary>${ikon('info')}<span>${navn}</span></summary><div class="vis-mere-indhold">${indhold}</div></details>`;
 }
 
-/** KC-0060: one example of `visuel` for a prompt's JSON schema (it parses; a test holds it to that). */
-export const VISUEL_SKEMA = '{ "ikon": "cloud-rain", "overskrift": "Løb kl. 12 – regn fra 16", "tone": "adv", "billede": { "art": "dagslinje", "fra": 6, "til": 22, "zoner": [{ "fra": "16:00", "til": "19:00", "slags": "regn" }], "punkter": [{ "tid": "12:00", "ikon": "footprints", "tekst": "Løb", "flyttetFra": "17:00" }] } }';
-
-/** KC-0060: the pictogram names a prompt may use, derived from IKONER. */
-export function ikonListe(): string {
-  return Object.keys(IKONER).join(', ');
-}
-
-/** KC-0060: the rules every prompt that asks for `visuel` shares. */
-export function visuelRegler(): string {
-  return `- "visuel" er det, Henrik træffer beslutningen ud fra på et øjeblik: et piktogram, én kort overskrift og helst et lille billede. Teksten ligger bag et tryk.
-  - "ikon" (skal): ét af ${ikonListe()}.
+// KC-0241: what a prompt says about `visuel`, Danish and English (read at call time through the language of the run).
+// Field names, the picture kinds, the pictogram ids and the enum values (regn | sol | optaget | fri) are the contract the
+// app parses and are the same in both; only the example texts and the sentences around them are translated.
+const da = {
+  /** One example of `visuel` for a prompt's JSON schema (it parses; a test holds it to that). */
+  skema: '{ "ikon": "cloud-rain", "overskrift": "Løb kl. 12 – regn fra 16", "tone": "adv", "billede": { "art": "dagslinje", "fra": 6, "til": 22, "zoner": [{ "fra": "16:00", "til": "19:00", "slags": "regn" }], "punkter": [{ "tid": "12:00", "ikon": "footprints", "tekst": "Løb", "flyttetFra": "17:00" }] } }',
+  regler: (ikoner: string): string => `- "visuel" er det, Henrik træffer beslutningen ud fra på et øjeblik: et piktogram, én kort overskrift og helst et lille billede. Teksten ligger bag et tryk.
+  - "ikon" (skal): ét af ${ikoner}.
   - "overskrift": højst 30 tegn, selve beslutningen eller svaret ("2.600 kr. over budget", "Gå om 10 min"), ikke emnet.
   - "tone": "adv" når Henrik skal se på det, "god" når det er i orden, ellers udelad.
   - "billede" (valgfri, men brug det, når et billede siger det hurtigere end ord), præcis én af:
@@ -221,5 +218,35 @@ export function visuelRegler(): string {
     "uge": { "art": "uge", "dage": [{ "navn": "lør", "fri": true, "ikon": "gift", "valgt": true }] } — hvilke dage er fri;
     "prikker": { "art": "prikker", "antal": 0, "ialt": 12, "tekst": "åbnet" } — hvor mange af noget;
     "personer": { "art": "personer", "personer": [{ "navn": "Fornavn Efternavn", "rolle": "kort" }] } — hvem det handler om, højst 6.
-  - Brug kun tal, tider og navne, du har belæg for; er du i tvivl, så udelad "billede".`;
+  - Brug kun tal, tider og navne, du har belæg for; er du i tvivl, så udelad "billede".`,
+};
+const en: typeof da = {
+  skema: '{ "ikon": "cloud-rain", "overskrift": "Run at 12 – rain from 4 pm", "tone": "adv", "billede": { "art": "dagslinje", "fra": 6, "til": 22, "zoner": [{ "fra": "16:00", "til": "19:00", "slags": "regn" }], "punkter": [{ "tid": "12:00", "ikon": "footprints", "tekst": "Run", "flyttetFra": "17:00" }] } }',
+  regler: (ikoner: string): string => `- "visuel" is what the user decides from at a glance: a pictogram, one short headline and preferably a small picture. The text is behind a tap.
+  - "ikon" (required): one of ${ikoner}.
+  - "overskrift": at most 30 characters, the decision or the answer itself ("2,600 over budget", "Leave in 10 min"), not the subject.
+  - "tone": "adv" when the user should look at it, "god" when it is in order, otherwise omit.
+  - "billede" (optional, but use it when a picture says it faster than words), exactly one of:
+    "dagslinje": { "art": "dagslinje", "fra": 6, "til": 22, "zoner": [{ "fra": "HH:MM", "til": "HH:MM", "slags": "regn | sol | optaget | fri" }], "punkter": [{ "tid": "HH:MM", "ikon": "<icon>", "tekst": "1 word", "flyttetFra": "HH:MM if moved" }] } — times of the day, at most 6 points;
+    "beloeb": { "art": "beloeb", "vaerdi": 18400, "graense": 15800, "enhed": "EUR", "tekst": "Offer", "graenseTekst": "Budget" } — an amount against a budget, an offer or the last time;
+    "nedtaelling": { "art": "nedtaelling", "minutter": 10, "ialt": 60, "tekst": "Leave 3.35 pm" } — time until something is to happen;
+    "uge": { "art": "uge", "dage": [{ "navn": "Sat", "fri": true, "ikon": "gift", "valgt": true }] } — which days are free;
+    "prikker": { "art": "prikker", "antal": 0, "ialt": 12, "tekst": "opened" } — how many of something;
+    "personer": { "art": "personer", "personer": [{ "navn": "First Last", "rolle": "short" }] } — who it is about, at most 6.
+  - Use only numbers, times and names you have grounds for; if in doubt, omit "billede".`,
+};
+export const VISUEL_TEKSTER = { da, en };
+
+/** KC-0060: one example of `visuel` for a prompt's JSON schema — the Danish text (a room that still interpolates the constant); `visuelSkema()` is the language of the run. */
+export const VISUEL_SKEMA = VISUEL_TEKSTER.da.skema;
+export const visuelSkema = (): string => VISUEL_TEKSTER[sprogNu()].skema;
+
+/** KC-0060: the pictogram names a prompt may use, derived from IKONER. */
+export function ikonListe(): string {
+  return Object.keys(IKONER).join(', ');
+}
+
+/** KC-0060: the rules every prompt that asks for `visuel` shares (KC-0241: in the language of the run). */
+export function visuelRegler(): string {
+  return VISUEL_TEKSTER[sprogNu()].regler(ikonListe());
 }

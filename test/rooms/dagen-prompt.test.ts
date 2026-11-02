@@ -5,6 +5,10 @@ import { GRAENSER, handlingsOpgave } from '../../src/agent/prompt.ts';
 import { udenData, udpak } from '../../src/agent/udtroet.ts';
 import type { DagenState } from '../../src/rooms/dagen/schema.ts';
 import type { TrimmedAvis } from '../../src/rooms/dagen/source.ts';
+import { DAGEN, holdTilGuld, danskeEgneLinjer, egneTekst } from '../fixtures/sprog-golden-prompt-rum-a.ts';
+import { DAGEN_PROMPT_TEKSTER } from '../../src/rooms/dagen/prompt-tekster.ts';
+import { medSprog, TEKSTER } from '../../src/shell/tekster.ts';
+import { form, tomme, ensStrenge } from '../fixtures/sprog-tjek.ts';
 
 const trimmed: TrimmedAvis = {
   dato: '2026-10-26', hentet: '2026-10-26T05:01:12+00:00', helbred: 'stabil',
@@ -81,4 +85,64 @@ test('KC-0066: the refresh run asks Hermes to mark handlinger that go to others 
   assert.match(r.instructions, /"tilAndre": true/);
   assert.match(r.instructions, /tilAndre[^\n]*andre mennesker/);
   assert.match(r.instructions, /aldrig[^\n]*sende mail til andre/i);
+});
+
+// KC-0241: Henrik's installation (no language chosen, or da chosen) sends the same prompts as before, byte for byte
+// (test/fixtures/sprog-prompt-rum-a/, captured from the code before the words moved into prompt-tekster.ts).
+test('KC-0241: Danish prompts of dagen are byte for byte as before, with no language set and with da chosen', () => {
+  holdTilGuld(DAGEN, 'dagen');
+});
+
+// ---- KC-0241: the prompts in English ----------------------------------------------------------------------------------
+
+const tabel = (t: unknown): Record<string, unknown> => t as Record<string, unknown>;
+const egne = (k: string) => ({ ...(k === 'dagen-chat' ? { kontekst: 'Meeting at 10.00' } : {}) });
+const paa = (k: string) => medSprog('en', DAGEN[k]!);
+
+test('KC-0241: Dagen\'s prompt table: English has exactly Danish\'s keys and shapes; no empty string; no Danish string copied over', () => {
+  assert.deepEqual(form(DAGEN_PROMPT_TEKSTER.en), form(DAGEN_PROMPT_TEKSTER.da));
+  for (const t of [DAGEN_PROMPT_TEKSTER.da, DAGEN_PROMPT_TEKSTER.en]) assert.deepEqual(tomme(tabel(t)), []);
+  assert.deepEqual(ensStrenge(tabel(DAGEN_PROMPT_TEKSTER.da), tabel(DAGEN_PROMPT_TEKSTER.en)), []);
+});
+
+test('KC-0241: the Danish detector works on Dagen\'s Danish prompt', () => {
+  assert.ok(danskeEgneLinjer(DAGEN['dagen-refresh-uge']!(), egne('dagen-refresh-uge'), 'da').length > 15);
+});
+
+test('KC-0241: English: no Danish line in the words Dagen writes itself, in any of its prompts', () => {
+  for (const k of Object.keys(DAGEN)) assert.deepEqual(danskeEgneLinjer(paa(k), egne(k)), [], k);
+});
+
+test('KC-0241: English: the room is "Today" as the shell names it, and the user is "the user", not Henrik', () => {
+  assert.ok(DAGEN_PROMPT_TEKSTER.en.rolle.includes(`"${TEKSTER.en.rum['dagen']}"`));
+  assert.ok(DAGEN_PROMPT_TEKSTER.da.rolle.includes(`"${TEKSTER.da.rum['dagen']}"`));
+  for (const k of Object.keys(DAGEN)) assert.doesNotMatch(egneTekst(paa(k), egne(k)), /Henrik/, k);
+});
+
+test('KC-0241: English: the refresh asks for the same schema (field names and enums unchanged), with English explanations', () => {
+  const r = paa('dagen-refresh-uge');
+  assert.match(r.instructions, /You are Hermes, the user's agent, and you work inside the room "Today"/);
+  assert.match(r.instructions, /Answer with exactly this schema:/);
+  assert.match(r.instructions, /Rules:\n- Write in English, short and concrete\./);
+  for (const key of ['treLinjer', 'anbefaling', 'kalender', 'morgenavis', 'hermesStatus', 'instruktion', 'fortryd', '"tilAndre": true', '"status": "klar | flyttet | aflyst"', '"art": "dagslinje"']) assert.ok(r.instructions.includes(key), key);
+  assert.match(r.instructions, /Answer ONLY with one JSON object in a ```json block\./);
+  assert.match(r.input, /It is now 2026-10-26 at 07\.12 \(Europe\/Copenhagen\)\./);
+  assert.match(r.input, /Today's raw data:/);
+  assert.match(r.input, /The week ahead \(Google Calendar, all calendars incl\. the family's\):/);
+  assert.match(paa('dagen-refresh-uge-fejl').input, /\(calendars that failed: Family: timeout; Work: denied\)/);
+  assert.match(paa('dagen-refresh-uge-null').input, /\(The week ahead could not be fetched today; omit "ugen"\.\)/);
+});
+
+test('KC-0241: English: hent, handling, fortryd and chat', () => {
+  assert.match(paa('dagen-hent').instructions, /There is no data for today yet\. Fetch it yourself: run `python3 ~\/\.agent\/scripts\/morgenavis_cron\.py`/);
+  assert.match(paa('dagen-hent').input, /Fetch today's data with morgenavis_cron\.py and build the room "Today"\./);
+  const h = paa('dagen-handling');
+  assert.match(h.instructions, /Rules for actions:/);
+  assert.match(h.instructions, /The room's current content is also in the message\./);
+  assert.match(h.input, /The button: "Block"/);
+  assert.match(h.input, /The room's current content:/);
+  assert.match(paa('dagen-fortryd').instructions, /Rules for actions:/);
+  assert.match(paa('dagen-chat').instructions, /Rules for the chat:/);
+  assert.match(paa('dagen-chat').instructions, /\{"opdater": \{\.\.\.\}\}/);
+  assert.match(paa('dagen-chat-uden-kontekst').input, /The room has no data yet\./);
 });

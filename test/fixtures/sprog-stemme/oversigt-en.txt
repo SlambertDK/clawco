@@ -1,0 +1,3 @@
+Der venter én ting.
+Dagen: Four meetings today.
+1. My recommendation: move the meeting. Valg: Move the meeting (id dagen:anb).

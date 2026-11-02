@@ -3,6 +3,12 @@ import assert from 'node:assert/strict';
 import { sigBeslutning, stemmeMail } from '../../src/rooms/mail/stemme.ts';
 import { renderMail } from '../../src/rooms/mail/render.ts';
 import type { Beslutning, MailState } from '../../src/rooms/mail/schema.ts';
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { medSprog } from '../../src/shell/tekster.ts';
+import { STEMME_RUM, stemmeTekster, mailState, mailSvar, mailSvarUdenFrist, mailBrev, mailKlar } from '../fixtures/sprog-golden-stemme-rum.ts';
+import { danskeLinjer } from '../fixtures/sprog-tjek.ts';
 
 const svar: Beslutning = { mailId: '242', emne: 'Tilbud på <b>eltavle</b>', fra: 'Elektrikeren ApS <post@elek.example>', modtaget: '2026-10-26T18:57:39Z', type: 'svar', resume: 'Tilbud på 18.400 kr.', betydning: 'Du skal svare inden fredag', frist: '2026-10-30', udkast: 'Hej', arkivmappe: 'Folders/Afventer', muligheder: [{ id: '242-ring', label: 'Ring til dem', instruktion: 'i' }] };
 const brev: Beslutning = { mailId: '243', emne: 'Ugens energinyt', fra: 'Nyhedsbrev', modtaget: '2026-10-25T12:40:00Z', type: 'nyhedsbrev', resume: 'x', betydning: 'Du åbner det aldrig.', arkivmappe: 'Archive', muligheder: [{ id: '243-afmeld', label: 'Afmeld', instruktion: 'i' }] };
@@ -58,4 +64,59 @@ test('the spoken view of a read-only mail room offers no choices and promises no
   assert.deepEqual(rum.punkter[0]?.valg, []);
   assert.doesNotMatch(rum.punkter[0]?.sig ?? '', /udkast/);
   assert.match(sigBeslutning(b), /udkast/, 'an acting connection still promises the draft');
+});
+
+// ---- KC-0241: Danish stays byte for byte --------------------------------------------------------------------------------
+
+const rod = path.dirname(fileURLToPath(import.meta.url));
+const mappe = path.join(rod, '../fixtures/sprog-stemme-rum');
+const mine = Object.entries(STEMME_RUM).filter(([k]) => k.startsWith('mail-'));
+
+test('Henrik\'s installation: with no language chosen, and with da chosen, the spoken passages of mail are byte for byte as before', () => {
+  assert.deepEqual(mine.map(([k]) => `${k}.txt`).sort(), readdirSync(mappe).filter((f) => f.startsWith('mail-')).sort(), 'every golden has a case');
+  assert.ok(mine.length > 0);
+  for (const [k, lav] of mine) {
+    const fil = readFileSync(path.join(mappe, `${k}.txt`), 'utf8');
+    assert.equal(lav(), fil, k);
+    assert.equal(medSprog('da', lav), fil, `${k} (da chosen)`);
+  }
+});
+
+// ---- KC-0241: English ---------------------------------------------------------------------------------------------------
+
+test('English: Mail\'s spoken passages have no Danish word of the code\'s own', () => {
+  const en = medSprog('en', () => stemmeMail(mailState([mailSvarUdenFrist, mailBrev, mailKlar])));
+  assert.deepEqual(danskeLinjer(stemmeTekster(en).join('\n')), []);
+  assert.equal(en.resume, '2 mails are waiting for your decision.');
+  assert.deepEqual(en.punkter[0]?.valg, [{ id: '242-call', label: 'Call them' }, { id: 'aktion:faerdig:241', label: 'Done' }]);
+  assert.equal(medSprog('en', () => sigBeslutning(mailSvarUdenFrist)), 'Mail from Acme Electric: Quote for <b>the panel</b>. Reply before Friday. Hermes has a draft reply ready.');
+  assert.equal(medSprog('en', () => sigBeslutning(mailBrev)), 'Mail from Newsletter: Weekly energy news. You never open it.');
+  assert.equal(medSprog('en', () => sigBeslutning(mailSvarUdenFrist, true)), 'Mail from Acme Electric: Quote for <b>the panel</b>. Reply before Friday.');
+});
+
+test('English: the deadline sentence is the room\'s; the date in it is the date helper\'s', () => {
+  const s = medSprog('en', () => sigBeslutning(mailSvar));
+  assert.match(s, /\. The deadline is .+\. Hermes has a draft reply ready\.$/);
+  assert.doesNotMatch(s, /Fristen er|udkast/);
+});
+
+test('English: the résumé counts none, one and many', () => {
+  const r = (b: Parameters<typeof mailState>[0]): string => medSprog('en', () => stemmeMail(mailState(b)).resume);
+  assert.equal(r([mailKlar]), 'No mails are waiting.');
+  assert.equal(r([mailBrev]), 'One mail is waiting for your decision.');
+  assert.equal(r([mailSvarUdenFrist, mailBrev, { ...mailBrev, mailId: '9' }]), '3 mails are waiting for your decision.');
+  assert.equal(medSprog('en', () => stemmeMail(null).resume), 'No mails are waiting.');
+});
+
+test('English: a read-only connection still offers no choices', () => {
+  const rum = medSprog('en', () => stemmeMail(mailState([mailSvarUdenFrist], { forbindelse: 'Gmail', laeseKun: true })));
+  assert.deepEqual(rum.punkter[0]?.valg, []);
+  assert.doesNotMatch(rum.punkter[0]?.sig ?? '', /draft/);
+});
+
+test('the render\'s data-sig follows the language too', () => {
+  const out = medSprog('en', () => String(renderMail(mailState([mailSvarUdenFrist]), [], new Date('2026-10-27T09:00:00Z'))));
+  assert.match(out, /data-sig="Mail from Acme Electric: Quote for &lt;b&gt;the panel&lt;\/b&gt;\./);
+  assert.match(out, /Hermes has a draft reply ready\./);
+  assert.doesNotMatch(out, /data-sig="[^"]*(?:Mail fra|udkast)/);
 });

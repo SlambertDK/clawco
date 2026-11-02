@@ -108,6 +108,14 @@ test('lyt posts multipart to scribe_v2 and returns the trimmed text', async () =
   assert.deepEqual([...new Uint8Array(await file.arrayBuffer())], [1, 2, 3]);
 });
 
+test('KC-0241: lyt sends the language it was asked for (Danish by default)', async () => {
+  const { fetch: f, calls } = fakeFetch(on('POST', `${BASE}/v1/speech-to-text`, () => json({ text: 'x' })));
+  await client(f).lyt(new Uint8Array([1]), 'audio/webm', []);
+  await client(f).lyt(new Uint8Array([1]), 'audio/webm', [], 'en');
+  const langs = await Promise.all(calls.map(async (c) => (await new Request('http://x', { method: 'POST', body: c.body ?? null }).formData()).get('language_code')));
+  assert.deepEqual(langs, ['da', 'en']);
+});
+
 test('lyt picks the filename from the mime type', async () => {
   const seen: string[] = [];
   const { fetch: f, calls } = fakeFetch(() => json({ text: 'x' }));
@@ -153,6 +161,13 @@ test('sig posts the TTS request and returns the mp3 stream', async () => {
     language_code: 'da',
     voice_settings: { stability: 0.5, similarity_boost: 0.75, speed: 1 },
   });
+});
+
+test('KC-0241: sig sends the language it was asked for (Danish by default)', async () => {
+  const { fetch: f, calls } = fakeFetch(on('POST', `${BASE}/v1/text-to-speech/v/stream?output_format=mp3_44100_64`, () => new Response(new Uint8Array([1]))));
+  await client(f).sig('Hej', 'v');
+  await client(f).sig('Hello', 'v', 'en');
+  assert.deepEqual(calls.map((c) => (bodyJson(c) as Record<string, unknown>)['language_code']), ['da', 'en']);
 });
 
 test('sig without a body and sig on HTTP error both throw StemmeError', async () => {

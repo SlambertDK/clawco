@@ -1,0 +1,20 @@
+{
+  "rum": "mail",
+  "resume": "Én mail venter på din beslutning.",
+  "punkter": [
+    {
+      "id": "243",
+      "sig": "Mail fra Newsletter: Weekly energy news. You never open it.",
+      "valg": [
+        {
+          "id": "243-unsub",
+          "label": "Unsubscribe"
+        },
+        {
+          "id": "aktion:faerdig:243",
+          "label": "Færdig"
+        }
+      ]
+    }
+  ]
+}

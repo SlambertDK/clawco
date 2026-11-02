@@ -1,0 +1,16 @@
+{
+  "rum": "nyheder",
+  "resume": "Power prices fall. A new wind deal. The budget is tabled.",
+  "punkter": [
+    {
+      "id": "f3",
+      "sig": "Read the report at the weekend soon.",
+      "valg": [
+        {
+          "id": "forslag-3-laes",
+          "label": "Add to reading list"
+        }
+      ]
+    }
+  ]
+}

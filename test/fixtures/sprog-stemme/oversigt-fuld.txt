@@ -1,0 +1,7 @@
+Der venter 3 ting.
+Mail: Two mails wait for your decision.
+Dagen: Four meetings today.
+Skrive: No draft in progress.
+1. Mail from Anne: Offer. Valg: Call (id mail:xyz-call), Done (id mail:aktion:faerdig:xyz).
+2. Mail from Bo: Invoice. Valg: Done (id mail:aktion:faerdig:abc).
+3. My recommendation: move the meeting. Valg: Move the meeting (id dagen:anb).

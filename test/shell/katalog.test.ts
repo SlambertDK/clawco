@@ -9,6 +9,7 @@ import { BILLEDER, TONER, ZONER } from '../../src/shell/visuel.ts';
 import { IKONER } from '../../src/shell/ikoner.ts';
 import { TILSTANDE } from '../../src/hushold/foresp.ts';
 import { byggPrompt } from '../../src/agent/prompt.ts';
+import { medSprog } from '../../src/store/sprog.ts';
 
 const SRC = new URL('../../src/', import.meta.url).pathname;
 const filer = (d: string): string[] => readdirSync(d).flatMap((f) => { const p = path.join(d, f); return statSync(p).isDirectory() ? filer(p) : p.endsWith('.ts') ? [p] : []; });
@@ -54,4 +55,16 @@ test('KC-0119: the prompt offers the built blocks and never the defined ones', (
   const { instructions } = byggPrompt({ rum: 'hjem', zone: 'privat', opgave: 'Opgave.', katalog: true, data: [] });
   assert.ok(instructions.includes(tekst));
   assert.match(instructions, /- ressource:/, 'KC-0150: ressource is built, so the prompt offers it');
+});
+
+// KC-0241: the catalog section of a prompt in the language of the run; ids and field names stay.
+test('katalogTekst: English lists the same built blocks by id, with English purposes', () => {
+  const da = katalogTekst();
+  const en = medSprog('en', () => katalogTekst());
+  const ider = (t: string): string[] => [...t.matchAll(/^- (\w+): /gm)].map((m) => m[1]!).filter((i) => BYGGET.includes(i as never));
+  assert.deepEqual(ider(en), ider(da));
+  assert.ok(ider(en).length >= BYGGET.length);
+  assert.match(en, /^The building blocks \(only these exist on the screen\):/);
+  assert.match(en, /The field "visuel":/);
+  assert.match(da, /^Byggeklodserne \(kun disse findes på skærmen\):/);
 });

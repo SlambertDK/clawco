@@ -73,6 +73,11 @@ const da = {
   laesSenereTitel: 'Læs senere',
   ukendtKilde: 'ukendt kilde',
   foelger: 'Følger nyhederne',
+
+  /** The spoken view (stemme.ts). */
+  stemme: {
+    ikkeBygget: 'Avisen er ikke bygget endnu.',
+  },
 };
 
 export type NyhederTekster = typeof da;
@@ -129,6 +134,10 @@ const en: NyhederTekster = {
   laesSenereTitel: 'Read later',
   ukendtKilde: 'unknown source',
   foelger: 'Following the news',
+
+  stemme: {
+    ikkeBygget: 'The paper has not been built yet.',
+  },
 };
 
 export const NYHEDER_TEKSTER = { da, en };

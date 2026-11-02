@@ -46,3 +46,5 @@ const en: typeof da = {
 };
 export const AGENT_TEKSTER = { da, en };
 export const agentTekst = (): typeof da => AGENT_TEKSTER[sprogNu()];
+/** KC-0241: the language of the run being built — the one place the agent folder reads it, for prompt-tekster.ts and the builders. */
+export const agentSprog = (): 'da' | 'en' => sprogNu();

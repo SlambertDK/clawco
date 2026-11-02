@@ -4,6 +4,7 @@ import { buildKuratorRun } from '../../src/kurator/prompt.ts';
 import type { KuratorInput } from '../../src/kurator/prompt.ts';
 import { MAX_KORT } from '../../src/rooms/hjem/kort.ts';
 import type { Kort } from '../../src/rooms/hjem/kort.ts';
+import { medSprog } from '../../src/store/sprog.ts';
 
 const kort: Kort = {
   id: 'mail:folders-handling:242', type: 'familie', titel: 'Rikke beder om hjælp', betyder: 'Rikke vil have svar inden fredag.',
@@ -158,4 +159,18 @@ test('KC-0214: with the mail connector the rule says the body cannot be read (no
   // Only that one rule differs.
   const linjer = (t: string) => t.split('\n').filter((l) => !/⟦|koden [0-9a-f]{24}/.test(l));
   assert.deepEqual(linjer(sky).filter((l) => !linjer(henrik).includes(l)).length, 1);
+});
+
+// KC-0241: Kuratoren's run in English keeps the contract (card types, JSON keys, ids, status words) and says the rest in English.
+test('English: Kuratoren is the Curator, the contract words stay, and nothing names Henrik', () => {
+  const { instructions: t } = medSprog('en', () => buildKuratorRun(input()));
+  assert.match(t, /You are the Curator: /);
+  assert.match(t, /the room "Now"/);
+  for (const typ of ['tjeneste', 'familie', 'regning', 'nyhed']) assert.ok(t.includes(`- ${typ}: `), typ);
+  for (const k of ['"kort"', '"vurderinger"', '"intet"', '"regnskab"', '"hvor"', '"uklart"', '"mailId"', '"gyldigTil"', '"prioritet"', '"leverandoer"', '"beloeb"', 'behold', 'opdater', 'fjern']) assert.ok(t.includes(k), k);
+  assert.ok(t.includes('himalaya message read -m <mappe> <id>'));
+  assert.ok(t.includes(`at most ${MAX_KORT} open cards in all, including those you keep`));
+  assert.ok(t.includes('never pay') || t.includes('You may never pay'));
+  assert.doesNotMatch(t, /Henrik|Kuratoren/);
+  assert.match(medSprog('en', () => buildKuratorRun(input({ dyb: true }))).instructions, /search the web for security holes/);
 });

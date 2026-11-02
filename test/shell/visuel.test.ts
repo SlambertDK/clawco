@@ -4,6 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ikon, billede, parseVisuel, avatar, visHoved, mere, type Billede } from '../../src/shell/visuel.ts';
 import { html } from '../../src/shell/html.ts';
+import { medSprog } from '../../src/store/sprog.ts';
+import { visuelRegler, ikonListe } from '../../src/shell/visuel.ts';
 
 test('ikon renders the named pictogram as an inline, hidden-from-readers svg', () => {
   const s = String(ikon('cloud-rain'));
@@ -188,4 +190,16 @@ test('KC-0074: lanes follow time order, not the order the points were sent in', 
 test('KC-0074: the aria-label still lists every point, in the order sent', () => {
   const punkter = [['15:45', 'Ella'], ['11:00', 'Møde']].map(([tid, tekst]) => ({ tid: tid!, ikon: 'calendar' as const, tekst: tekst! }));
   assert.match(String(billede({ art: 'dagslinje', fra: 6, til: 21, zoner: [], punkter })), /aria-label="Ella 15:45, Møde 11:00"/);
+});
+
+// KC-0241: the visual rules of a prompt in the language of the run; the picture kinds and field names are the contract.
+test('visuelRegler: English has the same picture kinds and pictogram list as Danish', () => {
+  const da = visuelRegler();
+  const en = medSprog('en', () => visuelRegler());
+  assert.notEqual(en, da);
+  for (const t of [da, en]) {
+    assert.ok(t.includes(ikonListe()));
+    for (const art of ['dagslinje', 'beloeb', 'nedtaelling', 'uge', 'prikker', 'personer']) assert.ok(t.includes(`"${art}": { "art": "${art}"`), art);
+  }
+  assert.match(en, /^- "visuel" is what the user decides from at a glance/);
 });

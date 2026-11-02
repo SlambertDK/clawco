@@ -5,6 +5,7 @@ import path from 'node:path';
 import { GRAENSER, SPROG, byggPrompt, fortrydOpgave, handlingsOpgave } from '../../src/agent/prompt.ts';
 import { VERBER } from '../../src/graenser/verber.ts';
 import { visuelRegler } from '../../src/shell/visuel.ts';
+import { medSprog } from '../../src/store/sprog.ts';
 
 const antal = (h: string, n: string): number => h.split(n).length - 1;
 
@@ -73,4 +74,21 @@ test('no file under src/rooms or src/kurator builds `instructions` by hand', asy
     }
   }
   assert.deepEqual(fund, []);
+});
+
+// KC-0241: the shared builder in English; the verbs, zone ids and the delimiter shape are the contract.
+test('English: the builder\'s sections come in the same order, in English, and every verb has its own sentence', () => {
+  medSprog('en', () => {
+    const { instructions } = byggPrompt({ rum: 'mail', zone: 'privat', opgave: 'TASK', katalog: true, data: [{ kilde: 'x', zone: 'privat', tillid: 'utroet', tekst: 'T' }], graense: 'a'.repeat(24) });
+    const pos = ['Limits that always apply', 'The building blocks', 'Language: English', 'Zone: privat.', 'Data: What stands between', 'TASK'].map((s) => instructions.indexOf(s));
+    assert.ok(pos.every((p) => p >= 0), pos.join(','));
+    assert.deepEqual([...pos].sort((a, b) => a - b), pos);
+    const tekster = VERBER.map((v) => handlingsOpgave(v));
+    for (const t of tekster) assert.match(t, /The user has pressed the button/);
+    assert.equal(new Set(tekster).size, VERBER.length);
+    assert.match(handlingsOpgave('send-til-andre'), /draft; the user sends it themselves/);
+    for (const v of ['betal', 'kopier-paa-tvaers', 'ukendt-verb']) assert.match(handlingsOpgave(v), /you do nothing/, v);
+    assert.match(handlingsOpgave('ukendt-verb'), /verb "unknown"/);
+    assert.match(fortrydOpgave(), /The user has pressed "Undo"/);
+  });
 });

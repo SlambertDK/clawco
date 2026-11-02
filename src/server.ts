@@ -24,7 +24,7 @@ import { createSettings, modelRevision, type Settings } from './settings.ts';
 import { TIER_KINDS, CHAT_KINDS } from './runs.ts';
 import { ROOMS } from './rooms/registry.ts';
 import { shell } from './shell/layout.ts';
-import { medSprog, STANDARD_SPROG, tekst } from './shell/tekster.ts';
+import { medSprog, sprogNu, STANDARD_SPROG, tekst } from './shell/tekster.ts';
 import { html, type Markup } from './shell/html.ts';
 import { renderIkkeFundet, ikkeFundetOverskrift, type IkkeFundetSlags } from './shell/ikkefundet.ts';
 import { tenantFejlrapport, type Fejlrapport } from './shell/fejlrapport.ts';
@@ -45,7 +45,7 @@ import { RUM as DAGEN } from './rooms/dagen/room.ts';
 import { StemmeError, type StemmeClient } from './stemme/types.ts';
 import { createElevenLabs } from './stemme/elevenlabs.ts';
 import { createFakeStemme } from './stemme/fake.ts';
-import { AGENT_CONFIG, DEFAULT_VOICE_ID, KEYTERMS, antalTekst } from './stemme/agent.ts';
+import { agentConfig, DEFAULT_VOICE_ID, keyterms, antalTekst } from './stemme/agent.ts';
 import { bygOversigt, medKildeHelbred, medKuratorKort } from './stemme/oversigt.ts';
 import { vaelgSituation } from './situation/situation.ts';
 import { SITUATIONER, type Situation } from './situation/regler.ts';
@@ -865,21 +865,23 @@ export function createApp(deps: AppDeps) {
     }
     return voiceId;
   }
-  let agentSync: Promise<string> | undefined;
-  /** Syncs the agent defined in code once per process; the ids land in the settings file. */
-  function agent(): Promise<string> {
+  const agentSync: Partial<Record<Sprog, Promise<string>>> = {};
+  /** Syncs the agent of `sprog` (defined in code) once per process; the Danish ids land at the top of the stemme block, the English under stemme.en (KC-0241). */
+  function agent(sprog: Sprog = sprogNu()): Promise<string> {
     if (!stemme) return Promise.reject(new StemmeError('Stemmen er ikke sat op', 503));
-    if (!agentSync) {
-      agentSync = (async () => {
+    let sync = agentSync[sprog];
+    if (!sync) {
+      sync = (async () => {
         const v = await voice();
         const s = await settings.read();
-        const ids = await stemme.ensureAgent(AGENT_CONFIG, v, s.stemme);
-        await settings.setStemme(ids);
+        const ids = await stemme.ensureAgent(agentConfig(sprog), v, sprog === 'en' ? (s.stemme.en ?? {}) : s.stemme);
+        await settings.setStemme(sprog === 'en' ? { en: ids } : ids);
         return ids.agentId;
       })();
-      agentSync.catch(() => { agentSync = undefined; });
+      agentSync[sprog] = sync;
+      sync.catch(() => { delete agentSync[sprog]; });
     }
-    return agentSync;
+    return sync;
   }
   function stemmeFejl(c: { json: (o: unknown, s: 400 | 404 | 502 | 503) => Response }, err: unknown): Response {
     if (err instanceof StemmeError) return c.json({ error: err.message }, err.status === 503 ? 503 : err.status === 400 ? 400 : err.status === 404 ? 404 : 502);
@@ -939,7 +941,7 @@ export function createApp(deps: AppDeps) {
     let s = await settings.setModels(m);
     runs.setModels(s.modeller, hermesProvider(s));
     const st = typeof b['stemme'] === 'object' && b['stemme'] !== null ? (b['stemme'] as Record<string, unknown>) : null;
-    if (st && typeof st['voiceId'] === 'string') { s = await settings.setStemme({ voiceId: st['voiceId'].trim() }); voiceId = undefined; agentSync = undefined; }
+    if (st && typeof st['voiceId'] === 'string') { s = await settings.setStemme({ voiceId: st['voiceId'].trim() }); voiceId = undefined; for (const k of Object.keys(agentSync) as Sprog[]) delete agentSync[k]; }
     return c.json({ ...s, niveauer: TIER_KINDS });
   });
 
@@ -1341,7 +1343,7 @@ export function createApp(deps: AppDeps) {
     if (deps.dataDir) await mkdir(deps.dataDir, { recursive: true });
     await runs.genlaesPause();
     voiceId = undefined;
-    agentSync = undefined;
+    for (const k of Object.keys(agentSync) as Sprog[]) delete agentSync[k];
     const s = await settings.read();
     runs.setModels(s.modeller, hermesProvider(s));
     for (const r of ROOMS) live.notify(r.id);
@@ -2158,10 +2160,11 @@ export function createApp(deps: AppDeps) {
     if (file.size > 8_000_000) return c.json({ error: 'optagelsen er for lang' }, 400);
     const rum = String(fd.get('rum') ?? '');
     const mod = getRoomModule(rum);
-    const terms = [...KEYTERMS];
+    const sprog = sprogNu();
+    const terms = keyterms(sprog);
     if (mod?.stemme) { try { for (const p of (await mod.stemme(d)).punkter) for (const v of p.valg) terms.push(v.label); } catch { /* keyterms are a nicety */ } }
     try {
-      const tekst = await stemme!.lyt(new Uint8Array(await file.arrayBuffer()), file.type || 'audio/webm', terms);
+      const tekst = await stemme!.lyt(new Uint8Array(await file.arrayBuffer()), file.type || 'audio/webm', terms, sprog);
       return c.json({ tekst });
     } catch (err) { return stemmeFejl(c, err); }
   });
@@ -2171,7 +2174,7 @@ export function createApp(deps: AppDeps) {
     const tekst = typeof b['tekst'] === 'string' ? b['tekst'].trim() : '';
     if (!tekst || tekst.length > 2000) return c.json({ error: 'tekst mangler eller er for lang (højst 2000 tegn)' }, 400);
     try {
-      const { body: audio, contentType } = await stemme!.sig(tekst, await voice());
+      const { body: audio, contentType } = await stemme!.sig(tekst, await voice(), sprogNu());
       return new Response(audio, { status: 200, headers: { 'content-type': contentType, 'cache-control': 'no-store' } });
     } catch (err) { return stemmeFejl(c, err); }
   });
@@ -2186,7 +2189,9 @@ export function createApp(deps: AppDeps) {
     try {
       const agentId = await agent();
       const [token, o] = await Promise.all([stemme!.samtaleToken(agentId), oversigtMedKort()]);
-      const dynamiskeVariabler = { oversigt: o.tekst, rum: ROOMS.find((r) => r.id === rum)?.navn ?? 'Nu', antal_tekst: antalTekst(o.punkter.length) };
+      // KC-0241: the room's name in the language the agent speaks (the shell's table in English, the registry's in Danish).
+      const rumNavn = sprogNu() === 'en' ? ((tekst().rum as Record<string, string>)[rum] ?? tekst().rum.hjem) : (ROOMS.find((r) => r.id === rum)?.navn ?? 'Nu');
+      const dynamiskeVariabler = { oversigt: o.tekst, rum: rumNavn, antal_tekst: antalTekst(o.punkter.length) };
       return c.json({ token, agentId, dynamiskeVariabler });
     } catch (err) { return stemmeFejl(c, err); }
   });

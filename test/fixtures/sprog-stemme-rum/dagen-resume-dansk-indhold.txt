@@ -1,0 +1,26 @@
+{
+  "rum": "dagen",
+  "resume": "Fire møder i dag. Regn om eftermiddagen. Elregningen forfalder.",
+  "punkter": [
+    {
+      "id": "d-anb",
+      "sig": "Min anbefaling: Flyt mødet kl. 14 hurtigt her.",
+      "valg": [
+        {
+          "id": "d-anb",
+          "label": "Flyt mødet"
+        }
+      ]
+    },
+    {
+      "id": "d-1",
+      "sig": "Kl. 9 har du Møde med Anne. Jeg kan: Ring til Anne.",
+      "valg": [
+        {
+          "id": "d-1",
+          "label": "Ring til Anne"
+        }
+      ]
+    }
+  ]
+}

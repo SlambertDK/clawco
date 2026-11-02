@@ -4,18 +4,20 @@
 
 import { byggPrompt, elementSegment, pegerTekst } from '../../agent/prompt.ts';
 import type { TrinStatus } from './schema.ts';
+import { tekst } from '../../shell/tekster.ts';
+import { startPrompt } from './prompt-tekster.ts';
 
 export const KORSEL = 'privat' as const;
 
-const ROLLE = 'Du er Hermes, brugerens agent i Clawco, og du arbejder inde i rummet "Start": rejsen fra en ny installation til et Clawco, der kender brugeren. Rummet er en bunke kort, ét pr. trin. Hjælp med det øverste åbne trin, kort og venligt, og forklar hvad det giver. Et trin bliver kun "Klaret", når det, det sætter op, virker; du kan ikke markere det selv.';
-
 export function buildStartChatRun(besked: string, kontekst: string | undefined, trin: { titel: string; status: TrinStatus }[]): ReturnType<typeof byggPrompt> {
-  const liste = trin.map((t) => `- ${t.titel}: ${t.status}`).join('\n') || '- (ingen trin)';
+  // KC-0241: the words are in prompt-tekster.ts, Danish and English, read at call time; the room's name is the nav's.
+  const T = startPrompt();
+  const liste = trin.map((t) => `- ${t.titel}: ${T.status[t.status] ?? t.status}`).join('\n') || T.ingenTrin;
   return byggPrompt({
     rum: 'start',
     zone: KORSEL,
     // KC-0123: the step titles are the app's own; the element the user points at is afledt data.
-    opgave: `${ROLLE}\n${pegerTekst('Brugeren')}\n\nTrinnene og deres status:\n${liste}\n\nRegler for chatten:\n- Svar kort, som i en samtale.\n- Du må aldrig sende mail, købe noget eller slette noget.`,
-    data: [...elementSegment(kontekst, KORSEL, 'Brugeren'), { kilde: 'bruger', zone: KORSEL, tillid: 'betroet', tekst: besked }],
+    opgave: `${T.rolle(tekst().rum['start']!)}\n${pegerTekst(T.hvem)}\n\n${T.trinOverskrift}\n${liste}\n\n${T.chatRegler}`,
+    data: [...elementSegment(kontekst, KORSEL, T.hvem), { kilde: 'bruger', zone: KORSEL, tillid: 'betroet', tekst: besked }],
   });
 }

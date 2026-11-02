@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createApp } from '../src/server.ts';
 import { createFileStore } from '../src/store/fileStore.ts';
 import { createFakeAgent } from '../src/agent/fake.ts';
+import { UNIVERS_PROMPT } from '../src/rooms/univers/prompt-tekster.ts';
 
 // KC-0229: Inter and IBM Plex Mono are served from public/fonts/, so no Clawco page asks Google Fonts when it opens.
 // Invariant: nothing the app, Sky or the site ships names a Google font host; every face in app.css points at a file
@@ -114,7 +115,10 @@ test('the security page no longer lists Google Fonts among the outside hosts', (
 
 test('the rule Hermes gets for presentations names no font host: system fonts only', () => {
   // The served CSP of /rum/:id/vis/:name is asserted in server-univers.test.ts; this is the prompt rule behind it.
-  const regel = /const HTML_REGLER = `[^`]*`/.exec(laes('src/rooms/univers/prompt.ts'))![0];
-  assert.ok(!/Google/i.test(regel));
-  assert.match(regel, /systemskrifttyper/);
+  // KC-0241: the rule is in the language table (src/rooms/univers/prompt-tekster.ts), one text per language.
+  for (const [sprog, system] of [['da', /systemskrifttyper/], ['en', /system fonts/]] as const) {
+    const regel = UNIVERS_PROMPT[sprog].htmlRegler;
+    assert.ok(!/Google/i.test(regel), sprog);
+    assert.match(regel, system, sprog);
+  }
 });

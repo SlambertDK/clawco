@@ -72,6 +72,17 @@ const da = {
 
   // The status the room stores when Hermes gave none
   klar: 'Klar',
+
+  /** The spoken view (stemme.ts): the fixed words around what Hermes wrote. */
+  stemme: {
+    ikkeBygget: 'Dagen er ikke bygget endnu.',
+    anbefaling: (tekst: string): string => `Min anbefaling: ${tekst}`,
+    jegKan: (handling: string): string => `Jeg kan: ${handling}`,
+    /** "Klokken 10 har du Statusmøde": the clock words come from tale.ts. */
+    harDu: (klokken: string, titel: string): string => `${klokken} har du ${titel}`,
+    /** The sentence starts with a capital ("klokken" → "Klokken"); only the first letter changes. */
+    storStart: (saetning: string): string => saetning.replace(/^k/, 'K'),
+  },
 };
 
 export type DagenTekster = typeof da;
@@ -126,6 +137,14 @@ const en: DagenTekster = {
   logOpdaterede: 'Updated the room from the chat.',
 
   klar: 'Ready',
+
+  stemme: {
+    ikkeBygget: 'Today has not been built yet.',
+    anbefaling: (tekst) => `My recommendation: ${tekst}`,
+    jegKan: (handling) => `I can: ${handling}`,
+    harDu: (klokken, titel) => `${klokken} you have ${titel}`,
+    storStart: (saetning) => saetning.replace(/^./, (c) => c.toUpperCase()),
+  },
 };
 
 export const DAGEN_TEKSTER = { da, en };

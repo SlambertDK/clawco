@@ -3,12 +3,14 @@
 // back through a tool, so they ARE in the text here, as "(id rum:xyz)").
 
 import type { RoomDeps, RoomModule } from '../rooms/module.ts';
-import { findRoom } from '../rooms/registry.ts';
+import { ROOMS, findRoom } from '../rooms/registry.ts';
 import type { Oversigt, StemmeRum } from './types.ts';
 import type { Person } from '../identitet/husstand.ts';
 import { kunSynlige, type Kort } from '../rooms/hjem/kort.ts';
 import { synligeKort } from '../kurator/senere.ts';
 import { SITUATIONER } from '../situation/regler.ts';
+import { stemmeTekst } from './tekster.ts';
+import { sprogNu, tekst } from '../shell/tekster.ts';
 
 /** Without a situation the voice uses the day's order. */
 const ORDEN = SITUATIONER.dagen.stemme;
@@ -18,8 +20,15 @@ function plads(rum: string, orden: readonly string[]): number {
   return i < 0 ? orden.length : i;
 }
 
+/** A room's name as it is said: the registry's (Danish) one, or in English the shell's own table of room names. */
 function navn(rum: string): string {
-  return findRoom(rum)?.navn ?? rum.charAt(0).toUpperCase() + rum.slice(1);
+  const r = findRoom(rum);
+  if (sprogNu() === 'en') {
+    const base = ROOMS.some((x) => x.id === rum) ? rum : r ? 'univers' : rum;
+    const engelsk = (tekst().rum as Record<string, string>)[base];
+    if (engelsk) return engelsk;
+  }
+  return r?.navn ?? rum.charAt(0).toUpperCase() + rum.slice(1);
 }
 
 /** Pure: rooms in the situation's order (KC-0114; default mail, dagen, nyheder, skrive, others last) → numbered text and punkter. */
@@ -27,10 +36,11 @@ export function oversigtAf(rum: StemmeRum[], orden: readonly string[] = ORDEN): 
   const sorteret = rum.map((r, i) => ({ r, i })).sort((a, b) => plads(a.r.rum, orden) - plads(b.r.rum, orden) || a.i - b.i).map((x) => x.r);
   const punkter: Oversigt['punkter'] = [];
   for (const r of sorteret) for (const p of r.punkter) punkter.push({ ...p, rum: r.rum, nr: punkter.length + 1 });
-  const top = punkter.length === 0 ? 'Intet venter på dig lige nu.' : punkter.length === 1 ? 'Der venter én ting.' : `Der venter ${punkter.length} ting.`;
+  const t = stemmeTekst().oversigt;
+  const top = punkter.length === 0 ? t.intet : punkter.length === 1 ? t.en : t.flere(punkter.length);
   const linjer = [top, ...sorteret.map((r) => `${navn(r.rum)}: ${r.resume}`)];
   for (const p of punkter) {
-    const valg = p.valg.length ? ` Valg: ${p.valg.map((v) => `${v.label} (id ${p.rum}:${v.id})`).join(', ')}.` : '';
+    const valg = p.valg.length ? t.valg(p.valg.map((v) => `${v.label} (id ${p.rum}:${v.id})`).join(', ')) : '';
     linjer.push(`${p.nr}. ${p.sig}${valg}`);
   }
   return { tekst: linjer.join('\n'), punkter };
@@ -59,7 +69,8 @@ export function medKuratorKort(o: Oversigt, kort: readonly Kort[], person: Perso
   if (alle.length === 0) return o;
   const top = [...alle].sort((a, b) => a.prioritet - b.prioritet).slice(0, 3);
   const n = alle.length;
-  const lead = n === 1 ? 'Kuratoren har ét kort til dig.' : `Kuratoren har ${n} kort til dig.`;
+  const { kuratorEt, kuratorFlere } = stemmeTekst().oversigt;
+  const lead = n === 1 ? kuratorEt : kuratorFlere(n);
   return { ...o, tekst: [lead, ...top.map((k) => `${k.titel}: ${k.anbefaling}`), o.tekst].join('\n') };
 }
 

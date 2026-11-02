@@ -88,8 +88,10 @@ test('the rules file: the same rules read back from the file written in either l
   assert.deepEqual(parseRegler(engelsk), parseRegler(dansk));
   assert.deepEqual(parseRegler(engelsk).regler, saet.regler);
   assert.ok(engelsk.includes('My own words.'), 'the user\'s own text is never touched');
-  // Hermes' prompt never changes language: the rules section of it is Danish in a request in English, too.
-  assert.equal(en(() => reglerTilPrompt({ tilstand: 'ok', saet, aendretUdenfor: false })), reglerTilPrompt({ tilstand: 'ok', saet, aendretUdenfor: false }));
+  // KC-0241: Hermes' prompt follows the language of the run (src/tillid/prompt-tekster.ts); the rule's own text passes through.
+  const ok = { tilstand: 'ok', saet, aendretUdenfor: false } as const;
+  assert.match(reglerTilPrompt(ok), /^Regler Henrik har godkendt .*\n- R-0001 · trin 1 · mail \/ indbakke: Mail sorted — My own words\./);
+  assert.match(en(() => reglerTilPrompt(ok)), /^Rules the user has approved .*\n- R-0001 · step 1 · mail \/ indbakke: Mail sorted — My own words\./);
 });
 
 const VIDEN: Viden = {
@@ -119,7 +121,8 @@ test('a rules file that cannot be read: Danish reason in the data, English words
     assert.match(String(renderViden(v)), /Filen kan ikke læses \(linjen &quot;naeste-id: R-…&quot; mangler øverst i filen\)\./);
     assert.match(en(() => String(renderViden(v))), /The file cannot be read \(the line &quot;naeste-id: R-…&quot; is missing at the top of the file\)\. Until it is fixed, Hermes may only look and suggest\./);
     assert.match(reglerTilPrompt(laest), /Reglerne kunne ikke læses \(linjen "naeste-id: R-…" mangler øverst i filen\)/);
-    assert.match(en(() => reglerTilPrompt(laest)), /Reglerne kunne ikke læses/);
+    // KC-0241: the sentence follows the run's language, the reason stays Danish (data, like the file's own words).
+    assert.match(en(() => reglerTilPrompt(laest)), /The rules could not be read \(linjen "naeste-id: R-…" mangler øverst i filen\)/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

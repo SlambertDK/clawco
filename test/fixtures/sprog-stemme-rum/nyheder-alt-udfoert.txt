@@ -1,0 +1,5 @@
+{
+  "rum": "nyheder",
+  "resume": "Power prices fall. A new wind deal. The budget is tabled.",
+  "punkter": []
+}

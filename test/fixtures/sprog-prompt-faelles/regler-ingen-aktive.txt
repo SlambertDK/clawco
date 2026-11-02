@@ -1,0 +1,4 @@
+Regler Henrik har godkendt (hans egen tekst; hver gælder kun sin kilde og sit trin):
+Henrik har ingen aktive regler lige nu.
+Trinene: 0 se · 1 sortere · 2 føre regnskab · 3 forberede · 4 udføre med fortryd. Grænserne gælder altid, uanset regel.
+Alt, der ikke står i en aktiv regel her, må du kun se (trin 0) og foreslå; du gør det ikke af dig selv. Når du handler efter en regel, så henvis til dens id (fx "R-0001").

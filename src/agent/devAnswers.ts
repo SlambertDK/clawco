@@ -9,6 +9,11 @@ import { udenData, udpak } from './udtroet.ts';
 const henrik = (req: AgentRunRequest): string => udenData(req.input);
 const seg = (req: AgentRunRequest, kilde: string): string => udpak(req.input).find((d) => d.kilde === kilde)?.tekst ?? '';
 
+// KC-0241: the prompts follow the user's language, so a run is recognised by an anchor in either: `[da, en]` is the phrase the
+// prompt builders write in Danish and in English (the tables are the prompt-tekster.ts files beside the builders). The
+// answers stay as they are. test/agent/devanswers-engelsk.test.ts holds the two languages to the same answers.
+const har = (i: string, [da, en]: readonly [string, string]): boolean => i.includes(da) || i.includes(en);
+
 const DAGEN = {
   dato: new Date().toISOString().slice(0, 10),
   vejr: '7 °C, regn fra kl. 11',
@@ -70,13 +75,13 @@ h1{font-size:2.4rem;margin:0 0 12px}h2{font-size:1.8rem;margin:0 0 12px;color:#7
 </body></html>`;
 
 function universSvar(i: string, req: AgentRunRequest): string | null {
-  if (i.includes('Du forbereder et møde')) {
-    const titel = /Mødet: ([^\n]+)/.exec(seg(req, 'kalender'))?.[1]?.trim() || 'Mødet';
-    const navne = (/Deltagere: ([^\n]+)/.exec(seg(req, 'kalender'))?.[1] ?? '').split(',').map((x) => x.replace(/<[^>]*>/g, '').trim()).filter((x) => x && !/^ingen noteret/.test(x));
-    const onske = /Henriks ønske til mødet: ([^\n]+)/.exec(henrik(req))?.[1]?.trim();
+  if (har(i, ['Du forbereder et møde', 'You are preparing a meeting'])) {
+    const titel = /(?:Mødet|Meeting): ([^\n]+)/.exec(seg(req, 'kalender'))?.[1]?.trim() || 'Mødet';
+    const navne = (/(?:Deltagere|Participants): ([^\n]+)/.exec(seg(req, 'kalender'))?.[1] ?? '').split(',').map((x) => x.replace(/<[^>]*>/g, '').trim()).filter((x) => x && !/^(?:ingen noteret|none noted)/.test(x));
+    const onske = /(?:Henriks ønske til mødet|The user's wish for the meeting): ([^\n]+)/.exec(henrik(req))?.[1]?.trim();
     const [a, b] = [navne[0] ?? 'Jonas Holm', navne[1] ?? 'Line Berg'];
     const forberedelse = {
-      maal: onske && !onske.startsWith('(ikke oplyst') ? onske : 'Få afklaret, hvad der forventes af dig i den nye rolle (gæt: Hermes kender ikke dit mål endnu).',
+      maal: onske && !/^\((?:ikke oplyst|not given)/.test(onske) ? onske : 'Få afklaret, hvad der forventes af dig i den nye rolle (gæt: Hermes kender ikke dit mål endnu).',
       deltagere: [
         { navn: a, hvem: 'Din leder (gæt, tjek kartoteket)', baggrund: 'Har været i huset i otte år og kender driften godt.', vil: 'Sandsynligvis høre, hvordan du vil gribe de første 100 dage an.' },
         { navn: b, hvem: 'Kollega fra driften (gæt)', baggrund: 'Ansvarlig for vinterberedskabet.', vil: 'Sandsynligvis sikre, at dine planer ikke ændrer deres prioriteter.' },
@@ -87,7 +92,7 @@ function universSvar(i: string, req: AgentRunRequest): string | null {
     };
     return 'Her er forberedelsen. Det, jeg har gættet, er markeret som gæt.\n```json\n' + JSON.stringify({ forberedelse }) + '\n```';
   }
-  if (i.includes('Du arbejder i Univers-oversigten')) {
+  if (har(i, ['Du arbejder i Univers-oversigten', 'You are working in the Universes overview'])) {
     if (/univers/i.test(henrik(req)) && /lav|opret|nyt/i.test(henrik(req))) {
       const emne = /om (?:min |mit |en |et )?([^.!?\n]{2,40})/i.exec(henrik(req))?.[1]?.trim() ?? 'Mit emne';
       const navn = emne.charAt(0).toUpperCase() + emne.slice(1);
@@ -95,9 +100,9 @@ function universSvar(i: string, req: AgentRunRequest): string | null {
     }
     return 'Fake Hermes: du har et univers pr. emne. Åbn et for at arbejde i det, eller bed mig om at lave et nyt.';
   }
-  if (i.includes('Du arbejder i ét univers')) {
+  if (har(i, ['Du arbejder i ét univers', 'You are working in one universe'])) {
     if (/\b(hvad|hvem|hvornår|hvorfor|hvordan)\b/i.test(henrik(req)) && !/lav|skriv|tilføj|opret|gør/i.test(henrik(req))) {
-      const om = /Om: ([^"\n]+)"/.exec(req.input)?.[1];
+      const om = /(?:Om|About): ([^"\n]+)"/.exec(req.input)?.[1];
       return om ? `Om "${om}": fake Hermes svarer her. På kira-home ville jeg slå det op i vaulten og kartoteket.` : 'Fake Hermes: jeg ser universet, men kører uden model her på Mac\'en.';
     }
     const kort = henrik(req).slice(0, 60);
@@ -110,20 +115,20 @@ export function devAnswer(req: AgentRunRequest): string {
   const i = req.instructions;
   const univers = universSvar(i, req);
   if (univers !== null) return univers;
-  if (i.includes('Du er Kuratoren')) return 'Her er kortene.\n```json\n' + JSON.stringify(KURATOR) + '\n```';
-  if (i.includes('har lukket et kort fra Kuratoren')) return 'Noteret i hukommelsen (fake Hermes, intet er gemt rigtigt).';
-  if (i.includes('trykket "Fortryd"')) return 'Gjort om: ' + seg(req, 'fortryd').slice(0, 120);
-  if (i.includes('gem den som kladde')) return 'Kladden ligger i Drafts (fake Hermes, intet er gemt rigtigt).';
-  if (i.includes('Henrik har godkendt')) return 'Sendt (fake Hermes, intet er sendt rigtigt).';
-  if (i.includes('baggrundsopgave')) return 'Flyttet (fake Hermes).';
-  if (i.includes('trykket på knappen')) return 'Gjort: ' + seg(req, 'handling').slice(0, 140) + ' (fake Hermes, intet er ændret i den rigtige kalender eller post.)';
-  if (i.includes('første udkast')) return 'Her er udkastet.\n```json\n' + JSON.stringify({ titel: /Titel: ([^\n(]+)/.exec(henrik(req))?.[1]?.trim() || 'Udkast', afsnit: ['Hej Tom.', 'Fra december strammer vi reserverne, fordi vinteren ser ud til at blive kold og tør. Det betyder, at vi holder lidt mere kapacitet tilbage end sidste år.', 'Jeg sender tallene, så snart driften har godkendt dem. Sig til, hvis du vil have dem før.'], kilder: ['Eksempel Energi-rapport om reserver, okt. 2026'] }) + '\n```';
-  if (i.includes('afsnit-id\'er i klammer') && i.includes('"forslag"') && !i.includes('Regler for chatten')) { const id = /afsnitId: (a\d+)/.exec(henrik(req))?.[1] ?? 'a2'; return '```json\n' + JSON.stringify({ forslag: [{ afsnitId: id, ny: 'Fra december holder vi 15 % mere reservekapacitet tilbage end sidste vinter, fordi prognosen er kold og tør.', hvorfor: 'Konkret tal, kortere sætning.' }] }) + '\n```'; }
-  if (i.includes('Regler for chatten') && i.includes('"forslag"') && /varm|kort|konkret|stram|skriv/i.test(henrik(req))) return 'Her er et forslag.\n```json\n' + JSON.stringify({ forslag: [{ afsnitId: 'a3', ny: 'Skriv endelig, så sender jeg tallene med det samme.', hvorfor: 'Varmere afslutning.' }] }) + '\n```';
-  if (i.includes('rummet "Nyheder"') && i.includes('Svar med præcis dette skema')) return 'Her er avisen.\n```json\n' + JSON.stringify({ femLinjer: ['Eksempel Energi strammer reserverne til vinter; det er dit eget system, der skifter gear.', 'Agentmodellerne rykker: open-weight matcher nu lukkede på værktøjsbrug.', 'Anthropic lægger en del af overskuddet i almennyttige formål.', 'Ny udbudsrunde for fleksibilitet åbner i november.', 'Reddit-kilderne er blokeret i dag, så AI-banen er tyndere end normalt.'], baner: [{ navn: 'Energi', nyheder: [{ titel: 'Eksempel Energi strammer reserver i vinter', hvorfor: 'Strammere krav til reservekapacitet fra december.', kilde: 'Eksempel Energi', url: 'https://example.org/eksempel-energi/reserver', relevans: [{ for: 'arbejde', note: 'Det er dit eget system; ligger i materialet til mødet med driften.' }, { for: 'danmark', note: 'Kan give højere elpriser i kolde uger.' }] }, { titel: 'Ny udbudsrunde for fleksibilitet', hvorfor: 'Åbner i november; ingen handling i dag.', kilde: 'Eksempel Energi', url: 'https://example.org/eksempel-energi/udbud' }] }, { navn: 'AI og agenter', nyheder: [{ titel: 'Open-weight agent model matches closed models on tool use', hvorfor: 'Ny åben model på niveau med lukkede til værktøjsbrug.', kilde: 'r/LocalLLaMA', url: 'https://example.org/r/agents', relevans: [{ for: 'projekter', note: 'Kandidat til kira-home, hvis den kører lokalt på 16 GB.' }, { for: 'holdning', note: 'Styrker din linje om åbne modeller i eget hus.' }] }, { titel: 'Agent SDK guide', hvorfor: 'Relevant for næste rum i kontrolcentret.', kilde: 'Anthropic', url: 'https://example.org/anthropic/sdk' }] }], forslag: [{ tekst: 'Reddit blokerer serveren. Skal jeg skifte de fire r/-kilder til deres RSS-feeds?', handling: { label: 'Ja, skift til RSS', instruktion: 'Ret morgenavis_fetch.py så r/-kilderne hentes via RSS (.rss-endpoint) i stedet for JSON-API.', fortryd: 'Sæt morgenavis_fetch.py tilbage til JSON-API for r/-kilderne.' } }], hermesStatus: 'Følger energi og agenter' }) + '\n```';
-  if (i.includes('rummet "Mail"') && i.includes('svar med præcis dette skema')) return 'Her er beslutningerne.\n```json\n' + JSON.stringify(MAIL) + '\n```';
-  if (i.includes('"treLinjer": ["linje 1"')) return 'Her er dagen.\n```json\n' + JSON.stringify(DAGEN) + '\n```';
+  if (har(i, ['Du er Kuratoren', 'You are the Curator'])) return 'Her er kortene.\n```json\n' + JSON.stringify(KURATOR) + '\n```';
+  if (har(i, ['har lukket et kort fra Kuratoren', 'has closed a card from the Curator'])) return 'Noteret i hukommelsen (fake Hermes, intet er gemt rigtigt).';
+  if (har(i, ['trykket "Fortryd"', 'pressed "Undo"'])) return 'Gjort om: ' + seg(req, 'fortryd').slice(0, 120);
+  if (har(i, ['gem den som kladde', 'save it as a draft'])) return 'Kladden ligger i Drafts (fake Hermes, intet er gemt rigtigt).';
+  if (har(i, ['Henrik har godkendt', 'The user has approved the reply'])) return 'Sendt (fake Hermes, intet er sendt rigtigt).';
+  if (har(i, ['baggrundsopgave', 'background task'])) return 'Flyttet (fake Hermes).';
+  if (har(i, ['trykket på knappen', 'has pressed the button'])) return 'Gjort: ' + seg(req, 'handling').slice(0, 140) + ' (fake Hermes, intet er ændret i den rigtige kalender eller post.)';
+  if (har(i, ['første udkast', 'first draft'])) return 'Her er udkastet.\n```json\n' + JSON.stringify({ titel: /(?:Titel|Title): ([^\n(]+)/.exec(henrik(req))?.[1]?.trim() || 'Udkast', afsnit: ['Hej Tom.', 'Fra december strammer vi reserverne, fordi vinteren ser ud til at blive kold og tør. Det betyder, at vi holder lidt mere kapacitet tilbage end sidste år.', 'Jeg sender tallene, så snart driften har godkendt dem. Sig til, hvis du vil have dem før.'], kilder: ['Eksempel Energi-rapport om reserver, okt. 2026'] }) + '\n```';
+  if (har(i, ["afsnit-id'er i klammer", 'paragraph ids in brackets']) && i.includes('"forslag"') && !har(i, ['Regler for chatten', 'Rules for the chat'])) { const id = /afsnitId: (a\d+)/.exec(henrik(req))?.[1] ?? 'a2'; return '```json\n' + JSON.stringify({ forslag: [{ afsnitId: id, ny: 'Fra december holder vi 15 % mere reservekapacitet tilbage end sidste vinter, fordi prognosen er kold og tør.', hvorfor: 'Konkret tal, kortere sætning.' }] }) + '\n```'; }
+  if (har(i, ['Regler for chatten', 'Rules for the chat']) && i.includes('"forslag"') && /varm|kort|konkret|stram|skriv/i.test(henrik(req))) return 'Her er et forslag.\n```json\n' + JSON.stringify({ forslag: [{ afsnitId: 'a3', ny: 'Skriv endelig, så sender jeg tallene med det samme.', hvorfor: 'Varmere afslutning.' }] }) + '\n```';
+  if (har(i, ['rummet "Nyheder"', 'the room "News"']) && har(i, ['Svar med præcis dette skema', 'Answer with exactly this schema'])) return 'Her er avisen.\n```json\n' + JSON.stringify({ femLinjer: ['Eksempel Energi strammer reserverne til vinter; det er dit eget system, der skifter gear.', 'Agentmodellerne rykker: open-weight matcher nu lukkede på værktøjsbrug.', 'Anthropic lægger en del af overskuddet i almennyttige formål.', 'Ny udbudsrunde for fleksibilitet åbner i november.', 'Reddit-kilderne er blokeret i dag, så AI-banen er tyndere end normalt.'], baner: [{ navn: 'Energi', nyheder: [{ titel: 'Eksempel Energi strammer reserver i vinter', hvorfor: 'Strammere krav til reservekapacitet fra december.', kilde: 'Eksempel Energi', url: 'https://example.org/eksempel-energi/reserver', relevans: [{ for: 'arbejde', note: 'Det er dit eget system; ligger i materialet til mødet med driften.' }, { for: 'danmark', note: 'Kan give højere elpriser i kolde uger.' }] }, { titel: 'Ny udbudsrunde for fleksibilitet', hvorfor: 'Åbner i november; ingen handling i dag.', kilde: 'Eksempel Energi', url: 'https://example.org/eksempel-energi/udbud' }] }, { navn: 'AI og agenter', nyheder: [{ titel: 'Open-weight agent model matches closed models on tool use', hvorfor: 'Ny åben model på niveau med lukkede til værktøjsbrug.', kilde: 'r/LocalLLaMA', url: 'https://example.org/r/agents', relevans: [{ for: 'projekter', note: 'Kandidat til kira-home, hvis den kører lokalt på 16 GB.' }, { for: 'holdning', note: 'Styrker din linje om åbne modeller i eget hus.' }] }, { titel: 'Agent SDK guide', hvorfor: 'Relevant for næste rum i kontrolcentret.', kilde: 'Anthropic', url: 'https://example.org/anthropic/sdk' }] }], forslag: [{ tekst: 'Reddit blokerer serveren. Skal jeg skifte de fire r/-kilder til deres RSS-feeds?', handling: { label: 'Ja, skift til RSS', instruktion: 'Ret morgenavis_fetch.py så r/-kilderne hentes via RSS (.rss-endpoint) i stedet for JSON-API.', fortryd: 'Sæt morgenavis_fetch.py tilbage til JSON-API for r/-kilderne.' } }], hermesStatus: 'Følger energi og agenter' }) + '\n```';
+  if (har(i, ['rummet "Mail"', 'the room "Mail"']) && har(i, ['svar med præcis dette skema', 'answer with exactly this schema'])) return 'Her er beslutningerne.\n```json\n' + JSON.stringify(MAIL) + '\n```';
+  if (har(i, ['"treLinjer": ["linje 1"', '"treLinjer": ["line 1"'])) return 'Her er dagen.\n```json\n' + JSON.stringify(DAGEN) + '\n```';
   if (/flyt/i.test(henrik(req))) return 'Jeg har flyttet mødet til 11.00 i rummet.\n```json\n{"opdater": {"kalender": [{"tid": "11.00", "slut": "12.00", "titel": "Driften: vinterberedskab", "status": "flyttet"}]}}\n```';
-  const om = /Om: ([^"\n]+)"/.exec(req.input)?.[1];
+  const om = /(?:Om|About): ([^"\n]+)"/.exec(req.input)?.[1];
   return om ? `Om "${om}": fake Hermes svarer her. På kira-home ville jeg slå det op i kalenderen og materialet.` : 'Fake Hermes: jeg kører uden model her på Mac\'en. På kira-home svarer den rigtige Hermes.';
 }

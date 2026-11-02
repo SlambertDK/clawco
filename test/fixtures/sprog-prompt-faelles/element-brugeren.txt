@@ -1,0 +1,8 @@
+[
+ {
+  "kilde": "element",
+  "zone": "husstand",
+  "tillid": "afledt",
+  "tekst": "Brugeren peger på et element: \"Om: Mødet kl. 10\"."
+ }
+]

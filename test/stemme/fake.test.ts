@@ -78,3 +78,9 @@ test('ensureAgent and ensureVoice return fake ids', async () => {
   assert.equal(await s.ensureVoice(), 'fake-voice');
   assert.equal(await s.ensureVoice(''), 'fake-voice');
 });
+
+test('KC-0241: the fake accepts a language on lyt and sig', async () => {
+  const s = createFakeStemme();
+  assert.equal(await s.lyt(new Uint8Array([1]), 'audio/webm', [], 'en'), 'Hvad venter på mig i dag?');
+  assert.equal((await s.sig('hello', 'v', 'en')).contentType, 'audio/wav');
+});
