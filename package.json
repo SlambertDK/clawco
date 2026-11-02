@@ -25,7 +25,8 @@
     "beta:invitation": "node scripts/beta-invitation.mjs",
     "beta:rapport": "node scripts/beta-rapport.mjs",
     "koldstart": "node --test test/testtilstand/koldstart.test.ts",
-    "docker:tjek": "node scripts/docker-tjek.mjs"
+    "docker:tjek": "node scripts/docker-tjek.mjs",
+    "katalog:a2ui": "node scripts/katalog-a2ui.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.5",

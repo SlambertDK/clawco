@@ -429,7 +429,7 @@ test('security: the data-flow list names every host the code reaches, and the pa
   gaa(path.join(ROD, 'src'));
   const vaert = new Set<string>();
   for (const f of filer) for (const m of readFileSync(f, 'utf8').matchAll(/https?:\/\/([a-z0-9][a-z0-9.-]*\.[a-z]{2,})/gi)) vaert.add(m[1]!.toLowerCase());
-  const LINKS = new Set(['example.org', 'example.com', 'json-schema.org', 'www.w3.org', 'clawco.work', 'claude.ai', 'tailscale.com', 'login.tailscale.com']);
+  const LINKS = new Set(['example.org', 'example.com', 'json-schema.org', 'a2ui.org', 'www.w3.org', 'clawco.work', 'claude.ai', 'tailscale.com', 'login.tailscale.com']);
   const ud = [...vaert].filter((h) => !LINKS.has(h) && !h.endsWith('.example') && !h.endsWith('.localhost') && h !== 'localhost').sort();
   assert.ok(ud.length >= 8, `the code names ${ud.length} outside hosts`);
   const side = dok('docs/security.html');
