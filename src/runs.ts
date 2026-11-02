@@ -80,6 +80,8 @@ type StartOpts = {
   room?: string;
   label?: string;
   tier?: Tier;
+  /** KC-0226: the one data zone this run reads (a Kuratoren run per zone); absent = privat, as before. It decides who sees the run in the Kø panel. */
+  zone?: DataZone;
   spec: { input: string; instructions: string; sessionId?: string };
   /** Turns Hermes' final text into what the browser needs. May throw. */
   onDone: (output: string) => Promise<DoneResult>;
@@ -181,6 +183,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
     const rec: RunRecord & { events: RunEvent[]; listeners: Set<(e: RunEvent) => void> } = { id, kind: o.kind, status: 'queued', hosHermes: true, startedAt: nu().getTime(), finished, events: [], listeners: new Set() };
     if (o.room) rec.room = o.room;
     if (o.label) rec.label = o.label;
+    if (o.zone) rec.zone = o.zone;
     runs.set(id, rec); order.set(id, ++seq);
 
     // KC-0124: settled once — by the run itself, or at once by "Stop alt" (the run's own ending is then dropped).

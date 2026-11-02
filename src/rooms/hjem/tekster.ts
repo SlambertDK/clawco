@@ -62,6 +62,8 @@ const da = {
   // Cards
   kortet: (titel: string): string => `Kortet: ${titel}`,
   typeLabel: { tjeneste: 'Tjeneste', familie: 'Fra familien', regning: 'Regning', nyhed: 'Nyhed' } as Record<KortType, string>,
+  /** KC-0226: a message card in the arbejde zone (type familie) is from work, not from the family. */
+  fraArbejdet: 'Fra arbejdet',
   anbefaling: 'Anbefaling',
   kilder: 'Kilder: ',
   hvorfor: 'Hvorfor?',
@@ -194,6 +196,7 @@ const en: HjemTekster = {
 
   kortet: (titel) => `Card: ${titel}`,
   typeLabel: { tjeneste: 'Service', familie: 'From the family', regning: 'Bill', nyhed: 'News' },
+  fraArbejdet: 'From work',
   anbefaling: 'Recommendation',
   kilder: 'Sources: ',
   hvorfor: 'Why?',

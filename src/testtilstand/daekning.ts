@@ -75,6 +75,9 @@ const HAAND: [string, string][] = [
   ['kilde-beskeder-samtale', 'data-kilde-samtale="'],                // KC-0224: Beskeder' conversations by name in Kilder in Kø, Ella and Maja chosen, the street's group not (from "Aften")
   ['kilde-beskeder-valg', 'data-kilde-samtale-valg="'],              // KC-0224: the checkbox that chooses or un-chooses a conversation after the connection
   ['kilde-beskeder-besked', 'data-besked-kanal="'],                  // KC-0138: a card in Nu on one message, sender by name, "Clawco læser kun" (Ella on Signal, "Aften")
+  ['kort-besked-arbejde', 'data-kort-type="familie" data-datazone="arbejde"'], // KC-0226: a card on one message from an arbejde conversation (Clara on Telegram), zone chip beside the others ("Aften")
+  ['kort-besked-husstand', 'data-kort-type="familie" data-datazone="husstand"'], // KC-0226: the same from a husstand conversation (Maja on WhatsApp)
+  ['kort-fra-arbejdet', 'Fra arbejdet'],                              // KC-0226: the arbejde message card's kind label is not "Fra familien"
   ['kilde-beskeder-log-ind-igen', 'Hermes har mistet en af dine beskedkanaler'], // KC-0138: Signal is gone from Hermes overnight — Nu's connection card in the fixed words (the moment "Lørdag i næste uge")
   // Not in the world: Beskeder's connect card in Start (the day is past onboarding, and in the cold start the pile offers
   // it last). Its states (no channel, conversations to choose, chosen) are held by test/kilder/beskeder/kilde.test.ts.

@@ -75,7 +75,7 @@ async function opsaet(answer: (req: AgentRunRequest) => string, beskeder: Kurato
   runs.setModels({ lille: 'model-lille', taenker: 'model-taenker' });
   const store = createFileStore(join(rod, 'data'));
   const d = { store, hermes, runs, live: createLiveBus(), now: () => NOW, mailRunner: ingenMail, himalaya: 'himalaya', vaultInbox: join(rod, 'vault', '00-Indbakke'), vaultRod: join(rod, 'vault'), regnskabsfil: (h: 'shelfatlas' | 'privat') => regnskabsfil(join(rod, 'vault'), h), beskeder: async () => beskeder } as unknown as RoomDeps;
-  return { d, hermes, store, ryd: () => rm(rod, { recursive: true, force: true }) };
+  return { d, hermes, store, runs, ryd: () => rm(rod, { recursive: true, force: true }) };
 }
 
 test('injection: Hermes obeys the message and proposes "forward all mail" — the stored card has no handling', async () => {
@@ -99,10 +99,16 @@ test('injection: Hermes obeys the message and proposes "forward all mail" — th
   } finally { await t.ryd(); }
 });
 
-test('only privat-zone messages reach the privat Kuratoren run; another zone is never sent', async () => {
-  const t = await opsaet(() => '```json\n{"kort":[],"vurderinger":[],"intet":[]}\n```', [ARBEJDE]);
+test('KC-0226: an arbejde message never reaches the privat run: it starts an arbejde run of its own, which reads that zone only', async () => {
+  const t = await opsaet(() => '```json\n{"kort":[],"vurderinger":[],"intet":[]}\n```', [ARBEJDE, BESKED]);
   try {
-    assert.equal(await startKurator(t.d, { dyb: false, nyheder: null }), null);
-    assert.equal(t.hermes.calls.length, 0);
+    assert.ok(await startKurator(t.d, { dyb: false, nyheder: null }));
+    await Promise.all(t.runs.list().map((r) => r.finished));
+    assert.equal(t.hermes.calls.length, 2);
+    const alle = t.hermes.calls.map((c) => `${c.instructions}\n${c.input}`);
+    const privat = alle.find((x) => x.includes('Zone: privat.')) ?? '';
+    const arbejde = alle.find((x) => x.includes('Zone: arbejde.')) ?? '';
+    assert.ok(privat.includes('Maja (din kone)') && !privat.includes('Arbejdsting') && !privat.includes('Clara'));
+    assert.ok(arbejde.includes('Arbejdsting') && !arbejde.includes('Maja (din kone)'));
   } finally { await t.ryd(); }
 });

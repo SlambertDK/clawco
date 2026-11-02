@@ -13,7 +13,7 @@ import { chatSvar } from './samtale.ts';
 import { dagenRaa, OPFOELGNING, STATUS_EFTER_AFTEN } from './dagen.ts';
 import { AFSENDER, gmailRaa, mailRaa } from './mail.ts';
 import { nyhederRaa } from './nyheder.ts';
-import { koldKuratorRaa, kuratorRaa, MOENSTER, regelforslagTil } from './hjem.ts';
+import { koldKuratorRaa, kuratorRaa, MOENSTER, regelforslagTil, zoneKuratorRaa } from './hjem.ts';
 import { erKold, importSvar } from './start.ts';
 import { IMPORT_MARKOER } from '../../rooms/start/import/foreslaa.ts';
 import { opfoelgningAfsnit, OPFOELGNING_KILDER } from './skrive.ts';
@@ -167,7 +167,11 @@ export function svar(req: AgentRunRequest, ctx: SvarKontekst): string {
   if (i.includes('Du forbereder et møde')) return forberedSvar(req, f);
   if (i.includes('Du arbejder i Univers-oversigten')) return oversigtChat(req, n, f);
   if (i.includes('Du arbejder i ét univers')) return universChat(req, n, f);
-  if (i.includes('Du er Kuratoren')) return fenced('Her er kortene.', kold ? koldKuratorRaa(f) : kuratorRaa(hel, f));
+  if (i.includes('Du er Kuratoren')) {
+    // KC-0226: a run over one other zone (the prompt's zone line) gets that zone's message card; the privat run the rest.
+    const zone = /Zone: (arbejde|husstand)\./.exec(i)?.[1] as 'arbejde' | 'husstand' | undefined;
+    return fenced('Her er kortene.', zone ? zoneKuratorRaa(zone, hel, f) : kold ? koldKuratorRaa(f) : kuratorRaa(hel, f));
+  }
   if (i.includes('har lukket et kort fra Kuratoren')) {
     const grund = /Henriks grund: ([^\n]+)/.exec(input)?.[1]?.trim() ?? '';
     const noteret = grund ? `Noteret i min hukommelse: "${grund.slice(0, 80)}". Jeg tager det ikke op igen.` : 'Noteret. Jeg tager det ikke op igen.';

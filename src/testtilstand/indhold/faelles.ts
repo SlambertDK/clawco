@@ -15,6 +15,8 @@ export type Raa = Record<string, unknown>;
 export type LogPost = {
   fra: number; hhmm?: string; plus?: number; ved?: string; kilde: Kilde; tekst: string; handlingId?: string; fortryd?: string;
   fortrudt?: { fra: number; hhmm: string };
+  /** KC-0226: the zone of the line (a Kuratoren run over arbejde or husstand); absent = privat. */
+  zone?: 'arbejde' | 'husstand';
 };
 
 export function logFra(rum: string, poster: LogPost[], n: number, f: Fakta): LogEntry[] {
@@ -23,6 +25,7 @@ export function logFra(rum: string, poster: LogPost[], n: number, f: Fakta): Log
     const e: LogEntry = { id: `test-${rum}-${String(i + 1).padStart(2, '0')}`, tid: p.ved ?? f.iso(p.hhmm ?? '00:00', p.plus ?? 0), kilde: p.kilde, tekst: p.tekst };
     if (p.handlingId) e.handlingId = p.handlingId;
     if (p.fortryd) e.fortryd = p.fortryd;
+    if (p.zone) e.zone = p.zone;
     if (p.fortrudt && p.fortrudt.fra <= n) e.fortrudt = f.iso(p.fortrudt.hhmm);
     return [e];
   });

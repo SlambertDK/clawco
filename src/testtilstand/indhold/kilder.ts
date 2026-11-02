@@ -230,23 +230,39 @@ export function rssStatus(momentId: string): KildeStatus {
 
 // ---------- KC-0138: messages that reached Hermes (the world's inbound log, as the gateway hook writes it) ----------
 
-/** The three conversations Hermes sees (four lines: Ella wrote twice) in the world, from the moment each first wrote (numbers and ids are invented). */
+/** The four conversations Hermes sees in the world (Ella wrote twice), from the moment each first wrote (numbers and ids are invented). KC-0226: one per zone — Clara at work (arbejde), Maja in the household (husstand), Ella (privat); the group is not chosen. */
 const BESKEDER: { fra: number; hhmm: string; r: Omit<RaaBesked, 'tid'> }[] = [
   { fra: 0, hhmm: '06:40', r: { kanal: 'whatsapp', samtale: '+4500000001', gruppe: false, afsender: '+4500000001', afsenderNavn: 'Maja', tekst: 'Jeg sover til kl. 14 efter nattevagten.' } },
   { fra: 1, hhmm: '08:10', r: { kanal: 'telegram', samtale: '-1000000003', gruppe: true, afsender: '5000000004', afsenderNavn: 'Søren', samtaleNavn: 'Vejens grillaften', tekst: 'Grillaften lørdag kl. 18 hos nr. 12?' } },
+  // KC-0226: a colleague on Telegram (the conversation is put in arbejde) and Maja again on WhatsApp (husstand): each asks Henrik something.
+  { fra: 5, hhmm: '18:20', r: { kanal: 'telegram', samtale: '5000000005', gruppe: false, afsender: '5000000005', afsenderNavn: 'Clara Holm', tekst: 'Kan du læse udkastet til ruten for Havvind Nord inden fredag? Jeg har lagt det i fællesmappen.' } },
+  { fra: 5, hhmm: '19:10', r: { kanal: 'whatsapp', samtale: '+4500000001', gruppe: false, afsender: '+4500000001', afsenderNavn: 'Maja', tekst: 'Ella har svømning torsdag kl. 16.30. Kan du køre hende, eller skal jeg bytte vagt?' } },
   // KC-0225: the channel gives no display name here, only the number: Ella's register entry names her.
   { fra: 5, hhmm: '19:35', r: { kanal: 'signal', samtale: '+4500000002', gruppe: false, afsender: '+4500000002', tekst: 'Jeg er hjemme om en halv time.' } },
   { fra: 5, hhmm: '19:50', r: { kanal: 'signal', samtale: '+4500000002', gruppe: false, afsender: '+4500000002', afsenderNavn: 'Ella', tekst: 'Må jeg tage cyklen i skole i morgen? Det skal ikke regne.' } },
 ];
 const raaBesked = (b: (typeof BESKEDER)[number], f: Fakta): RaaBesked => ({ ...b.r, tid: f.iso(b.hhmm) });
-/** The moment the conversations are chosen on the card: Ella's privat (so Kuratoren reads her), Maja's in the household. */
+/** The moment the conversations are chosen on the card: Ella's privat, Clara's arbejde and Maja's husstand (so a Kuratoren run reads each in its own zone). */
 export const BESKEDER_FRA = 5;
-const BESKED_VALG: Record<string, string> = { [samtaleNoegle('signal', '+4500000002')]: 'privat', [samtaleNoegle('whatsapp', '+4500000001')]: 'husstand' };
-/** Ella's question as Kuratoren gets it: the id the connector gives her line, and her name from the register. */
-export const ellasBesked = (f: Fakta): { id: string; kanal: string; samtaleNavn: string; afsender: { navn: string }; tid: string; tekst: string } => {
-  const r = raaBesked(BESKEDER[3]!, f);
-  return { id: tilBesked(r, { kontakter: [], zone: 'privat' }).id ?? '', kanal: r.kanal, samtaleNavn: 'Ella', afsender: { navn: 'Ella (familie)' }, tid: r.tid, tekst: r.tekst };
+const BESKED_VALG: Record<string, string> = {
+  [samtaleNoegle('signal', '+4500000002')]: 'privat',
+  [samtaleNoegle('whatsapp', '+4500000001')]: 'husstand',
+  [samtaleNoegle('telegram', '5000000005')]: 'arbejde', // KC-0226
 };
+type KuratorBeskedSet = { id: string; kanal: string; samtaleNavn: string; afsender: { navn: string }; tid: string; tekst: string };
+/** One of the world's lines as a Kuratoren run gets it: the id the connector gives it, and the sender's name from the register. */
+const besked = (hvem: string, tekst: RegExp | undefined, samtaleNavn: string, navn: string, f: Fakta): KuratorBeskedSet => {
+  const b = BESKEDER.find((x) => x.r.afsenderNavn === hvem && (!tekst || tekst.test(x.r.tekst)));
+  if (!b) throw new Error(`ingen besked fra ${hvem} i testverdenen`);
+  const r = raaBesked(b, f);
+  return { id: tilBesked(r, { kontakter: [], zone: 'privat' }).id ?? '', kanal: r.kanal, samtaleNavn, afsender: { navn }, tid: r.tid, tekst: r.tekst };
+};
+/** Ella's question (privat). */
+export const ellasBesked = (f: Fakta): KuratorBeskedSet => besked('Ella', /cyklen/, 'Ella', 'Ella (familie)', f);
+/** KC-0226: Clara's request (the arbejde conversation). */
+export const clarasBesked = (f: Fakta): KuratorBeskedSet => besked('Clara Holm', undefined, 'Clara Holm', 'Clara Holm (kollega)', f);
+/** KC-0226: Maja's question about Thursday (the husstand conversation). */
+export const majasBesked = (f: Fakta): KuratorBeskedSet => besked('Maja', /svømning/, 'Maja', 'Maja (familie)', f);
 /** The hook's two files at moment `n`: the log lines written so far, and the channels the gateway came up with. */
 export function beskedFroe(n: number, f: Fakta, momentId = ''): { log: string; status: string } {
   const log = BESKEDER.filter((b) => b.fra <= n).map((b) => `${JSON.stringify(raaBesked(b, f))}\n`).join('');

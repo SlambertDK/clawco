@@ -1570,7 +1570,7 @@ export function createApp(deps: AppDeps) {
     const egneIds = new Set(egne.slice(0, 8).map((e) => e.id));
     // Only Hjem's own entries can be undone from Hjem; the other rooms' lines are shown plain.
     const hermes = [...logs.flat(), ...egne.slice(0, 8)].sort((a, b) => b.tid.localeCompare(a.tid)).slice(0, 10)
-      .map((e) => ({ ...(e.graense ? { graense: e.graense } : {}), ...(egneIds.has(e.id) ? { tid: e.tid, tekst: e.tekst, id: e.id, ...(e.handlingId ? { handlingId: e.handlingId } : {}), ...(e.fortryd ? { fortryd: e.fortryd } : {}), ...(e.fortrudt ? { fortrudt: e.fortrudt } : {}) } : { tid: e.tid, tekst: e.tekst }) }));
+      .map((e) => ({ ...(e.graense ? { graense: e.graense } : {}), ...(e.zone ? { zone: e.zone } : {}), ...(e.ejer ? { ejer: e.ejer } : {}), ...(egneIds.has(e.id) ? { tid: e.tid, tekst: e.tekst, id: e.id, ...(e.handlingId ? { handlingId: e.handlingId } : {}), ...(e.fortryd ? { fortryd: e.fortryd } : {}), ...(e.fortrudt ? { fortrudt: e.fortrudt } : {}) } : { tid: e.tid, tekst: e.tekst }) }));
     const hermesStatus = (await getRoomModule(DAGEN)?.view(d))?.hermesStatus ?? tekst().klar;
     // KC-0088: the earliest next appointment any room offers (today only Dagen does).
     const naeste = (await Promise.all(ROOM_MODULES.map((m) => m.naeste?.(d) ?? null))).filter((n) => n !== null).sort((a, b) => a.start.localeCompare(b.start))[0];

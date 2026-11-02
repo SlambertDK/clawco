@@ -276,8 +276,17 @@ async function kald(m: Moment, dag = DAG): Promise<Kald[]> {
   const hjem = state<KuratorState>(f, 'hjem') as KuratorState;
   ud.push({ navn: 'kuratoren', req: buildKuratorRun({ mails: [], nyheder: ['x'], aabne: hjem.kort, dyb: false, now: d, stier: { vault: '' } }), tjek: (s) => {
     const p = parseKuratorSvar(extractJson(s));
-    assert.deepEqual(p.nye.map(udenAppFelter), hjem.kort.map(udenAppFelter), `${m.id}: Kuratoren står ved kortene`);
+    // KC-0226: the cards on a message of another zone are the zone runs' (below), not the privat run's.
+    assert.deepEqual(p.nye.map(udenAppFelter), hjem.kort.filter((k) => !k.id.startsWith('besked:')).map(udenAppFelter), `${m.id}: Kuratoren står ved kortene`);
   } });
+  // KC-0226: a run over one other zone gets a scripted answer the zone's parser accepts, and the stored zone cards are exactly what it stands by.
+  for (const zone of ['arbejde', 'husstand'] as const) {
+    ud.push({ navn: `kuratoren ${zone}`, req: buildKuratorRun({ mails: [], nyheder: null, aabne: hjem.kort, dyb: false, now: d, stier: { vault: '' }, zone, beskeder: [] }), tjek: (s) => {
+      const p = parseKuratorSvar(extractJson(s), zone);
+      assert.deepEqual(p.nye.map((k) => k.id), hjem.kort.filter((k) => k.id.startsWith('besked:') && k.zone === zone).map((k) => k.id), `${m.id}: zonekørslen ${zone} står ved sit kort`);
+      for (const k of p.nye) { assert.equal(k.zone, zone); assert.equal(k.handling, undefined); }
+    } });
+  }
   for (const k of hjem.kort) {
     if (k.handling) {
       tekst(`kort handling ${k.id}`, buildKortHandlingRun(k, k.handling, d));
@@ -373,7 +382,7 @@ test('(c) the deny-list check itself would catch a leak, and only exempts the ap
   assert.doesNotThrow(() => tjekForbudt(`repo ${PROJEKTER[0]?.repo ?? ''}`, 'x'));
 });
 
-test('KC-0117: Hjem seeds one work card and one family card; every other card is privat; the owner sees them all', async () => {
+test('KC-0117/KC-0226: Hjem seeds a work card and a family card, plus one message card per zone from the evening; every other card is privat; the owner sees them all', async () => {
   const { synligFor } = await import('../../src/identitet/zoner.ts');
   const zoner = new Map<string, string>();
   for (const m of MOMENTER) {
@@ -383,6 +392,8 @@ test('KC-0117: Hjem seeds one work card and one family card; every other card is
       zoner.set(k.id, k.zone as string);
     }
   }
-  assert.deepEqual([...zoner.values()].filter((z) => z !== 'privat').sort(), ['arbejde', 'husstand']);
+  assert.deepEqual([...zoner.values()].filter((z) => z !== 'privat').sort(), ['arbejde', 'arbejde', 'husstand', 'husstand']);
   assert.equal(zoner.get('familie:maja-hente-ella'), 'husstand');
+  assert.equal(zoner.get('besked:arbejde-clara-ruten'), 'arbejde'); // KC-0226
+  assert.equal(zoner.get('besked:husstand-maja-svoemning'), 'husstand');
 });

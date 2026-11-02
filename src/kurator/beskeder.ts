@@ -1,20 +1,21 @@
-// KC-0138: messages in Kuratoren. Which messages a run may send (privat zone only — the run is privat — unread
-// and not sent before), and the app's own sender line on a card Hermes built on one. Pure: data in, data out.
+// KC-0138: messages in Kuratoren. Which messages a run may send (those of the run's own zone — KC-0226: one run per
+// zone, privat by default — with an id and not sent before), and the app's own sender line on a card Hermes built on one. Pure: data in, data out.
 //
 // Invariant: a card's `besked` (channel and sender) comes from the connector's read, never from Hermes' text; a
 // beskedId this app did not send (or no longer knows) is dropped, so a card can never claim a sender.
 
 import type { Kort } from '../rooms/hjem/kort.ts';
 import type { KuratorBesked } from '../rooms/module.ts';
+import type { DataZone } from '../identitet/zoner.ts';
 
 const MAKS_BESKEDER = 30;
 const MAKS_SETE = 500;
 
-/** The messages to send this run, newest first: privat zone, with an id, not among `sete`. */
-export function nyeBeskeder(alle: readonly KuratorBesked[], sete: readonly string[]): KuratorBesked[] {
+/** The messages to send a run over `zone` (default privat; a message with no zone reads as privat), newest first: with an id, not among `sete`. */
+export function nyeBeskeder(alle: readonly KuratorBesked[], sete: readonly string[], zone: DataZone = 'privat'): KuratorBesked[] {
   const set = new Set(sete);
   return alle
-    .filter((b): b is KuratorBesked & { id: string } => typeof b.id === 'string' && (b.zone ?? 'privat') === 'privat' && !set.has(b.id))
+    .filter((b): b is KuratorBesked & { id: string } => typeof b.id === 'string' && (b.zone ?? 'privat') === zone && !set.has(b.id))
     .sort((a, b) => b.tid.localeCompare(a.tid))
     .slice(0, MAKS_BESKEDER);
 }

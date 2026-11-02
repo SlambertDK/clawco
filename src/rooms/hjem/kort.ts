@@ -112,8 +112,8 @@ function regnskab(v: unknown): Regnskabslinje | 'uklart' | undefined {
 }
 
 /** KC-0117: the zone Hermes named (absent = the run's zone); an unknown zone, or one this run did not read, is a schema error. */
-function zoneAfSvar(raw: unknown): DataZone {
-  try { return zoneFra(raw, KORSEL); } catch (e) {
+function zoneAfSvar(raw: unknown, korsel: DataZone): DataZone {
+  try { return zoneFra(raw, korsel); } catch (e) {
     if (e instanceof ZoneFejl) throw new SvarFejl(`Kuratoren: ${e.message}`);
     throw e;
   }
@@ -127,9 +127,9 @@ export function kunSynlige<T extends Zoneret>(liste: readonly T[], person: Perso
   return person ? liste.filter((el) => synligFor(person, el)) : [...liste];
 }
 
-function enKort(v: unknown): Kort | null {
+function enKort(v: unknown, korsel: DataZone): Kort | null {
   if (!isObj(v)) return null;
-  const zone = zoneAfSvar(v['zone']); // before the other checks: a bad zone rejects the answer, it never just drops the card
+  const zone = zoneAfSvar(v['zone'], korsel); // before the other checks: a bad zone rejects the answer, it never just drops the card
   const id = str(v['id'], 200);
   const type = kortTypeFra(str(v['type'], 20));
   const titel = skjulAdresser(str(v['titel'], 200));
@@ -176,8 +176,11 @@ function enKort(v: unknown): Kort | null {
 
 type Status = 'behold' | 'opdater' | 'fjern';
 
-/** Validates Hermes' JSON ("kort", "vurderinger", "intet"). Throws when "kort" is missing or not an array. */
-export function parseKuratorSvar(raw: unknown): KuratorSvar {
+/**
+ * Validates Hermes' JSON ("kort", "vurderinger", "intet"). Throws when "kort" is missing or not an array.
+ * KC-0226: `korsel` is the one zone the run read (privat unless it is a zone run): an element naming another zone is a schema error.
+ */
+export function parseKuratorSvar(raw: unknown, korsel: DataZone = KORSEL): KuratorSvar {
   if (!isObj(raw)) throw new SvarFejl('Kuratoren: svaret er ikke et objekt');
   if (!Array.isArray(raw['kort'])) throw new SvarFejl('Kuratoren: "kort" mangler eller er ikke en liste');
   const rawV = raw['vurderinger'];
@@ -197,7 +200,7 @@ export function parseKuratorSvar(raw: unknown): KuratorSvar {
 
   const set = new Set<string>();
   for (const v of raw['kort']) {
-    const k = enKort(v);
+    const k = enKort(v, korsel);
     if (!k || set.has(k.id)) continue;
     set.add(k.id);
     (status.get(k.id) === 'opdater' ? svar.opdater : svar.nye).push(k);
@@ -207,7 +210,7 @@ export function parseKuratorSvar(raw: unknown): KuratorSvar {
     for (const v of raw['intet']) {
       if (!isObj(v)) continue;
       const titel = str(v['titel'], 200);
-      const zone = zoneAfSvar(v['zone']);
+      const zone = zoneAfSvar(v['zone'], korsel);
       const regel = str(v['regel'], 20);
       if (titel) svar.intet.push({ titel, hvorfor: str(v['hvorfor'], 300), zone, ...(/^R-\d{4,}$/.test(regel) ? { regel } : {}) });
     }

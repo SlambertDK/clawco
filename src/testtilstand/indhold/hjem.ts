@@ -12,7 +12,7 @@ import type { DataZone } from '../../identitet/zoner.ts';
 import type { Fakta } from './fakta.ts';
 import { logFra, ugedagKort, type LogPost, type Raa } from './faelles.ts';
 import { FEJL_KORT_TITEL, udviklingLog } from './udvikling.ts';
-import { ellasBesked } from './kilder.ts';
+import { BESKEDER_FRA, clarasBesked, ellasBesked, majasBesked } from './kilder.ts';
 import { knytBeskeder } from '../../kurator/beskeder.ts';
 import { lavForslag, type ForslagFelter, type Regelforslag } from '../../tillid/forslag.ts';
 
@@ -159,6 +159,36 @@ function kortRaa(f: Fakta): Record<string, Raa> {
   };
 }
 
+/**
+ * KC-0226: the message cards the two zone runs stand by, from the moment the conversations are chosen (the evening): one
+ * in arbejde (Clara on Telegram), one in husstand (Maja on WhatsApp). Like any answer of a zone run they name no zone:
+ * the run's zone is the card's. No handling — Clawco reads and never answers.
+ */
+type ZoneRun = 'arbejde' | 'husstand';
+const ZONEKORT_MOMENTER: readonly number[] = [BESKEDER_FRA];
+function zoneKortRaa(f: Fakta): Record<ZoneRun, Raa> {
+  return {
+    arbejde: {
+      id: 'besked:arbejde-clara-ruten', type: 'familie', titel: 'Clara beder dig læse udkastet til ruten inden fredag',
+      betyder: 'Clara har skrevet på Telegram, at udkastet til ruten for Havvind Nord ligger i fællesmappen, og at hun gerne vil have din gennemlæsning inden fredag.',
+      grundlag: ['Besked fra Clara i aften', 'Havvind Nord: ruten er næste punkt'], kilder: [],
+      anbefaling: 'Afsæt en halv time i morgen til at læse det, og skriv selv til Clara bagefter. Jeg svarer ikke Clara.', prioritet: 4, gyldigTil: f.plus(3), beskedId: clarasBesked(f).id,
+    },
+    husstand: {
+      id: 'besked:husstand-maja-svoemning', type: 'familie', titel: 'Maja spørger: kan du køre Ella til svømning torsdag kl. 16.30?',
+      betyder: 'Maja har skrevet på WhatsApp, at Ella har svømning torsdag kl. 16.30. Hun kan bytte vagt, hvis du ikke kan køre.',
+      grundlag: ['Besked fra Maja i aften'], kilder: [],
+      anbefaling: 'Svar Maja selv på WhatsApp, så hun ved, om hun skal bytte vagt.', prioritet: 3, gyldigTil: f.plus(3), beskedId: majasBesked(f).id,
+    },
+  };
+}
+const zoneBesked = (zone: ZoneRun, f: Fakta) => (zone === 'arbejde' ? clarasBesked(f) : majasBesked(f));
+
+/** What Hermes answers to a Kuratoren run over one other zone at moment `n`: that zone's message card in the evening, else nothing (the card is retired). */
+export function zoneKuratorRaa(zone: ZoneRun, n: number, f: Fakta): Raa {
+  return { kort: ZONEKORT_MOMENTER.includes(n) ? [zoneKortRaa(f)[zone]] : [], vurderinger: [], intet: [] };
+}
+
 /** Which cards Kuratoren stands by at each moment (moment index → card keys, in prioritet order). */
 const KORT_NOEGLER: string[][] = [
   ['maja', 'regn', 'nordvik', 'fejl', 'stroem', 'bredbaand', 'loebeklub'],
@@ -255,7 +285,9 @@ export function hjemState(n: number, f: Fakta): KuratorState {
   });
   // KC-0096: from 11.05 the Rørvang VVS card is put away until tomorrow 07.00 (Henrik pressed Senere → I morgen): off screen, uncounted.
   const udsatKort = (n >= SENERE_FRA ? kort.map((k) => (k.id === VVS ? { ...k, udsatTil: f.iso('07:00', 1) } : k)) : kort).map(medZone);
-  const state: KuratorState = { kort: udsatKort, intet: svar.intet, afvist: [], sete: [], sidst: f.iso(KURATOR_TID[n] ?? '07:10'), regnskab };
+  // KC-0226: what the two zone runs stored — a card on one message each, the zone set as parseKuratorSvar sets it for the run's zone.
+  const zoneKort = (['arbejde', 'husstand'] as const).flatMap((z): Kort[] => knytBeskeder(parseKuratorSvar(zoneKuratorRaa(z, n, f), z).nye, [zoneBesked(z, f)], []));
+  const state: KuratorState = { kort: [...udsatKort, ...zoneKort], intet: svar.intet, afvist: [], sete: [], sidst: f.iso(KURATOR_TID[n] ?? '07:10'), regnskab };
   const forslag = regelforslagNu(n, f);
   if (forslag.length) state.regelforslag = forslag;
   if (n >= 2) {
@@ -283,6 +315,9 @@ export function hjemLog(f: Fakta, n: number): LogEntry[] {
     { fra: 6, hhmm: '21:40', kilde: 'hermes', tekst: `Fødselsdag hos Birthe ligger lørdag den ${f.kort(f.loerdagPlus)} kl. 14.00–17.00 i kalenderen.`, handlingId: 'familie:birthe-foedselsdag:h', fortryd: fortrydBirthe(f.kort(f.loerdagPlus)) },
     { fra: 6, hhmm: '22:15', kilde: 'hermes', tekst: 'Kuratoren: dagen er lukket; intet nyt kræver dig.' },
     ...udviklingLog(f),
+    // KC-0226: the two zone runs of the evening, each line named by its zone (and so seen only by who may see the zone).
+    { fra: BESKEDER_FRA, hhmm: '19:28', kilde: 'hermes', tekst: 'Kuratoren (Arbejde): et kort fra beskeder er lagt øverst.', zone: 'arbejde' },
+    { fra: BESKEDER_FRA, hhmm: '19:28', kilde: 'hermes', tekst: 'Kuratoren (Husstand): et kort fra beskeder er lagt øverst.', zone: 'husstand' },
   ];
   return logFra('hjem', poster, n, f);
 }

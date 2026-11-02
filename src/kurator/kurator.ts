@@ -5,12 +5,12 @@
 // `sete` are stored only when the run succeeds, so a failed run re-reads the
 // same mail next time (the ledger marker makes that safe).
 
-import type { RoomDeps } from '../rooms/module.ts';
+import type { KuratorBesked, RoomDeps } from '../rooms/module.ts';
 import type { RunRecord } from '../runs.ts';
 import type { RumLager } from '../store/types.ts';
 import { kortTypeFra, type Kort, type KortType, type KuratorState } from '../rooms/hjem/kort.ts';
 import { KORSEL, kunSynlige, mergeKort, parseKuratorSvar, zoneFelter } from '../rooms/hjem/kort.ts';
-import { synligFor, zoneAf } from '../identitet/zoner.ts';
+import { ZONE_NAVN, synligFor, zoneAf, type DataZone } from '../identitet/zoner.ts';
 import type { Person } from '../identitet/husstand.ts';
 import { extractJson } from '../rooms/dagen/schema.ts';
 import { copenhagenDate } from '../rooms/dagen/source.ts';
@@ -149,10 +149,18 @@ function skjulteFra(nye: Intet[], stamp: string): Skjult[] {
   }));
 }
 
+/** KC-0226: the zones that get a run of their own beside the privat one. Each reads only its own zone's messages and open cards. */
+const ZONE_KOERSLER = ['arbejde', 'husstand'] as const;
+
 /**
- * Starts one Kuratoren run. Null when nothing is new (and not a deeper run) or
- * a Kuratoren run is already queued or running. A deep run is allowed once a
- * day (state.sidstDyb); a second request the same day runs as a normal one.
+ * Starts the Kuratoren run(s) and returns the first (the privat one when there is one), or null when nothing is new
+ * anywhere or a Kuratoren run is already queued or running. A deep run is allowed once a day (state.sidstDyb); a second
+ * request the same day runs as a normal one.
+ *
+ * KC-0226: one run per zone that has material. The privat run reads mail, news and the privat messages, as it always
+ * did. A run over arbejde (or husstand) exists only while that zone has messages not sent before (`beskederSete`,
+ * the same "new since" signal the privat run uses), and reads those messages and that zone's open cards only: a quiet
+ * zone costs no run, and no prompt ever holds two zones.
  */
 export async function startKurator(
   d: RoomDeps,
@@ -169,14 +177,29 @@ export async function startKurator(
   const input = await nyeMails({ ...kilde, sete: state.sete, ...(state.cursor ? { cursor: state.cursor } : {}), now });
   // One deep (web) run a day: a second ask the same day (Copenhagen) runs as a normal one, whoever asks.
   const dyb = o.dyb && !(state.sidstDyb && copenhagenDate(new Date(state.sidstDyb)) === copenhagenDate(now));
-  // KC-0138: new messages of the chosen conversations (privat only: this run is privat). A failed read is no messages.
-  const beskeder = nyeBeskeder(d.beskeder ? await d.beskeder().catch(() => []) : [], state.beskederSete ?? []);
-  if (input.mails.length === 0 && o.nyheder === null && !dyb && beskeder.length === 0) return null;
+  // KC-0138: new messages of the chosen conversations, per zone (a message is of the zone its conversation was put in). A failed read is no messages.
+  const alleBeskeder = d.beskeder ? await d.beskeder().catch(() => []) : [];
+  const beskeder = nyeBeskeder(alleBeskeder, state.beskederSete ?? []);
+  const zoneBeskeder = ZONE_KOERSLER.map((zone) => ({ zone, beskeder: nyeBeskeder(alleBeskeder, state.beskederSete ?? [], zone) })).filter((z) => z.beskeder.length > 0);
+  const privatNyt = input.mails.length > 0 || o.nyheder !== null || dyb || beskeder.length > 0;
+  if (!privatNyt && zoneBeskeder.length === 0) return null;
+  // KC-0142: the rules as they are on disk now (Henrik may have edited them since the last run). Read before the check below, so check and starts are one synchronous stretch.
+  const regler = privatNyt && d.regler ? await d.regler.laes() : undefined;
   // Another start may have slipped in while we read mail: check again, synchronously before runs.start.
   if (iFlugt(d)) return null;
 
-  // KC-0142: the rules as they are on disk now (Henrik may have edited them since the last run).
-  const regler = d.regler ? await d.regler.laes() : undefined;
+  const startede: RunRecord[] = [];
+  if (privatNyt) startede.push(startPrivat(d, { o, state, input, dyb, beskeder, regler, v, now }));
+  for (const z of zoneBeskeder) startede.push(startZone(d, z.zone, z.beskeder, state, now));
+  return startede[0] ?? null;
+}
+
+/** The privat run: mail, news and the privat messages, as before KC-0226. */
+function startPrivat(
+  d: RoomDeps,
+  c: { o: { nyheder: string[] | null; nyhederStempel?: string; personer?: string }; state: KuratorState; input: Awaited<ReturnType<typeof nyeMails>>; dyb: boolean; beskeder: KuratorBesked[]; regler: ReglerLaest | undefined; v: object | null; now: Date },
+): RunRecord {
+  const { o, state, input, dyb, beskeder, regler, v, now } = c;
   const spec = buildKuratorRun({
     mails: input.mails,
     nyheder: o.nyheder,
@@ -193,6 +216,7 @@ export async function startKurator(
   return d.runs.start({
     kind: 'kurator',
     room: HJEM,
+    zone: 'privat',
     label: dyb ? 'Kuratoren tænker grundigt' : 'Kuratoren tænker',
     spec,
     onDone: async (output) => {
@@ -201,8 +225,9 @@ export async function startKurator(
       // Inside the chain: Henrik may have dismissed a card or undone a row while Hermes thought, and
       // no button can write between our merge and our write.
       const ny = await endreKurator(d.store, async (nu) => {
-        // KC-0138: a card on a message gets the app's sender line; a beskedId this run did not send (nor a stored card) is dropped.
-        const svar = { ...raa, nye: knytBeskeder(raa.nye, beskeder, nu.kort), opdater: knytBeskeder(raa.opdater, beskeder, nu.kort), intet: medGyldigRegel(raa.intet, regler) };
+        // KC-0138: a card on a message gets the app's sender line; a beskedId this run did not send (nor a stored card of this zone) is dropped.
+        const foer = nu.kort.filter((k) => zoneAf(k) === KORSEL);
+        const svar = { ...raa, nye: knytBeskeder(raa.nye, beskeder, foer), opdater: knytBeskeder(raa.opdater, beskeder, foer), intet: medGyldigRegel(raa.intet, regler) };
         // Merge first: only a card that stays on screen gets a ledger row (and so an undo button).
         const merged = await skrivRegninger(d, mergeKort(nu, svar, d.now(), KORSEL), new Set([...svar.nye, ...svar.opdater].map((k) => k.id)));
         const stamp = d.now().toISOString();
@@ -220,4 +245,46 @@ export async function startKurator(
       return { text: `${ny.kort.length} kort` };
     },
   });
+}
+
+/**
+ * KC-0226: a run over one other zone. It sends that zone's new messages and open cards and nothing else; its cards are
+ * stored with the zone set (so Nu draws the chip and `synligFor` decides who sees them); the other zones' stored cards
+ * stay as they are (mergeKort). It stamps only what it read (`beskederSete`): the mail cursor, the seen mail, the news
+ * stamp, the deep-run day and `sidst` are the privat run's, so a quiet zone never delays the privat schedule.
+ * Its intet lines stay in Hjem's state (with the zone) but are not recorded for the Sunday sample, which is privat.
+ */
+function startZone(d: RoomDeps, zone: DataZone, beskeder: KuratorBesked[], state: KuratorState, now: Date): RunRecord {
+  const spec = buildKuratorRun({
+    mails: [], nyheder: null, aabne: state.kort, lukket: state.lukket ?? [], dyb: false, now, stier: { vault: d.vaultRod }, zone, beskeder,
+  });
+  const run = d.runs.start({
+    kind: 'kurator',
+    room: HJEM,
+    zone,
+    label: `Kuratoren tænker (${ZONE_NAVN[zone].toLowerCase()})`,
+    spec,
+    onDone: async (output) => {
+      const raa = parseKuratorSvar(extractJson(output), zone); // an element naming another zone is a SvarFejl: corrected once, else the run fails and nothing is written
+      let lagt = 0;
+      const ny = await endreKurator(d.store, async (nu) => {
+        // A card of this zone can take a sender line only from this run's messages or a stored card of this same zone.
+        const foer = nu.kort.filter((k) => zoneAf(k) === zone);
+        const svar = { ...raa, nye: knytBeskeder(raa.nye, beskeder, foer), opdater: knytBeskeder(raa.opdater, beskeder, foer), intet: medGyldigRegel(raa.intet, undefined) };
+        const merged = mergeKort(nu, svar, d.now(), zone);
+        const egne = new Set(merged.kort.filter((k) => zoneAf(k) === zone).map((k) => k.id));
+        lagt = [...svar.nye, ...svar.opdater].filter((k) => egne.has(k.id)).length;
+        return { ...merged, beskederSete: seteEfter(nu.beskederSete ?? [], beskeder) };
+      });
+      // The room log (only when a card came out of it: a quiet zone adds no line) and the audit line both name the zone.
+      if (lagt > 0) await d.store.appendLog(HJEM, { kilde: 'hermes', zone, tekst: `Kuratoren (${ZONE_NAVN[zone]}): ${lagt === 1 ? 'et kort' : `${lagt} kort`} fra beskeder er lagt øverst.` });
+      await d.revision?.skriv({
+        person: d.person.id, kanal: 'planlagt', rum: HJEM, verb: 'laes', udfald: 'tillad', ...(run ? { runId: run.id } : {}), zoner: [zone], kilde: 'kurator',
+        hvorfor: `Kuratoren læste ${beskeder.length === 1 ? 'én besked' : `${beskeder.length} beskeder`} i zonen ${zone}.`,
+      }).catch((err: unknown) => console.error('kurator: revisionslinjen kunne ikke skrives:', err instanceof Error ? err.message : err));
+      d.live.notify(HJEM);
+      return { text: `${ny.kort.length} kort` };
+    },
+  });
+  return run;
 }

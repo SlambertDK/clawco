@@ -7,7 +7,7 @@ import { fold } from '../../shell/fold.ts';
 import { ROOMS, findRoom, type Room } from '../registry.ts';
 import { aftenMulig, kunSynlige, type Intet, type Kort, type KortType } from './kort.ts';
 import { zoneChip, zoneData } from '../../shell/zone.ts';
-import type { Zoneret } from '../../identitet/zoner.ts';
+import { zoneAf, type Zoneret } from '../../identitet/zoner.ts';
 import type { Person } from '../../identitet/husstand.ts';
 import { findProjekt } from '../../udvikling/projekter.ts';
 import type { ProjektTal } from '../../udvikling/opgaver.ts';
@@ -172,7 +172,7 @@ function kortKasse(k: Kort, gjort: Set<string>, stor = false, senere?: { aften: 
   // KC-0068: the card's kind and its ledger line's art are markers for the test world's coverage.
   const art = (k.regnskab ?? k.regnskabForslag)?.art;
   return html`<article class="card kort${stor ? ' kort-stor' : ''}" data-kort-id="${k.id}" data-kort-type="${k.type}"${art ? html` data-regnskab-art="${art}"` : ''}${zoneData(k)} data-element="${t.kortet(k.titel)}" data-blok="kort">
-    ${visHoved(v, overskrift, t.typeLabel[k.type])}${zoneChip(k)}
+    ${visHoved(v, overskrift, k.type === 'familie' && zoneAf(k) === 'arbejde' ? t.fraArbejdet : t.typeLabel[k.type])}${zoneChip(k)}
     ${k.besked ? beskedLinje(k.besked) : ''}
     ${k.visuel?.billede ? billede(k.visuel.billede) : ''}
     ${stor ? anbefaling : ''}
