@@ -6,11 +6,15 @@
 
 import { html, type Markup } from './html.ts';
 import { FRISKHEDSVINDUE_MS } from '../kilder/helbred-tekst.ts';
+import { tekst } from './tekster.ts';
 
 const TZ = 'Europe/Copenhagen';
 
 export const dagStr = (d: Date): string => new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
-export const klokke = (d: Date): string => new Intl.DateTimeFormat('da-DK', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d).replace(':', '.');
+/** "07.05" in Danish, "07:05" in English: a neutral hh:mm, then the language's separator. */
+export const klokke = (d: Date): string => new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(d).replace(':', tekst().klokkeSkille);
+/** The same clock from an ISO string; empty when the time is unusable (the rooms' log lines). */
+export const klokkeIso = (iso: string): string => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? '' : klokke(d); };
 const dagNr = (s: string): number => Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10))) / 86_400_000;
 
 /** The freshness phrase for a room built at `genereret`; empty markup when the time is unusable. */
@@ -19,13 +23,15 @@ export function friskhed(genereret: string, now: Date): Markup {
   if (!genereret || Number.isNaN(d.getTime())) return html``;
   const dage = Math.round(dagNr(dagStr(now)) - dagNr(dagStr(d)));
   const tid = klokke(d);
-  if (dage <= 0) return html`<span class="friskhed">opdateret ${tid}</span>`;
-  const naar = dage === 1
-    ? 'i går'
-    : dage < 7
-      ? new Intl.DateTimeFormat('da-DK', { timeZone: TZ, weekday: 'long' }).format(d)
-      : new Intl.DateTimeFormat('da-DK', { timeZone: TZ, day: 'numeric', month: 'short' }).format(d);
-  return html`<span class="friskhed friskhed-gammel">fra ${naar} ${tid}</span>`;
+  const T = tekst();
+  if (dage <= 0) return html`<span class="friskhed">${T.opdateret(tid)}</span>`;
+  return html`<span class="friskhed friskhed-gammel">${T.fraNaar(naarDag(d, dage), tid)}</span>`;
+}
+
+/** "i går", the weekday inside a week, else "24. okt." — in the language being rendered. */
+function naarDag(d: Date, dage: number): string {
+  const T = tekst();
+  return dage === 1 ? T.iGaar : dage < 7 ? new Intl.DateTimeFormat(T.lokale, { timeZone: TZ, weekday: 'long' }).format(d) : new Intl.DateTimeFormat(T.lokale, { timeZone: TZ, day: 'numeric', month: 'short' }).format(d);
 }
 
 /** The phrase as a header-subtitle tail (" · opdateret 07.05"); empty when there is nothing to show. */
@@ -57,8 +63,7 @@ function naarTekst(d: Date, now: Date): string {
   const dage = Math.round(dagNr(dagStr(now)) - dagNr(dagStr(d)));
   const tid = klokke(d);
   if (dage <= 0) return tid;
-  const naar = dage === 1 ? 'i går' : dage < 7 ? new Intl.DateTimeFormat('da-DK', { timeZone: TZ, weekday: 'long' }).format(d) : new Intl.DateTimeFormat('da-DK', { timeZone: TZ, day: 'numeric', month: 'short' }).format(d);
-  return `${naar} ${tid}`;
+  return `${naarDag(d, dage)} ${tid}`;
 }
 
 /**
@@ -67,9 +72,10 @@ function naarTekst(d: Date, now: Date): string {
  */
 export function kildeFriskhed(f: KildeFriskhed, now: Date): Markup {
   const d = laestTid(f);
-  if (erFrisk(f, now) && d) return html`<span class="friskhed" data-sidst-hentet>Sidst hentet ${naarTekst(d, now)}</span>`;
-  if (d) return html`<span class="friskhed friskhed-gammel" data-ikke-opdateret>ikke opdateret siden ${naarTekst(d, now)}</span>`;
-  return f.ok ? html`` : html`<span class="friskhed friskhed-gammel" data-ikke-opdateret>ikke hentet endnu</span>`;
+  const T = tekst();
+  if (erFrisk(f, now) && d) return html`<span class="friskhed" data-sidst-hentet>${T.sidstHentet(naarTekst(d, now))}</span>`;
+  if (d) return html`<span class="friskhed friskhed-gammel" data-ikke-opdateret>${T.ikkeOpdateretSiden(naarTekst(d, now))}</span>`;
+  return f.ok ? html`` : html`<span class="friskhed friskhed-gammel" data-ikke-opdateret>${T.ikkeHentetEndnu}</span>`;
 }
 
 /** The source phrase as a header-subtitle tail (" · Sidst hentet 07.05"); empty when there is nothing to say. */

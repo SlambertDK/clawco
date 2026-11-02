@@ -1,0 +1,32 @@
+
+  <header class="room-head">
+    <div><h1>Univers</h1><p class="muted">Et sted per emne, der vokser. Alt, du og Hermes laver om emnet, bliver her.</p></div>
+  </header>
+
+  <p class="taellelinje"><span class="tilstand-kraever">2 venter på dig</span></p><section class="baand baand-kraever" data-baand="kraever"><h2 class="baand-titel">Kræver dig</h2><div class="stack gruppe" data-gruppe="Nye møder"><div class="card-head"><h3 class="eyebrow">Nye møder</h3><span class="muted mono">2</span></div><form data-id="kandidat:ev1" id="placer-0" class="card uv-kandidat" onsubmit="return false" data-element="Nyt møde: Kickoff">
+    <div class="card-head"><h3>Kickoff</h3><span class="mono muted">i morgen 09.30–10.30</span></div>
+    <p class="row-note">Rikke, Nora · Room 4</p>
+    
+      <p class="row-note">Opret først et univers, så kan mødet lægges i det.</p>
+      <div class="actions"><button type="button" class="btn btn-ghost" data-aktion="skjulMoede" data-arg="{&quot;eventId&quot;:&quot;ev1&quot;}" data-status="skjuler mødet">Ikke et møde for mig</button></div>
+  </form><form data-id="kandidat:ev2" id="placer-1" class="card uv-kandidat" onsubmit="return false" data-element="Nyt møde: Lunch">
+    <div class="card-head"><h3>Lunch</h3><span class="mono muted">lør. 24. okt. 13.00–14.15</span></div>
+    <p class="row-note">Ingen deltagere noteret</p>
+    
+      <p class="row-note">Opret først et univers, så kan mødet lægges i det.</p>
+      <div class="actions"><button type="button" class="btn btn-ghost" data-aktion="skjulMoede" data-arg="{&quot;eventId&quot;:&quot;ev2&quot;}" data-status="skjuler mødet">Ikke et møde for mig</button></div>
+  </form></div></section><!--/baand--><div class="baand-indhold" data-baand="indhold"><section class="stack">
+    <div class="card-head"><h2 class="eyebrow">Dine universer</h2><span class="muted mono">0</span></div>
+    <div class="tiles"><a class="tile" href="/rum/husstand" data-element="Husstanden">
+        <span class="tile-name">Husstanden</span>
+        <span class="row-note">Hvem der er med, og det, der gælder jer alle.</span>
+      </a></div>
+    <section class="card"><h3>Ingen universer endnu</h3><p class="muted">Opret et under, eller bed Hermes i chatten: "lav et univers om min arena".</p></section>
+  </section>
+
+  <form id="nyt-univers" class="card nyt-form" onsubmit="return false">
+    <h2>Nyt univers</h2>
+    <label class="field"><span class="row-note">Navn</span><input name="navn" type="text" maxlength="80" placeholder="Fx Min arena" required></label>
+    <label class="field"><span class="row-note">Hvad handler det om? En sætning.</span><input name="om" type="text" maxlength="400" placeholder="Fx Min nye lederrolle og det, jeg skal levere i den"></label>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="nytUnivers" data-form="nyt-univers" data-status="opretter univers">Opret univers</button></div>
+  </form></div><!--/baand-->

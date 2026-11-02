@@ -49,7 +49,9 @@ import { html } from '../shell/html.ts';
 import { HusholdFejl, KORSEL, parseHusstandState, RUM, TOM_HUSSTAND, type HusstandState, type Medlem } from './schema.ts';
 import { maaSeHusstand, medlemmerAf } from './personer.ts';
 import { faellesUge, ugeDage, type FaellesDag } from './uge.ts';
-import { datoLinje, klokke, renderHusstand, renderIkkeHer } from './render.ts';
+import { datoLinje, datoVis, klokke, klokkeVis, renderHusstand, renderIkkeHer } from './render.ts';
+import { husstandTekst } from './tekster.ts';
+import { tekst } from '../shell/tekster.ts';
 import { buildForespForslagRun, buildHusstandChatRun, parseForespForslag } from './prompt.ts';
 import { parseBookingSvar, udkastAabent, valider, type BookingOensker, type BookingUdkast } from './bil.ts';
 import {
@@ -63,8 +65,8 @@ import {
 } from './ressource.ts';
 import { ejerAtSpoerge, ressourceSektion } from './ressource-render.ts';
 import { buildSammenfaldForslagRun, parseSammenfaldForslag } from './prompt.ts';
-import { blokkeFraKalendere, erPartIKonflikt, konfliktResume, konfliktStatus, nytKonflikt, parseKonfliktTekst, tidSag, valgTitel, weekendKonflikter, andenIKonflikt, type Konflikt } from './konflikt.ts';
-import { konfliktSektion } from './konflikt-render.ts';
+import { blokkeFraKalendere, erPartIKonflikt, konfliktResume, konfliktStatus, nytKonflikt, parseKonfliktTekst, valgTitel, weekendKonflikter, andenIKonflikt, type Konflikt } from './konflikt.ts';
+import { konfliktSektion, konfliktTekstVis, tidSagVis } from './konflikt-render.ts';
 import { buildKonfliktRun } from './prompt.ts';
 import type { LogEntry } from '../store/types.ts';
 import { KANAL_NAVN, vurderSend, type KanalClient, type KanalStatus, type SendSlags } from './kanal.ts';
@@ -106,7 +108,7 @@ async function ugen(deps: RoomDeps, medlemmer: Medlem[], state: HusstandState): 
 
 async function view(deps: RoomDeps): Promise<RoomView> {
   const h = await forPersonen(deps);
-  if (!h) return { main: renderIkkeHer(), hermesStatus: 'Klar', titel: 'Husstanden findes ikke', status: 404 };
+  if (!h) return { main: renderIkkeHer(), hermesStatus: tekst().klar, titel: husstandTekst().husstandenFindesIkke, status: 404 };
   const now = deps.now();
   const p = deps.person;
   const person = p.id;
@@ -119,7 +121,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
   const invitationer = maaSe(p, { slags: 'invitation' }) ? invitationSektion({ medlemmer: h.medlemmer, person: p, kanSende: Boolean(deps.husstand?.kanalSvar) }) : undefined;
   return {
     main: renderHusstand({ medlemmer: h.medlemmer, person: p, uge: faelles ? await ugen(deps, h.medlemmer, h.state) : [], now, forespoergsler: foresp, faelles, kanRette: maaHandle(p, { slags: 'skift-rolle' }), ...(invitationer ? { invitationer } : {}) }),
-    hermesStatus: 'Klar',
+    hermesStatus: tekst().klar,
   };
 }
 
@@ -610,10 +612,11 @@ export async function vedBesoeg(deps: RoomDeps): Promise<void> {
 /** The invite page (/rum/husstand/inviter): the owner's only, also before there is a household (that is how one starts). */
 export async function inviterView(deps: RoomDeps): Promise<RoomView> {
   if (!maaHandle(deps.person, { slags: 'inviter' })) {
-    return { main: html`<header class="room-head"><div><a class="muted" href="/rum/hjem">Til Nu</a><h1>Kun ejeren kan invitere</h1><p class="muted">Bed ejeren af husstanden om at invitere den, du tænker på.</p></div></header>`, hermesStatus: 'Klar', titel: 'Kun ejeren kan invitere', status: 403 };
+    const T = husstandTekst();
+    return { main: html`<header class="room-head"><div><a class="muted" href="/rum/hjem">${T.tilNu}</a><h1>${T.kunEjerenInviterer}</h1><p class="muted">${T.bedEjeren}</p></div></header>`, hermesStatus: tekst().klar, titel: T.kunEjerenInviterer, status: 403 };
   }
   const personer = deps.husstand ? await deps.husstand.personer() : [];
-  return { main: renderInviter({ enebruger: personer.length === 0, plads: personer.length < MAX_PERSONER }), hermesStatus: 'Klar', titel: 'Inviter en til husstanden' };
+  return { main: renderInviter({ enebruger: personer.length === 0, plads: personer.length < MAX_PERSONER }), hermesStatus: tekst().klar, titel: husstandTekst().inviterEnTilHusstanden };
 }
 
 // ---------- KC-0150: the resource ----------
@@ -668,6 +671,10 @@ function flyttedeAf(foer: readonly Ressource[], booket: readonly Booking[]): Rec
 }
 const tidKort = (t: Tidsrum, now: Date): string => `${datoLinje(idagKbh(new Date(t.start)), now).toLowerCase()} kl. ${klokke(t.start)}–${klokke(t.slut)}`;
 const rNavnAf = (ressourcer: readonly Ressource[], id: string): string => ressourcer.find((r) => r.id === id)?.navn ?? 'Tingen';
+// The Nu lines are read on a screen, so they follow the language being rendered (KC-0170); the log lines above keep Danish.
+const tidKortVis = (t: Tidsrum, now: Date): string => { const T = husstandTekst(); return T.tidsrum(T.midt(datoVis(idagKbh(new Date(t.start)), now)), klokkeVis(t.start), klokkeVis(t.slut)); };
+const rNavnVis = (ressourcer: readonly Ressource[], id: string): string => ressourcer.find((r) => r.id === id)?.navn ?? husstandTekst().ukendtTing;
+const navnVis = (medlemmer: readonly Medlem[], id: string): string => medlemmer.find((m) => m.id === id)?.navn ?? husstandTekst().ukendtMedlem;
 const ren = (v: unknown): string => str(v).replace(/[\u0000-\u001f\u007f]/g, ' ');
 
 /** One line per booking to its booker (with Fortryd), one per released booking, and one per party for a settled clash. */
@@ -1378,6 +1385,7 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
 
 /** Kræver dig on Nu: what the person decides now, and an expired request of theirs nobody answered. */
 async function hjemVenter(deps: RoomDeps): Promise<{ roomId: string; tekst: string }[]> {
+  const T = husstandTekst();
   const h = await forPersonen(deps);
   // KC-0154: Kræver dig is what the person can act on here; a guest answers on her channel.
   if (!h || !maaHandle(deps.person, { slags: 'svar' })) return [];
@@ -1385,34 +1393,35 @@ async function hjemVenter(deps: RoomDeps): Promise<{ roomId: string; tekst: stri
   const now = deps.now();
   // KC-0150: an open clash is a decision for exactly its two parties.
   const sammenfald = h.state.sammenfald.filter((s) => erPartI(s, p) && aabenSammenfald(s, now)).map((s) => ({
-    roomId: RUM, tekst: `Dobbeltbooket: ${rNavnAf(h.state.ressourcer, s.ressourceId)} ${tidKort(s.ny, now)} (dig og ${navnAf(h.medlemmer, andenPart(s, p))})`,
+    roomId: RUM, tekst: T.nuDobbeltbooket(rNavnVis(h.state.ressourcer, s.ressourceId), tidKortVis(s.ny, now), navnVis(h.medlemmer, andenPart(s, p))),
   }));
   // KC-0151: a booking card waits for this person's tap.
   const kort = h.state.udkast.filter((u) => u.af === p && udkastAabent(u, now) && h.state.ressourcer.some((r) => r.id === u.ressourceId)).map((u) => ({
-    roomId: RUM, tekst: `Bekræft booking: ${rNavnAf(h.state.ressourcer, u.ressourceId)} ${tidKort(u, now)}`,
+    roomId: RUM, tekst: T.nuBekraeft(rNavnVis(h.state.ressourcer, u.ressourceId), tidKortVis(u, now)),
   }));
   // KC-0152: an open weekend card is a decision for exactly its two adults (once a request waits, that request is the line).
   const weekend = h.state.konflikter.filter((k) => erPartIKonflikt(k, p) && konfliktStatus(k, h.state.forespoergsler, now) === 'aaben').map((k) => ({
-    roomId: RUM, tekst: `Weekend: ${konfliktResume(k, h.medlemmer).spoergsmaal} ${tidSag(k)} (dig og ${navnAf(h.medlemmer, andenIKonflikt(k, p))})`,
+    roomId: RUM, tekst: T.nuWeekend(konfliktTekstVis(k, h.medlemmer).spoergsmaal, tidSagVis(k), navnVis(h.medlemmer, andenIKonflikt(k, p))),
   }));
   return [...kort, ...sammenfald, ...weekend, ...h.state.forespoergsler.flatMap((f) => {
-    const mind = erPaamindet(f) ? 'Påmindelse: ' : '';
-    if (beslutter(f) === p && f.tilstand === 'spurgt') return [{ roomId: RUM, tekst: `${mind}${navnAf(h.medlemmer, f.fra)} spørger: ${f.titel}` }];
-    if (beslutter(f) === p && f.tilstand === 'alternativ') return [{ roomId: RUM, tekst: `${mind}${navnAf(h.medlemmer, f.til)} foreslår et andet tidspunkt: ${f.titel}` }];
-    if (f.fra === p && ubesvaret(f)) return [{ roomId: RUM, tekst: `Ingen svar fra ${navnAf(h.medlemmer, f.til)}: ${f.titel}` }];
+    const mind = erPaamindet(f) ? T.nuPaamindelse : '';
+    if (beslutter(f) === p && f.tilstand === 'spurgt') return [{ roomId: RUM, tekst: T.nuSpoerger(mind, navnVis(h.medlemmer, f.fra), f.titel) }];
+    if (beslutter(f) === p && f.tilstand === 'alternativ') return [{ roomId: RUM, tekst: T.nuForeslaar(mind, navnVis(h.medlemmer, f.til), f.titel) }];
+    if (f.fra === p && ubesvaret(f)) return [{ roomId: RUM, tekst: T.nuIngenSvar(navnVis(h.medlemmer, f.til), f.titel) }];
     return [];
   })];
 }
 
 /** I gang on Nu: what the person asked and waits on the other for. */
 async function hjemIgang(deps: RoomDeps): Promise<{ roomId: string; tekst: string }[]> {
+  const T = husstandTekst();
   const h = await forPersonen(deps);
   if (!h || !maaHandle(deps.person, { slags: 'spoerg' })) return [];
   const p = deps.person.id;
   return h.state.forespoergsler.flatMap((f) => {
     const b = beslutter(f);
     if (b === null || b === p || !erPart(f, p)) return [];
-    return [{ roomId: RUM, tekst: f.tilstand === 'spurgt' ? `${navnAf(h.medlemmer, f.til)} har ikke svaret endnu: ${f.titel}` : `${navnAf(h.medlemmer, f.fra)} har ikke svaret på dit forslag endnu: ${f.titel}` }];
+    return [{ roomId: RUM, tekst: f.tilstand === 'spurgt' ? T.nuIkkeSvaretEndnu(navnVis(h.medlemmer, f.til), f.titel) : T.nuIkkeSvaretPaaForslag(navnVis(h.medlemmer, f.fra), f.titel) }];
   });
 }
 

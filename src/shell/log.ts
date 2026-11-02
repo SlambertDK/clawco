@@ -4,6 +4,7 @@
 import type { LogEntry } from '../store/types.ts';
 import { html, type Markup } from './html.ts';
 import { tilstandChip } from './sprog.ts';
+import { klokke as klokkeAf } from './friskhed.ts';
 
 /** Newest non-undone entry per handlingId (log is newest first). */
 export function senesteResultater(log: LogEntry[]): Map<string, LogEntry> {
@@ -17,8 +18,7 @@ export function senesteResultater(log: LogEntry[]): Map<string, LogEntry> {
 
 function klokke(iso: string): string {
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit', hour12: false }).format(d).replace(':', '.');
+  return Number.isNaN(d.getTime()) ? '' : klokkeAf(d);
 }
 
 export function resultatBoks(e: LogEntry): Markup {

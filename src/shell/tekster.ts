@@ -11,6 +11,7 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import type { Sprog } from '../store/profil.ts';
 import { ROOMS } from '../rooms/registry.ts';
 import { ROLLE_NAVN, type Rolle } from '../identitet/roller.ts';
+import { ZONE_NAVN, type DataZone } from '../identitet/zoner.ts';
 import { PRODUKT } from './navn.ts';
 
 export type { Sprog };
@@ -133,9 +134,54 @@ const da = {
   vis: 'Vis ',
   ikkeTilbudt: 'Ikke tilbudt: ',
 
+  // Shared helpers drawn inside the rooms (KC-0170 slice 2)
+  /** Nu's greeting by the hour (Copenhagen) and the person's name. */
+  hilsen: (time: number, navn: string): string => (time < 10 ? `Godmorgen, ${navn}` : time < 17 ? `Goddag, ${navn}` : `Godaften, ${navn}`),
+  /** The clock's separator between hours and minutes ("07.05" / "07:05"). */
+  klokkeSkille: '.',
+  /** Data zone names on the chips: the identity module's own. */
+  zone: { ...ZONE_NAVN } as Record<DataZone, string>,
+  // friskhed.ts
+  opdateret: (tid: string): string => `opdateret ${tid}`,
+  fraNaar: (naar: string, tid: string): string => `fra ${naar} ${tid}`,
+  iGaar: 'i går',
+  iDag: 'i dag',
+  iMorgen: 'i morgen',
+  sidstHentet: (naar: string): string => `Sidst hentet ${naar}`,
+  ikkeOpdateretSiden: (naar: string): string => `ikke opdateret siden ${naar}`,
+  ikkeHentetEndnu: 'ikke hentet endnu',
+  // naeste.ts: "Næste: <titel> kl. 14.00 · om 3 t 50 min"
+  naeste: 'Næste: ',
+  naesteKl: ' kl. ',
+  // ikkefundet.ts (KC-0089)
+  ikkeFundet: {
+    rum: { overskrift: 'Det rum findes ikke', linje: `Adressen peger ikke på et rum i ${PRODUKT}. Gå til Nu for at se, hvad der venter.` },
+    side: { overskrift: 'Siden findes ikke', linje: `Adressen peger ikke på noget i ${PRODUKT}. Gå til Nu for at komme videre.` },
+    dokument: { overskrift: 'Dokumentet findes ikke', linje: 'Det er enten fjernet eller aldrig oprettet. Gå til Nu for at finde frem til det igen.' },
+  },
+  tilNu: 'Til Nu',
+  // kilder.ts: the Kø panel's source list
+  kilder: 'Kilder',
+  kildeTilstand: { forbundet: 'Forbundet', 'log-ind-igen': 'Log ind igen', nede: 'Nede', langsom: 'Langsom' } as Record<'forbundet' | 'log-ind-igen' | 'nede' | 'langsom', string>,
+  svarerLangsomt: 'Svarer langsomt',
+  sidstLaest: (naar: string): string => `Sidst læst ${naar}`,
+  frakobl: 'Frakobl',
+  // kilde-helbred.ts: the failing connection's card
+  fjernForbindelsen: 'Fjern forbindelsen',
+  forbindelse: 'Forbindelse',
+  forbindelsen: (navn: string): string => `Forbindelsen: ${navn}`,
+  udloeber: (naar: string): string => `Udløber ${naar}`,
+  fra: 'Fra ',
+  ejerenKanLoese: 'Ejeren kan løse det.',
+
   /** What public/app.js shows; embedded in the page as window.KC_TEKST (strings only). */
   klient: {
     fortryd: 'Fortryd',
+    /** public/naeste.js: the countdown's words, the same as omTekst's (test/client/naeste.test.ts compares the two). */
+    omNu: 'nu',
+    omOm: 'om',
+    omMin: 'min',
+    omT: 't',
     udfoert: ' — udført',
     om: 'Om: ',
     skrivOm: 'Skriv om: ',
@@ -271,8 +317,42 @@ const en: Tekster = {
   vis: 'Show ',
   ikkeTilbudt: 'Not offered: ',
 
+  hilsen: (time, navn) => (time < 10 ? `Good morning, ${navn}` : time < 17 ? `Good afternoon, ${navn}` : `Good evening, ${navn}`),
+  klokkeSkille: ':',
+  zone: { privat: 'Private', arbejde: 'Work', husstand: 'Household' },
+  opdateret: (tid) => `updated ${tid}`,
+  fraNaar: (naar, tid) => `from ${naar} ${tid}`,
+  iGaar: 'yesterday',
+  iDag: 'today',
+  iMorgen: 'tomorrow',
+  sidstHentet: (naar) => `Last fetched ${naar}`,
+  ikkeOpdateretSiden: (naar) => `not updated since ${naar}`,
+  ikkeHentetEndnu: 'not fetched yet',
+  naeste: 'Next: ',
+  naesteKl: ' at ',
+  ikkeFundet: {
+    rum: { overskrift: 'That room does not exist', linje: `The address does not point at a room in ${PRODUKT}. Go to Now to see what is waiting.` },
+    side: { overskrift: 'The page does not exist', linje: `The address does not point at anything in ${PRODUKT}. Go to Now to carry on.` },
+    dokument: { overskrift: 'The document does not exist', linje: 'It was removed or never created. Go to Now to find your way back to it.' },
+  },
+  tilNu: 'To Now',
+  kilder: 'Sources',
+  kildeTilstand: { forbundet: 'Connected', 'log-ind-igen': 'Log in again', nede: 'Down', langsom: 'Slow' },
+  svarerLangsomt: 'Answering slowly',
+  sidstLaest: (naar) => `Last read ${naar}`,
+  frakobl: 'Disconnect',
+  fjernForbindelsen: 'Remove the connection',
+  forbindelse: 'Connection',
+  forbindelsen: (navn) => `The connection: ${navn}`,
+  udloeber: (naar) => `Expires ${naar}`,
+  fra: 'From ',
+  ejerenKanLoese: 'The owner can fix it.',
   klient: {
     fortryd: 'Undo',
+    omNu: 'now',
+    omOm: 'in',
+    omMin: 'min',
+    omT: 'h',
     udfoert: ' — done',
     om: 'About: ',
     skrivOm: 'Write about: ',

@@ -18,6 +18,8 @@ import { koebenhavnTilIso } from '../../shell/tid.ts';
 import { fraForbindelse, readMailSource, type TrimmedMail } from './source.ts';
 import { buildBaggrundFlytRun, buildKladdeRun, buildMailChatRun, buildMailFortrydRun, buildMailHandlingRun, buildMailRefreshForbindelseRun, buildMailRefreshRun, buildSendRun } from './prompt.ts';
 import { renderMail, renderMailEmpty } from './render.ts';
+import { mailTekst } from './tekster.ts';
+import { tekst } from '../../shell/tekster.ts';
 import { stemmeMail } from './stemme.ts';
 
 export const RUM = 'mail';
@@ -36,13 +38,13 @@ async function synlig(deps: RoomDeps): Promise<{ state: MailState | null; log: L
 async function rendered(deps: RoomDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {
   deps.live.notify(RUM);
   const { state, log } = await synlig(deps);
-  const html = state ? String(renderMail(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('mail'))) : String(renderMailEmpty('Ikke hentet endnu.'));
-  return { html, venter: venterMail(state) ? { [RUM]: venterMail(state) } : {}, hermesStatus: state?.hermesStatus ?? 'Klar', ...extra };
+  const html = state ? String(renderMail(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('mail'))) : String(renderMailEmpty(mailTekst().ikkeHentetEndnu));
+  return { html, venter: venterMail(state) ? { [RUM]: venterMail(state) } : {}, hermesStatus: state?.hermesStatus ?? tekst().klar, ...extra };
 }
 
 async function view(deps: RoomDeps): Promise<RoomView> {
   const { state, log } = await synlig(deps);
-  return { main: state ? renderMail(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('mail')) : renderMailEmpty('Ikke hentet endnu.'), hermesStatus: state?.hermesStatus ?? 'Klar' };
+  return { main: state ? renderMail(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('mail')) : renderMailEmpty(mailTekst().ikkeHentetEndnu), hermesStatus: state?.hermesStatus ?? tekst().klar };
 }
 
 /** KC-0214: the mail connection the room reads (it can act, or KC-0223 only read), or null for Hermes' tool path. */
@@ -351,6 +353,6 @@ export const mailRoom: RoomModule = {
   venter: async (deps) => venterMail((await synlig(deps)).state),
   hjemVenter: async (deps) => {
     const { state } = await synlig(deps);
-    return (state?.beslutninger ?? []).filter((b) => !b.afgjort).map((b) => ({ roomId: RUM, tekst: `Mail: ${b.emne}` }));
+    return (state?.beslutninger ?? []).filter((b) => !b.afgjort).map((b) => ({ roomId: RUM, tekst: mailTekst().nuLinje(b.emne) }));
   },
 };

@@ -11,6 +11,7 @@ import { brugForslag, dokumentTilMarkdown, KORSEL, parseForslag, parseNytDokumen
 import { buildForslagRun, buildNytRun, buildSkriveChatRun } from './prompt.ts';
 import { renderSkrive } from './render.ts';
 import { stemmeSkrive } from './stemme.ts';
+import { skriveTekst } from './tekster.ts';
 
 export const RUM = 'skrive';
 const JSON_BLOCK = /```(?:json)?\s*[\s\S]*?```/i;
@@ -219,7 +220,7 @@ export const skriveRoom: RoomModule = {
   venter: async (deps) => venterSkrive(await load(deps)),
   hjemVenter: async (deps) => {
     const s = await load(deps);
-    return s.forslag.map((f) => { const d = s.dokumenter.find((x) => x.id === f.dokId); return { roomId: RUM, tekst: `Forslag til "${d?.titel ?? 'udkast'}"` }; });
+    return s.forslag.map((f) => { const d = s.dokumenter.find((x) => x.id === f.dokId); return { roomId: RUM, tekst: skriveTekst().nuForslag(d?.titel ?? skriveTekst().udkast) }; });
   },
   fil: async (deps, name) => {
     const m = /^(dok-[a-z0-9]+)\.md$/.exec(name);

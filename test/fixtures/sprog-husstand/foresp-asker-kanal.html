@@ -1,0 +1,33 @@
+<div class="stack foresp-sektion" data-foresp-sektion>
+    
+    <div class="stack gruppe" data-gruppe="Venter på svar"><div class="card-head"><h2 class="eyebrow">Venter på svar</h2><span class="muted mono">2</span></div><article class="card kort foresp" data-blok="forespoergsel" data-foresp="s1" data-foresp-tilstand="spurgt" data-element="Forespørgsel: Can you come on Sunday?" data-datazone="husstand">
+    <div class="kort-head"><span class="chip tilstand-rolig">Spurgt</span><span class="row-note">Du spurgte Grandma</span></div>
+    <span class="row-title">Can you come on Sunday?</span>
+    
+    <p class="row-note foresp-anbefaling" data-foresp-anbefaling>Grandma har ikke svaret endnu. Udløber torsdag 5. nov kl. 09.00.</p>
+    <p class="row-note" data-kanal-ikke>Grandma har allerede en åben forespørgsel på Telegram. Vent på svaret først.</p>
+    <div class="actions"><button type="button" class="btn btn-ghost" data-aktion="traek" data-arg="{&quot;id&quot;:&quot;s1&quot;}">Træk tilbage</button></div>
+  </article><article class="card kort foresp" data-blok="forespoergsel" data-foresp="s2" data-foresp-tilstand="spurgt" data-element="Forespørgsel: Can you bring the cake?" data-datazone="husstand">
+    <div class="kort-head"><span class="chip tilstand-rolig">Spurgt</span><span class="row-note">Du spurgte Grandma</span></div>
+    <span class="row-title">Can you bring the cake?</span>
+    
+    <p class="row-note foresp-anbefaling" data-foresp-anbefaling>Grandma har ikke svaret endnu. Udløber torsdag 5. nov kl. 09.00.</p>
+    <p class="row-note" data-kanal-sendt>Sendt til Grandma på Telegram kl. 09.05.</p><p class="row-note">Påmindelsen lyder:</p>
+      <p class="row-note kanal-tekst" data-kanal-tekst="s2">Påmindelse fra Maja: Can you bring the cake?
+Svar ja eller nej. Skriv stop, hvis du ikke vil have flere beskeder fra Clawco.</p>
+      <div class="actions"><button type="button" class="btn btn-graense" data-kanal-send="s2" data-kanal-slags="paamindelse" data-kanal-ja="s2:paamindelse:da64fdb2f9fd1034" data-status="sender" data-kraever-ja data-graense="kraever-ja">Send en påmindelse</button></div>
+    <div class="actions"><button type="button" class="btn btn-ghost" data-aktion="traek" data-arg="{&quot;id&quot;:&quot;s2&quot;}">Træk tilbage</button></div>
+  </article></div>
+    
+    <section class="card foresp-ny" data-foresp-ny>
+    <h2 class="eyebrow">Spørg en i husstanden</h2>
+    <form id="foresp-ny" class="stack nyt-form" method="post" autocomplete="off">
+      <label class="field"><span class="row-note">Hvem</span><select name="til"><option value="henrik">Henrik</option><option value="rikke">Rikke</option><option value="ella">Ella</option><option value="grandma">Grandma</option></select></label>
+      <label class="field"><span class="row-note">Hvad</span><input name="titel" type="text" maxlength="200" required placeholder="Kan du hente Ella torsdag?"></label>
+      <label class="field"><span class="row-note">Dag (valgfri)</span><input name="dag" type="date"></label>
+      <label class="field"><span class="row-note">Fra</span><input name="start" type="time"></label>
+      <label class="field"><span class="row-note">Til</span><input name="slut" type="time"></label>
+    </form>
+    <div class="actions"><button type="button" class="btn btn-graense" data-aktion="opret" data-form="foresp-ny" data-status="spørger" data-kraever-ja data-graense="kraever-ja">Spørg</button></div>
+  </section>
+  </div>

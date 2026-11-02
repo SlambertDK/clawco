@@ -6,13 +6,15 @@
    before app.js; tests import it for KCNaeste. */
 (function (root) {
   'use strict';
+  function ord(navn, standard) { var T = root.KC_TEKST || {}; return T[navn] || standard; }
   function om(start, slut, nu) {
-    if (nu >= start) return slut !== undefined && nu < slut ? 'nu' : null;
+    if (nu >= start) return slut !== undefined && nu < slut ? ord('omNu', 'nu') : null;
     var min = Math.ceil((start - nu) / 60000);
-    if (min < 60) return 'om ' + min + ' min';
+    var i = ord('omOm', 'om'), mn = ord('omMin', 'min'), tm = ord('omT', 't');
+    if (min < 60) return i + ' ' + min + ' ' + mn;
     var t = Math.floor(min / 60);
     var m = min % 60;
-    return m ? 'om ' + t + ' t ' + m + ' min' : 'om ' + t + ' t';
+    return m ? i + ' ' + t + ' ' + tm + ' ' + m + ' ' + mn : i + ' ' + t + ' ' + tm;
   }
   function tik(doc, nu) {
     var linjer = doc.querySelectorAll('[data-naeste]');

@@ -1,0 +1,27 @@
+
+  <header class="room-head">
+    <div><h1>Skrive</h1><p class="muted">Du siger hvad. Hermes skriver. Du bruger eller afviser.</p></div>
+    <div class="actions"><button type="button" class="btn" data-kopier="Y">Kopiér</button><a class="btn" href="/rum/skrive/dok/dok-2.md" download>Hent som fil</a><button type="button" class="btn" data-aktion="gem" data-arg="{&quot;dokId&quot;:&quot;dok-2&quot;}" data-status="gemmer i Obsidian">Gem igen i Obsidian</button></div>
+  </header>
+
+  <p class="taellelinje"><span>Intet venter på dig</span></p><div class="baand-indhold" data-baand="indhold"><div class="doks"><button type="button" class="chip chip-muted chip-btn" data-aktion="vaelg" data-arg="{&quot;dokId&quot;:&quot;dok-1&quot;}" data-status="skifter">Note to the ops team</button><span class="chip tilstand-handling">Another draft</span><button type="button" class="chip chip-muted chip-btn" data-aktion="nyt" data-prompt="brief=Hvad skal Hermes skrive? Til hvem, hvilken tone, hvor langt." data-status="skriver udkast">+ Nyt udkast</button></div>
+
+  
+  <section class="card dok" data-element="Udkastet: Another draft">
+    <div class="card-head"><h2>Another draft</h2><span class="mono muted">ændret 10.00</span></div>
+    <p class="row-note">Brief: x</p>
+    <div class="afsnit-liste"><div data-id="afsnit:dok-2:a1" class="afsnit" data-element="Afsnit 1" data-afsnit="a1">
+    <p>Y</p>
+    <div class="afsnit-tools"><span class="mono muted">Afsnit 1</span><div class="actions actions-small"><button type="button" class="btn btn-ghost" data-aktion="forslag" data-arg="{&quot;dokId&quot;:&quot;dok-2&quot;,&quot;afsnitId&quot;:&quot;a1&quot;,&quot;type&quot;:&quot;stram&quot;}" data-status="Stram op">Stram op</button><button type="button" class="btn btn-ghost" data-aktion="forslag" data-arg="{&quot;dokId&quot;:&quot;dok-2&quot;,&quot;afsnitId&quot;:&quot;a1&quot;,&quot;type&quot;:&quot;konkret&quot;}" data-status="Gør mere konkret">Gør mere konkret</button><button type="button" class="btn btn-ghost" data-aktion="forslag" data-arg="{&quot;dokId&quot;:&quot;dok-2&quot;,&quot;afsnitId&quot;:&quot;a1&quot;,&quot;type&quot;:&quot;kortere&quot;}" data-status="Kortere">Kortere</button></div></div>
+  </div></div>
+    <div class="afsnit-tools"><span class="mono muted">Hele teksten</span><div class="actions actions-small"><button type="button" class="btn btn-ghost" data-aktion="forslag" data-arg="{&quot;dokId&quot;:&quot;dok-2&quot;,&quot;afsnitId&quot;:null,&quot;type&quot;:&quot;stram&quot;}" data-status="Stram op">Stram op</button><button type="button" class="btn btn-ghost" data-aktion="forslag" data-arg="{&quot;dokId&quot;:&quot;dok-2&quot;,&quot;afsnitId&quot;:null,&quot;type&quot;:&quot;konkret&quot;}" data-status="Gør mere konkret">Gør mere konkret</button><button type="button" class="btn btn-ghost" data-aktion="forslag" data-arg="{&quot;dokId&quot;:&quot;dok-2&quot;,&quot;afsnitId&quot;:null,&quot;type&quot;:&quot;kortere&quot;}" data-status="Kortere">Kortere</button></div></div>
+    
+    <p class="row-note">Gemt i Obsidian: /vault/00-Inbox/2026-10-27 Another draft.md</p>
+  </section>
+
+  <form id="nyt-form" class="card nyt-form" onsubmit="return false">
+    <h2>Nyt udkast</h2>
+    <label class="field"><span class="row-note">Titel (valgfri)</span><input name="titel" type="text" maxlength="120" placeholder="Fx Mail til driften om vinterberedskab"></label>
+    <label class="field"><span class="row-note">Hvad skal Hermes skrive? Til hvem, hvilken tone, hvor langt.</span><textarea name="brief" rows="3" maxlength="2000" placeholder="Kort mail til Tom om, at vi strammer reserverne fra december. Venlig, konkret, højst fem linjer." required></textarea></label>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="nyt" data-form="nyt-form" data-status="skriver udkast">Skriv udkastet</button></div>
+  </form></div><!--/baand-->

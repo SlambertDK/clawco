@@ -8,6 +8,10 @@ import type { Moment } from '../typer.ts';
 /** KC-0152: the moment with the weekend card. */
 export const TIRSDAG_WEEKEND = 'tirsdag-weekend';
 
+/** KC-0170: the morning again, with a profile that chose English in Start — every room in English. Not part of the day's order. */
+export const ENGELSK = 'engelsk';
+export const ENGELSK_MOMENT: Moment = { id: ENGELSK, tid: '07:10', navn: 'Morgen, på engelsk', url: '/rum/hjem', replik: 'What is waiting for me today?' };
+
 /** The day, in order. `replik` is a line Henrik might say to the voice at that moment. */
 export const MOMENT_TABEL: readonly Moment[] = [
   { id: 'morgen', tid: '07:10', navn: 'Morgen', url: '/rum/hjem', replik: 'Godmorgen, hvad skal jeg i dag?' },
@@ -53,7 +57,7 @@ export const rumNr = (n: number): number => Math.min(n, MOMENT_TABEL.findIndex((
 
 /** The moment's position in the day (throws on an unknown id). */
 export function momentNr(id: string): number {
-  const i = MOMENT_TABEL.findIndex((m) => m.id === id);
+  const i = MOMENT_TABEL.findIndex((m) => m.id === (id === ENGELSK ? 'morgen' : id)); // KC-0170: the English variant is the morning
   if (i < 0) throw new Error(`ukendt moment: ${id}`);
   return i;
 }

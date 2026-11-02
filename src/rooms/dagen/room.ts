@@ -5,12 +5,14 @@
 import type { LogEntry } from '../../store/types.ts';
 import type { RunRecord, DoneResult } from '../../runs.ts';
 import type { RoomDeps, RoomModule, RoomView } from '../module.ts';
-import { extractJson, handlingensVerb, handlingerI, KORSEL, kraevJson, parseDagenState, synligDagen, ventendeDagen, venterDagen, type DagenState } from './schema.ts';
+import { extractJson, handlingensVerb, handlingerI, KORSEL, kraevJson, parseDagenState, synligDagen, venterDagen, type DagenState } from './schema.ts';
 import { synligFor, type DataZone } from '../../identitet/zoner.ts';
 import { dagFraUge, readDagenSource } from './source.ts';
 import { trimUge } from './uge.ts';
 import { buildChatRun, buildFortrydRun, buildHandlingRun, buildHentRun, buildRefreshRun } from './prompt.ts';
 import { renderDagen, renderDagenEmpty } from './render.ts';
+import { dagenTekst, ventendeLinjer } from './tekster.ts';
+import { tekst } from '../../shell/tekster.ts';
 import { stemmeDagen } from './stemme.ts';
 import { naesteAftale } from './naeste.ts';
 
@@ -32,14 +34,14 @@ async function synlig(deps: DagenDeps): Promise<{ state: DagenState | null; log:
 async function rendered(deps: DagenDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {
   deps.live.notify(RUM);
   const { state, log } = await synlig(deps);
-  const html = state ? String(renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender'))) : String(renderDagenEmpty('Ingen data for i dag endnu.'));
-  return { html, venter: { [RUM]: venterDagen(state, log, deps.now()) }, hermesStatus: state?.hermesStatus ?? 'Klar', ...extra };
+  const html = state ? String(renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender'))) : String(renderDagenEmpty(dagenTekst().ingenDataIDagEndnu));
+  return { html, venter: { [RUM]: venterDagen(state, log, deps.now()) }, hermesStatus: state?.hermesStatus ?? tekst().klar, ...extra };
 }
 
 export async function viewDagen(deps: DagenDeps): Promise<RoomView> {
   const { state, log } = await synlig(deps);
-  const main = state ? renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender')) : renderDagenEmpty('Ingen data for i dag endnu.');
-  return { main, hermesStatus: state?.hermesStatus ?? 'Klar' };
+  const main = state ? renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender')) : renderDagenEmpty(dagenTekst().ingenDataIDagEndnu);
+  return { main, hermesStatus: state?.hermesStatus ?? tekst().klar };
 }
 
 export async function startOpdater(deps: DagenDeps, mode: string): Promise<RunRecord | null> {
@@ -146,7 +148,7 @@ export async function startChat(deps: DagenDeps, besked: string, kontekst: strin
 
 async function hjemVenter(deps: DagenDeps): Promise<{ roomId: string; tekst: string }[]> {
   const { state, log } = await synlig(deps);
-  return ventendeDagen(state, log, deps.now()).map((tekst) => ({ roomId: RUM, tekst }));
+  return ventendeLinjer(state, log, deps.now()).map((tekst) => ({ roomId: RUM, tekst }));
 }
 
 export const dagenRoom: RoomModule = {

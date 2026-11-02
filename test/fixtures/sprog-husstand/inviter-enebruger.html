@@ -1,0 +1,26 @@
+<header class="room-head"><div><a class="muted" href="/rum/hjem">Til Nu</a><h1>Inviter en til husstanden</h1><p class="muted">Hun ser det, I deler. Din egen Nu, dine noter og din arbejds- og privatzone ser hun aldrig.</p></div></header>
+  <section class="card stack" data-invitation-form="egen">
+    <h2 class="eyebrow">Egen indgang</h2>
+    <p class="row-note">Hun får sin egen Nu i Clawco. Du giver hende adgang i Tailscale bagefter; Clawco viser dig hvordan.</p>
+    <form id="inviter-egen" class="stack nyt-form" method="post" autocomplete="off">
+      <input type="hidden" name="slags" value="egen">
+      <label class="field"><span class="row-note">Dit navn (det står i invitationen)</span><input name="mitNavn" type="text" maxlength="80" required></label>
+      <label class="field"><span class="row-note">Navn</span><input name="navn" type="text" maxlength="80" required></label>
+      <label class="field"><span class="row-note">Hendes e-mail i Tailscale</span><input name="login" type="email" maxlength="200" required></label>
+      <label class="field"><span class="row-note">Rolle</span><select name="rolle"><option value="medlem" selected>medlem</option><option value="barn">barn</option><option value="gaest">gæst</option></select></label>
+    </form>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="inviter" data-form="inviter-egen" data-status="inviterer">Inviter</button></div>
+  </section>
+  <section class="card stack" data-invitation-form="telefon">
+    <h2 class="eyebrow">Kun telefonnummer</h2>
+    <p class="row-note">Hun skal ikke installere noget. Forespørgsler kommer som beskeder, og du læser selv den første, før den sendes.</p>
+    <form id="inviter-telefon" class="stack nyt-form" method="post" autocomplete="off">
+      <input type="hidden" name="slags" value="telefon">
+      <label class="field"><span class="row-note">Dit navn (det står i invitationen)</span><input name="mitNavn" type="text" maxlength="80" required></label>
+      <label class="field"><span class="row-note">Navn</span><input name="navn" type="text" maxlength="80" required></label>
+      <label class="field"><span class="row-note">Kanal</span><select name="kanal"><option value="telegram">Telegram</option><option value="whatsapp">WhatsApp</option><option value="signal">Signal</option></select></label>
+      <label class="field"><span class="row-note">Nummer med landekode (Telegram: hendes id)</span><input name="handle" type="text" maxlength="24" required inputmode="tel"></label>
+      <label class="field"><span class="row-note">Rolle</span><select name="rolle"><option value="medlem" selected>medlem</option><option value="barn">barn</option><option value="gaest">gæst</option></select></label>
+    </form>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="inviter" data-form="inviter-telefon" data-status="inviterer">Inviter</button></div>
+  </section>

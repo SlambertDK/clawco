@@ -1,0 +1,38 @@
+
+  <header class="room-head" data-element="Univers: Roadmap">
+    <div><a class="muted" href="/rum/univers">Alle universer</a><h1>Roadmap</h1></div>
+  </header>
+
+  <p class="taellelinje"><span>Intet venter på dig</span></p><div class="baand-indhold" data-baand="indhold"><section class="card" data-element="Næste i universet">
+    <div class="card-head"><h2 class="eyebrow">Næste</h2><span class="muted mono">0 åbne opgaver</span></div>
+    <p class="muted row">Ingen kommende møder.</p>
+  </section>
+
+  <section class="stack">
+    <div class="card-head"><h2 class="eyebrow">Møder</h2><span class="muted mono">0</span></div>
+    <p class="muted">Ingen møder endnu. Læg et fra Univers-oversigten, eller tilføj et nedenfor.</p>
+  </section>
+
+  <section class="stack">
+    <div class="card-head"><h2 class="eyebrow">Opgaver</h2><span class="muted mono">0</span></div>
+    <p class="muted">Ingen opgaver endnu. Bed Hermes i chatten om at lave dem, eller forbered et møde.</p>
+  </section>
+
+  <section class="stack">
+    <div class="card-head"><h2 class="eyebrow">Dokumenter</h2><span class="muted mono">0</span></div>
+    <p class="muted">Ingen dokumenter endnu. Bed Hermes i chatten om fx en præsentation eller et notat.</p>
+  </section>
+
+  <section class="stack">
+    <div class="card-head"><h2 class="eyebrow">Noter</h2><span class="muted mono">0</span></div>
+    <p class="muted">Ingen noter endnu.</p>
+  </section>
+
+  <form id="nyt-moede" class="card nyt-form" onsubmit="return false">
+    <h2>Nyt møde</h2>
+    <label class="field"><span class="row-note">Titel</span><input name="titel" type="text" maxlength="200" placeholder="Fx Pitch til Tom om lederrollen" required></label>
+    <label class="field"><span class="row-note">Starter</span><input name="start" type="datetime-local" required></label>
+    <label class="field"><span class="row-note">Varighed i minutter</span><input name="varighed" type="number" min="5" max="1440" step="5" value="60"></label>
+    <label class="field"><span class="row-note">Deltagere (navne eller mails, adskilt af komma)</span><input name="deltagere" type="text" maxlength="500" placeholder="Jonas Holm, Line Berg"></label>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="nytMoede" data-form="nyt-moede" data-status="tilføjer mødet">Tilføj mødet</button></div>
+  </form></div><!--/baand-->

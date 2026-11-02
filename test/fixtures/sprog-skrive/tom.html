@@ -1,0 +1,17 @@
+
+  <header class="room-head">
+    <div><h1>Skrive</h1><p class="muted">Du siger hvad. Hermes skriver. Du bruger eller afviser.</p></div>
+    
+  </header>
+
+  <p class="taellelinje"><span>Intet venter på dig</span></p><div class="baand-indhold" data-baand="indhold">
+
+  
+  <section class="card"><h2>Ingen udkast endnu</h2><p class="muted">Beskriv, hvad Hermes skal skrive, så kommer det første udkast her som afsnit, du kan pege på.</p></section>
+
+  <form id="nyt-form" class="card nyt-form" onsubmit="return false">
+    <h2>Nyt udkast</h2>
+    <label class="field"><span class="row-note">Titel (valgfri)</span><input name="titel" type="text" maxlength="120" placeholder="Fx Mail til driften om vinterberedskab"></label>
+    <label class="field"><span class="row-note">Hvad skal Hermes skrive? Til hvem, hvilken tone, hvor langt.</span><textarea name="brief" rows="3" maxlength="2000" placeholder="Kort mail til Tom om, at vi strammer reserverne fra december. Venlig, konkret, højst fem linjer." required></textarea></label>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="nyt" data-form="nyt-form" data-status="skriver udkast">Skriv udkastet</button></div>
+  </form></div><!--/baand-->

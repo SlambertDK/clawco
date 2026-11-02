@@ -7,7 +7,7 @@
 import { html, type Markup } from './html.ts';
 import { tilstandChip, type Tilstand } from './sprog.ts';
 import { hvornaar } from './revision.ts';
-import { ZONE_NAVN } from '../identitet/zoner.ts';
+import { tekst } from './tekster.ts';
 import { virker, type Helbred } from '../kilder/types.ts';
 import { kortTekst } from '../kilder/helbred-tekst.ts';
 import type { KildeOversigt } from '../kilder/register.ts';
@@ -16,7 +16,6 @@ import type { KildeOversigt } from '../kilder/register.ts';
 export const KILDE_TILSTANDE = ['forbundet', 'log-ind-igen', 'nede', 'langsom'] as const;
 export type KildeTilstand = (typeof KILDE_TILSTANDE)[number];
 
-const TEKST: Record<KildeTilstand, string> = { forbundet: 'Forbundet', 'log-ind-igen': 'Log ind igen', nede: 'Nede', langsom: 'Langsom' };
 /** One colour per meaning (KC-0064): working is ordnet, Henrik must act is kraever, broken is graense, slow is rolig. */
 const FARVE: Record<KildeTilstand, Tilstand> = { forbundet: 'ordnet', 'log-ind-igen': 'kraever', nede: 'graense', langsom: 'rolig' };
 
@@ -33,15 +32,16 @@ export type KildeVisning = Pick<KildeOversigt, 'id' | 'navn' | 'slags' | 'auth' 
 /** KC-0139: what is wrong, from the fixed table — never the connector's own words (they can echo a provider). */
 function hvadErGalt(k: KildeVisning, t: KildeTilstand): string {
   if (t === 'log-ind-igen' || t === 'nede') return kortTekst(t, k.auth, k.slags).titel;
-  return t === 'langsom' ? 'Svarer langsomt' : '';
+  return t === 'langsom' ? tekst().svarerLangsomt : '';
 }
 
 export function renderKilder(liste: readonly KildeVisning[], o: { nu: Date; maaFrakoble: boolean }): Markup {
   const forbundne = liste.filter((k) => k.forbundet);
   if (!forbundne.length) return html``;
-  return html`<div class="card card-list kilder" data-blok="bunke" data-gruppe="Kilder"><div class="card-head"><h3 class="eyebrow">Kilder</h3><span class="muted mono">${forbundne.length}</span></div>${forbundne.map((k) => {
+  const T = tekst();
+  return html`<div class="card card-list kilder" data-blok="bunke" data-gruppe="Kilder"><div class="card-head"><h3 class="eyebrow">${T.kilder}</h3><span class="muted mono">${forbundne.length}</span></div>${forbundne.map((k) => {
     const t = kildeTilstand(k.helbred);
-    const note = [ZONE_NAVN[k.zone], hvadErGalt(k, t), k.sidstLaest ? `Sidst læst ${hvornaar(k.sidstLaest, o.nu)}` : ''].filter(Boolean).join(' · ');
-    return html`<div class="row kilde-row" data-kilde="${k.id}" data-kilde-tilstand="${t}"><span class="row-main"><span class="row-title">${k.navn}</span><span class="row-note">${note}</span></span>${tilstandChip(FARVE[t], TEKST[t])}${o.maaFrakoble ? html`<button type="button" class="btn kilde-frakobl" data-kilde-frakobl="${k.id}">Frakobl</button>` : ''}</div>`;
+    const note = [T.zone[k.zone], hvadErGalt(k, t), k.sidstLaest ? T.sidstLaest(hvornaar(k.sidstLaest, o.nu)) : ''].filter(Boolean).join(' · ');
+    return html`<div class="row kilde-row" data-kilde="${k.id}" data-kilde-tilstand="${t}"><span class="row-main"><span class="row-title">${k.navn}</span><span class="row-note">${note}</span></span>${tilstandChip(FARVE[t], T.kildeTilstand[t])}${o.maaFrakoble ? html`<button type="button" class="btn kilde-frakobl" data-kilde-frakobl="${k.id}">${T.frakobl}</button>` : ''}</div>`;
   })}</div>`;
 }

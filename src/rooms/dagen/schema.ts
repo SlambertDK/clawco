@@ -236,18 +236,11 @@ export function dagenGammel(state: DagenState, now: Date): 'byg' | 'vent' | null
 
 /** What in Dagen waits on Henrik, one line each — Hjem's rows and (counted) the nav's number: the handlinger no
  *  (non-undone) log entry has carried out yet; for an old Dagen only "build it", never yesterday's handlinger. */
-export function ventendeDagen(state: DagenState | null, log: LogEntry[], now: Date): string[] {
-  if (!state) return [];
-  const gammel = dagenGammel(state, now);
-  if (gammel) return gammel === 'byg' ? ['Dagen er ikke bygget i dag'] : [];
-  const done = new Set(log.filter((e) => e.handlingId && !e.fortrudt).map((e) => e.handlingId));
-  const ud: string[] = [];
-  if (state.anbefaling.handling && !done.has(state.anbefaling.handling.id)) ud.push(`Anbefaling: ${state.anbefaling.tekst}`);
-  for (const k of state.kalender) if (k.handling && !done.has(k.handling.id)) ud.push(`${k.handling.label}: ${k.titel} kl. ${k.tid}`);
-  return ud;
-}
+/** What in Dagen waits on the person, one line each (the words: tekster.ts, in the language being rendered). */
+export { ventendeLinjer as ventendeDagen } from './tekster.ts';
+import { ventendeLinjer } from './tekster.ts';
 
-export const venterDagen = (state: DagenState | null, log: LogEntry[], now: Date): number => ventendeDagen(state, log, now).length;
+export const venterDagen = (state: DagenState | null, log: LogEntry[], now: Date): number => ventendeLinjer(state, log, now).length;
 
 /** KC-0122: the verb a stored handling runs under (old state has none: the app's floor). */
 export const handlingensVerb = (h: Handling): string => h.verb ?? agentGulv(h);

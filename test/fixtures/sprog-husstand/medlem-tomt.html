@@ -1,0 +1,81 @@
+
+  <header class="room-head">
+    <div><h1>Husstanden</h1><p class="muted">Det, der gælder jer alle. Din egen Nu, dine noter og din arbejds- og privatzone ser de andre aldrig.</p></div>
+  </header>
+  
+  <div class="stack ressource-sektion" data-ressource-sektion>
+    
+    
+    <div class="stack gruppe" data-gruppe="Ting i huset"><div class="card-head"><h2 class="eyebrow">Ting i huset</h2><span class="muted mono">2</span></div><article class="card kort ressource" data-blok="ressource" data-ressource="big-car" data-ressource-slags="bil" data-element="Ressource: The big car" data-datazone="husstand">
+    <div class="kort-head"><span class="chip tilstand-rolig">Bil</span><span class="row-note">Ejere: <span data-ressource-ejere>Henrik, Rikke og Du</span></span></div>
+    <span class="row-title">The big car</span>
+    <ol class="uge-strip" data-uge-strip aria-label="De næste syv dage"><li class="strip-dag" data-strip-dag="2026-11-03" title="I dag">T</li><li class="strip-dag optaget" data-strip-dag="2026-11-04" data-strip-optaget title="I morgen: optaget">O</li><li class="strip-dag" data-strip-dag="2026-11-05" title="Torsdag 5. nov">T</li><li class="strip-dag" data-strip-dag="2026-11-06" title="Fredag 6. nov">F</li><li class="strip-dag optaget" data-strip-dag="2026-11-07" data-strip-optaget title="Lørdag 7. nov: optaget">L</li><li class="strip-dag" data-strip-dag="2026-11-08" title="Søndag 8. nov">S</li><li class="strip-dag" data-strip-dag="2026-11-09" title="Mandag 9. nov">M</li></ol>
+    <div class="stack naeste-bookinger"><div class="row booking" data-booking="b0"><span class="row-note mono">I morgen kl. 08.00–09.00 · Du · Trip</span></div><div class="row booking" data-booking="b1"><span class="row-note mono">Lørdag 7. nov kl. 08.00–16.00 · Rikke · To Odense</span></div></div>
+    <form id="book-big-car" class="stack nyt-form" method="post" autocomplete="off">
+      <label class="field"><span class="row-note">Dag</span><input name="dag" type="date" required></label>
+      <label class="field"><span class="row-note">Fra</span><input name="start" type="time" required></label>
+      <label class="field"><span class="row-note">Til</span><input name="slut" type="time" required></label>
+      <label class="field"><span class="row-note">Hvad</span><input name="titel" type="text" maxlength="200" required placeholder="Tur til Odense"></label>
+    </form>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="book" data-arg="{&quot;ressourceId&quot;:&quot;big-car&quot;}" data-form="book-big-car" data-status="booker">Book</button></div>
+    <details class="ressource-ret" data-ressource-ret="big-car">
+    <summary class="row-note">Ret</summary>
+    <form id="ret-big-car" class="stack nyt-form" method="post" autocomplete="off">
+      <label class="field"><span class="row-note">Navn</span><input name="navn" type="text" maxlength="80" required value="The big car"></label>
+      <label class="field"><span class="row-note">Hvad er det</span><select name="slags" aria-label="Hvad er det"><option value="bil" selected>Bil</option><option value="rum">Rum</option><option value="ting">Ting</option></select></label>
+      <fieldset class="field"><legend class="row-note">Hvem ejer den</legend><label class="field-check"><input type="checkbox" name="ejer-henrik" checked> <span>Henrik</span></label><label class="field-check"><input type="checkbox" name="ejer-rikke" checked> <span>Rikke</span></label><label class="field-check"><input type="checkbox" name="ejer-maja" checked> <span>Maja</span></label><label class="field-check"><input type="checkbox" name="ejer-ella"> <span>Ella</span></label></fieldset>
+    </form>
+    <div class="actions"><button type="button" class="btn" data-aktion="ret-ressource" data-arg="{&quot;ressourceId&quot;:&quot;big-car&quot;}" data-form="ret-big-car" data-status="gemmer">Gem</button></div>
+    <details class="ressource-fjern" data-ressource-fjern>
+      <summary class="row-note">Fjern The big car</summary>
+      <p class="row-note">Det kan ikke fortrydes. Overståede bookinger og dine egne går med.</p>
+      <div class="actions"><button type="button" class="btn btn-graense" data-aktion="fjern-ressource" data-arg="{&quot;ressourceId&quot;:&quot;big-car&quot;}" data-status="fjerner" data-kraever-ja data-graense="kraever-ja">Ja, fjern The big car</button></div>
+    </details>
+  </details>
+  </article><article class="card kort ressource" data-blok="ressource" data-ressource="small-car" data-ressource-slags="bil" data-element="Ressource: The small car" data-datazone="husstand">
+    <div class="kort-head"><span class="chip tilstand-rolig">Bil</span><span class="row-note">Ejere: <span data-ressource-ejere>Henrik og Rikke</span></span></div>
+    <span class="row-title">The small car</span>
+    <ol class="uge-strip" data-uge-strip aria-label="De næste syv dage"><li class="strip-dag" data-strip-dag="2026-11-03" title="I dag">T</li><li class="strip-dag" data-strip-dag="2026-11-04" title="I morgen">O</li><li class="strip-dag" data-strip-dag="2026-11-05" title="Torsdag 5. nov">T</li><li class="strip-dag" data-strip-dag="2026-11-06" title="Fredag 6. nov">F</li><li class="strip-dag" data-strip-dag="2026-11-07" title="Lørdag 7. nov">L</li><li class="strip-dag" data-strip-dag="2026-11-08" title="Søndag 8. nov">S</li><li class="strip-dag" data-strip-dag="2026-11-09" title="Mandag 9. nov">M</li></ol>
+    <p class="row-note">Ingen bookinger.</p>
+    <form id="book-small-car" class="stack nyt-form" method="post" autocomplete="off">
+      <label class="field"><span class="row-note">Dag</span><input name="dag" type="date" required></label>
+      <label class="field"><span class="row-note">Fra</span><input name="start" type="time" required></label>
+      <label class="field"><span class="row-note">Til</span><input name="slut" type="time" required></label>
+      <label class="field"><span class="row-note">Hvad</span><input name="titel" type="text" maxlength="200" required placeholder="Tur til Odense"></label>
+    </form>
+    <div class="actions"><button type="button" class="btn btn-graense" data-aktion="book-spoerg" data-arg="{&quot;ressourceId&quot;:&quot;small-car&quot;}" data-form="book-small-car" data-status="spørger" data-kraever-ja data-graense="kraever-ja">Spørg Henrik</button></div>
+    
+  </article><details class="card kort bil-form" data-ressource-form>
+    <summary class="row-title">Tilføj ting</summary>
+    <form id="tilfoej-ressource-form" class="stack nyt-form" method="post" autocomplete="off">
+      <label class="field"><span class="row-note">Navn</span><input name="navn" type="text" maxlength="80" required placeholder="Den store bil"></label>
+      <label class="field"><span class="row-note">Hvad er det</span><select name="slags" aria-label="Hvad er det"><option value="bil" selected>Bil</option><option value="rum">Rum</option><option value="ting">Ting</option></select></label>
+      <fieldset class="field"><legend class="row-note">Hvem ejer den</legend><label class="field-check"><input type="checkbox" name="ejer-henrik"> <span>Henrik</span></label><label class="field-check"><input type="checkbox" name="ejer-rikke"> <span>Rikke</span></label><label class="field-check"><input type="checkbox" name="ejer-maja" checked> <span>Maja</span></label><label class="field-check"><input type="checkbox" name="ejer-ella"> <span>Ella</span></label></fieldset>
+    </form>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="tilfoej-ressource" data-form="tilfoej-ressource-form" data-status="tilføjer">Tilføj</button></div>
+  </details></div>
+  </div>
+  <section class="card card-list gruppe" data-blok="bunke" data-gruppe="Fælles uge" data-husstand-uge>
+    <div class="card-head"><h2 class="eyebrow">Fælles uge</h2><span class="muted mono">0</span></div>
+    <p class="muted row">Intet fælles i den kommende uge.</p>
+  </section>
+
+  <section class="card card-list gruppe" data-blok="bunke" data-gruppe="Hvem er med">
+    <div class="card-head"><h2 class="eyebrow">Hvem er med</h2><span class="muted mono">5</span></div>
+    <div data-id="medlem:henrik" class="row medlem" data-medlem="henrik" data-medlem-rolle="ejer" data-element="Husstanden: Henrik">
+    <span class="row-main"><span class="row-title">Henrik</span><span class="row-note">ejer</span></span>
+    <span class="actions"><button type="button" class="btn btn-ghost spoerg" data-ask="Husstanden: Henrik"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg><span>Spørg</span></button></span>
+  </div><div data-id="medlem:rikke" class="row medlem" data-medlem="rikke" data-medlem-rolle="medlem" data-element="Husstanden: Rikke">
+    <span class="row-main"><span class="row-title">Rikke</span><span class="row-note">medlem · your wife</span></span>
+    <span class="actions"><button type="button" class="btn btn-ghost spoerg" data-ask="Husstanden: Rikke"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg><span>Spørg</span></button></span>
+  </div><div data-id="medlem:maja" class="row medlem" data-medlem="maja" data-medlem-rolle="medlem" data-element="Husstanden: Maja">
+    <span class="row-main"><span class="row-title">Maja <span class="chip chip-muted">Du</span></span><span class="row-note">medlem</span></span>
+    <span class="actions"><button type="button" class="btn btn-ghost spoerg" data-ask="Husstanden: Maja"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg><span>Spørg</span></button></span>
+  </div><div data-id="medlem:ella" class="row medlem" data-medlem="ella" data-medlem-rolle="barn" data-element="Husstanden: Ella">
+    <span class="row-main"><span class="row-title">Ella</span><span class="row-note">barn</span></span>
+    <span class="actions"><button type="button" class="btn btn-ghost spoerg" data-ask="Husstanden: Ella"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg><span>Spørg</span></button></span>
+  </div><div data-id="medlem:grandma" class="row medlem" data-medlem="grandma" data-medlem-rolle="gaest" data-element="Husstanden: Grandma">
+    <span class="row-main"><span class="row-title">Grandma</span><span class="row-note">gæst</span></span>
+    <span class="actions"><button type="button" class="btn btn-ghost spoerg" data-ask="Husstanden: Grandma"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg><span>Spørg</span></button></span>
+  </div>
+  </section>

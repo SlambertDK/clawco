@@ -1,0 +1,27 @@
+
+  <header class="room-head">
+    <div><h1>Husstanden</h1><p class="muted">Det, nogen i husstanden har spurgt dig om.</p></div>
+  </header>
+  <div class="stack foresp-sektion" data-foresp-sektion>
+    <div class="stack gruppe" data-gruppe="Kræver dig"><div class="card-head"><h2 class="eyebrow">Kræver dig</h2><span class="muted mono">1</span></div><article class="card kort foresp" data-blok="forespoergsel" data-foresp="f8" data-foresp-tilstand="spurgt" data-element="Forespørgsel: Can you come on Sunday?" data-datazone="husstand">
+    <div class="kort-head"><span class="chip tilstand-kraever">Venter på dig</span><span class="row-note">Maja spørger dig</span></div>
+    <span class="row-title">Can you come on Sunday?</span>
+    
+    <p class="row-note foresp-anbefaling" data-foresp-anbefaling>Svar Maja, så I begge ved, hvor det står. Udløber torsdag 5. nov kl. 09.00.</p>
+    <p class="row-note kanal-fritekst" data-kanal-fritekst>Grandma skrev: maybe, call me</p>
+    
+  </article></div>
+    
+    
+    <section class="card foresp-ny" data-foresp-ny>
+    <h2 class="eyebrow">Spørg en i husstanden</h2>
+    <form id="foresp-ny" class="stack nyt-form" method="post" autocomplete="off">
+      <label class="field"><span class="row-note">Hvem</span><select name="til"><option value="henrik">Henrik</option><option value="rikke">Rikke</option><option value="maja">Maja</option><option value="ella">Ella</option></select></label>
+      <label class="field"><span class="row-note">Hvad</span><input name="titel" type="text" maxlength="200" required placeholder="Kan du hente Ella torsdag?"></label>
+      <label class="field"><span class="row-note">Dag (valgfri)</span><input name="dag" type="date"></label>
+      <label class="field"><span class="row-note">Fra</span><input name="start" type="time"></label>
+      <label class="field"><span class="row-note">Til</span><input name="slut" type="time"></label>
+    </form>
+    <div class="actions"><button type="button" class="btn btn-graense" data-aktion="opret" data-form="foresp-ny" data-status="spørger" data-kraever-ja data-graense="kraever-ja">Spørg</button></div>
+  </section>
+  </div>

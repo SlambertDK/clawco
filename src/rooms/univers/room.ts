@@ -20,6 +20,8 @@ import { KORSEL, isOpgaveStatus, parseForberedelse, parseNytUnivers, parseUniver
 import { buildForberedRun, buildOversigtChatRun, buildUniversChatRun } from './prompt.ts';
 import { renderOversigt, renderUnivers, venterUnivers } from './render.ts';
 import { koebenhavnTilIso } from './tid.ts';
+import { universTekst } from './tekster.ts';
+import { tekst } from '../../shell/tekster.ts';
 
 const JSON_BLOCK = /```(?:json)?\s*[\s\S]*?```/i;
 const TZ = 'Europe/Copenhagen';
@@ -69,7 +71,7 @@ async function oversigtView(deps: RoomDeps): Promise<RoomView> {
   const indeks = await laesIndeks(deps.store);
   const stats: Record<string, UniversStat> = {};
   for (const u of indeks.univers.filter((x) => !x.arkiveret)) stats[u.id] = universStat(await laesSynlig(deps, u.id), deps.now());
-  return { main: renderOversigt(indeks, stats, deps.now(), deps.runs.igang(UNIVERS), { husstand: (await deps.husstand?.synlig()) ?? false }), hermesStatus: 'Klar' };
+  return { main: renderOversigt(indeks, stats, deps.now(), deps.runs.igang(UNIVERS), { husstand: (await deps.husstand?.synlig()) ?? false }), hermesStatus: tekst().klar };
 }
 
 async function oversigtRendered(deps: RoomDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {
@@ -161,7 +163,7 @@ export const universOversigt: RoomModule = {
   venter: async (deps) => (await laesIndeks(deps.store)).nyeMoeder.length,
   hjemVenter: async (deps) => {
     const n = (await laesIndeks(deps.store)).nyeMoeder.length;
-    return n ? [{ roomId: UNIVERS, tekst: n === 1 ? '1 nyt møde venter på et univers' : `${n} nye møder venter på et univers` }] : [];
+    return n ? [{ roomId: UNIVERS, tekst: universTekst().nuNyeMoeder(n) }] : [];
   },
 };
 
@@ -170,11 +172,12 @@ export const universOversigt: RoomModule = {
 /** Under the bands of the univers page: the archive button. */
 function bund(info: UniversInfo): Markup {
   return html`
-  ${info.arkiveret ? html`<p class="muted">Universet er arkiveret: det er skjult i menuen, og alt er bevaret.</p>` : html`<div class="actions"><button type="button" class="btn btn-ghost" data-aktion="arkiver" data-confirm="Arkivér universet? Det skjules i menuen, men alt beholdes." data-status="arkiverer">Arkivér universet</button></div>`}`;
+  ${info.arkiveret ? html`<p class="muted">${universTekst().erArkiveret}</p>` : html`<div class="actions"><button type="button" class="btn btn-ghost" data-aktion="arkiver" data-confirm="${universTekst().arkiverBekraeft}" data-status="${universTekst().arkiverer}">${universTekst().arkiverKnap}</button></div>`}`;
 }
 
 function ikkeFundet(): Markup {
-  return html`<header class="room-head"><div><a class="muted" href="/rum/univers">Alle universer</a><h1>Universet findes ikke</h1><p class="muted">Det er enten arkiveret for længe siden eller aldrig oprettet. Se alle universer for at finde det, du leder efter.</p></div></header>`;
+  const T = universTekst();
+  return html`<header class="room-head"><div><a class="muted" href="/rum/univers">${T.alleUniverser}</a><h1>${T.findesIkke}</h1><p class="muted">${T.findesIkkeTekst}</p></div></header>`;
 }
 
 function moedeFraKontekst(state: UniversState, kontekst: string | undefined): Moede | null {
@@ -195,9 +198,9 @@ export function universRoom(slugNavn: string): RoomModule {
 
   async function view(deps: RoomDeps): Promise<RoomView> {
     const info = findUnivers(await laesIndeks(deps.store), slugNavn);
-    if (!info) return { main: ikkeFundet(), hermesStatus: 'Klar', titel: 'Universet findes ikke', status: 404 };
+    if (!info) return { main: ikkeFundet(), hermesStatus: tekst().klar, titel: universTekst().findesIkke, status: 404 };
     const [state, log] = await Promise.all([laesSynlig(deps, slugNavn), deps.store.readLog(RUM, 20).then((l) => synligUniversLog(l, deps.person))]);
-    return { main: html`${renderUnivers(info, state, deps.now(), { log, igang: deps.runs.igang(RUM) })}${bund(info)}`, hermesStatus: state.hermesStatus ?? 'Klar', titel: info.navn };
+    return { main: html`${renderUnivers(info, state, deps.now(), { log, igang: deps.runs.igang(RUM) })}${bund(info)}`, hermesStatus: state.hermesStatus ?? tekst().klar, titel: info.navn };
   }
 
   async function rendered(deps: RoomDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {

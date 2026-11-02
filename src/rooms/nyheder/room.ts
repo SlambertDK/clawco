@@ -12,6 +12,8 @@ import { alleNyheder, handlingerINyheder, KORSEL, parseNyhederState, type Nyhede
 import { flettNyheder, readNyhederSource, readNyhedsbreve, type TrimmedNyheder } from './source.ts';
 import { buildNyhederChatRun, buildNyhederFortrydRun, buildNyhederHandlingRun, buildNyhederHentRun, buildNyhederRefreshRun } from './prompt.ts';
 import { renderNyheder, renderNyhederEmpty } from './render.ts';
+import { nyhederTekst } from './tekster.ts';
+import { tekst } from '../../shell/tekster.ts';
 import { stemmeNyheder } from './stemme.ts';
 
 export const RUM = 'nyheder';
@@ -53,14 +55,14 @@ function venterNyheder(state: NyhederState | null, log: LogEntry[]): number {
 async function rendered(deps: RoomDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {
   deps.live.notify(RUM);
   const { state, log } = await current(deps);
-  const html = state ? String(renderNyheder(state, log, deps.now(), deps.runs.igang(RUM))) : String(renderNyhederEmpty('Ingen avis for i dag endnu.'));
+  const html = state ? String(renderNyheder(state, log, deps.now(), deps.runs.igang(RUM))) : String(renderNyhederEmpty(nyhederTekst().ingenAvis));
   const n = venterNyheder(state, log);
-  return { html, venter: n ? { [RUM]: n } : {}, hermesStatus: state?.hermesStatus ?? 'Klar', ...extra };
+  return { html, venter: n ? { [RUM]: n } : {}, hermesStatus: state?.hermesStatus ?? tekst().klar, ...extra };
 }
 
 async function view(deps: RoomDeps): Promise<RoomView> {
   const { state, log } = await current(deps);
-  return { main: state ? renderNyheder(state, log, deps.now(), deps.runs.igang(RUM)) : renderNyhederEmpty('Ingen avis for i dag endnu.'), hermesStatus: state?.hermesStatus ?? 'Klar' };
+  return { main: state ? renderNyheder(state, log, deps.now(), deps.runs.igang(RUM)) : renderNyhederEmpty(nyhederTekst().ingenAvis), hermesStatus: state?.hermesStatus ?? tekst().klar };
 }
 
 /** The morning paper and the user's own feeds (KC-0137) as one TrimmedNyheder; null = neither is there. */
@@ -197,6 +199,6 @@ export const nyhederRoom: RoomModule = {
     const { state, log } = await current(deps);
     if (!state) return [];
     const done = new Set(log.filter((e) => e.handlingId && !e.fortrudt).map((e) => e.handlingId));
-    return state.forslag.filter((f) => f.handling && !done.has(f.handling.id)).map((f) => ({ roomId: RUM, tekst: `Nyheder: ${f.tekst}` }));
+    return state.forslag.filter((f) => f.handling && !done.has(f.handling.id)).map((f) => ({ roomId: RUM, tekst: nyhederTekst().nuForslag(f.tekst) }));
   },
 };

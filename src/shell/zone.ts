@@ -5,10 +5,11 @@
 // no server state.
 
 import { html, type Markup } from './html.ts';
-import { ZONE_NAVN, zoneAf, type Zoneret } from '../identitet/zoner.ts';
+import { zoneAf, type Zoneret } from '../identitet/zoner.ts';
+import { tekst } from './tekster.ts';
 
 /** ` data-datazone="<zone>"` for the element's root tag. */
 export const zoneData = (el: Zoneret): Markup => html` data-datazone="${zoneAf(el)}"`;
 
 /** The small zone chip, placed inside the element (hidden unless the room mixes zones). */
-export const zoneChip = (el: Zoneret): Markup => html`<span class="chip zone-chip">${ZONE_NAVN[zoneAf(el)]}</span>`;
+export const zoneChip = (el: Zoneret): Markup => html`<span class="chip zone-chip">${tekst().zone[zoneAf(el)]}</span>`;

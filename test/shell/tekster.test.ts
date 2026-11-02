@@ -10,6 +10,14 @@ import { fileURLToPath } from 'node:url';
 import { TEKSTER, medSprog, sprogNu, tekst, klientTekst } from '../../src/shell/tekster.ts';
 import { START_TEKSTER } from '../../src/rooms/start/tekster.ts';
 import { ROOMS } from '../../src/rooms/registry.ts';
+import { ZONE_NAVN } from '../../src/identitet/zoner.ts';
+import { friskhed, kildeFriskhed } from '../../src/shell/friskhed.ts';
+import { naesteLinje, omTekst } from '../../src/shell/naeste.ts';
+import { renderIkkeFundet, ikkeFundetOverskrift } from '../../src/shell/ikkefundet.ts';
+import { renderKilder } from '../../src/shell/kilder.ts';
+import { kildeHelbredElementer } from '../../src/shell/kilde-helbred.ts';
+import { zoneChip } from '../../src/shell/zone.ts';
+import { resultatBoks } from '../../src/shell/log.ts';
 import { shell } from '../../src/shell/layout.ts';
 import { html } from '../../src/shell/html.ts';
 import { baand, igangGruppe, afvistLinje } from '../../src/shell/sprog.ts';
@@ -17,24 +25,21 @@ import { renderStart } from '../../src/rooms/start/render.ts';
 import { alleTrin } from '../../src/rooms/start/trin.ts';
 import { FAMILIE } from '../../src/testtilstand/familie.ts';
 import * as golden from '../fixtures/sprog-golden.ts';
+import { form, tomme, ensStrenge, laesbart, danskeLinjer } from '../fixtures/sprog-tjek.ts';
 
 const rod = path.dirname(fileURLToPath(import.meta.url));
 const fixtur = (navn: string): string => readFileSync(path.join(rod, '../fixtures/sprog', navn), 'utf8');
 
-/** Keys and value shapes of a text table, recursively (functions by arity). */
-function form(v: unknown): unknown {
-  if (typeof v === 'function') return `fn/${v.length}`;
-  if (typeof v === 'string') return 'tekst';
-  if (typeof v === 'object' && v !== null) return Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, form(x)]));
-  return typeof v;
-}
-const tomme = (v: Record<string, unknown>, sti = ''): string[] =>
-  Object.entries(v).flatMap(([k, x]) => (typeof x === 'string' && !x.trim() ? [sti + k] : typeof x === 'object' && x !== null ? tomme(x as Record<string, unknown>, `${sti}${k}.`) : []));
 
 test('English has exactly Danish\'s keys and shapes, in the shell and in Start; no string is empty', () => {
   assert.deepEqual(form(TEKSTER.en), form(TEKSTER.da));
   assert.deepEqual(form(START_TEKSTER.en), form(START_TEKSTER.da));
   for (const t of [TEKSTER.da, TEKSTER.en, START_TEKSTER.da, START_TEKSTER.en]) assert.deepEqual(tomme(t as unknown as Record<string, unknown>), []);
+});
+
+test('the Danish zone names are the identity module\'s own; English has all three', () => {
+  assert.deepEqual(TEKSTER.da.zone, ZONE_NAVN);
+  assert.deepEqual(Object.keys(TEKSTER.en.zone).sort(), Object.keys(ZONE_NAVN).sort());
 });
 
 test('every room has an English name; the Danish names are the registry\'s own', () => {
@@ -45,15 +50,7 @@ test('every room has an English name; the Danish names are the registry\'s own',
 });
 
 /** Strings that are the same in both languages on purpose (names, and words English borrows). */
-const ENS = new Set(['hermes', 'stop', 'send', 'rum.start', 'rum.mail', 'rolle.stoette', 'sprogValg.da']);
-function ensStrenge(a: Record<string, unknown>, b: Record<string, unknown>, sti = ''): string[] {
-  return Object.entries(a).flatMap(([k, x]) => {
-    const y = b[k];
-    if (typeof x === 'string') return x === y ? [sti + k] : [];
-    if (typeof x === 'object' && x !== null && typeof y === 'object' && y !== null) return ensStrenge(x as Record<string, unknown>, y as Record<string, unknown>, `${sti}${k}.`);
-    return [];
-  });
-}
+const ENS = new Set(['hermes', 'stop', 'send', 'rum.start', 'rum.mail', 'rolle.stoette', 'sprogValg.da', 'klient.omMin']);
 
 test('English is actually English: no Danish string copied over', () => {
   const ens = [...ensStrenge(TEKSTER.da as unknown as Record<string, unknown>, TEKSTER.en as unknown as Record<string, unknown>), ...ensStrenge(START_TEKSTER.da as unknown as Record<string, unknown>, START_TEKSTER.en as unknown as Record<string, unknown>)];
@@ -86,16 +83,6 @@ test('Henrik\'s installation: with no language chosen the shell, the bands and S
 
 // ---- English: no Danish on the converted surfaces -------------------------------------------------------------------
 
-/** What the user reads: text nodes and the attributes a screen reader or a tooltip shows. Scripts and styles are not read. */
-function laesbart(doc: string): string {
-  const uden = doc.replace(/<head>[\s\S]*<\/head>/, '').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<!--[\s\S]*?-->/g, '');
-  const attrs = [...uden.matchAll(/\s(?:title|aria-label|placeholder|data-sig|data-element|data-status)="([^"]*)"/g)].map((m) => m[1]);
-  const tekst = uden.replace(/<[^>]+>/g, '\n');
-  return [tekst, ...attrs].join('\n').replace(/&[a-z#0-9]+;/g, ' ');
-}
-/** A Danish letter, or a Danish word that is no English word. Proper nouns pass (Hermes, Clawco, Claude Code). */
-const DANSK = /[æøåÆØÅ]|\b(?:og|ikke|eller|på|hvad|når|jeg|skal|kan|til|med|Intet|Gem|Luk|Fortryd|Klar|Kræver|ordnet|venter|Rum|Kø|Trin|Næste|Klaret|Valgfrit|Virker|Spring|Ikke)\b/;
-const danskeLinjer = (doc: string): string[] => laesbart(doc).split('\n').map((l) => l.trim()).filter((l) => l && DANSK.test(l));
 
 const ejer = { id: FAMILIE.medlem.id, login: null, navn: FAMILIE.medlem.navn, rolle: 'ejer' as const };
 const partner = { id: FAMILIE.partner.id, login: null, navn: FAMILIE.partner.navn, rolle: 'medlem' as const };
@@ -176,4 +163,52 @@ test('public/app.js reads every key it uses from the client table', () => {
   const brugt = new Set([...js.matchAll(/\btk\('([a-zA-Z]+)'\)/g)].map((m) => m[1]!));
   assert.ok(brugt.size >= 10, `app.js uses tk() (${brugt.size})`);
   for (const k of brugt) assert.ok(k in TEKSTER.da.klient, k);
+});
+
+// ---- English: the shared helpers the rooms draw with (slice 2) -----------------------------------------------------
+
+const NU = new Date('2026-10-26T09:00:00.000Z');
+
+test('English: freshness, the next line, the clock, zone chips, the 404 page, the source list and the connection card carry no Danish word', () => {
+  const ud = medSprog('en', () => [
+    String(friskhed('2026-10-26T06:05:00.000Z', NU)), String(friskhed('2026-10-25T06:05:00.000Z', NU)), String(friskhed('2026-10-22T06:05:00.000Z', NU)), String(friskhed('2026-10-01T06:05:00.000Z', NU)),
+    String(kildeFriskhed({ slags: 'kalender', sidstLaest: '2026-10-26T08:50:00.000Z', ok: true }, NU)), String(kildeFriskhed({ slags: 'kalender', sidstLaest: '2026-10-25T08:50:00.000Z', ok: false }, NU)), String(kildeFriskhed({ slags: 'kalender', ok: false }, NU)),
+    String(naesteLinje({ titel: 'Board meeting', start: '2026-10-26T12:30:00.000Z', slut: '2026-10-26T13:30:00.000Z' }, NU)),
+    String(zoneChip({ zone: 'privat' })), String(zoneChip({ zone: 'arbejde' })), String(zoneChip({ zone: 'husstand' })),
+    String(renderIkkeFundet('rum')), String(renderIkkeFundet('side')), String(renderIkkeFundet('dokument')), ikkeFundetOverskrift('side'),
+    String(renderKilder([{ id: 'k1', navn: 'Calendar', slags: 'kalender', auth: 'oauth', zone: 'privat', forbundet: true, helbred: { status: 'langsomt', tid: '2026-10-26T08:00:00.000Z' } as never, sidstLaest: '2026-10-26T08:50:00.000Z' }], { nu: NU, maaFrakoble: true })),
+    String(resultatBoks({ id: 'l1', tid: '2026-10-26T08:05:00.000Z', kilde: 'hermes', tekst: 'Sorted the mail.' })),
+  ].join('\n'));
+  assert.match(ud, /updated 07:05/);
+  assert.match(ud, /from yesterday 07:05/);
+  assert.match(ud, /from Thursday 08:05/);
+  assert.match(ud, /from 1 Oct 08:05/);
+  assert.match(ud, /Last fetched 09:50/);
+  assert.match(ud, /not updated since yesterday 09:50/);
+  assert.match(ud, /not fetched yet/);
+  assert.match(ud, /Next: <span class="naeste-titel">Board meeting<\/span> at 13:30 · <span class="naeste-om">in 3 h 30 min<\/span>/);
+  assert.match(ud, /Private.*Work.*Household/s);
+  assert.match(ud, /That room does not exist/);
+  assert.match(ud, /To Now/);
+  assert.match(ud, /Sources.*Connected|Sources.*Slow/s);
+  assert.match(ud, /Answering slowly/);
+  assert.match(ud, /Disconnect/);
+  assert.match(ud, /Hermes · 09:05/);
+  assert.deepEqual(danskeLinjer(ud), []);
+  // The countdown's words are the client's too (public/naeste.js reads them from the page's table).
+  assert.equal(medSprog('en', () => omTekst(1_000_000_000_000, undefined, 1_000_000_000_000 - 90 * 60_000)), 'in 1 h 30 min');
+  assert.equal(medSprog('en', () => tekst().hilsen(9, 'Alma')), 'Good morning, Alma');
+  assert.equal(tekst().hilsen(18, 'Henrik'), 'Godaften, Henrik');
+  assert.equal(medSprog('en', () => omTekst(1_000_000_000_000, 1_000_000_000_000 + 60_000, 1_000_000_000_000)), 'now');
+  assert.equal(omTekst(1_000_000_000_000, undefined, 1_000_000_000_000 - 90 * 60_000), 'om 1 t 30 min');
+});
+
+test('English: the failing connection\'s card has English chrome (its fixed what-is-wrong words stay the connector table\'s, a follow-up)', () => {
+  const [el] = medSprog('en', () => kildeHelbredElementer([{ id: 'k1', navn: 'Calendar', slags: 'kalender', auth: 'oauth', vist: 'snart-udloebet', zone: 'privat', sidstLaest: '2026-10-26T08:50:00.000Z', udloeber: '2026-10-27T19:00:00.000Z', felter: [], kanForbinde: true }], NU));
+  const doc = String(el!.html);
+  assert.match(doc, /data-element="The connection: Calendar"/);
+  assert.match(doc, /Expires tomorrow 20:00/);
+  assert.match(doc, /From Calendar · /);
+  assert.match(doc, /Remove the connection/);
+  assert.match(doc, />Connection</);
 });

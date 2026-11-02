@@ -247,9 +247,10 @@ const START = Date.now();
 /** What a run says it is doing, by kind (KC-0100: also the fallback in the Kø panel for runs no room tagged). */
 const LABELS: Record<string, string> = { opdater: 'bygger rummet', handling: 'udfører en handling', fortryd: 'fortryder', chat: 'svarer i chatten', nyt: 'skriver udkast', forslag: 'laver forslag', brug: 'bruger forslag', afvis: 'afviser forslag', vaelg: 'skifter udkast', gem: 'gemmer', faerdig: 'rydder op', kladde: 'gemmer kladde', baggrund: 'flytter i baggrunden', frontload: 'bygger rummet (planlagt)', univers: 'svarer i universet', forbered: 'forbereder mødet', nytUnivers: 'opretter univers', placerMoede: 'lægger mødet i univers', skjulMoede: 'skjuler mødet', opgaveStatus: 'flytter opgaven', nytMoede: 'tilføjer mødet', arkiver: 'arkiverer universet', kurator: 'ordner kortene', laer: 'lærer af dit valg', send: 'sender et svar', afmeld: 'afmelder', analyse: 'analyserer' };
 
-function hilsen(now: Date): string {
+/** Nu's greeting: by the hour, to the profile's name (the reference installation has no profile: Henrik). */
+function hilsen(now: Date, navn: string | undefined): string {
   const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Copenhagen', hour: '2-digit', hour12: false }).format(now));
-  return h < 10 ? 'Godmorgen, Henrik' : h < 17 ? 'Goddag, Henrik' : 'Godaften, Henrik';
+  return tekst().hilsen(h, navn ?? 'Henrik');
 }
 
 export function createApp(deps: AppDeps) {
@@ -1351,7 +1352,7 @@ export function createApp(deps: AppDeps) {
     const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
     const sit = await situationNu();
     const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
-    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now()), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
   }
 
   /**

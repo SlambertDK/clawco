@@ -11,6 +11,7 @@ import { handlinger, knap, type Element } from './sprog.ts';
 import { visHoved } from './visuel.ts';
 import { zoneChip, zoneData } from './zone.ts';
 import { dagStr, klokke, kildeFriskhed } from './friskhed.ts';
+import { tekst } from './tekster.ts';
 import { kortTekst, type GenforbindFelt, type KortTilstand } from '../kilder/helbred-tekst.ts';
 import type { Auth, Slags } from '../kilder/types.ts';
 import type { DataZone } from '../identitet/zoner.ts';
@@ -35,7 +36,8 @@ function udloebTekst(iso: string, now: Date): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   const dage = Math.round(dagNr(dagStr(d)) - dagNr(dagStr(now)));
-  const naar = dage <= 0 ? 'i dag' : dage === 1 ? 'i morgen' : new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', weekday: 'long' }).format(d);
+  const T = tekst();
+  const naar = dage <= 0 ? T.iDag : dage === 1 ? T.iMorgen : new Intl.DateTimeFormat(T.lokale, { timeZone: 'Europe/Copenhagen', weekday: 'long' }).format(d);
   return `${naar} ${klokke(d)}`;
 }
 
@@ -50,18 +52,19 @@ function felt(f: GenforbindFelt): Markup {
 
 function kortFor(k: KildeHelbredKort, now: Date): Markup {
   const t = kortTekst(k.vist, k.auth, k.slags);
+  const T = tekst();
   const formId = `kilde-helbred-form-${k.id}`;
   const harForm = k.kanForbinde && k.felter.length > 0;
   const form = harForm ? html`<form id="${formId}" class="nyt-form" onsubmit="return false" autocomplete="off">${k.felter.map(felt)}</form>` : '';
   const primaer = k.kanForbinde ? knap({ label: t.knap, slags: 'primaer', attrs: { 'data-kilde-forbind': k.id, ...(harForm ? { 'data-form': formId } : {}), 'data-status': 'forbinder' } }) : undefined;
-  const fjern = k.kanForbinde ? knap({ label: 'Fjern forbindelsen', slags: 'ghost', attrs: { 'data-kilde-fjern': k.id } }) : undefined;
+  const fjern = k.kanForbinde ? knap({ label: T.fjernForbindelsen, slags: 'ghost', attrs: { 'data-kilde-fjern': k.id } }) : undefined;
   const udloeber = k.vist === 'snart-udloebet' && k.udloeber ? udloebTekst(k.udloeber, now) : '';
-  return html`<article class="card kort kilde-helbred" data-blok="kort" data-kilde-helbred="${k.vist}" data-kilde-helbred-id="${k.id}"${zoneData(k)} data-element="Forbindelsen: ${k.navn}">
-    ${visHoved({ ikon: 'triangle-alert', tone: 'adv' }, t.titel, 'Forbindelse')}${zoneChip(k)}
+  return html`<article class="card kort kilde-helbred" data-blok="kort" data-kilde-helbred="${k.vist}" data-kilde-helbred-id="${k.id}"${zoneData(k)} data-element="${T.forbindelsen(k.navn)}">
+    ${visHoved({ ikon: 'triangle-alert', tone: 'adv' }, t.titel, T.forbindelse)}${zoneChip(k)}
     <p class="betydning">${t.tekst}</p>
-    ${udloeber ? html`<p class="row-note">Udløber ${udloeber}</p>` : ''}
-    <p class="row-note">Fra ${k.navn} · ${kildeFriskhed({ slags: k.slags, ...(k.sidstLaest ? { sidstLaest: k.sidstLaest } : {}), ok: k.vist === 'snart-udloebet' }, now)}</p>
-    ${k.kanForbinde ? '' : html`<p class="row-note">Ejeren kan løse det.</p>`}
+    ${udloeber ? html`<p class="row-note">${T.udloeber(udloeber)}</p>` : ''}
+    <p class="row-note">${T.fra}${k.navn} · ${kildeFriskhed({ slags: k.slags, ...(k.sidstLaest ? { sidstLaest: k.sidstLaest } : {}), ok: k.vist === 'snart-udloebet' }, now)}</p>
+    ${k.kanForbinde ? '' : html`<p class="row-note">${T.ejerenKanLoese}</p>`}
     ${form}
     ${handlinger(primaer, fjern ? [fjern] : [])}
   </article>`;
