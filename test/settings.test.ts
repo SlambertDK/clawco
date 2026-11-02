@@ -37,6 +37,26 @@ test('stemme: voice id and agent ids survive a round trip and setModels keeps th
 });
 
 // KC-0241: the English agent's ids live under stemme.en; the top level (voiceId, agentId, toolIds) stays the Danish agent.
+// KC-0242: the English voice lives under stemme.en.voiceId, validated like the Danish one.
+test('stemme.en.voiceId: round-trips, merges, is validated, and leaves the Danish voice alone', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'kc-set-'));
+  try {
+    const s = createSettings(dir);
+    await s.setStemme({ voiceId: 'da_voice', en: { agentId: 'ag_en' } });
+    await s.setStemme({ en: { voiceId: 'en_voice' } });
+    assert.deepEqual((await s.read()).stemme, { voiceId: 'da_voice', en: { voiceId: 'en_voice', agentId: 'ag_en' } });
+    await s.setStemme({ en: { agentId: 'ag_en2' } });
+    assert.equal((await s.read()).stemme.en?.voiceId, 'en_voice', 'an agent-id patch keeps the English voice');
+    await s.setStemme({ voiceId: 'da2' });
+    assert.equal((await s.read()).stemme.en?.voiceId, 'en_voice', 'a Danish patch leaves the English voice alone');
+    await s.setStemme({ en: { voiceId: 'bad voice!' } });
+    assert.equal((await s.read()).stemme.en?.voiceId, undefined, 'an invalid voice id is dropped');
+    await s.setStemme({ en: { voiceId: '' } });
+    assert.equal((await s.read()).stemme.en?.voiceId, undefined);
+    assert.equal((await s.read()).stemme.en?.agentId, 'ag_en2');
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
 test('stemme.en: the English agent\'s ids are validated and merged; today\'s stored shape round-trips unchanged', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-set-'));
   try {

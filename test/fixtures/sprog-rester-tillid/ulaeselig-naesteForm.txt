@@ -1,0 +1,2 @@
+Regler Henrik har godkendt (hans egen tekst; hver gælder kun sin kilde og sit trin):
+Reglerne kunne ikke læses (linjen "naeste-id" skal have formen R-0001). Indtil Henrik retter filen, må du kun se (trin 0): du gør intet af dig selv, du foreslår kun.

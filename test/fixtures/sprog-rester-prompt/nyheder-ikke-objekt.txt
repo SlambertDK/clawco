@@ -1,0 +1,1 @@
+SchemaError: Nyheder: svaret er ikke et objekt

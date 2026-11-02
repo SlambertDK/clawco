@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { SchemaError } from '../dagen/schema.ts';
 import type { DataZone } from '../../identitet/zoner.ts';
 import { skriveTekst } from './tekster.ts';
+import { skrivePrompt } from './prompt-tekster.ts';
 
 // KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones.
 export const KORSEL: DataZone = 'privat';
@@ -37,10 +38,10 @@ export function tomtState(): SkriveState {
 }
 
 export function parseNytDokument(raw: unknown, meta: { brief: string; titel?: string }, now: Date): Dokument {
-  if (!isObj(raw)) throw new SchemaError('Skrive: svaret er ikke et objekt');
+  if (!isObj(raw)) throw new SchemaError(skrivePrompt().fejl.ikkeObjekt);
   const afsnitRaw = Array.isArray(raw['afsnit']) ? raw['afsnit'] : [];
   const tekster = afsnitRaw.map((a) => str(isObj(a) ? a['tekst'] : a)).filter(Boolean).slice(0, MAX_AFSNIT);
-  if (tekster.length === 0) throw new SchemaError('Skrive: udkastet har ingen afsnit');
+  if (tekster.length === 0) throw new SchemaError(skrivePrompt().fejl.ingenAfsnit);
   const kilder = (Array.isArray(raw['kilder']) ? raw['kilder'] : []).map((k) => str(k, 300)).filter(Boolean).slice(0, MAX_KILDER);
   const titel = str(raw['titel'], 200) || str(meta.titel, 200) || meta.brief.slice(0, 80);
   const tid = now.toISOString();
@@ -56,7 +57,7 @@ export function parseNytDokument(raw: unknown, meta: { brief: string; titel?: st
 }
 
 export function parseForslag(raw: unknown, dok: Dokument, now: Date): Forslag[] {
-  if (!isObj(raw)) throw new SchemaError('Skrive: svaret er ikke et objekt');
+  if (!isObj(raw)) throw new SchemaError(skrivePrompt().fejl.ikkeObjekt);
   const list = Array.isArray(raw['forslag']) ? raw['forslag'] : [];
   const ids = new Set(dok.afsnit.map((a) => a.id));
   const out: Forslag[] = [];
@@ -75,7 +76,7 @@ export function parseForslag(raw: unknown, dok: Dokument, now: Date): Forslag[] 
     out.push(post);
     if (out.length >= MAX_FORSLAG) break;
   }
-  if (out.length === 0) throw new SchemaError('Skrive: ingen brugbare forslag i svaret');
+  if (out.length === 0) throw new SchemaError(skrivePrompt().fejl.ingenForslag);
   return out;
 }
 
@@ -89,7 +90,7 @@ export function brugForslag(dok: Dokument, f: Forslag, now: Date): { gammel: str
     return { gammel: null };
   }
   const a = dok.afsnit.find((x) => x.id === f.afsnitId);
-  if (!a) throw new SchemaError('Skrive: afsnittet findes ikke længere');
+  if (!a) throw new SchemaError(skrivePrompt().fejl.afsnitVaek);
   const gammel = a.tekst;
   a.tekst = f.ny;
   dok.aendret = now.toISOString();

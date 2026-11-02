@@ -62,6 +62,6 @@ export interface StemmeClient {
   samtaleToken(agentId: string): Promise<string>;
   /** Creates or updates the agent and its client tools so they match `config`; returns the ids to store. */
   ensureAgent(config: AgentConfig, voiceId: string, known?: Partial<StemmeIds>): Promise<StemmeIds>;
-  /** Returns a usable voice id: the given one, or a Danish voice from the library added to the account. */
-  ensureVoice(voiceId?: string): Promise<string>;
+  /** Returns a usable voice id: the given one, or a voice in `sprog` (default Danish, KC-0242) from the library added to the account. */
+  ensureVoice(voiceId?: string, sprog?: Sprog): Promise<string>;
 }

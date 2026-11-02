@@ -129,9 +129,9 @@ function forslagBlok(afsnit: Afsnit[], vaelg: string | null, type: string): { fo
 }
 
 function nytDokument(titel: string, brief: string, f: Fakta): Raa {
-  if (/clara|opfølg|havvind|mødet/i.test(brief)) return { titel: titel || OPFOELGNING, afsnit: opfoelgningAfsnit(f), kilder: OPFOELGNING_KILDER(f) };
-  if (/elektriker|eltavle|tilbud/i.test(brief)) return { titel: titel || 'Svar til elektrikeren', afsnit: ['Hej. Tak for tilbuddet på ny eltavle.', 'Prisen på 18.400 kr. er 2.600 kr. over det, jeg regnede med. Kan I give en pris uden de to ekstra grupper?', 'Jeg vender tilbage inden fredag. Venlig hilsen Henrik'], kilder: ['Tilbud fra Lysnet El-service'] };
-  if (/birthe|mor\b|fødselsdag/i.test(brief)) return { titel: titel || 'Hilsen til Birthe', afsnit: ['Kære mor. Tillykke med fødselsdagen.', 'Vi glæder os til lørdag kl. 14, og Ella har en tegning med.', 'Kram fra Henrik, Maja og Ella'], kilder: [] };
+  if (/clara|opfølg|havvind|mødet|follow-?up|the meeting/i.test(brief)) return { titel: titel || OPFOELGNING, afsnit: opfoelgningAfsnit(f), kilder: OPFOELGNING_KILDER(f) };
+  if (/elektriker|eltavle|tilbud|electrician|fuse box|panel|quote/i.test(brief)) return { titel: titel || 'Svar til elektrikeren', afsnit: ['Hej. Tak for tilbuddet på ny eltavle.', 'Prisen på 18.400 kr. er 2.600 kr. over det, jeg regnede med. Kan I give en pris uden de to ekstra grupper?', 'Jeg vender tilbage inden fredag. Venlig hilsen Henrik'], kilder: ['Tilbud fra Lysnet El-service'] };
+  if (/birthe|mor\b|fødselsdag|\b(mum|mom|mother)\b|birthday/i.test(brief)) return { titel: titel || 'Hilsen til Birthe', afsnit: ['Kære mor. Tillykke med fødselsdagen.', 'Vi glæder os til lørdag kl. 14, og Ella har en tegning med.', 'Kram fra Henrik, Maja og Ella'], kilder: [] };
   const emne = brief.trim().replace(/[.!?]+$/, '') || 'Nyt dokument';
   const stort = `${emne.charAt(0).toUpperCase()}${emne.slice(1, 60)}`;
   return { titel: titel || stort, afsnit: [`${stort}.`, 'Hvad der skal afklares, hvem det rører, og hvad næste skridt er: det udfylder vi sammen. Skriv selv, eller bed mig stramme, gøre mere konkret eller lave et forslag.'], kilder: [] };
@@ -153,21 +153,22 @@ function forberedSvar(req: AgentRunRequest, f: Fakta): string {
 const KORT_KONTEKST = /^(?:Kortet|Card): /;
 const FORSLAG_KONTEKST = /^(?:Forslag|Proposal): /;
 
-const OPRET = /\b(lav|opret|tilføj|skriv|sæt|læg)\b/i;
+// KC-0242: the English verbs and nouns of the same requests ("create a task", "make a presentation about …").
+const OPRET = /\b(lav|opret|tilføj|skriv|sæt|læg|create|add|make|put|write)\b/i;
 
 function universChat(req: AgentRunRequest, n: number, f: Fakta): string {
   const besked = udenData(req.input);
   const kontekst = kontekstAf(req);
   const navn = /^(?:Universet|The universe) "([^"]+)"/.exec(segment(req, 'univers'))?.[1] ?? 'universet';
   const erMoede = kontekst !== undefined && /^(?:Møde(?:t)?|Meeting|The meeting): /.test(kontekst);
-  if (/forbered/i.test(besked)) {
+  if (/forbered|\bprepare\b|\bprep\b/i.test(besked)) {
     if (!erMoede) return 'Peg på mødet først, så ved jeg, hvilket du mener. Tryk på forbered-knappen under mødet, eller sig det i chatten med mødet valgt.';
     const titel = kontekst.replace(/^(?:Møde(?:t)?|Meeting|The meeting): /, '');
     const svar = /havvind/i.test(titel) ? forberedelseSvar(f) : genereltMoede(titel, [], undefined);
     return fenced(`Jeg har forberedt "${titel}" igen: mål, deltagere, talepunkter og en præsentation.`, { forberedelse: svar });
   }
-  if (OPRET.test(besked) && /\b(opgave|to-?do)\b/i.test(besked)) {
-    const rest = besked.replace(/^.*?\b(opgave|to-?do)\b[^:]*:?\s*/i, '').trim() || besked.trim();
+  if (OPRET.test(besked) && /\b(opgave|task|to-?do)\b/i.test(besked)) {
+    const rest = besked.replace(/^.*?\b(opgave|task|to-?do)\b[^:]*:?\s*/i, '').trim() || besked.trim();
     const titel = `${rest.charAt(0).toUpperCase()}${rest.slice(1, 90)}`.replace(/[.!?]+$/, '');
     return fenced(`Jeg har lagt opgaven i ${navn}.`, { elementer: [{ type: 'opgave', titel, note: 'Lagt af Hermes.' }] });
   }
@@ -175,8 +176,8 @@ function universChat(req: AgentRunRequest, n: number, f: Fakta): string {
     const rest = besked.replace(/^.*?\b(note|notat)\b[^:]*:?\s*/i, '').trim() || besked.trim();
     return fenced(`Jeg har lagt en note i ${navn}.`, { elementer: [{ type: 'note', titel: `Note: ${rest.slice(0, 50)}`, tekst: rest }] });
   }
-  if (OPRET.test(besked) && /\b(præsentation|slides|dokument)\b/i.test(besked)) {
-    const emne = besked.replace(/^.*?\b(præsentation|slides|dokument)\b\s*(om|til|for)?\s*/i, '').trim().slice(0, 60) || navn;
+  if (OPRET.test(besked) && /\b(præsentation|presentation|slides|dokument|document)\b/i.test(besked)) {
+    const emne = besked.replace(/^.*?\b(præsentation|presentation|slides|dokument|document)\b\s*(om|til|for|about|to)?\s*/i, '').trim().slice(0, 60) || navn;
     const htmlTekst = enkeltSide(emne.charAt(0).toUpperCase() + emne.slice(1), [{ overskrift: 'Hvorfor nu', punkter: ['Det er tid til at tage stilling.'] }, { overskrift: 'Næste skridt', punkter: ['Vi aftaler, hvem der gør hvad, og hvornår.'] }]);
     return fenced(`Jeg har lavet et dokument i ${navn}.`, { elementer: [{ type: 'dokument', titel: `Dokument: ${emne}`.slice(0, 80), html: htmlTekst }] });
   }
@@ -185,8 +186,8 @@ function universChat(req: AgentRunRequest, n: number, f: Fakta): string {
 
 function oversigtChat(req: AgentRunRequest, n: number, f: Fakta): string {
   const besked = udenData(req.input);
-  if (/univers/i.test(besked) && /\b(lav|opret|nyt)\b/i.test(besked)) {
-    const emne = /om (?:min |mit |en |et )?([^.!?\n]{2,40})/i.exec(besked)?.[1]?.trim() ?? 'Mit emne';
+  if (/univers/i.test(besked) && /\b(lav|opret|nyt|create|new|make)\b/i.test(besked)) {
+    const emne = /\b(?:om|about) (?:min |mit |en |et |my |a |an )?([^.!?\n]{2,40})/i.exec(besked)?.[1]?.trim() ?? 'Mit emne';
     const navn = emne.charAt(0).toUpperCase() + emne.slice(1);
     return fenced(`Jeg har oprettet universet "${navn}".`, { nytUnivers: { navn, om: `Alt om ${emne}, samlet ét sted.` } });
   }

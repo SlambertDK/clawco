@@ -1,0 +1,1 @@
+SchemaError: Nyheder: elementet siger zone husstand, men kørslen læste privat

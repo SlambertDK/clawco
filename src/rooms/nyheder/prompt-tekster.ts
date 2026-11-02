@@ -9,6 +9,14 @@
 import { sprogNu } from '../../shell/tekster.ts';
 
 const da = {
+  /** KC-0242: what the answer parser says when Hermes' JSON does not fit; it goes back to Hermes in the correction run, so the field names stay. */
+  fejl: {
+    ikkeObjekt: 'Nyheder: svaret er ikke et objekt',
+    femLinjer: 'Nyheder: femLinjer mangler',
+    ingenBaner: 'Nyheder: ingen baner med nyheder',
+    zoneUkendt: (zone: string): string => `Nyheder: ukendt zone: ${zone}`,
+    zoneAnden: (zone: string, korsel: string): string => `Nyheder: elementet siger zone ${zone}, men kørslen læste ${korsel}`,
+  },
   /** `rum`: the room's name as the nav shows it (shell/tekster.ts `rum`). */
   rolle: (rum: string): string => `Du er Hermes, Henriks agent, og du arbejder inde i rummet "${rum}" i hans kontrolcenter. Hvad Henrik arbejder med, hvem hans familie er, og hvad han følger, ved du fra din egen hukommelse; brug det, du ved om Henrik. Han vil have få, relevante nyheder med en ærlig linje om, hvorfor de betyder noget for ham, ikke en lang liste.`,
   /** Who "points at an element" (agent/prompt.ts pegerTekst / elementSegment). */
@@ -72,6 +80,13 @@ Regler for chatten:
 type Tabel = typeof da;
 
 const en: Tabel = {
+  fejl: {
+    ikkeObjekt: 'News: the answer is not an object',
+    femLinjer: 'News: femLinjer is missing',
+    ingenBaner: 'News: no lanes with news',
+    zoneUkendt: (zone: string): string => `News: unknown zone: ${zone}`,
+    zoneAnden: (zone: string, korsel: string): string => `News: the element says zone ${zone}, but the run read ${korsel}`,
+  },
   rolle: (rum) => `You are Hermes, the user's agent, and you work inside the room "${rum}" of their control centre. What the user works on, who their family is and what they follow, you know from your own memory; use what you know about the user. They want a few relevant news items, each with an honest line on why it matters to them, not a long list.`,
   hvem: 'The user',
 

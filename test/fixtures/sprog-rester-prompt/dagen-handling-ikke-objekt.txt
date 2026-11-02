@@ -1,0 +1,1 @@
+SchemaError: anbefaling: handling skal være et objekt

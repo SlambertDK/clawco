@@ -852,18 +852,22 @@ export function createApp(deps: AppDeps) {
   // KC-0015: the voice. 'samtale' when the real client can mint agent tokens, 'lyt' with the fake.
   const stemme = deps.stemme;
   const stemmeNiveau: 'samtale' | 'lyt' | undefined = stemme ? (stemme.mode === 'elevenlabs' ? 'samtale' : 'lyt') : undefined;
-  let voiceId: Promise<string> | undefined;
-  function voice(): Promise<string> {
+  const voiceId: Partial<Record<Sprog, Promise<string>>> = {};
+  /** The voice of `sprog` (KC-0242): the stored one, else one from the library in that language; the English one is stored under stemme.en. */
+  function voice(sprog: Sprog = sprogNu()): Promise<string> {
     if (!stemme) return Promise.reject(new StemmeError('Stemmen er ikke sat op', 503));
-    if (!voiceId) {
-      voiceId = settings.read().then((s) => stemme.ensureVoice(s.stemme.voiceId)).then(async (v) => { await settings.setStemme({ voiceId: v }); return v; })
+    let v = voiceId[sprog];
+    if (!v) {
+      v = settings.read().then((s) => stemme.ensureVoice(sprog === 'en' ? s.stemme.en?.voiceId : s.stemme.voiceId, sprog))
+        .then(async (id) => { await settings.setStemme(sprog === 'en' ? { en: { voiceId: id } } : { voiceId: id }); return id; })
         .catch((err: unknown) => {
           // No library access (the key lacks voices_read) → the premade default, remembered for this process only.
           console.error('stemme: kunne ikke vælge en stemme fra biblioteket, bruger standardstemmen:', err instanceof Error ? err.message : err);
           return DEFAULT_VOICE_ID;
         });
+      voiceId[sprog] = v;
     }
-    return voiceId;
+    return v;
   }
   const agentSync: Partial<Record<Sprog, Promise<string>>> = {};
   /** Syncs the agent of `sprog` (defined in code) once per process; the Danish ids land at the top of the stemme block, the English under stemme.en (KC-0241). */
@@ -872,9 +876,11 @@ export function createApp(deps: AppDeps) {
     let sync = agentSync[sprog];
     if (!sync) {
       sync = (async () => {
-        const v = await voice();
+        const v = await voice(sprog);
         const s = await settings.read();
-        const ids = await stemme.ensureAgent(agentConfig(sprog), v, sprog === 'en' ? (s.stemme.en ?? {}) : s.stemme);
+        // The English block also carries its voice (KC-0242); the agent sync is only told the agent's own ids.
+        const en = s.stemme.en;
+        const ids = await stemme.ensureAgent(agentConfig(sprog), v, sprog === 'en' ? { ...(en?.agentId ? { agentId: en.agentId } : {}), ...(en?.toolIds ? { toolIds: en.toolIds } : {}) } : s.stemme);
         await settings.setStemme(sprog === 'en' ? { en: ids } : ids);
         return ids.agentId;
       })();
@@ -941,7 +947,7 @@ export function createApp(deps: AppDeps) {
     let s = await settings.setModels(m);
     runs.setModels(s.modeller, hermesProvider(s));
     const st = typeof b['stemme'] === 'object' && b['stemme'] !== null ? (b['stemme'] as Record<string, unknown>) : null;
-    if (st && typeof st['voiceId'] === 'string') { s = await settings.setStemme({ voiceId: st['voiceId'].trim() }); voiceId = undefined; for (const k of Object.keys(agentSync) as Sprog[]) delete agentSync[k]; }
+    if (st && typeof st['voiceId'] === 'string') { s = await settings.setStemme({ voiceId: st['voiceId'].trim() }); for (const k of Object.keys(voiceId) as Sprog[]) delete voiceId[k]; for (const k of Object.keys(agentSync) as Sprog[]) delete agentSync[k]; }
     return c.json({ ...s, niveauer: TIER_KINDS });
   });
 
@@ -1342,7 +1348,7 @@ export function createApp(deps: AppDeps) {
     // An empty store again: the data dir is there, nothing cached from the old settings, no pause.
     if (deps.dataDir) await mkdir(deps.dataDir, { recursive: true });
     await runs.genlaesPause();
-    voiceId = undefined;
+    for (const k of Object.keys(voiceId) as Sprog[]) delete voiceId[k];
     for (const k of Object.keys(agentSync) as Sprog[]) delete agentSync[k];
     const s = await settings.read();
     runs.setModels(s.modeller, hermesProvider(s));
@@ -2174,7 +2180,8 @@ export function createApp(deps: AppDeps) {
     const tekst = typeof b['tekst'] === 'string' ? b['tekst'].trim() : '';
     if (!tekst || tekst.length > 2000) return c.json({ error: 'tekst mangler eller er for lang (højst 2000 tegn)' }, 400);
     try {
-      const { body: audio, contentType } = await stemme!.sig(tekst, await voice(), sprogNu());
+      const sp = sprogNu();
+      const { body: audio, contentType } = await stemme!.sig(tekst, await voice(sp), sp);
       return new Response(audio, { status: 200, headers: { 'content-type': contentType, 'cache-control': 'no-store' } });
     } catch (err) { return stemmeFejl(c, err); }
   });

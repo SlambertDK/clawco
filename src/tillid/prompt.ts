@@ -7,6 +7,7 @@ import type { ReglerLaest } from './lager.ts';
 import type { Regel } from './regler.ts';
 import { TRIN, trinNavn } from './trin.ts';
 import { REGEL_PROMPT_TEKSTER, regelPromptTekst } from './prompt-tekster.ts';
+import { tillidTekst } from './tekster.ts';
 
 // KC-0241: the words are in prompt-tekster.ts, read at call time in the language of the run; the constants are the Danish ones.
 export const REGLER_OVERSKRIFT = REGEL_PROMPT_TEKSTER.da.overskrift;
@@ -14,6 +15,12 @@ export const REGLER_OVERSKRIFT = REGEL_PROMPT_TEKSTER.da.overskrift;
 const trinLinje = (): string => regelPromptTekst().trinLinje(TRIN.map((t) => `${t.trin} ${trinNavn(t.trin)}`).join(' · '));
 
 const enLinje = (t: string): string => t.replace(/\s+/g, ' ').trim();
+
+/** KC-0242: why the rules file cannot be read, in the language of the run (the code keeps the Danish reason; an unknown one is shown as it is). */
+const hvorforTekst = (hvorfor: string): string => {
+  const kendte = tillidTekst().ulaeseligHvorfor;
+  return Object.hasOwn(kendte, hvorfor) ? kendte[hvorfor]! : hvorfor;
+};
 
 function regelLinje(r: Regel): string {
   const g = r.gaelder.slags ? `${r.gaelder.kilde} / ${r.gaelder.slags}` : r.gaelder.kilde;
@@ -23,7 +30,7 @@ function regelLinje(r: Regel): string {
 export function reglerTilPrompt(l: ReglerLaest | undefined): string {
   const T = regelPromptTekst();
   if (!l || l.tilstand === 'mangler') return `${T.overskrift}\n${T.ingenGodkendt} ${T.trin0}`;
-  if (l.tilstand === 'ulaeselig') return `${T.overskrift}\n${T.ulaeselig(enLinje(l.hvorfor))}`;
+  if (l.tilstand === 'ulaeselig') return `${T.overskrift}\n${T.ulaeselig(enLinje(hvorforTekst(l.hvorfor)))}`;
   const aktive = l.saet.regler.filter((r) => r.status === 'aktiv');
   const linjer = aktive.length ? aktive.map(regelLinje) : [T.ingenAktive];
   const ugyldige = l.saet.ugyldige.map((u) => T.ugyldig(enLinje(u.overskrift)));

@@ -4,8 +4,8 @@
 // Danish is Henrik's own installation, byte for byte as before (test/fixtures/sprog-prompt-rum-b/); English says "the
 // user" and "the person". The answers' JSON field names (booking, ressource, anbefaling, alternativer, kl, tekst,
 // foerste, resume, spoergsmaal) and the ids are what the app validates by and stay the same. Not here: the words of
-// the resource options (ressource.ts valgNeutralt, which takes the table of the language) and of the weekend card's
-// fixed sentences (konflikt.ts konfliktResume, still Danish).
+// the resource options (ressource.ts valgNeutralt, which takes the table of the language). The weekend card's fixed
+// sentences (konflikt.ts konfliktResume) are composed from tekster.ts, the card's own table, in the language of the run (KC-0242).
 
 import { sprogNu } from '../store/sprog.ts';
 import type { Slags } from './ressource.ts';

@@ -6,10 +6,11 @@ import { SvarFejl } from '../../svarfejl.ts';
 import { parseIkon, parseVisuel, type IkonNavn, type Visuel } from '../../shell/visuel.ts';
 import type { LogEntry } from '../../store/types.ts';
 import { dagStr, klokke } from '../../shell/friskhed.ts';
-import { ZoneFejl, zoneFra, synligFor, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
+import { ZoneFejl, erDataZone, zoneFra, synligFor, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import type { Person } from '../../identitet/husstand.ts';
 import { agentGulv, verbFra } from '../../graenser/verber.ts';
 import { dagenTekst } from './tekster.ts';
+import { dagenPromptTekst } from './prompt-tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -87,7 +88,7 @@ export function extractJson(text: string): unknown {
 /** extractJson for answers that must carry JSON: none readable is an unusable answer (KC-0050). */
 export function kraevJson(text: string): unknown {
   const raw = extractJson(text);
-  if (raw === null) throw new SchemaError('Hermes svarede uden JSON, eller med en blok, der ikke kan læses');
+  if (raw === null) throw new SchemaError(dagenPromptTekst().fejl.ingenJson);
   return raw;
 }
 
@@ -115,10 +116,10 @@ function slug(s: string): string {
 
 function handling(v: unknown, fallbackId: string, where: string): Handling | undefined {
   if (v === undefined || v === null) return undefined;
-  if (!isObj(v)) throw new SchemaError(`${where}: handling skal være et objekt`);
+  if (!isObj(v)) throw new SchemaError(dagenPromptTekst().fejl.handlingIkkeObjekt(where));
   const label = str(v['label'], 80);
   const instruktion = str(v['instruktion'], 2000);
-  if (!label || !instruktion) throw new SchemaError(`${where}: handling kræver label og instruktion`);
+  if (!label || !instruktion) throw new SchemaError(dagenPromptTekst().fejl.handlingMangler(where));
   const id = optStr(v['id'], 60) ?? `${fallbackId}-${slug(label)}`;
   const fortryd = optStr(v['fortryd'], 2000);
   const h: Handling = fortryd ? { id, label, instruktion, fortryd } : { id, label, instruktion };
@@ -129,20 +130,23 @@ function handling(v: unknown, fallbackId: string, where: string): Handling | und
 
 /** An element's zone from Hermes' answer, a ZoneFejl surfacing as this room's schema error. */
 function zoneAfSvar(raw: unknown, where: string): DataZone {
-  try { return zoneFra(raw, KORSEL); } catch (e) { if (e instanceof ZoneFejl) throw new SchemaError(`${where}: ${e.message}`); throw e; }
+  try { return zoneFra(raw, KORSEL); } catch (e) {
+    if (e instanceof ZoneFejl) { const t = dagenPromptTekst().fejl; throw new SchemaError(`${where}: ${erDataZone(raw) ? t.zoneAnden(raw, KORSEL) : t.zoneUkendt(String(raw).slice(0, 40))}`); }
+    throw e;
+  }
 }
 
 export function parseDagenState(raw: unknown, now: Date): DagenState {
-  if (!isObj(raw)) throw new SchemaError('Dagen: svaret er ikke et objekt');
+  if (!isObj(raw)) throw new SchemaError(dagenPromptTekst().fejl.ikkeObjekt);
 
   const dato = str(raw['dato'], 10) || now.toISOString().slice(0, 10);
 
   const linjerRaw = Array.isArray(raw['treLinjer']) ? raw['treLinjer'] : [];
   const treLinjer = linjerRaw.map((l) => str(l, 300)).filter(Boolean).slice(0, MAX_LINJER);
-  if (treLinjer.length === 0) throw new SchemaError('Dagen: treLinjer mangler');
+  if (treLinjer.length === 0) throw new SchemaError(dagenPromptTekst().fejl.treLinjer);
 
   const a = raw['anbefaling'];
-  if (!isObj(a) || !str(a['tekst'], 400)) throw new SchemaError('Dagen: anbefaling mangler');
+  if (!isObj(a) || !str(a['tekst'], 400)) throw new SchemaError(dagenPromptTekst().fejl.anbefaling);
   const aHandling = handling(a['handling'], 'anb', 'anbefaling');
   const anbefaling: DagenState['anbefaling'] = aHandling ? { tekst: str(a['tekst'], 400), handling: aHandling } : { tekst: str(a['tekst'], 400) };
   const aIkon = parseIkon(a['ikon']); if (aIkon) anbefaling.ikon = aIkon;

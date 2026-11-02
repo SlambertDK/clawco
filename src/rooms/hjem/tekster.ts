@@ -10,7 +10,7 @@ import { statusISprog } from '../status.ts';
 import { PRODUKT } from '../../shell/navn.ts';
 import { ROOMS } from '../registry.ts';
 import { ikkeEndnu } from '../../graenser/afgoer.ts';
-import { SKJULT_KILDE } from '../../tillid/skjulte.ts';
+import { SKJULT_KILDE_TEKSTER } from '../../tillid/skjulte.ts';
 import type { KortType } from './kort.ts';
 
 /** Whole kroner as "79", otherwise with two decimals in the language's own separator. */
@@ -119,7 +119,7 @@ const da = {
   stikOverskrift: (skjulte: number, n: number): string => `Denne uge skjulte jeg ${skjulte} ting. Her er ${n} ${n === 1 ? 'tilfældig' : 'tilfældige'}. Var det rigtigt?`,
   stikElement: (overskrift: string): string => `Søndagstjek: ${overskrift}`,
   stikTekst: 'Tallet er talt af Clawco: det, jeg lagde væk i ugen. Svarer du Skulle have vist mig det, foreslår jeg, hvad der skal ændres; intet ændres uden dit ja.',
-  skjultKilde: { ...SKJULT_KILDE } as Record<string, string>,
+  skjultKilde: { ...SKJULT_KILDE_TEKSTER.da } as Record<string, string>,
   regelId: (id: string): string => `regel ${id}`,
   rigtigt: 'Rigtigt',
   skulleHaveVaeretVist: 'Skulle have været vist',

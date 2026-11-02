@@ -13,7 +13,7 @@ import { klokke } from './render.ts';
 import { sprogNu, type Sprog } from '../store/sprog.ts';
 import { HUSSTAND_TEKSTER, husstandTekst } from './tekster.ts';
 import { beslutter, type Forespoergsel } from './foresp.ts';
-import { iSaetning, overlapper, type PersonId, type Ressource, type Tidsrum } from './ressource.ts';
+import { overlapper, type PersonId, type Ressource, type Tidsrum } from './ressource.ts';
 import type { Medlem } from './schema.ts';
 import { medlemmerI, type KalenderLaesning } from './uge.ts';
 
@@ -51,7 +51,6 @@ export type Konflikt = {
 
 const TZ = 'Europe/Copenhagen';
 const TITEL_MAX = 120;
-const DAGE = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
 const ENTIME = 3600_000;
 export const ukendt = 'en i husstanden';
 
@@ -168,25 +167,35 @@ export const andenIKonflikt = (k: Pick<Konflikt, 'parter'>, person: PersonId): P
 
 const navnAf = (medlemmer: readonly Medlem[], id: string): string => medlemmer.find((m) => m.id === id)?.navn ?? ukendt;
 
-/** "9", "9.30", "14": the clock the way a person says it. */
-export const hel = (iso: string): string => klokke(iso).replace(/^0/, '').replace(/\.00$/, '');
-const dagNavn = (dag: string): string => DAGE[new Date(`${dag}T12:00:00Z`).getUTCDay()] ?? dag;
-const stort = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
+/** "9", "9.30", "14" (English "9:30"): the clock the way a person says it, in the language being served. */
+export const hel = (iso: string): string => klokke(iso, sprogNu()).replace(/^0/, '').replace(/[.:]00$/, '');
 
-/** The words of the card: what each has (with the titles that may be shown) and the question. Identical for both. */
+/**
+ * The words of the card: what each has (with the titles that may be shown) and the question. Identical for both, in the
+ * language being served (KC-0242: it goes to Hermes in the weekend segment, so it follows the language of the run;
+ * Danish is the table's `da`, the same sentences as before).
+ */
 export function konfliktResume(k: Konflikt, medlemmer: readonly Medlem[]): KonfliktTekst {
   if (k.tekst) return k.tekst;
-  const del = k.blokke.map((b) => `${navnAf(medlemmer, b.hvem)} ${b.titel ? `har ${b.titel}` : 'er optaget'} ${hel(b.start)} til ${hel(b.slut)}`);
-  const behov = k.behov.slags === 'barn' ? `Hvem har ${k.behov.navn}?` : `Hvem tager ${iSaetning(k.behov.navn)}?`;
-  return { resume: `${stort(dagNavn(k.dag))}: ${del.join(', ')}.`, spoergsmaal: behov };
+  const T = husstandTekst();
+  const navn = (id: string): string => medlemmer.find((m) => m.id === id)?.navn ?? T.ukendtMedlem;
+  const dag = T.ugedage[new Date(`${k.dag}T12:00:00Z`).getUTCDay()] ?? k.dag;
+  const dele = k.blokke.map((b) => T.konfliktDel(navn(b.hvem), b.titel, hel(b.start), hel(b.slut)));
+  const spoergsmaal = k.behov.slags === 'barn' ? T.hvemHarBarnet(k.behov.navn) : T.hvemTagerTing(T.iSaet(k.behov.navn));
+  return { resume: T.konfliktResume(dag, dele), spoergsmaal };
 }
 
-const FRA_SIDE = /(?<![\p{L}\p{N}])(du|dig|din|dit|dine|jeg|mig|min|mit|mine)(?![\p{L}\p{N}])/iu;
+// The words that speak to one side: Danish always (a Danish answer in an English run is refused too); English's `you`,
+// `me`, `my` … in every language (no Danish word is one); the capital `I` only in English, where it is always the pronoun
+// (in Danish `I` can begin a sentence as the preposition and must pass).
+const FRA_SIDE = /(?<![\p{L}\p{N}])(du|dig|din|dit|dine|jeg|mig|min|mit|mine|you|your|yours|me|my)(?![\p{L}\p{N}])/iu;
+const FRA_SIDE_I = /(?<![\p{L}\p{N}])I(?![\p{L}\p{N}])/u;
+const fraSide = (tekst: string): boolean => FRA_SIDE.test(tekst) || (sprogNu() === 'en' && FRA_SIDE_I.test(tekst));
 
 /**
  * Hermes' answer → the card's phrasing, or null (nothing is written). One fenced block {"resume","spoergsmaal"}:
- * plain text, no control characters, short, naming both adults and neither "du" nor "jeg" — the same words are shown
- * to both, so it cannot be spoken to one of them.
+ * plain text, no control characters, short, naming both adults and neither "du" nor "jeg" (English: "you", "I", "my" …) — the same words are
+ * shown to both, so it cannot be spoken to one of them.
  */
 export function parseKonfliktTekst(svar: string, k: Pick<Konflikt, 'parter'>, medlemmer: readonly Medlem[]): KonfliktTekst | null {
   const blok = /```(?:json)?\s*([\s\S]*?)```/i.exec(svar)?.[1];
@@ -197,7 +206,7 @@ export function parseKonfliktTekst(svar: string, k: Pick<Konflikt, 'parter'>, me
   const resume = raw['resume'].trim(), spoergsmaal = raw['spoergsmaal'].trim();
   if (!resume || !spoergsmaal || resume.length > 300 || spoergsmaal.length > 100) return null;
   if (/[\u0000-\u001f\u007f]/.test(resume + spoergsmaal) || /[<>]/.test(resume + spoergsmaal)) return null;
-  if (FRA_SIDE.test(`${resume} ${spoergsmaal}`)) return null;
+  if (fraSide(`${resume} ${spoergsmaal}`)) return null;
   if (!k.parter.every((id) => resume.toLowerCase().includes(navnAf(medlemmer, id).toLowerCase()))) return null;
   return { resume, spoergsmaal };
 }

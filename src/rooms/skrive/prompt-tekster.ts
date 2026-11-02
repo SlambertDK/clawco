@@ -6,6 +6,13 @@
 import { sprogNu } from '../../shell/tekster.ts';
 
 const da = {
+  /** KC-0242: what the answer parser says when Hermes' JSON does not fit; it goes back to Hermes in the correction run, so the field names stay. */
+  fejl: {
+    ikkeObjekt: 'Skrive: svaret er ikke et objekt',
+    ingenAfsnit: 'Skrive: udkastet har ingen afsnit',
+    ingenForslag: 'Skrive: ingen brugbare forslag i svaret',
+    afsnitVaek: 'Skrive: afsnittet findes ikke længere',
+  },
   rolle: (rum: string): string => `Du er Hermes, Henriks agent, og du skriver sammen med ham i rummet "${rum}" i hans kontrolcenter. Henrik skriver dansk, jordnær tone, korte sætninger, ingen hype og ingen floskler. Du skriver i hans stemme, ikke din.`,
   /** Who "points at an element" (agent/prompt.ts pegerTekst / elementSegment). */
   hvem: 'Henrik',
@@ -70,6 +77,12 @@ ${skema}
 type Tabel = typeof da;
 
 const en: Tabel = {
+  fejl: {
+    ikkeObjekt: 'Write: the answer is not an object',
+    ingenAfsnit: 'Write: the draft has no paragraphs',
+    ingenForslag: 'Write: no usable suggestions in the answer',
+    afsnitVaek: 'Write: the paragraph no longer exists',
+  },
   rolle: (rum) => `You are Hermes, the user's agent, and you write together with them in the room "${rum}" of their control centre. The user writes in English, in a down-to-earth tone, short sentences, no hype and no clichés. You write in their voice, not yours.`,
   hvem: 'The user',
 

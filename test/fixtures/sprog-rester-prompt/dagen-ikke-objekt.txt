@@ -1,0 +1,1 @@
+SchemaError: Dagen: svaret er ikke et objekt

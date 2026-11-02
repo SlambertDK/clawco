@@ -3,7 +3,8 @@
 // renders them, read at render time through the language of the request, English with exactly Danish's keys
 // (test/tillid/tekster.test.ts). The product's name comes in as an argument, from `PRODUKT`.
 // Not here, on purpose: the parts of a Hermes prompt (prompt.ts, REGELFORSLAG_TEKST), the operator's own messages (a rules
-// file that cannot be read keeps its Danish reason in the data, the page below translates the known ones), the rules
+// file that cannot be read keeps its Danish reason in the data; the page and the rules block of a Hermes prompt translate the
+// known ones through `ulaeseligHvorfor`, KC-0242), the rules
 // file's own syntax (the keys trin, gaelder, oprindelse, status, naeste-id and the origins ret, haand, import are the
 // file's format), the starter rules written into Henrik's own file (start.ts) and the Danish detector of subjects in
 // kilder/danmark.

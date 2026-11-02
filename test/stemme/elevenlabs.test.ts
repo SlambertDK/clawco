@@ -208,6 +208,34 @@ test('ensureVoice adds the top Danish library voice to the account', async () =>
   assert.equal(calls[1]!.headers.get('xi-api-key'), 'k-123');
 });
 
+test('KC-0242: ensureVoice looks in the library for the language it was asked for', async () => {
+  const { fetch: f, calls } = fakeFetch(
+    on('GET', `${BASE}/v1/shared-voices?language=en&page_size=5&sort=usage_character_count_1y`, () =>
+      json({ voices: [{ voice_id: 'e1', public_owner_id: 'eo', name: 'Sarah' }] }),
+    ),
+    on('POST', `${BASE}/v1/voices/add/eo/e1`, () => json({ voice_id: 'mine-en' })),
+  );
+  assert.equal(await client(f).ensureVoice(undefined, 'en'), 'mine-en');
+  assert.match(calls[0]!.url, /language=en&/);
+  assert.deepEqual(bodyJson(calls[1]!), { new_name: `${PRODUKT} – Sarah` });
+});
+
+test('KC-0242: ensureVoice returns a given id for English too, without any request', async () => {
+  const { fetch: f, calls } = fakeFetch(() => json({}));
+  assert.equal(await client(f).ensureVoice('abc', 'en'), 'abc');
+  assert.equal(calls.length, 0);
+});
+
+test('KC-0242: ensureVoice with an empty English library names the language in the 502', async () => {
+  const { fetch: f } = fakeFetch(() => json({ voices: [] }));
+  await assert.rejects(client(f).ensureVoice(undefined, 'en'), (e: unknown) => {
+    assert.ok(e instanceof StemmeError);
+    assert.equal(e.status, 502);
+    assert.equal(e.message, "Ingen engelsk stemme fundet i ElevenLabs' bibliotek");
+    return true;
+  });
+});
+
 test('ensureVoice with an empty library throws a 502', async () => {
   const { fetch: f } = fakeFetch(() => json({ voices: [] }));
   await assert.rejects(client(f).ensureVoice(''), (e: unknown) => {

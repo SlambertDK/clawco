@@ -108,7 +108,7 @@ test('"Hvad Clawco ved om dig" in English: the headings, the zone and slags word
   assert.match(d, /1 linje i loggen · 0 beskeder · 1,5 kB/);
 });
 
-test('a rules file that cannot be read: Danish reason in the data, English words on the page', async () => {
+test('a rules file that cannot be read: Danish reason in the data, English words on the page and in the prompt', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-tillid-sprog-'));
   try {
     await mkdir(path.join(dir, 'vault', 'Clawco'), { recursive: true });
@@ -121,8 +121,8 @@ test('a rules file that cannot be read: Danish reason in the data, English words
     assert.match(String(renderViden(v)), /Filen kan ikke læses \(linjen &quot;naeste-id: R-…&quot; mangler øverst i filen\)\./);
     assert.match(en(() => String(renderViden(v))), /The file cannot be read \(the line &quot;naeste-id: R-…&quot; is missing at the top of the file\)\. Until it is fixed, Hermes may only look and suggest\./);
     assert.match(reglerTilPrompt(laest), /Reglerne kunne ikke læses \(linjen "naeste-id: R-…" mangler øverst i filen\)/);
-    // KC-0241: the sentence follows the run's language, the reason stays Danish (data, like the file's own words).
-    assert.match(en(() => reglerTilPrompt(laest)), /The rules could not be read \(linjen "naeste-id: R-…" mangler øverst i filen\)/);
+    // KC-0241/KC-0242: the sentence and the known reason follow the run's language (the data keeps the Danish reason).
+    assert.match(en(() => reglerTilPrompt(laest)), /The rules could not be read \(the line "naeste-id: R-…" is missing at the top of the file\)/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 

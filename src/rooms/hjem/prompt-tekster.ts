@@ -8,6 +8,14 @@
 import { sprogNu } from '../../shell/tekster.ts';
 
 const da = {
+  /** KC-0242: what the answer parser says when Hermes' JSON does not fit; it goes back to Hermes in the correction run, so the field names stay. */
+  fejl: {
+    ikkeObjekt: 'Kuratoren: svaret er ikke et objekt',
+    kortMangler: 'Kuratoren: "kort" mangler eller er ikke en liste',
+    vurderingerIkkeListe: 'Kuratoren: "vurderinger" er ikke en liste',
+    zoneUkendt: (zone: string): string => `Kuratoren: ukendt zone: ${zone}`,
+    zoneAnden: (zone: string, korsel: string): string => `Kuratoren: elementet siger zone ${zone}, men kørslen læste ${korsel}`,
+  },
   /** The role line: the room's English name and the other rooms' names come from the shell's rum table. */
   rolle: 'Du er Hermes, Henriks agent, og du arbejder inde i rummet "Nu" i hans kontrolcenter — forsiden med det, der venter på ham i alle rum (Dagen, Mail, Skrive, Nyheder).',
   /** The Intl locale of the date line (the time zone stays Europe/Copenhagen). */
@@ -39,6 +47,13 @@ const da = {
 export type HjemPromptTekster = typeof da;
 
 const en: HjemPromptTekster = {
+  fejl: {
+    ikkeObjekt: 'The Curator: the answer is not an object',
+    kortMangler: 'The Curator: "kort" is missing or is not a list',
+    vurderingerIkkeListe: 'The Curator: "vurderinger" is not a list',
+    zoneUkendt: (zone: string): string => `The Curator: unknown zone: ${zone}`,
+    zoneAnden: (zone: string, korsel: string): string => `The Curator: the element says zone ${zone}, but the run read ${korsel}`,
+  },
   rolle: 'You are Hermes, the user\'s agent, and you work inside the room "Now" in their control centre — the front page with what is waiting for them in every room (Today, Mail, Write, News).',
   datoLokale: 'en-GB',
   nuEr: (dato) => `It is now ${dato} (Europe/Copenhagen).`,

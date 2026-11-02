@@ -8,6 +8,17 @@
 import { sprogNu } from '../../shell/tekster.ts';
 
 const da = {
+  /** KC-0242: what the answer parser says when Hermes' JSON does not fit; it goes back to Hermes in the correction run, so the field names stay. */
+  fejl: {
+    ingenJson: 'Hermes svarede uden JSON, eller med en blok, der ikke kan læses',
+    ikkeObjekt: 'Dagen: svaret er ikke et objekt',
+    treLinjer: 'Dagen: treLinjer mangler',
+    anbefaling: 'Dagen: anbefaling mangler',
+    handlingIkkeObjekt: (hvor: string): string => `${hvor}: handling skal være et objekt`,
+    handlingMangler: (hvor: string): string => `${hvor}: handling kræver label og instruktion`,
+    zoneUkendt: (zone: string): string => `ukendt zone: ${zone}`,
+    zoneAnden: (zone: string, korsel: string): string => `elementet siger zone ${zone}, men kørslen læste ${korsel}`,
+  },
   /** The role line; the room's English name is the shell's (rum table). */
   rolle: `Du er Hermes, Henriks agent, og du arbejder inde i rummet "Dagen" i hans kontrolcenter. Rummet viser dagen i tre linjer, én anbefaling, kalenderen og morgenavisen.`,
   /** "Nu er det 2026-10-26 kl. 07.12 (Europe/Copenhagen)." */
@@ -76,6 +87,16 @@ const da = {
 export type DagenPromptTekster = typeof da;
 
 const en: DagenPromptTekster = {
+  fejl: {
+    ingenJson: 'Hermes answered without JSON, or with a block that cannot be read',
+    ikkeObjekt: 'Today: the answer is not an object',
+    treLinjer: 'Today: treLinjer is missing',
+    anbefaling: 'Today: anbefaling is missing',
+    handlingIkkeObjekt: (hvor: string): string => `${hvor}: handling must be an object`,
+    handlingMangler: (hvor: string): string => `${hvor}: handling requires label and instruktion`,
+    zoneUkendt: (zone: string): string => `unknown zone: ${zone}`,
+    zoneAnden: (zone: string, korsel: string): string => `the element says zone ${zone}, but the run read ${korsel}`,
+  },
   rolle: `You are Hermes, the user's agent, and you work inside the room "Today" in their control centre. The room shows the day in three lines, one recommendation, the calendar and the morning paper.`,
   tidslinje: (dato, tid) => `It is now ${dato} at ${tid} (Europe/Copenhagen).`,
   skema: `\`\`\`json

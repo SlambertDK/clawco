@@ -170,13 +170,13 @@ export function createElevenLabs(opts: { apiKey: string; fetch?: typeof fetch; b
     return token;
   }
 
-  async function ensureVoice(voiceId?: string): Promise<string> {
+  async function ensureVoice(voiceId?: string, sprog: Sprog = 'da'): Promise<string> {
     if (voiceId) return voiceId;
-    const json = await getJson('stemmebibliotek', '/v1/shared-voices?language=da&page_size=5&sort=usage_character_count_1y');
+    const json = await getJson('stemmebibliotek', `/v1/shared-voices?language=${sprog}&page_size=5&sort=usage_character_count_1y`);
     const first = list(json['voices'])[0];
     const sharedId = first ? str(first['voice_id']) : undefined;
     const owner = first ? str(first['public_owner_id']) : undefined;
-    if (!first || !sharedId || !owner) throw new StemmeError("Ingen dansk stemme fundet i ElevenLabs' bibliotek", 502);
+    if (!first || !sharedId || !owner) throw new StemmeError(`Ingen ${sprog === 'en' ? 'engelsk' : 'dansk'} stemme fundet i ElevenLabs' bibliotek`, 502);
     const name = str(first['name']) ?? sharedId;
     const added = await ok(
       'tilføj stemme',

@@ -3,6 +3,8 @@
 // four sentences, no lists, no markdown). Pure text; svar.ts adds the JSON
 // blocks the rooms parse (a moved run, shorter paragraphs) from the signals
 // returned here. Rewritten from the demo's samtale.ts (KC-0058) for six moments.
+// KC-0242: every intent matches Henrik's question in Danish OR English (the words of the same question), so the
+// English moments are a usable demo; the answers stay Danish on purpose, only the matching is bilingual.
 
 import type { Fakta } from './fakta.ts';
 
@@ -23,11 +25,12 @@ const har = (c: Ctx, re: RegExp): boolean => re.test(c.t);
 /** The answer for moment n from six (one per moment). */
 const lige = (n: number, ...alle: string[]): string => alle[Math.min(n, alle.length - 1)] ?? '';
 
-/** "flyt den til 17.30" → "17.30"; a bare "17" → "17.00". */
+/** "flyt den til 17.30" → "17.30"; a bare "17" → "17.00"; "5.30 pm" → "17.30" (KC-0242). */
 function klokkeslaet(besked: string): string {
-  const m = /(\d{1,2})(?:\s*[.:]\s*(\d{2}))?/.exec(besked);
+  const m = /(\d{1,2})(?:\s*[.:]\s*(\d{2}))?(?:\s*(am|pm)\b)?/.exec(besked);
   if (!m) return '17.00';
-  const h = Math.min(23, Number(m[1]));
+  const pm = m[3] === 'pm' && Number(m[1]) < 12 ? 12 : 0;
+  const h = Math.min(23, m[3] === 'am' && Number(m[1]) === 12 ? 0 : Number(m[1]) + pm);
   return `${String(h).padStart(2, '0')}.${m[2] ?? '00'}`;
 }
 
@@ -41,13 +44,13 @@ const INTENTS: Intent[] = [
   // KC-0148: Husstanden's week, as the family calendar (indhold/husstand.ts) has it.
   {
     art: 'husstand',
-    matcher: (c) => c.rum === 'husstand' && har(c, /uge|husstand|familie|vi\b/),
+    matcher: (c) => c.rum === 'husstand' && har(c, /uge|husstand|familie|vi\b|\bweek\b|household|family|\bwe\b/),
     svar: () => 'I dag er der fællesspisning kl. 18. I morgen har Ella svømning kl. 16.30, og i overmorgen er der forældremøde i 2.B kl. 19 for dig og Maja. Om fire dage kommer Farmor på besøg hele dagen.',
   },
   // KC-0077: the sentences the empty chat offers as buttons (shell/forslag.ts).
   {
     art: 'venter',
-    matcher: (c) => har(c, /\bventer på mig\b/),
+    matcher: (c) => har(c, /\bventer på mig\b|\bwaiting for me\b/),
     svar: (c) => lige(c.n,
       'Syv mails venter på dig i Mail, og mødet klokken 11 med Clara og Jonas skal forberedes. Resten kan vente.',
       'Syv mails venter, og Clara vil have svar på, om du kommer klokken 11. Mødet er forberedt.',
@@ -62,36 +65,36 @@ const INTENTS: Intent[] = [
   },
   {
     art: 'kan-vente',
-    matcher: (c) => har(c, /\bkan vente\b/),
+    matcher: (c) => har(c, /\bkan vente\b|\bcan wait\b/),
     svar: () => 'Elektrikerens tilbud kan vente til fredag, og vindbrevet kan afmeldes, når som helst du vil. Mødet med Clara og Jonas kan ikke vente.',
   },
   {
     art: 'ledig-tid',
-    matcher: (c) => har(c, /hvornår har jeg tid|ledig tid|ledigt/),
+    matcher: (c) => har(c, /hvornår har jeg tid|ledig tid|ledigt|when do i have time|when am i free|when is there time|free time|free slot|free window/),
     svar: (c) => (c.n < 4
       ? 'Det mest ledige hul er klokken 13 til 14, efter løbeturen. Klokken 14 er der opfølgning, og du henter Ella klokken 15.45.'
       : 'Resten af dagen er fri, på nær at du henter Ella klokken 15.35. Det regner fra klokken 16.'),
   },
   {
     art: 'nyhederne',
-    matcher: (c) => har(c, /betyder.*nyhed|nyhederne for mig/),
+    matcher: (c) => har(c, /betyder.*nyhed|nyhederne for mig|\bnews\b.*\b(mean|matter)|\b(mean|matter).*\bnews\b|news for me/),
     svar: () => 'Vigtigst for dig er grønt lys til den nordlige korridor: den er udgangspunktet i dagens møde med Clara. Resten er baggrund, du kan lade ligge.',
   },
   {
     art: 'univers-status',
-    matcher: (c) => c.rum.startsWith('univers') && har(c, /gang i|åbent her|følge op på/),
+    matcher: (c) => c.rum.startsWith('univers') && har(c, /gang i|åbent her|følge op på|going on|open here|follow up on/),
     svar: () => 'I Havvind Nord er mødet klokken 11 det næste, og opfølgningen til Clara er den åbne opgave. Resten ligger roligt.',
   },
   {
     art: 'kortere',
-    matcher: (c) => har(c, /kortere|stram|forkort/),
+    matcher: (c) => har(c, /kortere|stram|forkort|shorter|tighten|shorten/),
     svar: (c) => (c.rum === 'skrive'
       ? { tekst: 'Her er et kortere bud på de længste afsnit. Brug dem, du kan lide.', art: 'kortere', kortere: true }
       : 'Det gør jeg i Skrive, hvor udkastet ligger. Sig "jeg vil skrive", så åbner jeg det.'),
   },
   {
     art: 'flyt',
-    matcher: (c) => har(c, /flyt/) && har(c, /løb/),
+    matcher: (c) => har(c, /flyt|\b(move|reschedule|shift|postpone)\b/) && har(c, /løb|\brun(ning)?\b|\bjog/),
     svar: (c) => {
       const tid = klokkeslaet(c.t);
       const [h, m] = tid.split('.').map(Number);
@@ -102,21 +105,21 @@ const INTENTS: Intent[] = [
   },
   {
     art: 'sidst',
-    matcher: (c) => har(c, /sidst|sidste (møde|gang)|tidligere møde/),
+    matcher: (c) => har(c, /sidst|sidste (møde|gang)|tidligere møde|\blast\b|previous meeting|earlier meeting/),
     svar: (c) => (c.n < 4
       ? `Sidst var den ${c.f.forrigeKort}, hvor I gennemgik begge kabeltracéer. Beslutningen blev udskudt: Clara skulle have en afklaring, før slottet hos kabelleverandøren udløber, og Jonas lovede kapacitetstal. Siden er den nordlige rute blevet godkendt.`
       : `I dag klokken 11 blev I enige om den nordlige rute som udgangspunkt. Sidste gang, den ${c.f.forrigeKort}, blev valget udskudt, fordi Jonas manglede kapacitetstal.`),
   },
   {
     art: 'bekymring',
-    matcher: (c) => har(c, /bekymr|nervøs|bange|går hun op i/),
+    matcher: (c) => har(c, /bekymr|nervøs|bange|går hun op i|worr|concern|nervous|afraid|scared/),
     svar: (c) => (c.n < 4
       ? 'Claras største bekymring er produktionsslottet i december. Hvis ruten ikke er valgt om knap to uger, mister Nordvik slottet, og udlægningen rykker et helt sæsonvindue. Derfor vil hun have et svar på kabeltracéet i dag.'
       : 'Hendes største bekymring var produktionsslottet i december. Med den nordlige rute som udgangspunkt er den afværget, hvis Jonas bekræfter tilslutningspunktet inden for en uge.'),
   },
   {
     art: 'moede',
-    matcher: (c) => har(c, /kom der ud af|blev vi enige|besluttet|resultat|konklusion|referat|mødet/),
+    matcher: (c) => har(c, /kom der ud af|blev vi enige|besluttet|resultat|konklusion|referat|mødet|came out of|did we agree|decided|outcome|result|conclusion|minutes|the meeting/),
     svar: (c) => lige(c.n,
       'Mødet er klokken 11 med Clara og Jonas om Havvind Nord. Tryk Forbered mødet i Dagen, så samler jeg talepunkter og slides.',
       'Mødet klokken 11 er forberedt: fire talepunkter og slides ligger i Havvind Nord. Gå ind med nordlig rute som udgangspunkt.',
@@ -127,14 +130,14 @@ const INTENTS: Intent[] = [
   },
   {
     art: 'elektriker',
-    matcher: (c) => har(c, /elektriker|eltavle|tilbud|lysnet/),
+    matcher: (c) => har(c, /elektriker|eltavle|tilbud|lysnet|electrician|fuse box|switchboard|quote|offer/),
     svar: (c) => (c.n < 2
       ? 'Svar, at du gerne vil have en pris uden de to ekstra grupper, så du kan sammenligne. Tilbuddet er på 18.400 kroner, 2.600 over dit budget, og prisen gælder til fredag. Udkastet ligger i Mail; tryk Gem som kladde, så sender jeg intet.'
       : 'Kladden til elektrikeren ligger i Drafts. Du bad om en pris uden de to ekstra grupper, og tilbuddet på 18.400 kroner gælder til fredag.'),
   },
   {
     art: 'regnskab',
-    matcher: (c) => har(c, /regnskab|bredbånd|løbeklub|kontingent|elregning/),
+    matcher: (c) => har(c, /regnskab|bredbånd|løbeklub|kontingent|elregning|\baccounts?\b|bookkeeping|ledger|broadband|running club|membership|electricity bill|internet bill/),
     svar: (c) => lige(c.n,
       'Elregningen er skrevet i det private regnskab. Løbeklubbens kontingent fortrød du, så det kan skrives igen med ét tryk, og internetregningen ved jeg ikke, hvor hører til; vælg regnskab på kortet i Hjem.',
       'Elregningen står i det private regnskab. Løbeklubben fortrød du, så den kan skrives igen med ét tryk, og internetregningen venter på dit valg af regnskab.',
@@ -145,14 +148,14 @@ const INTENTS: Intent[] = [
   },
   {
     art: 'vvs',
-    matcher: (c) => har(c, /vvs|blandingsbatteri|rørvang|faktura/),
+    matcher: (c) => har(c, /vvs|blandingsbatteri|rørvang|faktura|plumb|mixer tap|faucet|invoice/),
     svar: (c) => (c.n < 2
       ? `VVS-fakturaen er på 4.210 kroner og matcher tilbuddet, så den kan betales. Den forfalder ${c.f.forfald}. Jeg betaler aldrig selv, men jeg kan lægge den i Betalinger, så godkender du den.`
       : `Fakturaen på 4.210 kroner ligger i Betalinger med forfald ${c.f.forfald}. Betalingen godkender du selv i din bank; jeg rører ikke ved pengene.`),
   },
   {
     art: 'claude-code',
-    matcher: (c) => har(c, /claude|ticket|udvikling|opgave/),
+    matcher: (c) => har(c, /claude|ticket|udvikling|opgave|\btasks?\b|development/),
     svar: (c) => lige(c.n,
       'Claude Code har modtaget din opgave om vejret i hilsenen i aften, og Nyhedernes sortering er i gang. Kø-panelet er parkeret: det venter på dit valg af plads i menuen.',
       'Sorteringen i Nyheder er færdig, og vejret i hilsenen er modtaget. Fejlkortet fra i nat kan du sende til Claude Code med ét tryk.',
@@ -163,28 +166,28 @@ const INTENTS: Intent[] = [
   },
   {
     art: 'loerdag',
-    matcher: (c) => har(c, /lørdag|weekend|birthe|fødselsdag|fri\b/),
+    matcher: (c) => har(c, /lørdag|weekend|birthe|fødselsdag|fri\b|saturday|birthday|\bfree\b/),
     svar: (c) => (c.n < 5
       ? 'Lørdag er helt fri i kalenderen. Der er intet planlagt endnu.'
       : 'Ja, lørdag er helt fri. Maja har foreslået fødselsdag hos Birthe klokken 14; tryk Reservér lørdag på kortet i Hjem, så lægger jeg det i kalenderen. Svaret til Maja giver du selv.'),
   },
   {
     art: 'tilbage',
-    matcher: (c) => har(c, /løb|tilbage|hjemme/),
+    matcher: (c) => har(c, /løb|tilbage|hjemme|\brun(ning)?\b|\bback\b|\bhome\b/),
     svar: (c) => (c.n < 4
       ? 'Løbeturen ligger klokken 12.15 og er slut klokken 13, så du er tilbage i god tid til opfølgningen klokken 14.'
       : 'Løbeturen er overstået for i dag. I morgen er der tørvejr hele dagen.'),
   },
   {
     art: 'mangler',
-    matcher: (c) => har(c, /mangler|hente|ella|sfo/),
+    matcher: (c) => har(c, /mangler|hente|ella|sfo|missing|pick up|collect|after-school/),
     svar: (c) => (c.n < 5
       ? 'Du henter Ella i SFO klokken 15.45, fordi Maja har nattevagt. Det regner fra klokken 16, så tag regnjakken i gangen.'
       : 'Ella er hentet og ligger i seng. Der mangler kun dit svar til Maja om lørdag.'),
   },
   {
     art: 'dag',
-    matcher: (c) => har(c, /godmorgen|god morgen|i dag|planen|overblik|program/),
+    matcher: (c) => har(c, /godmorgen|god morgen|i dag|planen|overblik|program|good morning|today|\bplan\b|overview|schedule|agenda/),
     svar: (c) => lige(c.n,
       'Godmorgen, Henrik. Klokken 11 er der møde med Clara og Jonas om Havvind Nord. Det regner fra 16 til 19, så løbeturen er flyttet til klokken 12.15, og du henter Ella klokken 15.45. Syv mails venter i Mail.',
       'Mødet klokken 11 er forberedt, og syv mails venter på dig lige nu. Løbet ligger klokken 12.15, opfølgningen klokken 14, og Ella hentes 15.45.',
@@ -196,7 +199,7 @@ const INTENTS: Intent[] = [
   {
     art: 'vigtigst',
     // "Hvad skal jeg nu?" asks the same thing: the one next move at this moment.
-    matcher: (c) => har(c, /vigtigst|haster|prioritet|(skal|gør) jeg nu|hvad (så )?nu|næste skridt/),
+    matcher: (c) => har(c, /vigtigst|haster|prioritet|(skal|gør) jeg nu|hvad (så )?nu|næste skridt|most important|matters most|what matters|urgent|priorit|(should|shall|must|do) i do now|what (now|next)\b|next step/),
     svar: (c) => lige(c.n,
       'Det vigtigste i dag er mødet klokken 11 om Havvind Nord. Læs Claras dagsorden i toget.',
       'Svar Clara først: hun vil vide, om du kommer klokken 11, og udkastet er klar. Elektrikeren kan vente til fredag.',
@@ -235,7 +238,7 @@ const INTENTS: Intent[] = [
   },
   {
     art: 'godnat',
-    matcher: (c) => har(c, /godnat|god nat|sov godt/),
+    matcher: (c) => har(c, /godnat|god nat|sov godt|good ?night|sleep well/),
     svar: () => 'Godnat, Henrik. I morgen går toget 07.12, og klokken 9 er der stand-up. Jeg sender intet til nogen i nat.',
   },
 ];

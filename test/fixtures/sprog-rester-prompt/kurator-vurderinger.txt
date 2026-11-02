@@ -1,0 +1,1 @@
+SvarFejl: Kuratoren: "vurderinger" er ikke en liste

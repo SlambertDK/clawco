@@ -274,3 +274,15 @@ test('KC-0059: parseKuratorSvar keeps a valid visuel (pictogram, headline, pictu
   assert.deepEqual(svar.nye[0]!.visuel, { ikon: 'zap', overskrift: 'Over budget', tone: 'adv', billede: { art: 'beloeb', vaerdi: 18400, graense: 15000, enhed: 'kr.', tekst: 'Tilbud', graenseTekst: 'Budget' } });
   assert.equal(svar.nye[1]!.visuel, undefined);
 });
+
+// KC-0242: the messages this room's answer parser sends back to Hermes follow the language of the run.
+import { HJEM_PROMPT_TEKSTER } from '../../src/rooms/hjem/prompt-tekster.ts';
+import { form, tomme, ensStrenge } from '../fixtures/sprog-tjek.ts';
+
+test('KC-0242: the room has an English `fejl` table with exactly the Danish keys, no empty text and no Danish copy', () => {
+  const { da, en } = { da: HJEM_PROMPT_TEKSTER.da.fejl, en: HJEM_PROMPT_TEKSTER.en.fejl };
+  assert.ok(da && Object.keys(da).length > 0);
+  assert.deepEqual(form(en), form(da));
+  assert.deepEqual(tomme(en as never), []);
+  assert.deepEqual(ensStrenge(da as never, en as never), []);
+});

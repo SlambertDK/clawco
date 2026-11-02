@@ -8,6 +8,18 @@ import { sprogNu } from '../../shell/tekster.ts';
 import type { OpgaveStatus } from './schema.ts';
 
 const da = {
+  /** KC-0242: what the answer parser says when Hermes' JSON does not fit; it goes back to Hermes in the correction run, so the field names stay. */
+  fejl: {
+    ikkeObjekt: 'Univers: svaret er ikke et objekt',
+    ingenElementer: 'Univers: ingen brugbare elementer i svaret',
+    zoneUkendt: (zone: string): string => `Univers: ukendt zone: ${zone}`,
+    zoneAnden: (zone: string, korsel: string): string => `Univers: elementet siger zone ${zone}, men kørslen læste ${korsel}`,
+    forberedelseMangler: 'Forberedelse: svaret mangler "forberedelse"',
+    maalMangler: 'Forberedelse: maal mangler',
+    talepunkterMangler: 'Forberedelse: talepunkter mangler',
+    nytUniversMangler: 'Univers: svaret mangler "nytUnivers"',
+    navnMangler: 'Univers: navn mangler',
+  },
   rolle: 'Du er Hermes, Henriks agent. Henrik skriver dansk, jordnær tone, korte sætninger, ingen hype og ingen floskler.',
   /** Who "points at an element" (agent/prompt.ts pegerTekst / elementSegment). */
   hvem: 'Henrik',
@@ -109,6 +121,17 @@ Mødet (fra kalenderen), Henriks ønske til det, ${medForberedelse ? 'den forber
 type Tabel = typeof da;
 
 const en: Tabel = {
+  fejl: {
+    ikkeObjekt: 'Universes: the answer is not an object',
+    ingenElementer: 'Universes: no usable elements in the answer',
+    zoneUkendt: (zone: string): string => `Universes: unknown zone: ${zone}`,
+    zoneAnden: (zone: string, korsel: string): string => `Universes: the element says zone ${zone}, but the run read ${korsel}`,
+    forberedelseMangler: 'Preparation: the answer is missing "forberedelse"',
+    maalMangler: 'Preparation: maal is missing',
+    talepunkterMangler: 'Preparation: talepunkter is missing',
+    nytUniversMangler: 'Universes: the answer is missing "nytUnivers"',
+    navnMangler: 'Universes: navn is missing',
+  },
   rolle: "You are Hermes, the user's agent. The user writes in English, in a down-to-earth tone, short sentences, no hype and no clichés.",
   hvem: 'The user',
   locale: 'en-GB',

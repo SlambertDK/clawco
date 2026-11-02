@@ -186,9 +186,11 @@ export const loerdagNaesteUge = (f: Fakta): number => f.loerdagPlus + 7;
  * Saturday (next week's in the moment "Lørdag i næste uge", else the coming one) and the hours; null for any other sentence.
  */
 export function bilBooking(besked: string, f: Fakta, momentId: string): { ressource: string; start: string; slut: string; titel: string } | null {
-  const bil = /\b(store|lille)\s+bil\b/i.exec(besked)?.[1]?.toLowerCase();
-  const tid = /(\d{1,2})(?:[.:](\d{2}))?\s*(?:til|-|–)\s*(\d{1,2})(?:[.:](\d{2}))?/.exec(besked);
-  if (!bil || !tid || !/lørdag/i.test(besked)) return null;
+  // KC-0242: the English words of the same sentence ("the big car on Saturday 10 to 15").
+  const bilOrd = /\b(store|lille|big|large|small|little)\s+(?:bil|car)\b/i.exec(besked)?.[1]?.toLowerCase();
+  const bil = bilOrd === 'big' || bilOrd === 'large' ? 'store' : bilOrd === 'small' || bilOrd === 'little' ? 'lille' : bilOrd;
+  const tid = /(\d{1,2})(?:[.:](\d{2}))?\s*(?:til|to|until|-|–)\s*(\d{1,2})(?:[.:](\d{2}))?/.exec(besked);
+  if (!bil || !tid || !/lørdag|saturday/i.test(besked)) return null;
   const kl = (t: string | undefined, m: string | undefined): string => `${String(Math.min(23, Number(t))).padStart(2, '0')}:${m ?? '00'}`;
   const dag = f.plus(momentId === 'bil-loerdag' ? loerdagNaesteUge(f) : f.loerdagPlus);
   return { ressource: bil === 'store' ? 'stor-bil' : 'lille-bil', start: `${dag}T${kl(tid[1], tid[2])}`, slut: `${dag}T${kl(tid[3], tid[4])}`, titel: 'Tur' };

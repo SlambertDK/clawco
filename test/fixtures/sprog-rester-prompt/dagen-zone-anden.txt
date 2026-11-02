@@ -1,0 +1,1 @@
+SchemaError: morgenavis[0]: elementet siger zone arbejde, men kørslen læste privat

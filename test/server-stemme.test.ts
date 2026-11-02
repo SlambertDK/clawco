@@ -183,13 +183,14 @@ test('oversigt begins with the top card\'s titel (up to three, by prioritet) and
 test('samtale in English: the English agent is synced and stored under stemme.en; lyt and sig get the language', async () => {
   const calls: { config: AgentConfig; known: Partial<StemmeIds> | undefined }[] = [];
   const lytSprog: unknown[] = [];
+  const voices: [string | undefined, string | undefined][] = [];
   const sigSprog: unknown[] = [];
   const fake = createFakeStemme();
   const stub: StemmeClient = {
     ...fake,
     mode: 'elevenlabs',
     samtaleToken: async (agentId) => `tok-for-${agentId}`,
-    ensureVoice: async (v) => v || 'voice-da',
+    ensureVoice: async (v, sprog) => { voices.push([v, sprog]); return v || `voice-${sprog ?? 'da'}`; },
     ensureAgent: async (config, _voiceId, known) => { calls.push({ config, known }); return { agentId: config.language === 'en' ? 'ag_en' : 'ag_da', toolIds: { udfoer: 't1', hent_oversigt: 't2', spoerg_hermes: 't3' } }; },
     lyt: async (...a) => { lytSprog.push(a[3]); return 'hello'; },
     sig: async (...a) => { sigSprog.push(a[2]); return fake.sig(a[0], a[1]); },
@@ -206,9 +207,13 @@ test('samtale in English: the English agent is synced and stored under stemme.en
     assert.equal(b.dynamiskeVariabler['rum'], 'Today');
     assert.equal(b.dynamiskeVariabler['antal_tekst'], 'One thing is waiting for you.');
     assert.match(b.dynamiskeVariabler['oversigt'] ?? '', /^One thing is waiting\.\n/);
-    const ind = (await (await sut.app.request('/api/indstillinger')).json()) as { stemme: { agentId?: string; en?: { agentId?: string } } };
+    const ind = (await (await sut.app.request('/api/indstillinger')).json()) as { stemme: { agentId?: string; voiceId?: string; en?: { agentId?: string; voiceId?: string } } };
     assert.equal(ind.stemme.en?.agentId, 'ag_en');
     assert.equal(ind.stemme.agentId, undefined, 'the Danish ids are not touched');
+    // KC-0242: the voice is looked up in the agent's language and stored beside its ids.
+    assert.deepEqual(voices, [[undefined, 'en']]);
+    assert.equal(ind.stemme.en?.voiceId, 'voice-en');
+    assert.equal(ind.stemme.voiceId, undefined, 'no Danish voice is picked for an English installation');
     const fd = new FormData();
     fd.append('file', new Blob([new Uint8Array([1, 2, 3])], { type: 'audio/webm' }), 'a.webm');
     fd.append('rum', 'dagen');

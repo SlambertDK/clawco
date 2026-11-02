@@ -55,3 +55,15 @@ test('tomtState has no documents and a status', () => {
   assert.equal(s.aktivt, null);
   assert.ok(s.hermesStatus);
 });
+
+// KC-0242: the messages this room's answer parser sends back to Hermes follow the language of the run.
+import { SKRIVE_PROMPT } from '../../src/rooms/skrive/prompt-tekster.ts';
+import { form, tomme, ensStrenge } from '../fixtures/sprog-tjek.ts';
+
+test('KC-0242: the room has an English `fejl` table with exactly the Danish keys, no empty text and no Danish copy', () => {
+  const { da, en } = { da: SKRIVE_PROMPT.da.fejl, en: SKRIVE_PROMPT.en.fejl };
+  assert.ok(da && Object.keys(da).length > 0);
+  assert.deepEqual(form(en), form(da));
+  assert.deepEqual(tomme(en as never), []);
+  assert.deepEqual(ensStrenge(da as never, en as never), []);
+});

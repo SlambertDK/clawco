@@ -1,0 +1,1 @@
+SvarFejl: Kuratoren: svaret er ikke et objekt

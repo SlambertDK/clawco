@@ -7,10 +7,11 @@ import { SvarFejl } from '../../svarfejl.ts';
 import { findProjekt } from '../../udvikling/projekter.ts';
 import { parseVisuel, type Visuel } from '../../shell/visuel.ts';
 import { idagKbh, koebenhavnTilIso } from '../../shell/tid.ts';
-import { ZoneFejl, synligFor, zoneAf, zoneFra, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
+import { ZoneFejl, erDataZone, synligFor, zoneAf, zoneFra, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import type { Person } from '../../identitet/husstand.ts';
 import type { Regelforslag } from '../../tillid/forslag.ts';
 import { hjemTekst } from './tekster.ts';
+import { hjemPromptTekst } from './prompt-tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -115,7 +116,7 @@ function regnskab(v: unknown): Regnskabslinje | 'uklart' | undefined {
 /** KC-0117: the zone Hermes named (absent = the run's zone); an unknown zone, or one this run did not read, is a schema error. */
 function zoneAfSvar(raw: unknown, korsel: DataZone): DataZone {
   try { return zoneFra(raw, korsel); } catch (e) {
-    if (e instanceof ZoneFejl) throw new SvarFejl(`Kuratoren: ${e.message}`);
+    if (e instanceof ZoneFejl) { const t = hjemPromptTekst().fejl; throw new SvarFejl(erDataZone(raw) ? t.zoneAnden(raw, korsel) : t.zoneUkendt(String(raw).slice(0, 40))); }
     throw e;
   }
 }
@@ -182,10 +183,10 @@ type Status = 'behold' | 'opdater' | 'fjern';
  * KC-0226: `korsel` is the one zone the run read (privat unless it is a zone run): an element naming another zone is a schema error.
  */
 export function parseKuratorSvar(raw: unknown, korsel: DataZone = KORSEL): KuratorSvar {
-  if (!isObj(raw)) throw new SvarFejl('Kuratoren: svaret er ikke et objekt');
-  if (!Array.isArray(raw['kort'])) throw new SvarFejl('Kuratoren: "kort" mangler eller er ikke en liste');
+  if (!isObj(raw)) throw new SvarFejl(hjemPromptTekst().fejl.ikkeObjekt);
+  if (!Array.isArray(raw['kort'])) throw new SvarFejl(hjemPromptTekst().fejl.kortMangler);
   const rawV = raw['vurderinger'];
-  if (rawV !== undefined && !Array.isArray(rawV)) throw new SvarFejl('Kuratoren: "vurderinger" er ikke en liste');
+  if (rawV !== undefined && !Array.isArray(rawV)) throw new SvarFejl(hjemPromptTekst().fejl.vurderingerIkkeListe);
 
   const status = new Map<string, Status>();
   const svar: KuratorSvar = { nye: [], behold: [], opdater: [], fjern: [], intet: [] };

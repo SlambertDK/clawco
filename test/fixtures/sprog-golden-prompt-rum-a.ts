@@ -181,7 +181,7 @@ function egneTekstI(s: Spec, o: Egne): string {
   const delt = [peger(), ...[...VERBER, 'ukendt'].map((x) => v(handlingsOpgave(x))), v(fortrydOpgave()), ...(o.forslag ? [regelforslagTekst()] : []), visuelSkema()];
   const egen = delt.reduce((t, d) => t.split(d).join(''), s.instructions.slice(referens.instructions.length));
   const sentence = o.kontekst ? v(elementSegment(o.kontekst, zone)[0]?.tekst) : '';
-  const input = s.input.split('\n').filter((l) => !l.startsWith('⟦') && !l.startsWith('Data fra ')).join('\n').split(sentence || '\u0000').join('');
+  const input = s.input.split('\n').filter((l) => !l.startsWith('⟦') && !l.startsWith('Data fra ') && !l.startsWith('Data from ')).join('\n').split(sentence || '\u0000').join('');
   return `${egen}\n${input}`;
 }
 

@@ -7,9 +7,22 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { idagKbh } from '../shell/tid.ts';
+import { sprogNu } from '../store/sprog.ts';
 
-/** Where a hidden item came from, in Henrik's words (the Sunday card and Hermes' context). */
-export const SKJULT_KILDE: Record<string, string> = { kuratoren: 'Nu: intet at gøre', mail: 'Mail: lagt i Ordnet' };
+/** KC-0242: where a hidden item came from, in the words of each language (the ids are the stored records' `kilde`, unchanged). */
+export const SKJULT_KILDE_TEKSTER: Record<'da' | 'en', Record<string, string>> = {
+  da: { kuratoren: 'Nu: intet at gøre', mail: 'Mail: lagt i Ordnet' },
+  en: { kuratoren: 'Now: nothing to do', mail: 'Mail: put in Done' },
+};
+
+/**
+ * Where a hidden item came from, in the words of the language being served (the Sunday card and Hermes' context): read
+ * at call time, so a caller that indexes it (kurator/kortprompt.ts) follows the language of the run. With no language
+ * chosen it is Danish, as it was.
+ */
+export const SKJULT_KILDE: Record<string, string> = Object.defineProperties({}, Object.fromEntries(
+  Object.keys(SKJULT_KILDE_TEKSTER.da).map((k) => [k, { enumerable: true, get: (): string | undefined => SKJULT_KILDE_TEKSTER[sprogNu()][k] }]),
+));
 
 export type Skjult = { id: string; tid: string; titel: string; kilde: string; regelId?: string };
 

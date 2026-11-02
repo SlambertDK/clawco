@@ -5,8 +5,9 @@
 import { randomUUID } from 'node:crypto';
 import { SchemaError } from '../dagen/schema.ts';
 import { parseIkon, type IkonNavn } from '../../shell/visuel.ts';
-import { zoneFra, ZoneFejl, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
+import { zoneFra, ZoneFejl, erDataZone, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import { universTekst } from './tekster.ts';
+import { universPrompt } from './prompt-tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -142,12 +143,15 @@ export type NytElement =
 
 /** The zone of one element Hermes returned; a zone the run did not read is a schema error, never relabelled. */
 function zoneAf(raw: unknown): DataZone {
-  try { return zoneFra(raw, KORSEL); } catch (e) { if (e instanceof ZoneFejl) throw new SchemaError(`Univers: ${e.message}`); throw e; }
+  try { return zoneFra(raw, KORSEL); } catch (e) {
+    if (e instanceof ZoneFejl) { const t = universPrompt().fejl; throw new SchemaError(erDataZone(raw) ? t.zoneAnden(raw, KORSEL) : t.zoneUkendt(String(raw).slice(0, 40))); }
+    throw e;
+  }
 }
 
 /** `{"elementer": [...]}` from a univers chat run. Unusable items are skipped; none usable = SchemaError. */
 export function parseUniversSvar(raw: unknown): NytElement[] {
-  if (!isObj(raw)) throw new SchemaError('Univers: svaret er ikke et objekt');
+  if (!isObj(raw)) throw new SchemaError(universPrompt().fejl.ikkeObjekt);
   const out: NytElement[] = [];
   for (const e of arr<unknown>(raw['elementer'])) {
     if (!isObj(e)) continue;
@@ -173,7 +177,7 @@ export function parseUniversSvar(raw: unknown): NytElement[] {
     }
     if (out.length >= MAX_ELEMENTER) break;
   }
-  if (out.length === 0) throw new SchemaError('Univers: ingen brugbare elementer i svaret');
+  if (out.length === 0) throw new SchemaError(universPrompt().fejl.ingenElementer);
   return out;
 }
 
@@ -189,14 +193,14 @@ export type ForberedelseSvar = {
 /** `{"forberedelse": {...}}` from a `forbered` run. */
 export function parseForberedelse(raw: unknown): ForberedelseSvar {
   const f = isObj(raw) ? raw['forberedelse'] : undefined;
-  if (!isObj(f)) throw new SchemaError('Forberedelse: svaret mangler "forberedelse"');
+  if (!isObj(f)) throw new SchemaError(universPrompt().fejl.forberedelseMangler);
   const maal = str(f['maal'], 400);
-  if (!maal) throw new SchemaError('Forberedelse: maal mangler');
+  if (!maal) throw new SchemaError(universPrompt().fejl.maalMangler);
   // Icons ride along with their talepunkt: a blank talepunkt is dropped together with its icon, so they never drift apart.
   const ikonRaa = arr<unknown>(f['talepunktIkoner']);
   const par = arr<unknown>(f['talepunkter']).map((t, i) => ({ tekst: str(t, 400), ikon: parseIkon(ikonRaa[i]) })).filter((p) => p.tekst).slice(0, MAX_TALEPUNKTER);
   const talepunkter = par.map((p) => p.tekst);
-  if (talepunkter.length === 0) throw new SchemaError('Forberedelse: talepunkter mangler');
+  if (talepunkter.length === 0) throw new SchemaError(universPrompt().fejl.talepunkterMangler);
   const deltagere: ForberedelseDeltager[] = [];
   for (const d of arr<unknown>(f['deltagere'])) {
     if (!isObj(d)) continue;
@@ -227,9 +231,9 @@ export function parseForberedelse(raw: unknown): ForberedelseSvar {
 /** `{"nytUnivers": {navn, om}}` from the overview chat. */
 export function parseNytUnivers(raw: unknown): { navn: string; om: string } {
   const n = isObj(raw) ? raw['nytUnivers'] : undefined;
-  if (!isObj(n)) throw new SchemaError('Univers: svaret mangler "nytUnivers"');
+  if (!isObj(n)) throw new SchemaError(universPrompt().fejl.nytUniversMangler);
   const navn = str(n['navn'], 80);
-  if (!navn) throw new SchemaError('Univers: navn mangler');
+  if (!navn) throw new SchemaError(universPrompt().fejl.navnMangler);
   return { navn, om: str(n['om'], 400) };
 }
 

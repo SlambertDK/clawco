@@ -41,8 +41,8 @@ function beepWav(): Uint8Array {
 export function createFakeStemme(): StemmeClient {
   return {
     mode: 'fake',
-    async lyt() {
-      return 'Hvad venter på mig i dag?';
+    async lyt(_audio, _mime, _keyterms, sprog = 'da') {
+      return sprog === 'en' ? "What's waiting for me today?" : 'Hvad venter på mig i dag?';
     },
     async sig() {
       const wav = beepWav();

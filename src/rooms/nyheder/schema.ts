@@ -2,9 +2,10 @@
 
 import { SchemaError, type Handling } from '../dagen/schema.ts';
 import type { KildeStatus, Nyhedsbrev } from './source.ts';
-import { zoneFra, ZoneFejl, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
+import { zoneFra, ZoneFejl, erDataZone, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import { agentGulv, verbFra } from '../../graenser/verber.ts';
 import { nyhederTekst } from './tekster.ts';
+import { nyhederPrompt } from './prompt-tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -32,7 +33,10 @@ const MAX_LINJER = 5; const MAX_BANER = 4; const MAX_PER_BANE = 5; const MAX_FOR
 
 /** The zone of one news item Hermes returned; a zone the run did not read is a schema error, never relabelled. */
 function zoneAf(raw: unknown): DataZone {
-  try { return zoneFra(raw, KORSEL); } catch (e) { if (e instanceof ZoneFejl) throw new SchemaError(`Nyheder: ${e.message}`); throw e; }
+  try { return zoneFra(raw, KORSEL); } catch (e) {
+    if (e instanceof ZoneFejl) { const t = nyhederPrompt().fejl; throw new SchemaError(erDataZone(raw) ? t.zoneAnden(raw, KORSEL) : t.zoneUkendt(String(raw).slice(0, 40))); }
+    throw e;
+  }
 }
 
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -45,9 +49,9 @@ function slug(s: string): string {
 }
 
 export function parseNyhederState(raw: unknown, facts: NyhederFacts, now: Date, previous?: NyhederState | null): NyhederState {
-  if (!isObj(raw)) throw new SchemaError('Nyheder: svaret er ikke et objekt');
+  if (!isObj(raw)) throw new SchemaError(nyhederPrompt().fejl.ikkeObjekt);
   const femLinjer = (Array.isArray(raw['femLinjer']) ? raw['femLinjer'] : []).map((l) => str(l, 300)).filter(Boolean).slice(0, MAX_LINJER);
-  if (!femLinjer.length) throw new SchemaError('Nyheder: femLinjer mangler');
+  if (!femLinjer.length) throw new SchemaError(nyhederPrompt().fejl.femLinjer);
 
   let n = 0;
   const baner: Bane[] = [];
@@ -76,7 +80,7 @@ export function parseNyhederState(raw: unknown, facts: NyhederFacts, now: Date, 
     baner.push({ navn, nyheder });
     if (baner.length >= MAX_BANER) break;
   }
-  if (!baner.length) throw new SchemaError('Nyheder: ingen baner med nyheder');
+  if (!baner.length) throw new SchemaError(nyhederPrompt().fejl.ingenBaner);
 
   const forslag: NyhederForslag[] = [];
   (Array.isArray(raw['forslag']) ? raw['forslag'] : []).forEach((f, i) => {

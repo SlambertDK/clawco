@@ -31,6 +31,24 @@ test('fake mode and lyt returns the canned question', async () => {
   assert.equal(await s.lyt(new Uint8Array([1, 2]), 'audio/webm', ['a']), 'Hvad venter på mig i dag?');
 });
 
+test('KC-0242: lyt returns an English question for English, the Danish one by default', async () => {
+  const s = createFakeStemme();
+  const en = await s.lyt(new Uint8Array([1]), 'audio/webm', [], 'en');
+  assert.ok(en.length > 0);
+  assert.doesNotMatch(en, /[æøåÆØÅ]/, 'no Danish letter');
+  assert.notEqual(en, 'Hvad venter på mig i dag?');
+  assert.equal(await s.lyt(new Uint8Array([1]), 'audio/webm', [], 'da'), 'Hvad venter på mig i dag?');
+  assert.equal(await s.lyt(new Uint8Array([1]), 'audio/webm', []), 'Hvad venter på mig i dag?');
+});
+
+test('KC-0242: the fake\'s sig, ensureAgent and ensureVoice accept a language and answer the same', async () => {
+  const s = createFakeStemme();
+  assert.equal(await s.ensureVoice(undefined, 'en'), 'fake-voice');
+  assert.equal(await s.ensureVoice('abc', 'en'), 'abc');
+  const { contentType } = await s.sig('hi', 'v', 'en');
+  assert.equal(contentType, 'audio/wav');
+});
+
 test('sig returns a valid 16-bit mono 16 kHz WAV of 0.5 s', async () => {
   const s = createFakeStemme();
   const { body, contentType } = await s.sig('hej', 'v');
@@ -79,8 +97,7 @@ test('ensureAgent and ensureVoice return fake ids', async () => {
   assert.equal(await s.ensureVoice(''), 'fake-voice');
 });
 
-test('KC-0241: the fake accepts a language on lyt and sig', async () => {
+test('KC-0241: the fake accepts a language on sig', async () => {
   const s = createFakeStemme();
-  assert.equal(await s.lyt(new Uint8Array([1]), 'audio/webm', [], 'en'), 'Hvad venter på mig i dag?');
   assert.equal((await s.sig('hello', 'v', 'en')).contentType, 'audio/wav');
 });

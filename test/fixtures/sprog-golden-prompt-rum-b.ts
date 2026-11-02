@@ -221,7 +221,7 @@ export function egenTekst(navn: string): string {
     const r = PROMPTER[navn]!();
     let t = `${r.instructions}\n${r.input}`;
     for (const f of [...faelles(), ...ekstraFaelles(navn)]) t = t.split(f).join('');
-    return t.split('\n').filter((l) => !/^\s*(?:Zone: |Data: |Data fra |⟦)/.test(l)).join('\n');
+    return t.split('\n').filter((l) => !/^\s*(?:Zone: |Data: |Data fra |Data from |⟦)/.test(l)).join('\n');
   });
 }
 
