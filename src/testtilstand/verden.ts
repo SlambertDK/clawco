@@ -36,6 +36,8 @@ import type { Slags } from '../kilder/types.ts';
 import { falskKildeData, GMAIL_AFVIST, GOOGLE_AFVIST, googleKalendere, googleMailRefresh, googleRefresh, KILDE_TILSTAND, kildeData, RSS_DOV, RSS_FEJL, rssXml, TEST_GMAIL, TEST_GOOGLE_KLIENT, TEST_KANALER, TEST_PERSONER } from './indhold/kilder.ts';
 import { googleKalender, GOOGLE_KALENDER_ID } from '../kilder/google-kalender/kilde.ts';
 import { nyhederRss } from '../kilder/nyheder-rss/kilde.ts';
+import { aulaKalender, AULA_KALENDER_ID } from '../kilder/aula-kalender/kilde.ts';
+import { AULA_FORBUNDET, AULA_LINK, AULA_TILBAGEKALDT, aulaIcs, aulaLink } from './indhold/aula.ts';
 import { beskederKilde } from '../kilder/beskeder/kilde.ts';
 import { HentFejl, lavHenter, type Henter } from '../kilder/nyheder-rss/hent.ts';
 import { falskGoogle } from '../kilder/google/falsk-google.ts';
@@ -233,6 +235,13 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     if (['127.0.0.1', 'localhost', '[::1]'].includes(u.hostname)) return ekte(adresse, o);
     throw new HentFejl('afvist', 'Testverdenen kalder ikke det rigtige internet.');
   };
+  // KC-0235: the world's Aula. The real reader over a fetcher that knows one invented link: it answers the family's file, or 410 Gone
+  // in the moment the link is revoked. Any other address is refused: the test world never calls the internet.
+  const aulaHenter: Henter = async (adresse) => {
+    if (!adresse.startsWith(`${AULA_LINK}/`)) throw new HentFejl('afvist', 'Testverdenen kalder ikke det rigtige internet.');
+    if (nu.id === AULA_TILBAGEKALDT) throw new HentFejl('status', 'Kilden svarede 410.', 410);
+    return { status: 'ny', tekst: aulaIcs(fakta(dag)), endeligAdresse: adresse };
+  };
   const inner = createApp({
     store, hermes, now: ur.now, sha: 'test', dataDir: dir,
     // KC-0135: the world's own address, which its fake Google sends the browser back to (the stand-in page turns it into a path).
@@ -270,6 +279,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
       googleKalender({ env: googleMiljoe, adresse: 'https://testverden.example', hent: google.hent, nu: ur.now }),
       // KC-0137: the user's own feeds over the world's fake feeds; the real connector, so a pasted address and an OPML file work too.
       nyhederRss({ dataDir: dir, hent: rssHenter }),
+      // KC-0235: a parent's Aula calendar over the world's fetcher (the real reader, the invented family's file).
+      aulaKalender({ hent: aulaHenter }),
       // KC-0135: Gmail on the same fake Google; the mail reader is a stand-in that accepts only an access token the fake Google
       // issued for the mail scope (so a logged-out or expired token fails exactly as Gmail's server would) and reads the story's mail.
       mailGmail({
@@ -335,6 +346,7 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
       await skrivFroe(dir, f, store, dag);
       // KC-0133: a connected Google calendar has its refresh token in the secret store (wiped by skrivFroe).
       if (f.kilder?.kilder.some((k) => k.id === GOOGLE_KALENDER_ID)) await gemKildeHemmelighed(dir, GOOGLE_KALENDER_ID, { refresh_token: googleRefresh(m.id) });
+      if (f.kilder?.kilder.some((k) => k.id === AULA_KALENDER_ID) && AULA_FORBUNDET.includes(m.id)) await gemKildeHemmelighed(dir, AULA_KALENDER_ID, { link: aulaLink(m.id) });
       if (f.kilder?.kilder.some((k) => k.id === MAIL_GMAIL_ID)) await gemKildeHemmelighed(dir, MAIL_GMAIL_ID, { refresh_token: googleMailRefresh(m.id), adresse: TEST_GMAIL });
       await inner.runs.genlaesPause(); // KC-0124: the moment's pause.json (or none) is what the app now holds
       // KC-0136: the world's vault is an Obsidian vault with the structure and four invented people, written by the app's own writer.

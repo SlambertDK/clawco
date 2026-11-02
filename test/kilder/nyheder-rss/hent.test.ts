@@ -132,3 +132,30 @@ test('at most two requests per host at a time', async () => {
   assert.equal(alle.length, 6);
   assert.equal(maks, 2);
 });
+
+// KC-0235: the generic parts the Aula reader uses — a host allowlist on every hop, the status on a refusal, its own Accept.
+const lokalOpslag = async () => [{ address: '127.0.0.1', family: 4 as const }];
+const kunAula = (v: string): boolean => v === 'aula.dk' || v.endsWith('.aula.dk');
+
+test('tilladtVaert: the first address and every redirect must be on an accepted host', async () => {
+  let accept = '';
+  const s = await stub((req, res) => {
+    accept = String(req.headers['accept']);
+    if (req.url === '/ud') { res.writeHead(302, { location: `http://anden.example:${(res.socket?.localPort) ?? 0}/maal` }); res.end(); return; }
+    if (req.url === '/ind') { res.writeHead(302, { location: `http://kal.aula.dk:${(res.socket?.localPort) ?? 0}/maal` }); res.end(); return; }
+    res.writeHead(200); res.end('maal');
+  });
+  const hent = lavHenter({ opslag: lokalOpslag, tilladLoopbackUdefra: true, tilladtVaert: kunAula, accept: 'text/calendar' });
+  const aula = (sti: string): string => `http://www.aula.dk:${s.port}${sti}`;
+  assert.equal(((await hent(aula('/maal'), bruger)) as { tekst: string }).tekst, 'maal');
+  assert.equal(accept, 'text/calendar');
+  assert.equal(((await hent(aula('/ind'), bruger)) as { tekst: string }).tekst, 'maal', 'a redirect inside the accepted hosts is followed');
+  await assert.rejects(hent(aula('/ud'), bruger), afvist('afvist'));
+  await assert.rejects(hent(`http://anden.example:${s.port}/maal`, bruger), afvist('afvist'));
+  await assert.rejects(hent(`http://aula.dk.anden.example:${s.port}/maal`, bruger), afvist('afvist'), 'a look-alike suffix is not Aula');
+});
+
+test('a refused status carries the HTTP status', async () => {
+  const s = await stub((_req, res) => { res.writeHead(410); res.end(); });
+  await assert.rejects(lavHenter()(s.url(), bruger), (e: unknown) => e instanceof HentFejl && e.kode === 'status' && e.httpStatus === 410);
+});

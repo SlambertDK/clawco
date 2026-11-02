@@ -51,6 +51,10 @@ export const MOMENT_TABEL: readonly Moment[] = [
   { id: 'soendag-stop', tid: '18:40', ugedag: 0, navn: 'Søndag: stop tjekket?', url: '/rum/hjem', replik: 'Skal vi blive ved med søndagstjekket?' },
   // KC-0203: the closed beta — the plain card, the three feedback cards and the page of what is shared (indhold/beta.ts).
   ...BETA_MOMENTER,
+  // KC-0235: a parent's Aula calendar through the private Ugekalender link (the real reader over a fake fetcher, indhold/aula.ts), last in the table so the moments before keep their numbers —
+  // connected and in the household's week, and revoked (Aula answers 410: the card in Nu asks for a new link).
+  { id: 'aula-koblet', tid: '09:10', dagPlus: 1, navn: 'Aula er koblet', url: '/rum/husstand', replik: 'Hvad sker der i skolen i denne uge?' },
+  { id: 'aula-tilbagekaldt', tid: '09:20', dagPlus: 1, navn: 'Aula-linket er trukket tilbage', url: '/rum/hjem', replik: 'Hvorfor ser jeg ikke skolens kalender?' },
 ];
 
 /** Days after the story's day `dag` that the moment's clock is on: `dagPlus`, or (KC-0147, KC-0152) the days to the next `ugedag`. */

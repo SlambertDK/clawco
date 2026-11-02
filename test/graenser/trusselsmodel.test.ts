@@ -10,6 +10,7 @@ import { googleKalender } from '../../src/kilder/google-kalender/kilde.ts';
 import { nyhederRss } from '../../src/kilder/nyheder-rss/kilde.ts';
 import { mailGmail } from '../../src/kilder/mail-gmail/kilde.ts';
 import { beskederKilde } from '../../src/kilder/beskeder/kilde.ts';
+import { aulaKalender } from '../../src/kilder/aula-kalender/kilde.ts';
 import type { Kilde } from '../../src/kilder/types.ts';
 
 // KC-0125 invariant: every connector a host can register has a row in the threat model, so a new connection is
@@ -19,13 +20,13 @@ const AGENTS_FIL = fileURLToPath(new URL('../../AGENTS.md', import.meta.url));
 // AGENTS.md lives in the private record only; the public mirror (KC-0228) skips the test that reads it.
 const AGENTS = existsSync(AGENTS_FIL) ? readFileSync(AGENTS_FIL, 'utf8') : '';
 
-/** Every connector any host can register: the host's own (all env set), the four offered to a product install, and the fakes. */
+/** Every connector any host can register: the host's own (all env set), the ones offered to a product install, and the fakes. */
 function registreredeKilder(): Kilde[] {
   const env = { KC_DAGEN_SOURCE_GLOB: '/x/{date}.json', KC_HIMALAYA: '/x/himalaya', KC_VAULT_DIR: '/x/vault' };
   const legacy = legacyKilder(env, { run: async () => ({ code: 1, stdout: '', stderr: '' }), laesNyheder: async () => null, parseMail: () => [], kalenderScript: '/x/kalender.py' });
   const tom = (): never => { throw new Error('ikke brugt'); };
   const falsk = falskeKilder({ data: { kalender: tom, mail: tom, nyheder: tom, noter: tom, beskeder: tom } as FalskData });
-  return [...legacy, noterKilde(), mailImapKilde(), googleKalender(), nyhederRss(), mailGmail(), beskederKilde({ dataDir: '/x/data' }), ...falsk];
+  return [...legacy, noterKilde(), mailImapKilde(), googleKalender(), nyhederRss(), mailGmail(), beskederKilde({ dataDir: '/x/data' }), aulaKalender(), ...falsk];
 }
 
 const raekker = DOK.split('\n').filter((l) => l.startsWith('|'));
@@ -33,7 +34,7 @@ const harRaekke = (noegle: string): boolean => raekker.some((l) => new RegExp(`^
 
 test('the registry has the connectors we expect (so the test below is not vacuous)', () => {
   const ids = registreredeKilder().map((k) => k.id);
-  for (const id of ['kira-kalender', 'kira-morgenavis', 'kira-mail', 'kira-noter', 'noter', 'mail-imap', 'google-kalender', 'nyheder-rss', 'mail-gmail', 'beskeder']) assert.ok(ids.includes(id), id);
+  for (const id of ['kira-kalender', 'kira-morgenavis', 'kira-mail', 'kira-noter', 'noter', 'mail-imap', 'google-kalender', 'nyheder-rss', 'mail-gmail', 'beskeder', 'aula-kalender']) assert.ok(ids.includes(id), id);
 });
 
 test('every registered connector has a row in the per-connector table (the fakes by their one `falsk-*` row)', () => {

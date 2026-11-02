@@ -98,6 +98,11 @@ const HAAND: [string, string][] = [
   ['kilde-gmail-kort', 'data-kilde="mail-gmail"'],               // Gmail through "Log ind med Google" over the world's fake Google in Kilder (KC-0135; the moment "Gmail er koblet")
   ['kilde-gmail-trin', 'data-kilde-trin="mail-gmail"'],          // KC-0135: Gmail's setup steps in Start step 3 (the cold start), with its own return address and the mail scope to copy
   ['kilde-gmail-kun-mail', 'Google er allerede koblet: kun mail mangler'], // KC-0135: Gmail's card when the calendar is connected, only mail missing (the moment "Kold start: Google koblet, mail mangler")
+  ['kilde-aula-forbind', 'data-kilde-kort="aula-kalender"'],      // KC-0235: Aula's connect card in Start (a calendar kind, so step 3 offers it; the cold start)
+  ['kilde-aula-trin', 'data-kilde-trin="aula-kalender"'],          // KC-0235: its steps in Aula's own words, one at a time
+  ['kilde-aula-kort', 'data-kilde="aula-kalender"'],               // KC-0235: Aula connected in Kilder in Kø (the moments "Aula er koblet" and "Aula-linket er trukket tilbage")
+  ['kilde-aula-uge', 'Skole-hjem-samtale for Ella'],               // KC-0235: an Aula event in the household's shared week (the moment "Aula er koblet"); its organizer, invitees and description are in the file and never on screen
+  ['kilde-aula-tilbagekaldt', 'Kalenderlinket virker ikke længere'], // KC-0235/KC-0139: the link is revoked — Nu's card in the fixed words (the moment "Aula-linket er trukket tilbage")
   ['kilde-helbred-log-ind-igen', 'data-kilde-helbred="log-ind-igen"'], // KC-0139: Nu's card for a source that was logged out (the moment "Kalenderen er logget ud")
   ['kilde-helbred-nede', 'data-kilde-helbred="nede"'],                 // KC-0139: the card for a source that stopped answering (the moment "Mailen svarer ikke")
   ['kilde-helbred-snart-udloebet', 'data-kilde-helbred="snart-udloebet"'], // KC-0139: the card for an access that runs out soon (the moment "Adgangen udløber snart")

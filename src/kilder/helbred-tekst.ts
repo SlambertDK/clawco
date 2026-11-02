@@ -44,9 +44,17 @@ function beskederTekst(vist: KortTilstand): { titel: string; tekst: string; knap
   return { titel: 'Adgangen til dine beskeder udløber snart', tekst: 'Forbind kanalen igen hos Hermes, så dine beskeder ikke holder op med at virke.', knap };
 }
 
+/** KC-0235: a calendar kept by a private link (Aula's Ugekalender): the secret is a link, so the words speak of the link. */
+function kalenderLinkTekst(vist: KortTilstand): { titel: string; tekst: string; knap: string } {
+  if (vist === 'log-ind-igen') return { titel: 'Kalenderlinket virker ikke længere', tekst: 'Lav et nyt kalenderlink i Aula, og indsæt det her. Det kan være, at samtykket er trukket tilbage, eller at kommunen har slået synkronisering fra.', knap: 'Indsæt et nyt link' };
+  if (vist === 'nede') return { titel: 'Din kalender svarer ikke', tekst: 'Clawco har ikke kunnet hente din kalender i et stykke tid. Indsæt linket igen; svarer den stadig ikke, er det hos udbyderen.', knap: 'Indsæt linket igen' };
+  return { titel: 'Kalenderlinket udløber snart', tekst: 'Lav et nyt kalenderlink i Aula, og indsæt det her, så din kalender ikke holder op med at virke.', knap: 'Indsæt et nyt link' };
+}
+
 /** The card's title, one calm sentence and the primary button's label, from the fixed table. */
 export function kortTekst(vist: KortTilstand, auth: Auth, slags: Slags): { titel: string; tekst: string; knap: string } {
   if (slags === 'beskeder' && auth === 'bridge') return beskederTekst(vist);
+  if (slags === 'kalender' && auth === 'apikey') return kalenderLinkTekst(vist);
   const { subj, obj } = NAVNEORD[slags];
   const knap = KNAP[auth];
   const lokal = auth === 'local';

@@ -20,6 +20,8 @@ import { GOOGLE_KALENDER_ID } from '../../kilder/google-kalender/kilde.ts';
 import { NYHEDER_RSS_ID } from '../../kilder/nyheder-rss/kilde.ts';
 import { MAIL_GMAIL_ID } from '../../kilder/mail-gmail/kilde.ts';
 import { koldMail } from './start.ts';
+import { AULA_FORBUNDET, AULA_TILBAGEKALDT } from './aula.ts';
+import { AULA_KALENDER_ID } from '../../kilder/aula-kalender/kilde.ts';
 import type { Post } from '../../kilder/helbred.ts';
 import { BESKEDER_ID } from '../../kilder/beskeder/kilde.ts';
 import { samtaleNoegle } from '../../kilder/beskeder/valg.ts';
@@ -309,6 +311,8 @@ export function kilderKonfig(momentId: string, f: Fakta): KilderKonfig {
       : valg,
   }));
   if (GMAIL_FORBUNDET.includes(momentId)) kilder.push({ id: MAIL_GMAIL_ID, status: 'forbundet', zone: 'privat', valg: {}, tid: f.iso('08:45', 1), af: TEST_EJER.id });
+  // KC-0235: the family's Aula link, connected in the household's zone (its link is seeded into the secret store by verden.ts).
+  if (AULA_FORBUNDET.includes(momentId)) kilder.push({ id: AULA_KALENDER_ID, status: 'forbundet', zone: 'husstand', valg: {}, tid: f.iso('09:05', 1), af: TEST_EJER.id });
   return { kilder };
 }
 
@@ -368,6 +372,9 @@ export function helbredFroe(momentId: string, f: Fakta): Record<string, Post> | 
   }
   if (momentId === BESKEDER_UDE) {
     return { [BESKEDER_ID]: { vist: 'log-ind-igen', siden: f.iso('06:35', 1), fejl: 1, foersteFejl: f.iso('06:35', 1), sidstOk: f.iso('22:00'), sidstLaest: f.iso('22:00') } };
+  }
+  if (momentId === AULA_TILBAGEKALDT) {
+    return { [AULA_KALENDER_ID]: { vist: 'log-ind-igen', siden: f.iso('09:15', 1), fejl: 1, foersteFejl: f.iso('09:15', 1), sidstOk: f.iso('09:05', 1), sidstLaest: f.iso('09:05', 1) } };
   }
   if (momentId === GMAIL_AFVIST) {
     return { [MAIL_GMAIL_ID]: { vist: 'log-ind-igen', siden: f.iso('08:55', 1), fejl: 1, foersteFejl: f.iso('08:55', 1), sidstOk: f.iso('08:50', 1), sidstLaest: f.iso('08:50', 1) } };

@@ -21,7 +21,9 @@ export type Henter = (adresse: string, o: { oprindelse: Oprindelse; etag?: strin
 
 export class HentFejl extends Error {
   readonly kode: 'afvist' | 'tid' | 'stor' | 'omdirigering' | 'status' | 'net';
-  constructor(kode: HentFejl['kode'], besked: string) { super(besked); this.name = 'HentFejl'; this.kode = kode; }
+  /** KC-0235: the HTTP status of a 'status' failure (a connector maps 401/403/404/410 to "the link is revoked"). */
+  readonly httpStatus: number | undefined;
+  constructor(kode: HentFejl['kode'], besked: string, httpStatus?: number) { super(besked); this.name = 'HentFejl'; this.kode = kode; this.httpStatus = httpStatus; }
 }
 
 export type HenterValg = {
@@ -34,6 +36,13 @@ export type HenterValg = {
   /** Requests in flight per host (default 2) and in all (default 6). */
   perVaert?: number;
   samtidige?: number;
+  /** KC-0235: the Accept header (default: feeds). */
+  accept?: string;
+  /**
+   * KC-0235: when set, EVERY hop (the first address and each redirect) must be on a host this accepts, or the fetch is
+   * refused before anything is sent — a source that may only talk to its own provider (Aula) never follows a redirect elsewhere.
+   */
+  tilladtVaert?: (vaert: string) => boolean;
   /** Tests only: lets redirects reach loopback/LAN (link-local and metadata stay refused). The app never sets it. */
   tilladLoopbackUdefra?: boolean;
 };
@@ -52,7 +61,7 @@ function lavPlads(n: number): <T>(fn: () => Promise<T>) => Promise<T> {
   };
 }
 
-const ACCEPT = 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, text/html;q=0.5, */*;q=0.1';
+const STANDARD_ACCEPT = 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, text/html;q=0.5, */*;q=0.1';
 
 /** The text label a response declares (Content-Type charset, else the XML declaration), else utf-8. */
 function afkodTekst(bytes: Buffer, contentType: string): string {
@@ -70,6 +79,7 @@ type Hop = { status: number; location?: string; tekst?: string; etag?: string; s
 export function lavHenter(o: HenterValg = {}): Henter {
   const opslag = o.opslag ?? standardOpslag;
   const agent = o.agent ?? 'Clawco/0.1';
+  const accept = o.accept ?? STANDARD_ACCEPT;
   const tidMs = o.tidMs ?? 10_000;
   const maksBytes = o.maksBytes ?? 2 * 1024 * 1024;
   const maksOmd = o.maksOmdirigeringer ?? 3;
@@ -128,7 +138,7 @@ export function lavHenter(o: HenterValg = {}): Henter {
           return;
         }
         if (status === 304) { res.resume(); faerdig(null, { status }); return; }
-        if (status < 200 || status >= 300) { res.destroy(); faerdig(new HentFejl('status', `Kilden svarede ${status}.`)); return; }
+        if (status < 200 || status >= 300) { res.destroy(); faerdig(new HentFejl('status', `Kilden svarede ${status}.`, status)); return; }
         const kodning = String(h['content-encoding'] ?? 'identity').toLowerCase().trim();
         const laengde = Number(h['content-length']);
         if (kodning === 'identity' && Number.isFinite(laengde) && laengde > maksBytes) { res.destroy(); faerdig(new HentFejl('stor', 'Kilden er for stor.')); return; }
@@ -164,9 +174,10 @@ export function lavHenter(o: HenterValg = {}): Henter {
     let u: URL;
     let op: Oprindelse = p.oprindelse;
     try { u = tjekAdresse(adresse, { oprindelse: oprindelseFor(op) }); } catch (err) { throw new HentFejl('afvist', err instanceof Error ? err.message : 'Adressen er afvist.'); }
+    if (o.tilladtVaert && !o.tilladtVaert(u.hostname)) throw new HentFejl('afvist', 'Adressen hører ikke til den tjeneste, kilden må tale med.');
     for (let hop = 0; ; hop += 1) {
       const ip = await vaelgIp(u, oprindelseFor(op));
-      const hoveder: Record<string, string> = { 'user-agent': agent, accept: ACCEPT, 'accept-encoding': 'gzip, deflate, br' };
+      const hoveder: Record<string, string> = { 'user-agent': agent, accept, 'accept-encoding': 'gzip, deflate, br' };
       if (p.etag) hoveder['if-none-match'] = p.etag;
       if (p.sidstRettet) hoveder['if-modified-since'] = p.sidstRettet;
       const r = await iAlt(() => vaertPlads(`${u.hostname}:${u.port}`)(() => en(u, ip, hoveder, (signal ??= AbortSignal.timeout(tidMs)))));
@@ -177,6 +188,7 @@ export function lavHenter(o: HenterValg = {}): Henter {
         try { u = tjekAdresse(new URL(r.location, u).href, { oprindelse: oprindelseFor('ekstern') }); } catch (err) {
           throw new HentFejl('afvist', err instanceof AdresseFejl ? err.message : 'Kilden sender dig videre til en adresse, der ikke kan bruges.');
         }
+        if (o.tilladtVaert && !o.tilladtVaert(u.hostname)) throw new HentFejl('afvist', 'Kilden sender dig videre til en tjeneste, den ikke må tale med.');
         op = 'ekstern';
         continue;
       }

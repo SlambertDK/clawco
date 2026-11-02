@@ -57,7 +57,7 @@ test('skrivFroe writes kilder.json and wipes the secrets of the previous moment'
   } finally { await rm(rod, { recursive: true, force: true }); }
 });
 
-test('the test world offers four fakes, Google, the own news feeds, Gmail and Beskeder with the moment\'s connections and states', async () => {
+test('the test world offers four fakes, Google, the own news feeds, Aula, Gmail and Beskeder with the moment\'s connections and states', async () => {
   const rod = await mkdtemp(path.join(tmpdir(), 'kc-kilder-verden-'));
   try {
     const verden = await lavTestverden({ dataDir: path.join(rod, 'data-test'), delayMs: 0 });
@@ -66,7 +66,7 @@ test('the test world offers four fakes, Google, the own news feeds, Gmail and Be
     const morgen = await liste();
     assert.deepEqual(morgen.map((k) => [k.id, k.forbundet, k.helbred?.status ?? null]), [
       ['falsk-kalender', true, 'ok'], ['falsk-mail', false, null], ['noter', false, null], ['falsk-nyheder', true, 'ok'],
-      ['falsk-familiekalender', true, 'ok'], ['google-kalender', false, null], ['nyheder-rss', true, 'ok'], ['mail-gmail', false, null], ['beskeder', false, null],
+      ['falsk-familiekalender', true, 'ok'], ['google-kalender', false, null], ['nyheder-rss', true, 'ok'], ['aula-kalender', false, null], ['mail-gmail', false, null], ['beskeder', false, null],
     ]);
     // KC-0138: in the evening Beskeder is connected and working; Nu shows Ella's question with her name and no number.
     await verden.hop('aften');

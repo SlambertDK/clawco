@@ -45,6 +45,18 @@ test('the words per state and auth kind come from the table', () => {
   }
 });
 
+test('KC-0235: a calendar kept by a private link (Aula) speaks of the link, never of a password', () => {
+  const t = kortTekst('log-ind-igen', 'apikey', 'kalender');
+  assert.equal(t.titel, 'Kalenderlinket virker ikke længere');
+  assert.match(t.tekst, /nyt kalenderlink i Aula/);
+  assert.equal(t.knap, 'Indsæt et nyt link');
+  for (const vist of ['snart-udloebet', 'log-ind-igen', 'nede'] as const) {
+    const x = kortTekst(vist, 'apikey', 'kalender');
+    assert.ok(x.titel && x.tekst && x.knap && !/adgangskode/i.test(`${x.titel} ${x.tekst} ${x.knap}`), vist);
+  }
+  assert.equal(kortTekst('log-ind-igen', 'apikey', 'beskeder').knap, 'Indtast adgangskoden igen', 'the other apikey sources keep their words');
+});
+
 test('the card shows the title, the text, the freshness and one primary button plus Fjern forbindelsen', () => {
   const h = String(kildeHelbredElementer([kort()], NU)[0]?.html);
   assert.match(h, /data-kilde-helbred="log-ind-igen"/);

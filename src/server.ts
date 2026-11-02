@@ -129,6 +129,7 @@ import { lavVaultStier, NOTER_ID } from './kilder/noter/stier.ts';
 import { noterKilde } from './kilder/noter/noter.ts';
 import { mailImapKilde } from './kilder/mail-imap/mail-imap.ts';
 import { nyhederRss, NYHEDER_RSS_ID, type NyhederRssKilde } from './kilder/nyheder-rss/kilde.ts';
+import { aulaKalender } from './kilder/aula-kalender/kilde.ts';
 import { beskederKilde, BESKEDER_ID, type BeskederKilde } from './kilder/beskeder/kilde.ts';
 import type { Kontakt } from './kilder/beskeder/besked.ts';
 import { mailForbindelse } from './kilder/mail-vindue.ts';
@@ -463,7 +464,12 @@ export function createApp(deps: AppDeps) {
   d.ugeKalender = async () => {
     try {
       const forbundne = await kilder.forbundne('kalender');
-      const valgt = forbundne.find((k) => k.standard !== 'forbundet') ?? forbundne[0];
+      // KC-0235: a calendar read into the household zone (Aula's) belongs to the shared week in Husstanden; it never hides a
+      // personal one here, and builds the day only when it is the only calendar there is.
+      const zoner = await Promise.all(forbundne.map(async (k) => (await kilder.hvor(k.id).catch(() => null))?.zone));
+      const personlige = forbundne.filter((_k, i) => zoner[i] !== 'husstand');
+      const kandidater = personlige.length ? personlige : forbundne;
+      const valgt = kandidater.find((k) => k.standard !== 'forbundet') ?? kandidater[0];
       if (!valgt) return null;
       const l = await kilder.laes(valgt.id);
       return l.slags === 'kalender' ? { uge: l.data, fraVaerten: valgt.standard === 'forbundet' } : null;
@@ -2237,6 +2243,11 @@ export function medNyhederRss(kilder: Kilde[], rss: () => Kilde = () => nyhederR
   return [...kilder, rss()];
 }
 
+/** KC-0235: a parent's Aula calendar through the private Ugekalender link, offered after the other sources (read-only, zone husstand). */
+export function medAulaKalender(kilder: Kilde[], aula: () => Kilde = () => aulaKalender()): Kilde[] {
+  return [...kilder, aula()];
+}
+
 /** KC-0137: Mail's times as before, plus Nyheder's morning rebuild where the host has no morning paper of its own to wait for (Henrik's install builds it from the 07:05 timer). */
 export function standardFrontload(e: Record<string, string | undefined>): string {
   return `mail=06:50,12:00,17:00${(e['KC_DAGEN_SOURCE_GLOB'] ?? '').trim() ? '' : ';nyheder=07:08'}`;
@@ -2351,11 +2362,12 @@ export async function main(): Promise<void> {
     // KC-0132: the fakes (fed from the test world's story) under KC_KILDER_MODE=fake, else the host's own sources.
     // KC-0133: plus "Log ind med Google" for the calendar, unless the host connects its own.
     // KC-0135: plus Gmail through the same Google app, after the calendar.
-    kilder: medMailGmail(medGoogleKalender(medNyhederRss(medMailImap(medNoter(kilderFraMiljoe(process.env, {
+    // KC-0235: plus Aula's calendar link, last.
+    kilder: medAulaKalender(medMailGmail(medGoogleKalender(medNyhederRss(medMailImap(medNoter(kilderFraMiljoe(process.env, {
       falsk: () => { const t = parseFalskTilstand(env('KC_KILDER_FALSK')); return falskeKilder({ data: falskKildeData(), tilstand: (s) => t[s] ?? 'ok' }); },
       legacy: () => legacyKilder(process.env, { run: defaultRunner(), laesNyheder: readNyhederSource, parseMail: parseAll, kalenderScript }),
       agent: mode,
-    }))), () => nyhederRss({ dataDir: env('KC_DATA_DIR', './data') })), () => googleKalender(adresse ? { adresse } : {})), () => mailGmail(adresse ? { adresse } : {})),
+    }))), () => nyhederRss({ dataDir: env('KC_DATA_DIR', './data') })), () => googleKalender(adresse ? { adresse } : {})), () => mailGmail(adresse ? { adresse } : {}))),
     // KC-0138: messages that reach Hermes, through its gateway hook's log in the data dir; KC_BESKEDER_DAGE = how long read messages are kept.
     beskeder: (o) => beskederKilde({ dataDir: env('KC_DATA_DIR', './data'), dage: Number(env('KC_BESKEDER_DAGE', '14')) || 14, ...o }),
     // KC-0212: the operator's ledger (absent in a tenant image: no card). No paid customers are read yet, so MRR is 0.

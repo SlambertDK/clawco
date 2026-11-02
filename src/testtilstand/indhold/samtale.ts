@@ -221,7 +221,9 @@ const INTENTS: Intent[] = [
       'At svare på de to små spørgsmål i Nu: en vurdering fra 1 til 5 og eventuelt en linje om, hvad der drillede. Intet sendes, før du trykker Send til Henrik.',
       'Intet haster: dag 7. Spørgsmålet i Nu tager et minut, og du kan trykke Ikke nu, hvis det passer dårligt.',
       'At svare på dag 14-spørgsmålet i Nu, også om du ville betale for Clawco. Ingen betaling sker her; det er kun en mening.',
-      'At se, hvad du deler med Henrik: siden Hvad deler jeg? viser præcis de tal, der kan sendes, og du kan slå delingen fra med det samme.'),
+      'At se, hvad du deler med Henrik: siden Hvad deler jeg? viser præcis de tal, der kan sendes, og du kan slå delingen fra med det samme.',
+      'Intet haster: Aula er koblet, og skolens og børnehavens uge står i Husstanden. Clawco læser kun tid, titel, sted og institution.',
+      'At lave et nyt kalenderlink i Aula: det gamle virker ikke mere, så skolens uge mangler. Indsæt det nye på kortet under Forbindelser.'),
   },
   {
     art: 'hvem',
