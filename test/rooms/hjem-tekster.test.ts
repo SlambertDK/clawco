@@ -10,7 +10,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HJEM_TEKSTER, hjemTekst } from '../../src/rooms/hjem/tekster.ts';
 import { ROOMS } from '../../src/rooms/registry.ts';
-import { TRIN } from '../../src/tillid/trin.ts';
 import { SKJULT_KILDE } from '../../src/tillid/skjulte.ts';
 import { medSprog } from '../../src/shell/tekster.ts';
 import { HJEM, HJEM_RENE } from '../fixtures/sprog-golden-hjem.ts';
@@ -34,11 +33,6 @@ test('English is actually English: no Danish string copied over', () => {
 
 test('the Danish tables of Nu derive from the registry and the trust ladder: nothing is mirrored by hand', () => {
   for (const r of ROOMS) assert.equal(HJEM_TEKSTER.da.flise[r.id], r.beskrivelse);
-  for (const t of TRIN) {
-    assert.equal(HJEM_TEKSTER.da.trin[t.trin].navn, t.navn);
-    assert.equal(HJEM_TEKSTER.da.trin[t.trin].saetning, t.saetning);
-    assert.ok(HJEM_TEKSTER.en.trin[t.trin].navn && HJEM_TEKSTER.en.trin[t.trin].saetning);
-  }
   assert.deepEqual(Object.keys(HJEM_TEKSTER.en.skjultKilde).sort(), Object.keys(SKJULT_KILDE).sort());
   for (const [k, v] of Object.entries(SKJULT_KILDE)) assert.equal(HJEM_TEKSTER.da.skjultKilde[k], v);
   for (const r of ROOMS.filter((x) => x.id !== 'hjem')) assert.ok(HJEM_TEKSTER.en.flise[r.id], r.id);

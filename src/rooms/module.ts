@@ -98,7 +98,7 @@ export type RoomDeps = {
   beskeder?: () => Promise<KuratorBesked[]>;
   /** KC-0130: where a Ret / Ikke relevant is announced (Luk, and Hjem's chat about a card); Start's step 6 listens. Absent = nobody listens. */
   retBus?: RetBus;
-  /** KC-0130: E4's side of the first-Ret hand-off (rule proposal behind one human tap). Absent = Start shows the explanation card only. */
+  /** KC-0227: the rule proposals waiting for this person's answer, the list Nu's card is drawn from (wired in server.ts). Absent = Start shows the explanation card alone. */
   regelforslag?: RegelSeam;
   /** KC-0129: Start's step 5 writes people and the profile through the notes connector's writers, never itself. Absent = no import. */
   importSkriver?: ImportSkriver;

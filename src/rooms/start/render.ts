@@ -16,7 +16,8 @@ import { erModelFejlArt, type ModelFejlArt } from './modelfejl.ts';
 import type { AgentStatus } from '../../agent/types.ts';
 import { kildeIndhold, type KildeVisning } from './kilderender.ts';
 import { renderTillidskort } from './tillidskort.ts';
-import { renderRegelforslag, type Tilbud } from './regelforslag.ts';
+import { renderRegelforslag } from './regelforslag.ts';
+import type { Regelforslag } from '../../tillid/forslag.ts';
 import { importIndhold, type ImportVisning } from './import/render.ts';
 import { renderTailscaleKort, type TailscaleVisning } from './tailscalekort.ts';
 import { startTekst } from './tekster.ts';
@@ -44,12 +45,12 @@ export type StartVisning = {
   kilder?: KildeVisning;
   /** KC-0129: step 5 — the import card's data; absent = no import (no notes writer wired). */
   import?: ImportVisning;
-  /** KC-0130: step 6 — what is in Nu to point at (`punkt` null = Nu is empty), the recorded first Ret, E4's proposal on offer. Absent = nothing. */
+  /** KC-0130: step 6 — what is in Nu to point at (`punkt` null = Nu is empty), the recorded first Ret, the rule proposals waiting (Nu's card). Absent = nothing. */
   /** KC-0160: laptop mode — one person on this machine: no household question or wording (the profile is saved as alone). */
   laptop?: boolean;
   /** KC-0161: the Tailscale card under the steps (absent = none: no CLI wired, or nothing to ask for after the journey is Done). */
   tailscale?: TailscaleVisning;
-  foersteRet?: { punkt: { titel: string | null } | null; ret?: StartRet; forslag?: Tilbud; kanSpringeOver: boolean };
+  foersteRet?: { punkt: { titel: string | null } | null; ret?: StartRet; forslag?: Regelforslag[]; kanSpringeOver: boolean };
 };
 
 const sek = (ms: number): string => (ms / 1000).toLocaleString(tekst().lokale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -165,7 +166,7 @@ function foersteRetIndhold(status: TrinStatus, v: StartVisning): Markup {
   </div>`;
 }
 
-/** Under step 6's card once the Ret is made: the one explanation card, then E4's proposal when there is one. */
+/** Under step 6's card once the Ret is made: the one explanation card, then the rule proposals waiting for an answer (the same card as in Nu). */
 function efterRet(v: StartVisning): Markup {
   const f = v.foersteRet;
   if (!f?.ret) return html``;

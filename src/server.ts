@@ -62,7 +62,6 @@ import { erFoersteGang, rejsen } from './rooms/start/room.ts';
 import { lavImportSkriver } from './import-skriver.ts';
 import { modtagRet } from './rooms/start/ret.ts';
 import { lavRetBus } from './rooms/rethaendelse.ts';
-import type { RegelSeam } from './rooms/start/regelforslag.ts';
 import { forhaandsvisningerNu, koerselFaerdig, modtagFoersteLaesning } from './rooms/start/vaerdi.ts';
 import { forhaandsvisningId, renderForhaandsvisning } from './rooms/start/forhaandsvisning.ts';
 import { lavProfilLager } from './store/profil.ts';
@@ -209,8 +208,6 @@ export type AppDeps = {
   beskeder?: (o: { kontakter: () => Promise<Kontakt[]> }) => Kilde;
   /** KC-0212: the operator's cost ledger for the owner card in Kø, and paid MRR in øre (0 until billing feeds it). Absent = no card. */
   omkostninger?: { laes: () => Promise<Omkostninger | null>; mrr: () => number };
-  /** KC-0130: E4's rule proposal for the first Ret (KC-0108 wires it); absent = Start shows the explanation card only. */
-  regelforslag?: RegelSeam;
   /** KC-0129: where Start's import keeps raw uploads while a proposal is made (default `<os tmp>/clawco-import`); tests point it into their own dir. */
   importTmp?: string;
   /**
@@ -313,7 +310,7 @@ export function createApp(deps: AppDeps) {
     ...(skjulte ? { skjulte } : {}),
     ...(profil ? { profil } : {}),
     retBus: lavRetBus(),
-    ...(deps.regelforslag ? { regelforslag: deps.regelforslag } : {}),
+    regelforslag: { afventer: ventendeForslagNu }, // KC-0227: Start's step 6 reads the very list Nu's card is drawn from
     ...(deps.importTmp ? { importTmp: deps.importTmp } : {}),
   };
   // KC-0161: Start's Tailscale card — the read-only state and the one share command, both through the allow-listed runner.
@@ -1258,6 +1255,7 @@ export function createApp(deps: AppDeps) {
       await deps.store.appendLog(HJEM, { kilde: 'henrik', tekst, handlingId: `regelforslag:${id}`, fortryd: `lokal:${JSON.stringify(fortryd)}`, zone: zoneAf(f), ...(f.ejer ? { ejer: f.ejer } : {}) });
       await revision?.skriv({ person: c.get('person').id, kanal: 'knap', rum: HJEM, verb: 'bogfoer', udfald: 'tillad', hvorfor: 'Ejeren trykkede Ja til et forslag om en regel.', handlingId: `regelforslag:${id}`, zoner: [zoneAf(f)], kilde: 'forslag' });
       live.notify(HJEM);
+      live.notify(START_RUM); // KC-0227: Start's step 6 shows the same proposal
     }
     return c.json({ id, regelId: u.regelId });
   });
@@ -1278,6 +1276,7 @@ export function createApp(deps: AppDeps) {
     });
     if (u.status !== 200) return c.json({ error: u.error }, u.status);
     live.notify(HJEM);
+    live.notify(START_RUM);
     return c.json({ id });
   });
 
@@ -1470,6 +1469,15 @@ export function createApp(deps: AppDeps) {
     return { ...(u ? { stikproeve: u } : {}), ...(b.stop && !b.stop.svar ? { stopTilbud: true as const } : {}) };
   }
 
+  /**
+   * KC-0144 / KC-0227: the proposals waiting for this person's answer — the one list Nu's card and Start's card are drawn from.
+   * Only the owner answers (the rules file is the household's) and only what the person may see; a decided one is not on offer.
+   */
+  function ventendeForslag(kurator: Awaited<ReturnType<typeof laesKurator>>): Regelforslag[] {
+    return d.person.rolle === 'ejer' ? (kurator.regelforslag ?? []).filter((f) => f.status === 'afventer') : [];
+  }
+  async function ventendeForslagNu(): Promise<Regelforslag[]> { return ventendeForslag(synligKurator(await laesKurator(deps.store), d.person)); }
+
   async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true; beta?: BetaVisning }> {
     // KC-0117: Hjem shows (and counts) only what the person looking may see.
     const egne = (await deps.store.readLog(HJEM, 200)).filter((e) => synligFor(d.person, e));
@@ -1484,7 +1492,7 @@ export function createApp(deps: AppDeps) {
     // KC-0142: a rules file that cannot be read is the owner's to fix (one card); otherwise nothing is shown.
     const r = d.person.rolle === 'ejer' && regler ? await regler.laes() : undefined;
     // KC-0144: only the owner answers proposals (the rules file is the household's).
-    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...(d.person.rolle === 'ejer' && kurator.regelforslag?.length ? { regelforslag: kurator.regelforslag } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
+    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...(ventendeForslag(kurator).length ? { regelforslag: ventendeForslag(kurator) } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
   }
 
   /** Hjem is not a room module: its page is built here from every room's hjemVenter, the logs and Kuratoren's cards. */
@@ -1872,7 +1880,8 @@ export function createApp(deps: AppDeps) {
     // KC-0024: from the phone Hermes answers short.
     const dd = b['enhed'] === 'telefon' ? { ...d, runs: fraTelefonen(runs) } : d;
     const kontekst = typeof b['kontekst'] === 'string' && b['kontekst'].trim() ? b['kontekst'].trim().slice(0, 200) : undefined;
-    if (!mod) return accepted(c, tag(await startHjemChat(dd, besked, kontekst), HJEM));
+    // KC-0227: "Ret reglen" on the proposal card in Start is the same Ret reglen as in Nu: Hjem's chat revises the proposal (one way).
+    if (!mod || (mod.id === START_RUM && kontekst?.startsWith('Forslag: '))) return accepted(c, tag(await startHjemChat(dd, besked, kontekst), HJEM));
     try {
       return accepted(c, tag(await mod.chat(dd, besked, kontekst, { kanal: 'chat' }), mod.id));
     } catch (err) {

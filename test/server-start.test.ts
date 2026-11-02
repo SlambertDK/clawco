@@ -18,7 +18,7 @@ import { skrivKonfig } from '../src/kilder/register.ts';
 import type { Kilde } from '../src/kilder/types.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import type { RumLager } from '../src/store/types.ts';
-import type { RegelSeam } from '../src/rooms/start/regelforslag.ts';
+import { lavForslag } from '../src/tillid/forslag.ts';
 import type { StartState } from '../src/rooms/start/schema.ts';
 
 const NOW = new Date('2026-10-31T10:00:00Z');
@@ -44,7 +44,7 @@ const legacy = (id: string, slags: 'kalender' | 'mail'): Kilde => ({
 });
 
 type Sut = ReturnType<typeof createApp> & { dir: string; store: RumLager; hermes: ReturnType<typeof createFakeAgent> };
-async function medApp(o: { person?: Person; kilder?: Kilde[]; regelforslag?: RegelSeam }, fn: (s: Sut) => Promise<void>): Promise<void> {
+async function medApp(o: { person?: Person; kilder?: Kilde[] }, fn: (s: Sut) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-server-start-'));
   try {
     const store = createFileStore(dir);
@@ -53,7 +53,6 @@ async function medApp(o: { person?: Person; kilder?: Kilde[]; regelforslag?: Reg
       store, hermes, sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW,
       mailRunner: async () => ({ code: 1, stdout: '', stderr: 'x' }), mailStateDir: '/nonexistent', identitet: { fast: o.person ?? EJER },
       kilder: o.kilder ?? [],
-      ...(o.regelforslag ? { regelforslag: o.regelforslag } : {}),
     });
     await fn({ ...app, dir, store, hermes });
   } finally { await rm(dir, { recursive: true, force: true }); }
@@ -171,14 +170,10 @@ test('after Done, Start returns with a suggestion (calendar, three invites in ma
 });
 
 // KC-0130: step 6 through the real routes — Luk (Ikke relevant) is heard by Start, the step turns Klaret, the
-// explanation card stands, E4's proposal waits for the user's own Ja, and Done follows (derived, once).
-test('KC-0130: Ikke relevant through Luk completes step 6 and Done; E4\'s proposal is created only by the Ja POST', async () => {
-  const opret: unknown[] = [];
-  const regelforslag: RegelSeam = {
-    foreslaaRegel: (h) => ({ titel: `Skjul ${h.titel}`, tekst: 'Kort af den slags vises ikke igen.', trin: 1, gaelder: { kilde: 'kurator', slags: 'regning' }, oprindelse: { art: 'ikke-relevant' } }),
-    opretRegel: async (f) => { opret.push(f); return { id: 'R-0003' }; },
-  };
-  await medApp({ regelforslag }, async (s) => {
+// explanation card stands, and Done follows (derived, once). KC-0227: a rule proposal pending in Nu is on the card in
+// Start too, and Start creates nothing itself (the answer is the one route of Nu's card: test/server-start-regelforslag.test.ts).
+test('KC-0130: Ikke relevant through Luk completes step 6 and Done; the proposal waiting in Nu shows under the explanation (KC-0227)', async () => {
+  await medApp({}, async (s) => {
     await side(s, '/rum/start'); // the journey begins: Start has a state
     await s.store.writeState('hjem', { kort: [{ id: 'k1', type: 'regning', titel: 'Elregningen', betyder: 'Den er steget.', grundlag: [], kilder: [], anbefaling: 'Tjek aftalen', prioritet: 1 }], intet: [], afvist: [], sete: [] });
     const foer = await side(s, '/rum/start');
@@ -190,24 +185,24 @@ test('KC-0130: Ikke relevant through Luk completes step 6 and Done; E4\'s propos
     const efter = await side(s, '/rum/start');
     assert.match(efter, /data-trin="foerste-ret" data-trin-status="klaret"/);
     assert.match(efter, /data-tillidskort/);
-    assert.match(efter, /data-regel-forslag="/);
-    assert.deepEqual(opret, [], 'the proposal is shown, not created');
+    assert.doesNotMatch(efter, /data-regelforslag=/, 'no proposal yet: Hermes made none');
     const st = JSON.parse(await readFile(path.join(s.dir, 'rum', 'start', 'state.json'), 'utf8')) as StartState;
     assert.equal(st.ret?.art, 'ikke-relevant');
     assert.equal(st.ret?.tekst, 'ikke relevant for mig');
     assert.ok(st.faerdig, 'Done latched: an element (the closed card) and the Ret');
     assert.ok(!iNav(await side(s, '/rum/hjem')), 'Start folded away');
-    const id = /data-regel-forslag="([0-9a-f]{12})"/.exec(efter)![1]!;
-    assert.equal((await post(s, '/api/rum/start/aktion/regel-ja', { forslagId: 'ffffffffffff' })).status, 400, 'a proposal Start did not offer');
-    assert.deepEqual(opret, []);
-    const run = await vent(s, await post(s, '/api/rum/start/aktion/regel-ja', { forslagId: id }));
-    assert.equal(run.status, 'done', run.error);
-    assert.equal(opret.length, 1);
-    assert.doesNotMatch(await side(s, '/rum/start'), /data-regel-forslag="/, 'answered: the block is gone');
+    // A proposal now waits in Nu (Hermes' answer, stored as pending): the very same one is under the explanation card in Start.
+    const hjem = JSON.parse(await readFile(path.join(s.dir, 'rum', 'hjem', 'state.json'), 'utf8')) as Record<string, unknown>;
+    const f = lavForslag({ titel: 'Elregninger i regnskabet', tekst: 'Regninger fra elselskabet skrives i regnskabet.', trin: 1, gaelder: { kilde: 'mail', slags: 'regning' } }, { kort: { id: 'k1', titel: 'Elregningen' }, art: 'ikke-relevant', nu: NOW });
+    await s.store.writeState('hjem', { ...hjem, regelforslag: [f] });
+    const medForslag = await side(s, '/rum/start');
+    assert.match(medForslag, new RegExp(`data-regelforslag="${f.id}"[^>]*data-regelforslag-start="${f.id}"`));
+    assert.ok(medForslag.indexOf('data-tillidskort') < medForslag.indexOf('data-regelforslag='), 'under the explanation card');
+    assert.match(await side(s, '/rum/hjem'), new RegExp(`data-regelforslag="${f.id}"`), 'and in Nu');
   });
 });
 
-test('KC-0130: a Ret on a card in Hjem\'s chat completes step 6 the same way, and without E4 there is no proposal', async () => {
+test('KC-0130: a Ret on a card in Hjem\'s chat completes step 6 the same way, and without a proposal in Nu there is none in Start', async () => {
   await medApp({}, async (s) => {
     await side(s, '/rum/start');
     await s.store.writeState('hjem', { kort: [{ id: 'k1', type: 'regning', titel: 'Elregningen', betyder: 'Den er steget.', grundlag: [], kilder: [], anbefaling: 'Tjek aftalen', prioritet: 1 }], intet: [], afvist: [], sete: [] });
@@ -216,7 +211,7 @@ test('KC-0130: a Ret on a card in Hjem\'s chat completes step 6 the same way, an
     const h = await side(s, '/rum/start');
     assert.match(h, /data-trin="foerste-ret" data-trin-status="klaret"/);
     assert.match(h, /data-tillidskort/);
-    assert.doesNotMatch(h, /data-regel-forslag/);
+    assert.doesNotMatch(h, /data-regelforslag=/);
     const st = JSON.parse(await readFile(path.join(s.dir, 'rum', 'start', 'state.json'), 'utf8')) as StartState;
     assert.equal(st.ret?.art, 'ret');
     assert.equal(st.ret?.kortId, 'k1');

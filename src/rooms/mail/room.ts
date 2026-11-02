@@ -189,10 +189,12 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
 
 async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
   const { state } = await synlig(deps);
+  const v = await vindue(deps);
   await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
   return deps.runs.start({
     kind: 'chat',
-    spec: buildMailChatRun(besked, kontekst, state),
+    // KC-0218: on a mail connector (no Hermes tools) the chat answers from the envelopes, never from himalaya.
+    spec: buildMailChatRun(besked, kontekst, state, v ? { navn: v.navn, kanHandle: v.kanHandle, nu: deps.now() } : undefined),
     onDone: async (output) => {
       const text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || '(intet svar)';
       await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });

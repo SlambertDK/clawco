@@ -9,7 +9,6 @@ import { sprogNu } from '../../shell/tekster.ts';
 import { PRODUKT } from '../../shell/navn.ts';
 import { ROOMS } from '../registry.ts';
 import { ikkeEndnu } from '../../graenser/afgoer.ts';
-import { TRIN, type Trin } from '../../tillid/trin.ts';
 import { SKJULT_KILDE } from '../../tillid/skjulte.ts';
 import type { KortType } from './kort.ts';
 
@@ -110,22 +109,6 @@ const da = {
   reglerFejlTekst: 'Indtil filen er rettet, gør Hermes intet af sig selv: den ser kun og foreslår.',
   fejlen: (hvorfor: string): string => `Fejlen: ${hvorfor}.`,
   filen: (fil: string): string => `Filen: ${fil}`,
-  forslagElement: (titel: string): string => `Regelforslag: ${titel}`,
-  forslagTilRegel: 'Forslag til en regel',
-  skalDetVaereRegel: 'Skal jeg gøre det til en regel?',
-  skalReglenPaaPause: 'Skal jeg sætte reglen på pause?',
-  retReglen: 'Ret reglen',
-  nejTak: 'Nej tak',
-  jaRegel: 'Ja, gør det til en regel',
-  jaPause: 'Ja, sæt den på pause',
-  forslagFor: (titel: string): string => `Forslag: ${titel}`,
-  /** The ladder's steps (src/tillid/trin.ts): Danish is the ladder's own words. */
-  trin: Object.fromEntries(TRIN.map((t) => [t.trin, { navn: t.navn, saetning: t.saetning }])) as Record<Trin, { navn: string; saetning: string }>,
-  gaelder: (kilde: string, slags: string | undefined, trin: number, navn: string, saetning: string): string => `Gælder ${kilde}${slags ? ` · ${slags}` : ''} · Trin ${trin}, ${navn}: ${saetning}`,
-  pauserSamtidig: (regel: string): string => `Et ja sætter samtidig ${regel} på pause.`,
-  komFra: 'Kom fra: ',
-  komFraSkjult: (titel: string): string => `søndagstjekket: «${titel}» skulle have været vist`,
-  komFraKort: (art: 'ret' | 'ikke-relevant', titel: string): string => `dit ${art === 'ret' ? 'Ret' : 'Ikke relevant'} på «${titel}»`,
 
   // The Sunday check (stikproeve.ts)
   stikOverskrift: (skjulte: number, n: number): string => `Denne uge skjulte jeg ${skjulte} ting. Her er ${n} ${n === 1 ? 'tilfældig' : 'tilfældige'}. Var det rigtigt?`,
@@ -255,27 +238,6 @@ const en: HjemTekster = {
   reglerFejlTekst: 'Until the file is fixed, Hermes does nothing by itself: it only watches and suggests.',
   fejlen: (hvorfor) => `The error: ${hvorfor}.`,
   filen: (fil) => `The file: ${fil}`,
-  forslagElement: (titel) => `Rule proposal: ${titel}`,
-  forslagTilRegel: 'Proposal for a rule',
-  skalDetVaereRegel: 'Shall I make it a rule?',
-  skalReglenPaaPause: 'Shall I pause the rule?',
-  retReglen: 'Correct the rule',
-  nejTak: 'No thanks',
-  jaRegel: 'Yes, make it a rule',
-  jaPause: 'Yes, pause it',
-  forslagFor: (titel) => `Proposal: ${titel}`,
-  trin: {
-    0: { navn: 'look', saetning: 'Hermes may look and suggest, but does nothing by itself.' },
-    1: { navn: 'sort', saetning: 'Hermes may sort and put things in Done, but never write in your files or create appointments.' },
-    2: { navn: 'keep the ledger', saetning: 'Hermes may write lines in your ledger, each with Undo.' },
-    3: { navn: 'prepare', saetning: 'Hermes may make drafts and prepare, but you send and use them yourself.' },
-    4: { navn: 'act with undo', saetning: 'Hermes may act in your own systems, and you can undo.' },
-  },
-  gaelder: (kilde, slags, trin, navn, saetning) => `Applies to ${kilde}${slags ? ` · ${slags}` : ''} · Step ${trin}, ${navn}: ${saetning}`,
-  pauserSamtidig: (regel) => `A yes pauses ${regel} at the same time.`,
-  komFra: 'Came from: ',
-  komFraSkjult: (titel) => `the Sunday check: "${titel}" should have been shown`,
-  komFraKort: (art, titel) => `your ${art === 'ret' ? 'Correct' : 'Not relevant'} on "${titel}"`,
 
   stikOverskrift: (skjulte, n) => `This week I hid ${skjulte} ${skjulte === 1 ? 'thing' : 'things'}. Here ${n === 1 ? 'is' : 'are'} ${n} at random. Was it right?`,
   stikElement: (overskrift) => `Sunday check: ${overskrift}`,

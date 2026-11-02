@@ -21,6 +21,7 @@ import { kildeHelbredElementer, type KildeHelbredKort } from '../../shell/kilde-
 import type { Regelforslag } from '../../tillid/forslag.ts';
 import type { Stikuge } from '../../tillid/stikproeve.ts';
 import { stikproeveKort, stopKort } from './stikproeve.ts';
+import { regelforslagKort } from '../../shell/regelforslagkort.ts';
 import { betaKort, feedbackKort, type BetaVisning } from './beta.ts';
 import { hjemTekst } from './tekster.ts';
 import { tekst } from '../../shell/tekster.ts';
@@ -273,43 +274,6 @@ function reglerFejlKort(f: NonNullable<HjemData['reglerFejl']>): Markup {
     <p class="betydning">${t.reglerFejlTekst}</p>
     <p class="row-note">${t.fejlen(f.hvorfor)}</p>
     <p class="row-note">${t.filen(f.fil)}</p>
-  </article>`;
-}
-
-/** KC-0144: Hermes saw a pattern in a Ret or an Ikke relevant. Ja is the one primary and only Henrik's own tap; Ret reglen opens the chat with the proposal. */
-function regelforslagKort(f: Regelforslag): Markup {
-  if (f.kunPause) return pauseforslagKort(f);
-  const t = hjemTekst();
-  const trin = t.trin[f.trin];
-  return html`<article class="card kort" data-regelforslag="${f.id}" data-blok="beslutning" data-element="${t.forslagElement(f.titel)}"${zoneData(f)}>
-    ${visHoved({ ikon: 'list-checks' }, t.skalDetVaereRegel, t.forslagTilRegel)}${zoneChip(f)}
-    <p class="row-title">${f.titel}</p>
-    <p class="betydning">${f.tekst}</p>
-    <p class="row-note">${t.gaelder(f.gaelder.kilde, f.gaelder.slags, f.trin, trin.navn, trin.saetning)}</p>
-    ${f.pauser ? html`<p class="row-note">${t.pauserSamtidig(f.pauser)}</p>` : ''}
-    <p class="row-note">${t.komFra}${kom(f)}</p>
-    ${handlinger(
-      knap({ label: t.jaRegel, slags: 'primaer', attrs: { 'data-regelforslag-ja': f.id } }),
-      [spoerg(t.forslagFor(f.titel), t.retReglen), knap({ label: t.nejTak, attrs: { 'data-regelforslag-nej': f.id } })],
-    )}
-  </article>`;
-}
-
-/** Where a proposal came from: a Ret or Ikke relevant on a card, or (KC-0145) the Sunday sample. */
-const kom = (f: Regelforslag): string => (f.kortId.startsWith('skjult:') ? hjemTekst().komFraSkjult(f.kortTitel) : hjemTekst().komFraKort(f.art, f.kortTitel));
-
-/** KC-0145: the app's proposal to pause the rule that hid an item Henrik says he should have seen. Only his Ja pauses it. */
-function pauseforslagKort(f: Regelforslag): Markup {
-  const t = hjemTekst();
-  return html`<article class="card kort" data-regelforslag="${f.id}" data-regelforslag-pause="${f.pauser ?? ''}" data-blok="beslutning" data-element="${t.forslagElement(f.titel)}"${zoneData(f)}>
-    ${visHoved({ ikon: 'list-checks' }, t.skalReglenPaaPause, t.forslagTilRegel)}${zoneChip(f)}
-    <p class="row-title">${f.titel}</p>
-    <p class="betydning">${f.tekst}</p>
-    <p class="row-note">${t.komFra}${kom(f)}</p>
-    ${handlinger(
-      knap({ label: t.jaPause, slags: 'primaer', attrs: { 'data-regelforslag-ja': f.id } }),
-      [spoerg(t.forslagFor(f.titel), t.retReglen), knap({ label: t.nejTak, attrs: { 'data-regelforslag-nej': f.id } })],
-    )}
   </article>`;
 }
 

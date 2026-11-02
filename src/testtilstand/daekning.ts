@@ -141,14 +141,13 @@ const HAAND: [string, string][] = [
   ['regel-gaelder-alt', 'data-regel-alt'],
   ['stikproeve', 'data-stikproeve="'],                                         // KC-0145: the Sunday sample in Nu, five lines with Rigtigt / Skulle have vist mig det (the moment "Søndag aften")
   ['stop-soendagstjek', 'data-soendagstjek-stop'],                             // KC-0145: "Skal vi stoppe søndagstjekket?" after three clean weeks (the moment "Søndag: stop tjekket?")
+  ['regelforslag-start', 'data-regelforslag-start="'],                      // KC-0227: the same proposal under Start's explanation card (the moment "Kold start: efter første Ret")
   ['regelforslag-pause', 'data-regelforslag-pause="'],                         // KC-0145: the proposal to pause the rule that hid a wrong item (the moment "Søndag aften")                                    // KC-0143: a rule for every source says "gælder alt" in Viden
   ['beta-kort', 'data-beta-kort'],                                              // KC-0203: the plain "lukket beta" card (the moment "Beta: første besøg")
   ['beta-betale', 'data-beta-betale="'],                                         // KC-0203: the pay question of day 14 (the moment "Beta: dag 14")
   ['beta-deling-side', 'data-beta-json>'],                                       // KC-0203: "Hvad deler jeg?" with the answer as it stands (/beta/deling, the moment "Beta: Hvad deler jeg?")
   ['beta-deling-hvis', 'data-beta-json-hvis'],                                   // KC-0203: what switching sharing on would add (consent off)
   ['beta-deling-link', 'data-beta-deling-link'],                                 // KC-0203: the link in the Kø panel (every beta moment)
-  // Excluded: the rule proposal under the explanation card (data-regel-forslag). It shows only when E4 (KC-0108) wires
-  // RoomDeps.regelforslag, which the test world has no stand-in for; test/rooms/start/e4-handoff.test.ts holds it until then.
   // Excluded: the blocks forespoergsel and ressource. They are defined in src/shell/katalog.ts, not built; no renderer
   // draws them until E5 builds them (KC-0109), so nothing can show them (BYGGET leaves them out).
   // Excluded: "Se ændringen (PR)" on a finished opgave. Its schema (udvikling/opgaver.ts) only accepts GitHub pull

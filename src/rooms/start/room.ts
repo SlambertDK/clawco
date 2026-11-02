@@ -16,7 +16,7 @@ import { alleTrin, NIVEAUER, trinStatus, type ModelSyn, type Niveau, type TrinKo
 import { erRejsenFaerdig } from './rejsen.ts';
 import { foreslaaTilfoejelse } from './forslag.ts';
 import { renderStart, testTekst, type StartVisning } from './render.ts';
-import { forslagFor, forslagId } from './regelforslag.ts';
+import { ventendeForslag } from './regelforslag.ts';
 import { buildStartChatRun, KORSEL } from './prompt.ts';
 import { envVaerdi, hentModelNavne, udbyderAf } from './udbydere.ts';
 import { MODEL_FEJL, modelFejlArt, type ModelFejlArt } from './modelfejl.ts';
@@ -108,15 +108,15 @@ async function aabneObligatoriske(deps: RoomDeps): Promise<string[]> {
   return trin.filter((x) => x.trin.krav === 'obligatorisk' && x.status !== 'klaret').map((x) => x.trin.titel);
 }
 
-/** Step 6's view: what Nu has to point at (asked only while the step is open), the recorded Ret, E4's proposal on offer. */
+/** Step 6's view: what Nu has to point at (asked only while the step is open), the recorded Ret, the rule proposals waiting for an answer (the ones Nu shows). */
 async function foersteRetSyn(deps: RoomDeps, s: StartState): Promise<NonNullable<StartVisning['foersteRet']>> {
   let punkt: { titel: string | null } | null = null;
   if (!s.ret && deps.rejse) {
     const nuInput = await deps.rejse.faerdigInput().catch(() => null);
     if (nuInput && nuInput.nuElementer >= 1) punkt = { titel: (await deps.rejse.foersteKort?.().catch(() => null))?.titel ?? null };
   }
-  const tilbud = await forslagFor(deps, s);
-  return { punkt, ...(s.ret ? { ret: s.ret } : {}), ...(tilbud ? { forslag: tilbud } : {}), kanSpringeOver: kan(deps.person.rolle, 'aendre-indstillinger') };
+  const forslag = await ventendeForslag(deps, s);
+  return { punkt, ...(s.ret ? { ret: s.ret } : {}), ...(forslag.length ? { forslag } : {}), kanSpringeOver: kan(deps.person.rolle, 'aendre-indstillinger') };
 }
 
 /** KC-0129: step 5's card data — a vault to write into, who reads the text, the pile, what was saved. Nothing without the writer seam. */
@@ -220,7 +220,6 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
       return faerdigt(deps, 'Lagt væk.');
     }, { room: RUM, label: 'Start: lægger forslaget væk' });
   }
-  if (name === 'regel-ja' || name === 'regel-nej') return regelSvar(deps, name === 'regel-ja', str(body['forslagId'], 20));
   if (name === 'ret-spring-over') {
     if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan springe trinnet over.');
     const { trin } = await trinNu(deps, await laesState(deps));
@@ -276,22 +275,6 @@ async function tailscaleDel(deps: RoomDeps, body: Record<string, unknown>): Prom
       throw new Error(err.message);
     }
   }, { room: RUM, label: 'Start: deler Clawco på tailnettet' });
-}
-
-/** KC-0130: the user's Ja or Nej on E4's proposal. Only the proposal on offer now matches; a Ja calls E4's opretRegel once. */
-async function regelSvar(deps: RoomDeps, ja: boolean, id: string): Promise<RunRecord> {
-  const p = deps.person;
-  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan oprette en regel.');
-  const tilbud = await forslagFor(deps, await laesState(deps));
-  if (!tilbud || tilbud.id !== id || !deps.regelforslag) throw new ActionError('Forslaget findes ikke i rummet');
-  return deps.runs.local(ja ? 'gem' : 'afvis', async () => faerdigt(deps, await enAdGangen(deps, async () => { // the view is built after the chain: it may need the chain itself (the Done latch)
-    const s = (await laesState(deps)) ?? ny(deps.now());
-    if (s.regel) return 'Allerede besvaret.'; // a second tap that raced the first creates nothing
-    const regelId = ja ? (await deps.regelforslag!.opretRegel(tilbud.forslag)).id : undefined;
-    await deps.store.writeState(RUM, { ...s, regel: { forslag: forslagId(tilbud.forslag), svar: ja ? 'ja' : 'nej', tid: deps.now().toISOString(), ...(regelId ? { regelId } : {}) } });
-    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: ja ? `Oprettede reglen »${tilbud.forslag.titel}« (${regelId}).` : `Sagde nej til reglen »${tilbud.forslag.titel}«.` });
-    return ja ? 'Reglen er oprettet.' : 'Lagt væk.';
-  })), { room: RUM, label: ja ? 'Start: opretter reglen' : 'Start: lægger reglen væk' });
 }
 
 /** KC-0127: one live test of a tier — one tiny run through the agent real runs use, stopped after testMs. Stored per revision; fail closed. */
@@ -429,7 +412,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
 export const startRoom: RoomModule = {
   id: RUM,
   korsel: KORSEL,
-  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'regel-ja': 'bogfoer', 'regel-nej': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd' },
+  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd' },
   aktionTap: ['tailscale-del'],
   view,
   startOpdater: async () => null,

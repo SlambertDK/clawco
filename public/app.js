@@ -498,8 +498,9 @@
 
   // KC-0028: the cards of Hjem. The server answers {runId} (a Hermes run to follow) or {ok} (done at once);
   // either way Hjem is fetched again so the cards, the counts and the log are what the server now says.
+  // KC-0227: the room on screen is fetched again (Nu for Nu's cards; Start for the rule proposal it shows too).
   function refetchHjem() {
-    return fetch('/api/rum/hjem/fragment').then(function (r) { return r.json(); }).then(function (d) { swapRoom(d.html); updateNav(d.venter); }).catch(function () { /* next click retries */ });
+    return fetch('/api/rum/' + encodeURIComponent(roomId || 'hjem') + '/fragment').then(function (r) { return r.json(); }).then(function (d) { swapRoom(d.html); updateNav(d.venter); }).catch(function () { /* next click retries */ });
   }
   // KC-0128: a Start connect card goes straight to the connector registry; then to the login, to Nu, or the page again.
   function kildeForbind(btn) {
@@ -551,7 +552,7 @@
       })
       .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); clearBusy(); btn.disabled = false; });
   }
-  // KC-0144: Ja / Nej tak on "Skal jeg gøre det til en regel?". Ja fetches a one-time yes for exactly this proposal (a real tap
+  // KC-0144: Ja / Nej tak on "Skal jeg gøre det til en regel?" — in Nu and (KC-0227) in Start, the same card and this one handler. Ja fetches a one-time yes for exactly this proposal (a real tap
   // on the button, never a script of Hermes'); then the server writes the rule and Hjem shows the log line with its Fortryd.
   function regelforslagSvar(btn, hvad, id) {
     var foer = fortrydIder();
@@ -561,7 +562,12 @@
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
       .then(function () {
         if (hvad === 'afvis') toast('Nej tak. Jeg foreslår det ikke igen de næste 30 dage.', false);
-        return refetchHjem().then(function () { if (hvad === 'godkend') tilbydFortryd(foer, 'Det er nu en regel'); });
+        return refetchHjem().then(function () {
+          if (hvad !== 'godkend') return;
+          // The undo is on the log line in Nu; another room (Start) says where it is.
+          if (roomId === 'hjem') tilbydFortryd(foer, 'Det er nu en regel');
+          else toast('Det er nu en regel. Du kan fortryde det i Nu.', false);
+        });
       })
       .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); btn.disabled = false; });
   }

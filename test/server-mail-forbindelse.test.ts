@@ -17,7 +17,7 @@ import { createFileStore } from '../src/store/fileStore.ts';
 import { createFakeAgent } from '../src/agent/fake.ts';
 import type { AgentRunRequest } from '../src/agent/types.ts';
 import { parseAll, readMailSource, type Runner } from '../src/rooms/mail/source.ts';
-import { buildBaggrundFlytRun, buildKladdeRun, buildMailRefreshRun } from '../src/rooms/mail/prompt.ts';
+import { buildBaggrundFlytRun, buildKladdeRun, buildMailChatRun, buildMailRefreshRun } from '../src/rooms/mail/prompt.ts';
 import { mailImapKilde, MAIL_IMAP_ID } from '../src/kilder/mail-imap/mail-imap.ts';
 import { kiraMail } from '../src/kilder/legacy/legacy.ts';
 import { startFalskImap, type FalskImap, type FalskPostkasse } from './helpers/falsk-imap.ts';
@@ -115,6 +115,22 @@ test('opdater reads the inbox through the connector; the prompt says bodies cann
   assert.doesNotMatch(html, /Sæt i kalenderen/);
 });
 
+// KC-0218: the chat answers from the connector's envelopes, never from himalaya.
+test('the chat in Mail describes what the connector reads (sender, subject, date) and names no tool', async () => {
+  const foer = hermes.calls.length;
+  const done = await startOgVent('/api/rum/mail/chat', { besked: 'Hvem har skrevet i dag?' });
+  assert.equal(done.status, 'done', done.error);
+  const req = hermes.calls.slice(foer).find((c) => c.input.includes('Hvem har skrevet i dag?'));
+  assert.ok(req);
+  assert.doesNotMatch(req.instructions, /himalaya|terminal|Folders\//i);
+  assert.match(req.instructions, /afsender, emne og dato/);
+  assert.match(req.instructions, /kan ikke flytte, skrive kladder eller sende/);
+  assert.match(req.input, /Søster/);
+  assert.match(req.input, /2026-10-31T06:00:00Z/);
+  assert.match(req.input, /Nu er det 2026-10-31/);
+  assert.equal(himalaya.length, 0);
+});
+
 test('faerdig moves the mail to the archive through the connector (no agent run); Fortryd moves it back', async () => {
   const foer = hermes.calls.length;
   const done = await startOgVent('/api/rum/mail/aktion/faerdig', { mailId: '7' });
@@ -192,6 +208,12 @@ test('golden: with the host\'s own mail source connected, refresh, Færdig and k
     const forventet = buildMailRefreshRun(data, NOW);
     const opdater = agent.calls.slice(foer).find((c) => c.instructions.includes('svar med præcis dette skema'));
     assert.ok(opdater && sammeKoersel(opdater, forventet), 'the refresh is the unchanged agent run');
+    // KC-0218: Henrik's own installation keeps the unchanged chat prompt (the tool-mode text, himalaya and all).
+    const chatFoer = agent.calls.length;
+    await venter(await req('/api/rum/mail/chat', { besked: 'Hvad haster?' }));
+    const chat = agent.calls.slice(chatFoer).find((c) => c.input.includes('Hvad haster?'));
+    assert.ok(chat && sammeKoersel(chat, buildMailChatRun('Hvad haster?', undefined, await s.readState<MailState>('mail'))), 'the chat is the unchanged agent run');
+    assert.match(chat.instructions, /himalaya/);
     await venter(await req('/api/rum/mail/aktion/kladde', { mailId: firstId, tekst: 'Hej igen' }));
     const kladde = buildKladdeRun(firstId, 'Tilbud', 'Hej igen');
     assert.ok(agent.calls.some((c) => sammeKoersel(c, kladde)), 'kladde is the agent run');

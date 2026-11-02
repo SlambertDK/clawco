@@ -120,9 +120,12 @@ const HANDLING_REGLER = `Regler for handlinger:
 - Du må aldrig sende, besvare eller videresende mail, aldrig slette og aldrig flytte til Trash. Hvis handlingen kræver det, gør du det ikke og siger hvorfor.
 - Svar med højst to korte danske sætninger om, hvad du gjorde. Ingen JSON.`;
 
-/** KC-0123: subjects, senders and summaries came from mail (via Hermes) — an afledt segment, never task text. */
-function indholdSegment(state: MailState | null, medResume: boolean, foer = '') {
-  const kort = state && { tal: state.tal, beslutninger: state.beslutninger.map((b) => ({ mailId: b.mailId, emne: b.emne, fra: b.fra, ...(medResume ? { resume: b.resume } : {}), afgjort: Boolean(b.afgjort) })) };
+/**
+ * KC-0123: subjects, senders and summaries came from mail (via Hermes) — an afledt segment, never task text.
+ * KC-0218 `medDato`: the connector chat has only envelopes, so the date each mail came in is part of what it knows.
+ */
+function indholdSegment(state: MailState | null, medResume: boolean, foer = '', medDato = false) {
+  const kort = state && { tal: state.tal, beslutninger: state.beslutninger.map((b) => ({ mailId: b.mailId, emne: b.emne, fra: b.fra, ...(medDato ? { modtaget: b.modtaget } : {}), ...(medResume ? { resume: b.resume } : {}), afgjort: Boolean(b.afgjort) })) };
   return { kilde: 'rum-state', zone: KORSEL, tillid: 'afledt' as const, tekst: `${foer}${kort ? `Rummets indhold:\n\`\`\`json\n${JSON.stringify(kort, null, 1)}\n\`\`\`` : 'Rummet har ingen data endnu.'}` };
 }
 
@@ -149,7 +152,40 @@ export function buildMailFortrydRun(fortryd: string, state: MailState): RunSpec 
   };
 }
 
-export function buildMailChatRun(besked: string, kontekst: string | undefined, state: MailState | null): RunSpec {
+/**
+ * KC-0218 `forbindelse`: the room runs on a mail connector (a Clawco without Hermes' tools), so the chat answers from
+ * what the connector reads — sender, subject and date — and names no tool. Absent = Henrik's installation: unchanged.
+ */
+export type MailChatForbindelse = { navn: string; kanHandle: boolean; nu?: Date };
+
+function chatForbindelseOpgave(f: MailChatForbindelse): string {
+  const grænse = f.kanHandle
+    ? 'Mailen flytter Henrik selv med Færdig i rummet.'
+    : 'Clawco kan kun læse denne mailkonto, så Henrik flytter og besvarer mails i sin egen mailapp.';
+  return `Du er Hermes, Henriks agent, og du svarer i rummet "Mail" i hans kontrolcenter. Rummet viser de nyeste mails i hans indbakke i mailkontoen ${f.navn}, hver som én beslutning.
+
+Rummets indhold står som afledt data i beskeden. ${PEGER}
+
+Det her ved du: mailforbindelsen ${f.navn} læser afsender, emne og dato på indbakkens nyeste mails, og rummet ved, hvilke af dem Henrik allerede har afgjort. Det er alt. Du kan ikke læse selve mailene, og du kan ikke flytte, skrive kladder eller sende.
+
+Regler for chatten:
+- Svar kort på dansk ud fra afsender, emne og dato: fx hvem der har skrevet i dag, hvor mange mails der venter, eller hvad en mail fra en bestemt afsender handler om.
+- Hvad en mail handler om, ved du kun ud fra emnet: sig, at det er et gæt ud fra emnet.
+- Spørger Henrik om mere, end du ved (hvad der står i en mail, eller at flytte, svare eller sende), så sig det i én sætning: du ser kun afsender, emne og dato. ${grænse}
+- Du må aldrig sende, besvare eller videresende mail og aldrig slette.`;
+}
+
+export function buildMailChatRun(besked: string, kontekst: string | undefined, state: MailState | null, forbindelse?: MailChatForbindelse): RunSpec {
+  if (forbindelse) {
+    return {
+      ...byggPrompt({
+        rum: 'mail',
+        zone: KORSEL,
+        opgave: chatForbindelseOpgave(forbindelse),
+        data: [indholdSegment(state, true, `${tidslinje(forbindelse.nu ?? new Date())}\n\n`, true), ...elementSegment(kontekst, KORSEL), { kilde: 'henrik', zone: KORSEL, tillid: 'betroet', tekst: besked }],
+      }),
+    };
+  }
   return {
     ...byggPrompt({
       rum: 'mail',

@@ -6,10 +6,17 @@
 import type { RoomDeps } from '../rooms/module.ts';
 import type { Zoneret } from '../identitet/zoner.ts';
 import { laegTil, lavForslag, parseRegelforslag, type Art, type LagtUdfald } from '../tillid/forslag.ts';
+import { START } from '../shell/synlig.ts';
 import { endreKurator, HJEM } from './kurator.ts';
 
 /** Whether this request may produce a proposal: the owner, with a rules store to approve into. Call in the request, not in a run's callback. */
 export const kanForeslaa = (d: RoomDeps): boolean => (d.regler ? d.person.rolle === 'ejer' : false);
+
+/** KC-0227: a pending proposal appeared or changed — Nu and Start both draw it, so both are told. */
+export function meldForslag(d: RoomDeps): void {
+  d.live.notify(HJEM);
+  d.live.notify(START);
+}
 
 /**
  * Hermes' `blok` for card `kort` → a pending proposal. `blok` undefined or null is no proposal; a bad one is dropped and
@@ -32,6 +39,6 @@ export async function gemRegelforslag(d: RoomDeps, o: { kort: { id: string; tite
     udfald = l.udfald;
     return l.udfald === 'lagt' || l.udfald === 'erstattet' ? { ...s, regelforslag: l.liste } : s;
   });
-  if (udfald === 'lagt' || udfald === 'erstattet') d.live.notify(HJEM);
+  if (udfald === 'lagt' || udfald === 'erstattet') meldForslag(d);
   return udfald;
 }

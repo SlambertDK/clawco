@@ -26,6 +26,7 @@ import { udpak } from '../../agent/udtroet.ts';
 import type { AgentRunRequest } from '../../agent/types.ts';
 import type { ImportBunke } from '../../rooms/start/schema.ts';
 import { fenced } from './faelles.ts';
+import { lavForslag, type ForslagFelter } from '../../tillid/forslag.ts';
 import { erTailscaleMoment, KOLD_TAILSCALE } from './tailscale.ts'; // KC-0161
 
 /** KC-0170: the cold moment where step 1 chose English. */
@@ -167,6 +168,9 @@ function kildeFroe(momentId: string, f: Fakta): Froe {
 
 // ---------- KC-0131: the journey's end ----------
 
+/** KC-0227: the rule Hermes proposes after the first Ret ("jeg løber om morgenen"); validated like any answer (cap 1: no rule covers it yet). */
+const RET_FORSLAG: ForslagFelter = { titel: 'Morgenerne holdes fri til løb', tekst: 'Når jeg lægger din dag, flytter jeg ikke ting ind i dine morgentimer, så du kan løbe.', trin: 1, gaelder: { kilde: 'kalender', slags: 'morgen' } };
+
 /**
  * `kold-faerdig`, on top of "anden kilde tilbudt": the mail connected at 09.22 (its preview replaced by the Mail
  * rebuild — the cold folders hold nothing to decide), notes, news and messages skipped (step 4 Klaret), and at 09.17
@@ -207,7 +211,8 @@ function faerdigFroe(f: Fakta, trin6: 'aaben' | 'efter' | 'faerdig' = 'faerdig')
           ...(trin6 === 'faerdig' ? [{ id: 'start-rejsen-faerdig', tid: ret, kilde: 'system' as const, zone: 'privat' as const, tekst: 'Rejsen er gennemført.' }] : [])],
       },
       hjem: {
-        state: { kort: [], intet: [], afvist: [], sete: [] },
+        // KC-0227: after the Ret (Done not yet latched) Hermes' answer carries a rule proposal — pending, so Nu asks it and so does Start under the explanation card.
+        state: { kort: [], intet: [], afvist: [], sete: [], ...(trin6 === 'efter' ? { regelforslag: [lavForslag(RET_FORSLAG, { kort: { id: 'foerste-kig', titel: kal?.forhaandsvisning.titel ?? 'Første kig' }, art: 'ret', nu: new Date(f.iso('09:17')) })] } : {}) },
         chat: trin6 === 'aaben' ? [] : [
           { id: 'kold-ret', tid: ret, fra: 'henrik', tekst: 'Det passer ikke helt: jeg løber om morgenen.', kontekst: `Kortet: ${kal?.forhaandsvisning.titel ?? 'Første kig'}` },
           { id: 'kold-ret-svar', tid: f.iso('09:17'), fra: 'hermes', tekst: 'Noteret: du løber om morgenen. Det husker jeg, når jeg lægger dagen.' },

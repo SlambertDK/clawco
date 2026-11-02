@@ -10,7 +10,7 @@ import type { RunRecord } from '../runs.ts';
 import type { Skjult } from '../tillid/skjulte.ts';
 import { extractForslagBlok, laegTil, pauseForslag } from '../tillid/forslag.ts';
 import { endreKurator, HJEM } from './kurator.ts';
-import { gemRegelforslag, kanForeslaa } from './regelforslag.ts';
+import { gemRegelforslag, kanForeslaa, meldForslag } from './regelforslag.ts';
 import { buildSkjultRun } from './kortprompt.ts';
 
 /** The proposal's card: the hidden item (one proposal per item, like one per corrected card). */
@@ -32,7 +32,7 @@ export async function skulleVises(d: RoomDeps, p: Skjult): Promise<RunRecord> {
       lagt = l.udfald === 'lagt' || l.udfald === 'erstattet';
       return lagt ? { ...s, regelforslag: l.liste } : s;
     });
-    if (lagt) d.live.notify(HJEM);
+    if (lagt) meldForslag(d);
   }
   return d.runs.start({
     kind: 'laer',
