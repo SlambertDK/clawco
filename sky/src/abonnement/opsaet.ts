@@ -8,6 +8,7 @@ import { laesPriser } from './priser.ts';
 import type { Priser } from './priser.ts';
 import { CLAWCO_MAERKE, NOEGLE_NAVN, skjulNoegler, tilstandFraNoegle } from './stripe-klient.ts';
 import type { BetalingsKlient, Interval, Metadata, NytProdukt, ProduktAendring, StripePris, StripeProdukt } from './stripe-klient.ts';
+import { anvendPortal, beskrivPortal, planlaegPortal, portalReturUrl } from './portal.ts';
 
 export type IntervalNavn = 'maaned' | 'aar';
 const INTERVALLER = [
@@ -145,7 +146,7 @@ export const LIVE_OK_NAVN = 'SKY_STRIPE_LIVE_OK';
 /** Settings Stripe's API does not expose; changing them is a change to Henrik's account (his yes, per setting). */
 export const IKKE_LAESBARE = [
   'Vilkår-URL i Checkout (offentlige vilkår)',
-  'Kunde-e-mails (kvitteringer, mislykkede betalinger)',
+  'Kunde-e-mails (kvitteringer og fakturaer slået til; "mislykket betaling" slået fra, KC-0196 sender vores egen)',
   'Smart Retries',
   'Annullér abonnement, når alle forsøg er mislykkedes',
   'Momsregistrering (først med KC-0194)',
@@ -169,6 +170,15 @@ export async function koerOpsaet(k: OpsaetKoersel): Promise<number> {
     const ukendte = k.argv.filter((a) => a !== '--anvend');
     if (ukendte.length) throw new Error(`ukendt argument: ${ukendte.join(' ')} (kun --anvend findes)`);
     const anvendNu = k.argv.includes('--anvend');
+    // KC-0195: the Portal's return URL. Unset = the Portal is left alone (said below); malformed = refused before any write.
+    const publicUrl = (k.env['SKY_PUBLIC_URL'] ?? '').trim() || null;
+    let returUrl: string | null = null;
+    if (publicUrl) {
+      let ok = false;
+      try { ok = ['https:', 'http:'].includes(new URL(publicUrl).protocol); } catch { /* reported below */ }
+      if (!ok) throw new Error('SKY_PUBLIC_URL er ugyldig: skal være en http(s)-adresse');
+      returUrl = portalReturUrl(publicUrl);
+    }
     const priser = k.priser ?? laesPriser();
     const tilstand = tilstandFraNoegle(noegle);
     if (anvendNu && tilstand === 'live') {
@@ -190,6 +200,25 @@ export async function koerOpsaet(k: OpsaetKoersel): Promise<number> {
       k.skriv('Kontrol: Stripe svarer nu til prisfilen (0 ændringer tilbage).');
     } else if (!anvendNu && plan.skridt.length) {
       k.skriv('Tør kørsel: intet er ændret. Kør "npm run stripe:opsaet -- --anvend" for at anvende.');
+    }
+
+    // KC-0195: the customer portal follows the prices (it offers exactly the four active ones).
+    if (!returUrl) {
+      k.skriv('Kundeportalen: SKY_PUBLIC_URL mangler, så portalen er ikke sat op. Kør igen med den sat (den står i sky/.env på serveren).');
+    } else if (!anvendNu && plan.skridt.length) {
+      k.skriv('Kundeportalen: planlægges, når priserne er anvendt.');
+    } else {
+      const portal = await planlaegPortal(priser, klient, returUrl);
+      if (portal.status === 'venter') throw new Error(`kundeportalen mangler priserne ${portal.mangler.join(', ')}`);
+      if (!portal.skridt.length) k.skriv('Kundeportalen: uændret.');
+      for (const l of beskrivPortal(portal.skridt)) k.skriv(`Kundeportalen: ${l}`);
+      if (anvendNu && portal.skridt.length) {
+        await anvendPortal(portal.skridt, klient);
+        const efter = await planlaegPortal(priser, klient, returUrl);
+        if (efter.status !== 'klar' || efter.skridt.length) throw new Error('kundeportalen svarer ikke til konfigurationen efter kørslen');
+      } else if (portal.skridt.length) {
+        k.skriv('Tør kørsel: kundeportalen er ikke ændret.');
+      }
     }
 
     const mangler = await klient.kontoMangler();

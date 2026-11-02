@@ -8,7 +8,7 @@
 // archives the run's catalogue. Only TestureApi touches the network; tests inject a simulation of it.
 import Stripe from 'stripe';
 import { CLAWCO_MAERKE } from '../../../src/abonnement/stripe-klient.ts';
-import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPris, NytProdukt, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from '../../../src/abonnement/stripe-klient.ts';
+import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from '../../../src/abonnement/stripe-klient.ts';
 import { laesPriser } from '../../../src/abonnement/priser.ts';
 import { anvend, planlaeg } from '../../../src/abonnement/opsaet.ts';
 import { DAG_MS, koerselsPriser, type RaaHaendelse, type Tidslinje, type Verden } from './koer.ts';
@@ -98,7 +98,10 @@ export class KoerselsKlient implements BetalingsKlient {
   listAbonnementer(kunde: string): Promise<AbonnementSnapshot[]> { return this.indre.listAbonnementer(kunde); }
   opsigAbonnement(id: string): Promise<void> { return this.indre.opsigAbonnement(id); }
   opsigVedPeriodeslut(id: string): Promise<void> { return this.indre.opsigVedPeriodeslut(id); }
-  opretPortal(kunde: string, retur: string): Promise<{ url: string }> { return this.indre.opretPortal(kunde, retur); }
+  opretPortal(a: NyPortalSession): Promise<{ url: string }> { return this.indre.opretPortal(a); }
+  listPortalKonfigurationer(): Promise<PortalKonfiguration[]> { return this.indre.listPortalKonfigurationer(); }
+  opretPortalKonfiguration(p: Stripe.BillingPortal.ConfigurationCreateParams, n: string): Promise<PortalKonfiguration> { return this.indre.opretPortalKonfiguration(p, this.noegle(n)); }
+  opdaterPortalKonfiguration(id: string, p: Stripe.BillingPortal.ConfigurationUpdateParams): Promise<PortalKonfiguration> { return this.indre.opdaterPortalKonfiguration(id, p); }
   listFakturaer(kunde: string): Promise<Faktura[]> { return this.indre.listFakturaer(kunde); }
 }
 

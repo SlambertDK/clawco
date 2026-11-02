@@ -10,7 +10,7 @@ import { abonnementRuter, type AbonnementDeps, type Indlogget } from '../../src/
 export const VILKAAR_VERSION = '0.1-udkast';
 export const VILKAAR_URL = 'https://clawco.example.test/vilkaar';
 export const SAELGER = 'Sælger Eksempel (personligt drevet), Eksempelvej 1, 1000 By, Danmark.';
-export type Rolle = { rolle: 'ejer' | 'medlem'; antal: number } | null;
+export type Rolle = { rolle: 'ejer' | 'medlem'; antal: number; ejerKontoId?: number | null } | null;
 
 /** The consumer-rights seams of AbonnementDeps, faked. */
 export function forbrugerDeps(post: FalskPost = falskPost(), sprog: 'da' | 'en' = 'da'): Pick<AbonnementDeps, 'post' | 'saelger' | 'vilkaar' | 'kontakt'> {

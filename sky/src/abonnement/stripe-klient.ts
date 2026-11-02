@@ -89,6 +89,10 @@ export type Faktura = { id: string; nummer: string | null; oprettet: Date; beloe
 
 export type StripeHaendelse = { id: string; type: string; kunde: string | null };
 
+/** KC-0195: a customer-portal configuration as the setup compares it (metadata.clawco_konfig fingerprints the content). */
+export type PortalKonfiguration = { id: string; aktiv: boolean; metadata: Metadata };
+export type NyPortalSession = { kunde: string; returUrl: string; konfiguration: string; sprog: 'da' | 'en' };
+
 /** The env name of the webhook signing secret (whsec_…). */
 export const WEBHOOK_NOEGLE_NAVN = 'SKY_STRIPE_WEBHOOK_SECRET';
 
@@ -128,7 +132,13 @@ export interface BetalingsKlient {
   /** KC-0209 "Opsig": the subscription ends when the paid period does (cancel_at_period_end); access stays until then.
    *  Never refunds anything: money back is a task for the owner, never code (AGENTS §9). */
   opsigVedPeriodeslut(id: string): Promise<void>;
-  opretPortal(kunde: string, returUrl: string): Promise<{ url: string }>;
+  /** KC-0195: a Portal session on Clawco's own configuration (never the shared account's default), in the account's
+   *  language. Created per click, never cached, never logged. */
+  opretPortal(a: NyPortalSession): Promise<{ url: string }>;
+  /** KC-0195: every Portal configuration marked metadata.clawco = "ja", active or not (ShelfAtlas' are never listed). */
+  listPortalKonfigurationer(): Promise<PortalKonfiguration[]>;
+  opretPortalKonfiguration(params: Stripe.BillingPortal.ConfigurationCreateParams, idempotensNoegle: string): Promise<PortalKonfiguration>;
+  opdaterPortalKonfiguration(id: string, params: Stripe.BillingPortal.ConfigurationUpdateParams): Promise<PortalKonfiguration>;
   /** KC-0206: every invoice of the customer, newest first (for Hent alt). */
   listFakturaer(kunde: string): Promise<Faktura[]>;
 }

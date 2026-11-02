@@ -4,7 +4,7 @@
 // test account only (parked until he pastes the key).
 import Stripe from 'stripe';
 import { CLAWCO_MAERKE, kontoIdFra, tilstandFraNoegle } from './stripe-klient.ts';
-import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPris, NytProdukt, ProduktAendring, StripeHaendelse, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
+import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeHaendelse, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
 
 export function tilPrisParams(p: NyPris): Stripe.PriceCreateParams {
   // No tax_behavior while moms.aktiv is false (D17, KC-0194).
@@ -78,6 +78,11 @@ export function fraStripeAbonnement(s: Stripe.Subscription): AbonnementSnapshot 
 /** KC-0206: the invoice fields Hent alt shows. */
 export function fraStripeFaktura(f: Stripe.Invoice): Faktura {
   return { id: f.id ?? '', nummer: f.number ?? null, oprettet: new Date(f.created * 1000), beloeb: f.total, valuta: f.currency, status: f.status ?? null, url: f.hosted_invoice_url ?? null };
+}
+
+/** KC-0195: a Portal configuration as the setup compares it. */
+export function fraStripePortalKonfiguration(c: Stripe.BillingPortal.Configuration): PortalKonfiguration {
+  return { id: c.id, aktiv: c.active, metadata: { ...(c.metadata ?? {}) } };
 }
 
 export function fraStripeCheckout(s: Stripe.Checkout.Session): CheckoutSession {
@@ -222,9 +227,25 @@ export class StripeBetalingsKlient implements BetalingsKlient {
     await this.stripe.subscriptions.update(abonnementId, { cancel_at_period_end: true });
   }
 
-  async opretPortal(kunde: string, returUrl: string): Promise<{ url: string }> {
-    const p = await this.stripe.billingPortal.sessions.create({ customer: kunde, return_url: returUrl });
+  async opretPortal(a: NyPortalSession): Promise<{ url: string }> {
+    const p = await this.stripe.billingPortal.sessions.create({ customer: a.kunde, return_url: a.returUrl, configuration: a.konfiguration, locale: a.sprog });
     return { url: p.url };
+  }
+
+  async listPortalKonfigurationer(): Promise<PortalKonfiguration[]> {
+    const ud: PortalKonfiguration[] = [];
+    for await (const c of this.stripe.billingPortal.configurations.list({ limit: 100 })) {
+      if (c.metadata?.[CLAWCO_MAERKE.noegle] === CLAWCO_MAERKE.vaerdi) ud.push(fraStripePortalKonfiguration(c));
+    }
+    return ud;
+  }
+
+  async opretPortalKonfiguration(params: Stripe.BillingPortal.ConfigurationCreateParams, idempotensNoegle: string): Promise<PortalKonfiguration> {
+    return fraStripePortalKonfiguration(await this.stripe.billingPortal.configurations.create(params, { idempotencyKey: idempotensNoegle }));
+  }
+
+  async opdaterPortalKonfiguration(id: string, params: Stripe.BillingPortal.ConfigurationUpdateParams): Promise<PortalKonfiguration> {
+    return fraStripePortalKonfiguration(await this.stripe.billingPortal.configurations.update(id, params));
   }
 
   async listFakturaer(kunde: string): Promise<Faktura[]> {

@@ -5,6 +5,7 @@ import { nyDb, ur, type Ur } from '../konto/hjaelp.ts';
 import { findEllerOpretKonto } from '../../src/konto/konto.ts';
 import { FalskBetalingsKlient } from '../../src/abonnement/falsk.ts';
 import { anvend, planlaeg, lookupKey } from '../../src/abonnement/opsaet.ts';
+import { opsaetPortal, portalReturUrl } from '../../src/abonnement/portal.ts';
 import { laesPriser, type Priser } from '../../src/abonnement/priser.ts';
 import { sikrKunde } from '../../src/abonnement/kunde.ts';
 import { byggCheckout } from '../../src/abonnement/checkout.ts';
@@ -22,6 +23,7 @@ export async function stativ(): Promise<Stativ> {
   const priser = laesPriser();
   const klient = new FalskBetalingsKlient('test');
   await anvend((await planlaeg(priser, klient)).skridt, klient);
+  await opsaetPortal(priser, klient, portalReturUrl(PUBLIC));
   const { konto } = await findEllerOpretKonto(db, EMAIL, u.nu());
   const k = await sikrKunde(db, klient, { kontoId: konto.id, email: EMAIL, sprog: 'da', land: 'DK', nu: u.nu() });
   return { db, klient, priser, u, kontoId: konto.id, kunde: k.stripeKunde };

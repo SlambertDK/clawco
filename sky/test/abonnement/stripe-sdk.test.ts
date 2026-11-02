@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Stripe from 'stripe';
 import type { BetalingsKlient, NyPris } from '../../src/abonnement/stripe-klient.ts';
-import { StripeBetalingsKlient, fraStripePris, fraStripeProdukt, kontoHuller, tilPrisParams, fraStripeAbonnement, fraStripeCheckout, verificerWebhook } from '../../src/abonnement/stripe-sdk.ts';
+import { StripeBetalingsKlient, fraStripePris, fraStripeProdukt, kontoHuller, tilPrisParams, fraStripeAbonnement, fraStripeCheckout, fraStripePortalKonfiguration, verificerWebhook } from '../../src/abonnement/stripe-sdk.ts';
 
 const nyPris: NyPris = {
   produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060,
@@ -138,4 +138,10 @@ test('KC-0206: an invoice becomes number, date, amount, currency, status and its
   const kladde = fraStripeFaktura({ id: 'in_2', number: null, created: 1, total: 0, currency: 'eur', status: 'draft', hosted_invoice_url: null } as Stripe.Invoice);
   assert.equal(kladde.nummer, null);
   assert.equal(kladde.url, null);
+});
+
+test('KC-0195: a Portal configuration maps to id, active and its metadata (the fingerprint the setup compares)', () => {
+  const c = { id: 'bpc_1', object: 'billing_portal.configuration', active: false, metadata: { clawco: 'ja', clawco_konfig: 'abc' } } as unknown as Stripe.BillingPortal.Configuration;
+  assert.deepEqual(fraStripePortalKonfiguration(c), { id: 'bpc_1', aktiv: false, metadata: { clawco: 'ja', clawco_konfig: 'abc' } });
+  assert.deepEqual(fraStripePortalKonfiguration({ ...c, metadata: null } as unknown as Stripe.BillingPortal.Configuration).metadata, {});
 });

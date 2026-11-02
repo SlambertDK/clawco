@@ -188,7 +188,10 @@ test('the fake cancels a subscription, deletes a customer (its subscriptions can
   const [ab] = await k.listAbonnementer(kunde.id);
   await k.opsigAbonnement(ab!.id);
   assert.equal((await k.listAbonnementer(kunde.id))[0]?.status, 'canceled');
-  assert.match((await k.opretPortal(kunde.id, 'https://sky.example.test/konto')).url, /^https:\/\//);
+  // KC-0195: only on an active configuration (the shared account's default is never opened).
+  await assert.rejects(k.opretPortal({ kunde: kunde.id, returUrl: 'https://sky.example.test/konto', konfiguration: 'bpc_ukendt', sprog: 'da' }), /portalkonfiguration/);
+  const konfiguration = k.tilfoejPortalKonfiguration({ metadata: { clawco: 'ja' } });
+  assert.match((await k.opretPortal({ kunde: kunde.id, returUrl: 'https://sky.example.test/konto', konfiguration, sprog: 'da' })).url, /^https:\/\//);
   k.sletKunde(kunde.id);
   assert.deepEqual(await k.hentKunde(kunde.id), { id: kunde.id, slettet: true, kontoId: null });
 });

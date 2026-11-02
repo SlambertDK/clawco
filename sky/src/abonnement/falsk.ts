@@ -9,10 +9,10 @@
 // subscription is read with its price's current lookup key, as Stripe expands it.
 import type Stripe from 'stripe';
 import { CLAWCO_MAERKE, kontoIdFra } from './stripe-klient.ts';
-import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPris, NytProdukt, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
+import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, Metadata, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
 
 export type FalskKald = {
-  metode: 'opretProdukt' | 'opdaterProdukt' | 'opretPris' | 'arkiverPris' | 'opretKunde' | 'opretCheckout' | 'udloebCheckout' | 'opsigAbonnement' | 'opsigVedPeriodeslut' | 'opretPortal' | 'vedhaeftBetalingsmiddel' | 'skiftPris' | 'betalAabne';
+  metode: 'opretProdukt' | 'opdaterProdukt' | 'opretPris' | 'arkiverPris' | 'opretKunde' | 'opretCheckout' | 'udloebCheckout' | 'opsigAbonnement' | 'opsigVedPeriodeslut' | 'opretPortal' | 'opretPortalKonfiguration' | 'opdaterPortalKonfiguration' | 'vedhaeftBetalingsmiddel' | 'skiftPris' | 'betalAabne';
   args: unknown;
   idempotensNoegle?: string;
 };
@@ -45,6 +45,8 @@ export class FalskBetalingsKlient implements BetalingsKlient {
   private sessioner = new Map<string, FalskSession>();
   private abonnementer = new Map<string, AbonnementSnapshot>();
   private fakturaer: (Faktura & { kunde: string })[] = [];
+  /** KC-0195: Portal configurations, Clawco's and (via tilfoejPortalKonfiguration) the shared account's others. */
+  private portaler = new Map<string, { aktiv: boolean; metadata: Metadata; params: Stripe.BillingPortal.ConfigurationCreateParams | null }>();
   private log: FalskHaendelse[] = [];
   private naesteHaendelse = 1;
   /** The customer's default payment method: whether charges succeed. */
@@ -417,10 +419,57 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     return this.fakturaer.filter((f) => f.kunde === kunde).map(({ kunde: _k, ...f }) => structuredClone(f)).sort((a, b) => b.oprettet.getTime() - a.oprettet.getTime());
   }
 
-  async opretPortal(kunde: string, returUrl: string): Promise<{ url: string }> {
+  async opretPortal(a: NyPortalSession): Promise<{ url: string }> {
     this.tjekFejl('opretPortal');
-    this.kald.push({ metode: 'opretPortal', args: { kunde, returUrl } });
-    if (!this.kunder.has(kunde)) throw new Error(`ingen kunde ${kunde}`);
-    return { url: `https://billing.stripe.test/p/${kunde}` };
+    this.kald.push({ metode: 'opretPortal', args: { ...a } });
+    if (!this.kunder.has(a.kunde)) throw new Error(`ingen kunde ${a.kunde}`);
+    if (!this.portaler.get(a.konfiguration)?.aktiv) throw new Error(`ingen aktiv portalkonfiguration ${a.konfiguration}`);
+    return { url: `https://billing.stripe.test/p/${a.kunde}` };
+  }
+
+  private portal(id: string): PortalKonfiguration {
+    const p = this.portaler.get(id)!;
+    return { id, aktiv: p.aktiv, metadata: { ...p.metadata } };
+  }
+
+  async listPortalKonfigurationer(): Promise<PortalKonfiguration[]> {
+    this.tjekFejl('listPortalKonfigurationer');
+    return [...this.portaler.entries()].filter(([, p]) => p.metadata[CLAWCO_MAERKE.noegle] === CLAWCO_MAERKE.vaerdi).map(([id]) => this.portal(id));
+  }
+
+  async opretPortalKonfiguration(params: Stripe.BillingPortal.ConfigurationCreateParams, idempotensNoegle: string): Promise<PortalKonfiguration> {
+    this.tjekFejl('opretPortalKonfiguration');
+    this.kald.push({ metode: 'opretPortalKonfiguration', args: structuredClone(params), idempotensNoegle });
+    const id = this.gentag(idempotensNoegle, params, () => {
+      const ny = `bpc_falsk_${this.naesteId++}`;
+      this.portaler.set(ny, { aktiv: true, metadata: { ...(params.metadata as Metadata | undefined) }, params: structuredClone(params) });
+      return ny;
+    });
+    return this.portal(id);
+  }
+
+  async opdaterPortalKonfiguration(id: string, params: Stripe.BillingPortal.ConfigurationUpdateParams): Promise<PortalKonfiguration> {
+    this.tjekFejl('opdaterPortalKonfiguration');
+    this.kald.push({ metode: 'opdaterPortalKonfiguration', args: { id, ...structuredClone(params) } });
+    const p = this.portaler.get(id);
+    if (!p) throw new Error(`ingen portalkonfiguration ${id}`);
+    const { active, ...resten } = params;
+    if (active !== undefined) p.aktiv = active;
+    if (resten.features) p.params = structuredClone(resten) as Stripe.BillingPortal.ConfigurationCreateParams;
+    if (resten.metadata) p.metadata = { ...p.metadata, ...(resten.metadata as Metadata) };
+    return this.portal(id);
+  }
+
+  /** Test helper (KC-0195): a configuration someone else made in the shared account (or a stray Clawco one). */
+  tilfoejPortalKonfiguration(a: { metadata: Metadata }): string {
+    const id = `bpc_falsk_${this.naesteId++}`;
+    this.portaler.set(id, { aktiv: true, metadata: { ...a.metadata }, params: null });
+    return id;
+  }
+
+  /** Test helper (KC-0195): the parameters a configuration holds now. */
+  portalParams(id: string): Stripe.BillingPortal.ConfigurationCreateParams | null {
+    const p = this.portaler.get(id)?.params;
+    return p ? structuredClone(p) : null;
   }
 }

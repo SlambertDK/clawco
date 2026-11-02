@@ -39,6 +39,7 @@ import { laesBetaling, type BetalingsKlient } from './abonnement/stripe-klient.t
 import { StripeBetalingsKlient } from './abonnement/stripe-sdk.ts';
 import { FalskBetalingsKlient } from './abonnement/falsk.ts';
 import { anvend, planlaeg } from './abonnement/opsaet.ts';
+import { opsaetPortal, portalReturUrl } from './abonnement/portal.ts';
 import { laesPriser } from './abonnement/priser.ts';
 import { opsigVedSletning } from './abonnement/kunde.ts';
 import { hentRettigheder, kontiMedAdgang } from './abonnement/synk.ts';
@@ -383,6 +384,7 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
   } else if (config.dev) {
     falsk = new FalskBetalingsKlient('test', { checkoutUrl: (id) => new URL(`/dev/stripe/checkout/${id}`, config.publicUrl).href });
     await anvend((await planlaeg(priser, falsk)).skridt, falsk);
+    await opsaetPortal(priser, falsk, portalReturUrl(config.publicUrl));
     klient = falsk;
     // The fake signs its own events; a fresh secret per process, never configured, never logged.
     hemmelighed ??= `whsec_dev${randomBytes(18).toString('hex')}`;
@@ -399,7 +401,10 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
     adgang: { login: async (c) => somIndlogget(await adgang.login(c)), beskyttet: async (c, csrf) => somIndlogget(await adgang.beskyttet(c, csrf)) },
     husstand: async (kontoId) => {
       const t = await konto.husstand.forKonto(kontoId);
-      return t ? { rolle: t.rolle, antal: t.medlemmer.length + 1 } : null;
+      if (!t) return null;
+      // KC-0195: a member sees the owner's plan read-only; the owner is the tenant's.
+      const ejerKontoId = t.rolle === 'ejer' ? kontoId : (await hentTenant(db, t.tenantId))?.ejerKontoId ?? null;
+      return { rolle: t.rolle, antal: t.medlemmer.length + 1, ejerKontoId };
     },
     tilPlan: async (kontoId) => config.tilmelding === 'open' && profilErKlar(await hentProfil(db, kontoId), samtykke),
     // KC-0209: mail (receipts, cancellation, withdrawal), the seller read from the terms (a Sky that cannot name its seller

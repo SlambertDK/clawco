@@ -8,7 +8,7 @@ import { bodyLimit } from 'hono/body-limit';
 import type { Database } from '../db/pool.ts';
 import type { Post } from '../delt/post.ts';
 import type { Priser } from './priser.ts';
-import type { BetalingsKlient, StripeHaendelse } from './stripe-klient.ts';
+import type { BetalingsKlient, Faktura, StripeHaendelse } from './stripe-klient.ts';
 import { skjulNoegler } from './stripe-klient.ts';
 import { lookupKey, type IntervalNavn } from './opsaet.ts';
 import { byggCheckout, type Juridisk } from './checkout.ts';
@@ -28,6 +28,7 @@ import { opsig, opsigOversigt } from './opsig.ts';
 import { fortryd, fortrydOversigt } from './fortryd.ts';
 import { kontoHandlinger } from './handlinger.ts';
 import { fristForKonto } from './frist-job.ts';
+import { portalKonfiguration, portalReturUrl } from './portal.ts';
 
 /** The logged-in person, as konto's session sees it. */
 export type Indlogget = { kontoId: number; email: string; sprog: 'da' | 'en'; csrf: string };
@@ -47,8 +48,9 @@ export type AbonnementDeps = {
   juridisk: Juridisk;
   webhookHemmelighed: string | null;
   adgang: Adgang;
-  /** The account's household place (KC-0154/KC-0184); null = no household, the account is its own owner. */
-  husstand: (kontoId: number) => Promise<{ rolle: 'ejer' | 'medlem'; antal: number } | null>;
+  /** The account's household place (KC-0154/KC-0184); null = no household, the account is its own owner. A member's
+   *  `ejerKontoId` lets the Abonnement page show the owner's plan read-only (KC-0195); unknown = "ask the owner" only. */
+  husstand: (kontoId: number) => Promise<{ rolle: 'ejer' | 'medlem'; antal: number; ejerKontoId?: number | null } | null>;
   /** KC-0220: may this account choose a plan now? Only where the sign-up flow shows its plan step (open sign-up and
    *  the profile with the current consents); otherwise the plan page and Checkout send it to /tilmeld. Required, so
    *  no wiring can leave the gate open. */
@@ -127,6 +129,17 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
     return { plan, interval, land };
   };
 
+  /** KC-0195: a Portal session on Clawco's own configuration, per click, never cached or logged. null = the setup has not
+   *  made the configuration (the caller answers 503): the shared account's default portal is never opened. */
+  async function aabnPortal(klient: BetalingsKlient, kunde: string, sprog: 'da' | 'en'): Promise<string | null> {
+    const konfiguration = await portalKonfiguration(klient);
+    if (!konfiguration) {
+      console.error('sky abonnement: ingen Clawco-konfiguration af kundeportalen i Stripe — kør npm run stripe:opsaet');
+      return null;
+    }
+    return (await klient.opretPortal({ kunde, returUrl: portalReturUrl(d.publicUrl), konfiguration, sprog })).url;
+  }
+
   async function harProeve(kontoId: number, alle: { proeveStart: Date | null }[]): Promise<boolean> {
     const k = await hentKundeRaekke(d.db, kontoId);
     return !(k?.proeveBrugt ?? false) && !alle.some((a) => a.proeveStart !== null);
@@ -137,11 +150,24 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
     const l = await d.adgang.login(c);
     if (!l) return c.redirect('/log-ind?til=/konto/abonnement', 303);
     const h = await d.husstand(l.kontoId);
-    if (h?.rolle === 'medlem') return c.html(ejerSide(), 403);
+    if (h?.rolle === 'medlem') {
+      // KC-0195: the owner's plan, read-only; no Stripe call, no button, no invoices.
+      if (h.ejerKontoId == null) return c.html(ejerSide(), 403);
+      const r = await hentRettigheder(d.db, h.ejerKontoId, d.priser, nu());
+      return c.html(statusSide({ csrf: l.csrf, rettighed: r, priser: d.priser, overGraense: null, portal: false, laeser: true }));
+    }
     const r = await hentRettigheder(d.db, l.kontoId, d.priser, nu());
     if (VISES.has(r.status) || r.kilde === 'gave') {
       const kunde = await hentKundeRaekke(d.db, l.kontoId);
-      return c.html(statusSide({ csrf: l.csrf, rettighed: r, priser: d.priser, overGraense: overGraense(r, h?.antal ?? 1, d.priser), portal: kunde !== null && d.klient !== null, handlinger: await kontoHandlinger(d.db, l.kontoId, r, nu()) }));
+      // KC-0195: the last invoices, read from Stripe on demand (nothing of their content is stored); the page stands without them.
+      let fakturaer: Faktura[] | 'fejl' | undefined;
+      if (kunde && d.klient) {
+        try { fakturaer = await d.klient.listFakturaer(kunde.stripeKunde); } catch (err) {
+          console.error(`sky abonnement: fakturaerne kunne ikke hentes: ${skjulNoegler((err as Error).message)}`);
+          fakturaer = 'fejl';
+        }
+      }
+      return c.html(statusSide({ csrf: l.csrf, rettighed: r, priser: d.priser, overGraense: overGraense(r, h?.antal ?? 1, d.priser), portal: kunde !== null && d.klient !== null, handlinger: await kontoHandlinger(d.db, l.kontoId, r, nu()), ...(fakturaer === undefined ? {} : { fakturaer }) }));
     }
     if (!(await d.tilPlan(l.kontoId))) return c.redirect('/tilmeld', 303);
     const kunde = await hentKundeRaekke(d.db, l.kontoId);
@@ -204,8 +230,8 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
       const fandtes = await hentKundeRaekke(d.db, l.kontoId);
       const alle = fandtes ? await klient.listAbonnementer(fandtes.stripeKunde) : [];
       if (fandtes && alle.some((a) => LEVENDE.has(a.status))) {
-        const p = await klient.opretPortal(fandtes.stripeKunde, new URL('/konto/abonnement', d.publicUrl).href);
-        return c.redirect(p.url, 303);
+        const url = await aabnPortal(klient, fandtes.stripeKunde, l.sprog);
+        return url ? c.redirect(url, 303) : ikkeKlar(c);
       }
       const pris = await klient.prisForLookupKey(lookupKey(plan, interval));
       if (!pris) {
@@ -331,7 +357,7 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
     } catch (err) { return stripeFejl(c, l.sprog, F[l.sprog].fortrydSideTitel, F[l.sprog].fortrydFejl, err); }
   });
 
-  // --- The Portal (KC-0195 configures it) -------------------------------------------------------
+  // --- The Portal (KC-0195): owner only, an account with a Stripe customer only, a fresh session per click --------
   app.post('/api/abonnement/portal', smaa, async (c) => {
     const l = await d.adgang.beskyttet(c, (await formular(c))['csrf']);
     if (!l) return c.text('Forbudt', 403);
@@ -340,7 +366,8 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
     const kunde = await hentKundeRaekke(d.db, l.kontoId);
     if (!kunde) return c.redirect('/konto/abonnement', 303);
     try {
-      return c.redirect((await d.klient.opretPortal(kunde.stripeKunde, new URL('/konto/abonnement', d.publicUrl).href)).url, 303);
+      const url = await aabnPortal(d.klient, kunde.stripeKunde, l.sprog);
+      return url ? c.redirect(url, 303) : ikkeKlar(c);
     } catch (err) {
       return fejl(c, err);
     }

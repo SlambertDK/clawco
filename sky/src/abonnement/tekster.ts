@@ -34,6 +34,22 @@ export const T = {
   opsiges: (d: string): string => `Slutter ${dato(d)}`,
   gave: 'Gave (privat beta)',
   portalKnap: 'Kort, fakturaer og planskift',
+  // KC-0195: the Abonnement page.
+  forklar: {
+    proeve: 'Uden et kort sættes Clawco på pause, når prøven slutter, indtil du tilføjer et. Med et kort fortsætter abonnementet, og den første betaling trækkes den dag.',
+    opsiges: (d: string): string => `Du kan bruge Clawco indtil ${dato(d)}. Der trækkes ikke flere penge.`,
+    forfalden: 'Opdatér kortet med knappen herunder for at betale det, der mangler.',
+  },
+  portalHint: 'Skift plan, opdatér kortet eller ret dine oplysninger hos Stripe, som tager imod betalingen. Du kommer tilbage hertil bagefter.',
+  spoergEjeren: 'Det er ejeren af jeres Clawco, der skifter plan og betaler. Spørg ejeren, hvis noget skal ændres.',
+  fakturaTitel: 'Fakturaer',
+  fakturaIngen: 'Ingen fakturaer endnu.',
+  fakturaFejl: 'Fakturaerne kan ikke hentes lige nu. Prøv igen om lidt.',
+  fakturaSe: 'Se faktura',
+  fakturaStatus: (s: string | null): string => (s === 'paid' ? 'Betalt' : s === 'void' ? 'Annulleret' : 'Ikke betalt'),
+  fakturaBeloeb: (beloeb: number, valuta: string): string =>
+    `${(beloeb / 100).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${valuta.toLowerCase() === 'dkk' ? 'kr.' : valuta.toUpperCase()}`,
+  dato,
   overGraense: (antal: number, max: number, plan: string, forslag: string | null): string =>
     `I er ${antal}, ${plan} er til ${max}: ${forslag ? `vælg ${forslag} eller ret medlemmerne` : 'ret medlemmerne'}. Ingen mister adgangen, men I kan ikke invitere flere lige nu.`,
   ejerTitel: 'Spørg den, der ejer abonnementet',

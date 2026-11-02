@@ -5,6 +5,7 @@ import { side } from '../delt/side.ts';
 import type { Priser } from './priser.ts';
 import type { IntervalNavn } from './opsaet.ts';
 import type { Rettighed } from './rettigheder.ts';
+import type { Faktura } from './stripe-klient.ts';
 import { LANDE } from './lande.ts';
 import { T } from './tekster.ts';
 import type { Handling } from './handlinger.ts';
@@ -55,21 +56,54 @@ export function statusLinje(r: Rettighed): string {
 export function kontoResume(r: Rettighed, priser: Priser, handlinger: Handling[] = []): { plan: string; tekst: string; handlinger: Handling[] } {
   const navn = priser.planer[r.plan]?.navn;
   if (!navn) return { plan: T.status.ingen, tekst: T.kontoResumeIngen, handlinger };
-  return { plan: r.kilde === 'gave' ? `${navn} · ${T.gave}` : navn, tekst: [statusLinje(r), r.opsiges ? T.opsiges(r.opsiges) : null].filter(Boolean).join(' · '), handlinger };
+  // A cancelled subscription has no next payment (KC-0195): only its end date.
+  const linje = r.opsiges && r.status === 'aktiv' ? T.status.aktiv(null) : statusLinje(r);
+  return { plan: r.kilde === 'gave' ? `${navn} · ${T.gave}` : navn, tekst: [linje, r.opsiges ? T.opsiges(r.opsiges) : null].filter(Boolean).join(' · '), handlinger };
 }
 
-export function statusSide(a: { csrf: string; rettighed: Rettighed; priser: Priser; overGraense: { antal: number; max: number; plan: string; forslag: string | null } | null; portal: boolean; handlinger?: Handling[] }): string {
+/** The sentence under the status line (KC-0195): what happens next in this state. */
+function forklaring(r: Rettighed): string | null {
+  if (r.opsiges && (r.status === 'aktiv' || r.status === 'proeve')) return T.forklar.opsiges(r.opsiges);
+  if (r.status === 'proeve') return T.forklar.proeve;
+  if (r.status === 'forfalden') return T.forklar.forfalden;
+  return null;
+}
+
+const VIST_FAKTURAER = 12;
+/** Only https links to Stripe's hosted page; drafts were never sent to the customer. */
+const sikkerUrl = (u: string | null): string | null => (u && /^https:\/\//.test(u) ? u : null);
+
+function fakturaListe(f: Faktura[] | 'fejl'): Markup {
+  if (f === 'fejl') return html`<section><h2>${T.fakturaTitel}</h2><p class="daempet">${T.fakturaFejl}</p></section>`;
+  const vist = f.filter((x) => x.status !== 'draft').sort((x, y) => y.oprettet.getTime() - x.oprettet.getTime()).slice(0, VIST_FAKTURAER);
+  if (!vist.length) return html`<section><h2>${T.fakturaTitel}</h2><p class="daempet">${T.fakturaIngen}</p></section>`;
+  return html`<section><h2>${T.fakturaTitel}</h2><ul class="liste">${vist.map((x) => {
+    const url = sikkerUrl(x.url);
+    return html`<li><span>${T.dato(x.oprettet.toISOString())}${x.nummer ? html` · ${x.nummer}` : ''}<br><small>${T.fakturaBeloeb(x.beloeb, x.valuta)} · ${T.fakturaStatus(x.status)}</small></span>${url ? html`<a href="${url}">${T.fakturaSe}</a>` : ''}</li>`;
+  })}</ul></section>`;
+}
+
+/** The Abonnement page (KC-0191, KC-0195): plan, state with its date, one button to Stripe's Portal, the owner's actions,
+ *  and the last invoices. `laeser`: a household member's read-only view ("Spørg ejeren"); `fakturaer` is left out when
+ *  the account has no Stripe customer. Shows the entitlement the webhook wrote, never anything from the query string. */
+export function statusSide(a: { csrf: string; rettighed: Rettighed; priser: Priser; overGraense: { antal: number; max: number; plan: string; forslag: string | null } | null; portal: boolean; handlinger?: Handling[]; fakturaer?: Faktura[] | 'fejl'; laeser?: boolean }): string {
   const r = a.rettighed;
   const { plan, tekst } = kontoResume(r, a.priser);
   const o = a.overGraense;
+  const mere = forklaring(r);
+  const ejer = !a.laeser;
   return side(T.abonnementTitel, html`<h1>${T.abonnementTitel}</h1>
 <section>
 <h2>${plan}</h2>
 <p>${tekst}</p>
+${mere && ejer ? html`<p class="daempet">${mere}</p>` : ''}
+${a.laeser ? html`<p class="daempet">${T.spoergEjeren}</p>` : ''}
 </section>
 ${o ? html`<div class="kort"><p>${T.overGraense(o.antal, o.max, o.plan, o.forslag)}</p></div>` : ''}
-${a.portal ? html`<form method="post" action="/api/abonnement/portal">${csrfFelt(a.csrf)}<button type="submit">${T.portalKnap}</button></form>` : ''}
-${a.handlinger?.length ? html`<section><ul class="liste">${a.handlinger.map((h) => html`<li><a href="${h.href}">${h.tekst}</a></li>`)}</ul></section>` : ''}
+${a.portal && ejer ? html`<form method="post" action="/api/abonnement/portal">${csrfFelt(a.csrf)}<button type="submit" class="primaer">${T.portalKnap}</button></form>
+<p><small>${T.portalHint}</small></p>` : ''}
+${ejer && a.handlinger?.length ? html`<section><ul class="liste">${a.handlinger.map((h) => html`<li><a href="${h.href}">${h.tekst}</a></li>`)}</ul></section>` : ''}
+${ejer && a.fakturaer !== undefined ? fakturaListe(a.fakturaer) : ''}
 ${tilbage()}`, { csrf: a.csrf });
 }
 

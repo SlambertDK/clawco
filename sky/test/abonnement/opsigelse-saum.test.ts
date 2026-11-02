@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import { stativ, startProeve } from './stativ.ts';
 import { StripeBetalingsKlient } from '../../src/abonnement/stripe-sdk.ts';
 import type { BetalingsKlient } from '../../src/abonnement/stripe-klient.ts';
+import { byggPortalKonfiguration } from '../../src/abonnement/portal.ts';
+import { laesPriser } from '../../src/abonnement/priser.ts';
 
 const src = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src');
 
@@ -61,7 +63,18 @@ test('invariant: no code path in Sky issues a Stripe refund, credit note, payout
   const filer = alleKode(src);
   assert.ok(filer.length > 100);
   const fund = filer.flatMap((f) => { const m = PENGE.exec(kodeUdenTekst(fs.readFileSync(f, 'utf8'))); return m ? [`${path.relative(src, f)}: ${m[0]}`] : []; });
-  assert.deepEqual(fund, []);
+  // KC-0195: the Portal's plan change prorates only upgrades; the test below holds that no downgrade can credit.
+  assert.deepEqual(fund.filter((x) => x !== 'abonnement/portal.ts: proration_behavior'), []);
+});
+
+test('KC-0195: the Portal never moves money back — downgrades and shorter intervals wait for the period end, cancelling never prorates', () => {
+  const p = byggPortalKonfiguration(laesPriser(), { 'clawco-sky-solo-maaned': 'p1', 'clawco-sky-solo-aar': 'p2', 'clawco-sky-husstand-maaned': 'p3', 'clawco-sky-husstand-aar': 'p4' }, 'https://sky.example.test/konto/abonnement');
+  const op = p.features.subscription_update!;
+  assert.deepEqual(op.schedule_at_period_end?.conditions?.map((c) => c.type).sort(), ['decreasing_item_amount', 'shortening_interval']);
+  assert.equal(p.features.subscription_cancel?.mode, 'at_period_end');
+  assert.equal(p.features.subscription_cancel?.proration_behavior, undefined);
+  const kode = kodeUdenTekst(fs.readFileSync(path.join(src, 'abonnement/portal.ts'), 'utf8'));
+  assert.equal(kode.match(/\bprorat\w*/gi)?.length, 1, 'one proration setting in the Portal, the one checked here');
 });
 
 test('invariant: the payment seam has no method that gives money back, and the SDK client calls only the reads, cancel and update it needs', () => {
@@ -72,7 +85,7 @@ test('invariant: the payment seam has no method that gives money back, and the S
   const sdk = kodeUdenTekst(fs.readFileSync(path.join(src, 'abonnement/stripe-sdk.ts'), 'utf8'));
   const skriv = [...sdk.matchAll(/this\.stripe\.((?:\w+\.)+\w+)\(/g)].map((m) => m[1]!).filter((n) => !/\.(list|retrieve|retrieveCurrent)$/.test(n));
   assert.deepEqual([...new Set(skriv)].sort(), [
-    'billingPortal.sessions.create', 'checkout.sessions.create', 'checkout.sessions.expire', 'customers.create', 'prices.create', 'prices.update',
+    'billingPortal.configurations.create', 'billingPortal.configurations.update', 'billingPortal.sessions.create', 'checkout.sessions.create', 'checkout.sessions.expire', 'customers.create', 'prices.create', 'prices.update',
     'products.create', 'products.update', 'subscriptions.cancel', 'subscriptions.update',
   ]);
 });
