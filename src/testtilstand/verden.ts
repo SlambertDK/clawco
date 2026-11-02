@@ -37,6 +37,7 @@ import { falskKildeData, GMAIL_AFVIST, GOOGLE_AFVIST, googleKalendere, googleMai
 import { googleKalender, GOOGLE_KALENDER_ID } from '../kilder/google-kalender/kilde.ts';
 import { nyhederRss } from '../kilder/nyheder-rss/kilde.ts';
 import { aulaKalender, AULA_KALENDER_ID } from '../kilder/aula-kalender/kilde.ts';
+import { POST_DOMAENE } from './indhold/digitalpost.ts';
 import { AULA_FORBUNDET, AULA_LINK, AULA_TILBAGEKALDT, aulaIcs, aulaLink } from './indhold/aula.ts';
 import { beskederKilde } from '../kilder/beskeder/kilde.ts';
 import { HentFejl, lavHenter, type Henter } from '../kilder/nyheder-rss/hent.ts';
@@ -254,6 +255,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     stoette: { slaaTil: '/api/stoette/start', slaaFra: '/api/stoette/slaa-fra' },
     // KC-0203: the closed beta is on in the moments whose folder carries beta.json (kunMedFil), nowhere else.
     beta: { samtykkeStart: false, kunMedFil: true },
+    // KC-0233: the Digital Post rule over the world's mail; its invented sender's domain is added to the hint domains, and the mail is read afresh at every moment.
+    danmark: { domaener: [POST_DOMAENE], cacheMs: 0 },
     // KC-0069: a real queue, one run with Hermes at a time, so Nu and the Kø panel can show "I kø". A jump settles
     // everything queued or running at once (runs.annuller) and waits for writes in flight (runs.tomgang) before it wipes.
     maxParallel: 1,
@@ -268,7 +271,7 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     // KC-0136: notes are the real connector over the world's own vault (home = the world's dir, so detection
     // finds that vault and nothing of the machine's).
     kilder: [
-      ...falskeKilder({ data: falskKildeData(() => (erKold(nu.id) ? { n: 0, dag, kold: true } : { n: momentNr(nu.id), dag })), tilstand: (s) => KILDE_TILSTAND[nu.id]?.[s] ?? 'ok', reparation: repareret })
+      ...falskeKilder({ data: falskKildeData(() => (erKold(nu.id) ? { n: 0, dag, kold: true } : { n: momentNr(nu.id), dag, moment: nu.id })), tilstand: (s) => KILDE_TILSTAND[nu.id]?.[s] ?? 'ok', reparation: repareret })
         .map((k) => (k.slags === 'noter' ? noterKilde({ hjem: dir, platform: 'linux' }) : k))
         // KC-0138: messages are the real connector over the world's inbound log (beskeder() below), not a fake.
         .filter((k) => k.slags !== 'beskeder'),

@@ -15,6 +15,7 @@ import type { Dagstal } from '../tillid/dagstal.ts';
 import type { Skjult } from '../tillid/skjulte.ts';
 import type { Stikbog } from '../tillid/stikproeve.ts';
 import type { BetaTilstand } from '../beta/tilstand.ts';
+import type { DanmarkTilstand } from '../danmark/tilstand.ts';
 
 /** One moment of the day the panel can jump to. */
 export type Moment = {
@@ -70,6 +71,8 @@ export type Froe = {
   stikproever?: Stikbog;
   /** KC-0203: beta.json — the closed beta is on at this moment (the world's switch is the file); absent = an install with nothing of the beta. */
   beta?: BetaTilstand;
+  /** KC-0233: danmark/digital-post.json — the confirmed Digital Post sender, the notices marked seen, the viewer; absent = nothing confirmed. */
+  danmark?: DanmarkTilstand;
   /** KC-0132: kilder.json — which fake connectors are connected at this moment; absent = none. */
   kilder?: KilderKonfig;
   /** KC-0139: helbred.json — what the app remembers of each connected source's health; absent = nothing (all ok). */

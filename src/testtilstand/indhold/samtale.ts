@@ -223,7 +223,10 @@ const INTENTS: Intent[] = [
       'At svare på dag 14-spørgsmålet i Nu, også om du ville betale for Clawco. Ingen betaling sker her; det er kun en mening.',
       'At se, hvad du deler med Henrik: siden Hvad deler jeg? viser præcis de tal, der kan sendes, og du kan slå delingen fra med det samme.',
       'Intet haster: Aula er koblet, og skolens og børnehavens uge står i Husstanden. Clawco læser kun tid, titel, sted og institution.',
-      'At lave et nyt kalenderlink i Aula: det gamle virker ikke mere, så skolens uge mangler. Indsæt det nye på kortet under Forbindelser.'),
+      'At lave et nyt kalenderlink i Aula: det gamle virker ikke mere, så skolens uge mangler. Indsæt det nye på kortet under Forbindelser.',
+      'At vælge, hvilken adresse Digital Post sender notifikationen fra: trin 2 i Start har den ene adresse, Clawco fandt i din indbakke. Clawco ser kun notifikationen, aldrig selve brevet.',
+      'Intet haster: der er kommet ny Digital Post. Kortet i Nu har et link til din postkasse; tryk Set den, når du har læst brevet dér.',
+      'At tjekke din Digital Post selv: Clawco kan ikke læse din mail lige nu og kan derfor ikke se, om der er kommet noget nyt.'),
   },
   {
     art: 'hvem',

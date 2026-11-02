@@ -173,6 +173,11 @@ const HAAND: [string, string][] = [
   ['beta-deling-side', 'data-beta-json>'],                                       // KC-0203: "Hvad deler jeg?" with the answer as it stands (/beta/deling, the moment "Beta: Hvad deler jeg?")
   ['beta-deling-hvis', 'data-beta-json-hvis'],                                   // KC-0203: what switching sharing on would add (consent off)
   ['beta-deling-link', 'data-beta-deling-link'],                                 // KC-0203: the link in the Kø panel (every beta moment)
+  ['post-start-trin', 'data-post-start'],                                       // KC-0233: Start's Danmark-pakke step (the moment "Digital Post: Start-trinnet")
+  ['post-kort', 'data-post-kort="'],                                            // KC-0233: the card "Ny Digital Post" in Nu (the moment "Ny Digital Post")
+  ['post-viser', 'data-post-viser'],                                            // KC-0233: its link to the person's chosen viewer
+  ['post-set', 'data-post-set="'],                                              // KC-0233: its one button, "Set den"
+  ['post-kan-ikke-se', 'data-post-kort="kan-ikke-se"'],                          // KC-0233: the card when the mail cannot be read (the moment "Digital Post: mailen svarer ikke")
   // Excluded: the blocks forespoergsel and ressource. They are defined in src/shell/katalog.ts, not built; no renderer
   // draws them until E5 builds them (KC-0109), so nothing can show them (BYGGET leaves them out).
   // Excluded: "Se ændringen (PR)" on a finished opgave. Its schema (udvikling/opgaver.ts) only accepts GitHub pull

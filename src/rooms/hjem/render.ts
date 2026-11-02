@@ -23,6 +23,7 @@ import type { Stikuge } from '../../tillid/stikproeve.ts';
 import { stikproeveKort, stopKort } from './stikproeve.ts';
 import { regelforslagKort } from '../../shell/regelforslagkort.ts';
 import { betaKort, feedbackKort, type BetaVisning } from './beta.ts';
+import { POST_GRUPPE, postElementer, type PostVisning } from './digitalpost.ts';
 import { hjemTekst } from './tekster.ts';
 import { tekst } from '../../shell/tekster.ts';
 
@@ -81,6 +82,8 @@ export type HjemData = {
   stopTilbud?: true;
   /** KC-0203: the closed beta's cards (the owner's; only under KC_BETA=ja, only while one is due); absent = none. */
   beta?: BetaVisning;
+  /** KC-0233: the Danmark-pakke's card — unseen Digital Post notices, or "kan ikke se" (the owner's; absent = nothing to say). */
+  digitalPost?: PostVisning;
 };
 
 export type CcRaekke = { id: string; status: 'sendt' | 'modtaget' | 'i-gang' | 'parkeret' | 'faerdig'; projekt: string; saetning: string; oprettet: string; ticket?: string; bevis?: string; pr?: string; grund?: string;
@@ -238,20 +241,20 @@ function logRaekke(h: HjemData['hermes'][number], now: Date): Markup {
 }
 
 /** What waits on Henrik in Hjem itself: Claude Code's questions and parked opgaver, and Kuratoren's open cards. */
-type EgneFelter = 'kort' | 'gjort' | 'claudeCode' | 'person' | 'reglerFejl' | 'kildeHelbred' | 'regelforslag' | 'stikproeve' | 'stopTilbud' | 'beta';
+type EgneFelter = 'kort' | 'gjort' | 'claudeCode' | 'person' | 'reglerFejl' | 'kildeHelbred' | 'regelforslag' | 'stikproeve' | 'stopTilbud' | 'beta' | 'digitalPost';
 function egneDele(d: Pick<HjemData, EgneFelter>) {
   const gjort = new Set(d.gjort ?? []);
   const cc = d.claudeCode ?? [];
   // A card is done when its handling ran (and was not undone) or, without a handling, when it was written to the ledger.
   const erGjort = (k: Kort): boolean => (k.handling ? gjort.has(k.handling.id) : Boolean(k.skrevet));
   const rangeret = kunSynlige(d.kort ?? [], d.person).sort((a, b) => a.prioritet - b.prioritet);
-  return { gjort, erGjort, rangeret, aabne: rangeret.filter((k) => !erGjort(k)), spoerger: cc.filter(erSpoergsmaal), parkerede: cc.filter((o) => venterPaaHenrik(o) && !o.spoergsmaal), forbindelser: kunSynlige(d.kildeHelbred ?? [], d.person), forslag: kunSynlige(d.regelforslag ?? [], d.person).filter((f) => f.status === 'afventer'), beta: betaElementer(d) };
+  return { gjort, erGjort, rangeret, aabne: rangeret.filter((k) => !erGjort(k)), spoerger: cc.filter(erSpoergsmaal), parkerede: cc.filter((o) => venterPaaHenrik(o) && !o.spoergsmaal), forbindelser: kunSynlige(d.kildeHelbred ?? [], d.person), forslag: kunSynlige(d.regelforslag ?? [], d.person).filter((f) => f.status === 'afventer'), beta: betaElementer(d), post: postElementer(d.digitalPost, d.person) };
 }
 
 /** KC-0093: Hjem's own share of "venter på dig" — the nav and the tab title add it to every room's count. */
 export function hjemEgne(d: Pick<HjemData, EgneFelter>): number {
   const e = egneDele(d);
-  return e.aabne.length + e.spoerger.length + e.parkerede.length + e.forbindelser.length + e.forslag.length + (d.reglerFejl ? 1 : 0) + (d.stikproeve ? 1 : 0) + (d.stopTilbud ? 1 : 0) + e.beta.length;
+  return e.aabne.length + e.spoerger.length + e.parkerede.length + e.forbindelser.length + e.forslag.length + (d.reglerFejl ? 1 : 0) + (d.stikproeve ? 1 : 0) + (d.stopTilbud ? 1 : 0) + e.beta.length + e.post.length;
 }
 
 /** KC-0203: the beta's cards — the owner's only (a member never sees them even if handed the data). Their ids start with BETA_ID. */
@@ -289,7 +292,7 @@ function moedeNu(m: NonNullable<HjemData['moede']>): Markup {
  * what required Henrik) reads the very same groups, so the count can never disagree with the screen (§0 r6).
  */
 function kraeverGrupper(d: HjemData, nu: Date, unik: (id: string) => string): Gruppe[] {
-  const { gjort, aabne, spoerger, parkerede, forbindelser, forslag, beta } = egneDele(d);
+  const { gjort, aabne, spoerger, parkerede, forbindelser, forslag, beta, post } = egneDele(d);
   const t = hjemTekst();
   const igen = new Set(d.skrivIgen ?? []);
   const stor = aabne.find((k) => k.handling)?.id; // rule 6: the one large card
@@ -297,6 +300,8 @@ function kraeverGrupper(d: HjemData, nu: Date, unik: (id: string) => string): Gr
   return [
     // KC-0203: the closed beta's questions (only under KC_BETA=ja); first, because they are asked once and leave.
     { titel: t.betaGruppe, form: 'kort', elementer: beta },
+    // KC-0233: new Digital Post (the Danmark-pakke): one card per unseen notice, gone when marked "Set den".
+    { titel: POST_GRUPPE, form: 'kort', elementer: post },
     { titel: t.regler, form: 'kort', elementer: [...(d.reglerFejl ? [{ id: 'regler:ulaeselig', html: reglerFejlKort(d.reglerFejl) }] : []), ...forslag.map((f) => ({ id: `regelforslag:${f.id}`, html: regelforslagKort(f) }))] },
     // KC-0145: the Sunday sample (one bunke, gone when all lines are answered) and the stop question.
     { titel: t.soendagstjek, form: 'kort', elementer: [...(d.stikproeve ? [{ id: `stikproeve:${d.stikproeve.uge}`, html: stikproeveKort(d.stikproeve) }] : []), ...(d.stopTilbud ? [{ id: 'soendagstjek:stop', html: stopKort() }] : [])] },

@@ -106,6 +106,8 @@ export type RoomDeps = {
   laptop?: () => boolean;
   /** KC-0161: Start's window on the local Tailscale (read-only state, and the one share command on a tap), wired by the composition root. Absent = no card (Sky, no wiring). */
   tailscale?: TailscaleVindue;
+  /** KC-0233: Start's Danmark-pakke step (Digital Post), wired by the composition root over src/danmark/vindue.ts. Absent = no step (no data dir). */
+  danmark?: DanmarkVindue;
   /** KC-0129: the one folder raw uploads live in while a proposal is made (default `<os tmp>/clawco-import`); emptied when the proposals are saved or cancelled, and after an hour. */
   importTmp?: string;
 };
@@ -122,6 +124,15 @@ export type MailForbindelse = {
   laes(): Promise<{ id: string; emne: string; fra: string; fraEmail?: string; modtaget: string; laest: boolean; flag: boolean; vedhaeftning: boolean; messageId?: string }[]>;
   /** One declared verb through the connector registry (policy layer + audit line). `fortryd`: how to undo it, the same way. */
   handl(navn: 'flyt' | 'kladde', args: Record<string, string>, i: { person: Person; kanal: 'knap' | 'stemme' | 'chat' | 'baggrund' }): Promise<{ ok: boolean; tekst: string; fortryd?: { navn: string; args: Record<string, string> } }>;
+};
+
+/** KC-0233: Start's window on the Digital Post rule (src/danmark/vindue.ts, restated: rooms import nothing from src/danmark). `gem` and `ikkeNu` throw ActionError with a plain sentence. */
+export type DanmarkVindue = {
+  /** The step while it is open (a mail source is connected, no sender confirmed, not put away); null = nothing to show. */
+  start(): Promise<{ kandidater: string[]; laeser: 'ok' | 'kan-ikke-se'; viser: string; visere: { id: string; navn: string }[]; domaener: readonly string[] } | null>;
+  /** Confirm the notification sender and the viewer; refuses an address that is not a Digital Post sender. */
+  gem(afsender: string, viser: string): Promise<void>;
+  ikkeNu(): Promise<void>;
 };
 
 /** KC-0161: Start's window on Tailscale. The runner behind it only ever runs the three allow-listed commands (src/shell/tailscale.ts). */

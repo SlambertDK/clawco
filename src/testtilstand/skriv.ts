@@ -15,7 +15,7 @@ import { lavRevisionslog } from '../graenser/revisionslog.ts';
 import { skrivKonfig } from '../kilder/register.ts';
 
 /** Subfolders of the test dir the app derives from the seed; wiped on every seed. */
-const OPRYDDES = ['rum', 'hermes-state', 'vault', 'tillid', 'hemmeligheder', 'beskeder', 'beskeder-clawco'];
+const OPRYDDES = ['rum', 'hermes-state', 'vault', 'tillid', 'hemmeligheder', 'beskeder', 'beskeder-clawco', 'danmark'];
 /** "test" must be a whole token of the folder name (data-test, kc-test-1), not a substring (latest, contest). */
 const TESTMAPPE = /(^|[-_.])test($|[-_.])/i;
 
@@ -63,6 +63,7 @@ export async function skrivFroe(dataDir: string, froe: Froe, store: RumLager, da
   if (froe.pause) await skrivAtomisk(path.join(rod, 'pause.json'), JSON.stringify(froe.pause, null, 2));
   if (froe.stoette) await skrivAtomisk(path.join(rod, 'stoette.json'), JSON.stringify(froe.stoette, null, 2)); // KC-0188: support looking along
   if (froe.beta) await skrivAtomisk(path.join(rod, 'beta.json'), JSON.stringify(froe.beta, null, 2)); // KC-0203: the closed beta is on
+  if (froe.danmark) { await mkdir(path.join(rod, 'danmark'), { recursive: true }); await skrivAtomisk(path.join(rod, 'danmark', 'digital-post.json'), JSON.stringify(froe.danmark, null, 2)); } // KC-0233: the confirmed Digital Post sender
   if (froe.kilder) await skrivKonfig(rod, froe.kilder); // KC-0132: the moment's connected fakes
   if (froe.helbred) await skrivAtomisk(path.join(rod, 'helbred.json'), JSON.stringify({ kilder: froe.helbred }, null, 2)); // KC-0139: the moment's connection health
   if (froe.profil) await skrivAtomisk(path.join(rod, 'profil.json'), JSON.stringify(froe.profil, null, 2)); // KC-0126: Start's step 1

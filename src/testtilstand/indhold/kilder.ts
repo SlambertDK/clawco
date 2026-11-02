@@ -21,6 +21,7 @@ import { NYHEDER_RSS_ID } from '../../kilder/nyheder-rss/kilde.ts';
 import { MAIL_GMAIL_ID } from '../../kilder/mail-gmail/kilde.ts';
 import { koldMail } from './start.ts';
 import { AULA_FORBUNDET, AULA_TILBAGEKALDT } from './aula.ts';
+import { erPostMoment, postKuverter } from './digitalpost.ts';
 import { AULA_KALENDER_ID } from '../../kilder/aula-kalender/kilde.ts';
 import type { Post } from '../../kilder/helbred.ts';
 import { BESKEDER_ID } from '../../kilder/beskeder/kilde.ts';
@@ -178,11 +179,12 @@ export function kildeData(n: number, f: Fakta): { [S in Slags]: SlagsData[S] } {
 }
 
 /** The fakes' data: the test world's current moment (`hent`; `kold` = the cold start's mail, KC-0126), or in dev (npm run dev) the first moment of today. */
-export function falskKildeData(hent?: () => { n: number; dag: string; kold?: boolean }): FalskData {
+export function falskKildeData(hent?: () => { n: number; dag: string; kold?: boolean; moment?: string }): FalskData {
   const nu = (tid: Date) => {
     const h = hent?.();
     const f = fakta(h?.dag ?? idagKbh(tid));
     const d = kildeData(h?.n ?? 0, f);
+    if (h?.moment && erPostMoment(h.moment)) return { ...d, mail: [...postKuverter(f), ...d.mail] }; // KC-0232: the Digital Post moments' notifications in the inbox
     return h?.kold ? { ...d, mail: koldMail(f) } : d;
   };
   return {
@@ -352,6 +354,7 @@ export const KILDE_TILSTAND: Partial<Record<string, Partial<Record<Slags, FalskT
   'kilde-log-ind-igen': { kalender: 'log-ind-igen' },
   'kilde-nede': { mail: 'nede' },
   'kilde-snart-udloebet': { kalender: 'snart-udloebet' },
+  'post-kan-ikke-se': { mail: 'nede' }, // KC-0233: the Digital Post card says "kan ikke se"
 };
 
 /**

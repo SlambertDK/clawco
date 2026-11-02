@@ -812,6 +812,19 @@
     }
     return false;
   }
+  // KC-0233: "Set den" / "Set dem" on the Digital Post card in Nu: one human tap (the one-time yes for exactly this notice, or for all), then Nu is fetched again.
+  function postKlik(btn) {
+    if (btn.hasAttribute('data-post-set')) {
+      var id = btn.getAttribute('data-post-set');
+      betaPost(btn, '/api/danmark/post/set', { id: id }, { rum: 'hjem', slags: 'post', id: 'set:' + id }, refetchHjem);
+      return true;
+    }
+    if (btn.hasAttribute('data-post-set-alle')) {
+      betaPost(btn, '/api/danmark/post/set', { alle: true }, { rum: 'hjem', slags: 'post', id: 'set:*' }, refetchHjem);
+      return true;
+    }
+    return false;
+  }
   if (roomEl) roomEl.addEventListener('input', function (ev) {
     var kort = ev.target && ev.target.closest ? ev.target.closest('[data-beta-feedback]') : null;
     if (kort && ev.target.hasAttribute('data-beta-tekst')) betaOpdater(kort);
@@ -824,6 +837,7 @@
         if (btn.dataset.lyt !== undefined || btn.dataset.mic !== undefined || btn.dataset.sig !== undefined) return; // handled by the stemme layer
         if (kortHandling(btn)) return;
         if (betaKlik(btn)) return;
+        if (postKlik(btn)) return;
         if (btn.dataset.kildeForbind) { kildeForbind(btn); return; }
         if (btn.dataset.kildeFjern) { kildeFjern(btn); return; }
         if (btn.dataset.handling) {

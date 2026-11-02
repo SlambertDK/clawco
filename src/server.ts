@@ -133,6 +133,7 @@ import { aulaKalender } from './kilder/aula-kalender/kilde.ts';
 import { beskederKilde, BESKEDER_ID, type BeskederKilde } from './kilder/beskeder/kilde.ts';
 import type { Kontakt } from './kilder/beskeder/besked.ts';
 import { mailForbindelse } from './kilder/mail-vindue.ts';
+import { KENDTE_DOMAENER } from './kilder/danmark/digital-post.ts';
 import { googleKalender } from './kilder/google-kalender/kilde.ts';
 import { mailGmail } from './kilder/mail-gmail/kilde.ts';
 import { readNyhederSource } from './rooms/nyheder/source.ts';
@@ -148,6 +149,9 @@ import { byggMaal, dageFraDagstal, foersteVaerdiFraStart, type MaalKilder } from
 import { laesBetaPriser } from './beta/priser.ts';
 import { renderDeling } from './beta/side.ts';
 import type { BetaVisning } from './rooms/hjem/beta.ts';
+import type { PostVisning } from './rooms/hjem/digitalpost.ts';
+import { DanmarkFejl, lavDanmarkLager } from './danmark/tilstand.ts';
+import { DanmarkAfvist, lavDanmark, type MailSyn } from './danmark/vindue.ts';
 import { parseStartState } from './rooms/start/schema.ts';
 import { manifest } from './shell/manifest.ts';
 import { MODEL_ENV_NOEGLER, udbyderAf, UDBYDERE } from './rooms/start/udbydere.ts';
@@ -238,6 +242,12 @@ export type AppDeps = {
    * Absent = nothing of the beta exists: no card, no page, no link, no route. Needs `dataDir` (beta.json lives there).
    */
   beta?: BetaIndstilling;
+  /**
+   * KC-0233: the Danmark-pakke's Digital Post rule (src/danmark/). Always on with a data dir (it shows nothing until a mail
+   * source is connected and the owner confirmed the notification sender). `domaener` adds to the hint domains (the test world's invented
+   * one); `cacheMs` is how long one read of the mail is reused (default 2 minutes; 0 in the test world, whose moments change the mail).
+   */
+  danmark?: { domaener?: readonly string[]; cacheMs?: number };
 };
 
 /** KC-0116: who is looking, set once per request by the identity middleware. */
@@ -396,6 +406,27 @@ export function createApp(deps: AppDeps) {
     } catch { /* not readable now: the health check says why */ }
     return { nyheder: [], kilder: { antal: 0, medNyheder: 0, nyheder: 0, fejlede: [] } };
   };
+  // KC-0233: the Danmark-pakke's Digital Post rule — a rule over the envelopes of the owner's own (privat) mail sources, read
+  // through the registry like every read (so health, zones and the envelope-only cut apply). Not a connector: no access of its own.
+  const danmark = deps.dataDir ? lavDanmark({
+    lager: lavDanmarkLager({ dir: deps.dataDir }), nu: now,
+    ...(deps.danmark?.domaener ? { domaener: [...KENDTE_DOMAENER, ...deps.danmark.domaener] } : {}),
+    ...(deps.danmark?.cacheMs !== undefined ? { cacheMs: deps.danmark.cacheMs } : {}),
+    async laesMail(): Promise<MailSyn> {
+      try {
+        const privat = [];
+        for (const k of await kilder.forbundne('mail')) if ((await kilder.hvor(k.id).catch(() => null))?.zone === 'privat') privat.push(k);
+        if (!privat.length) return { forbundet: false, kuverter: null };
+        const svar = await Promise.allSettled(privat.map((k) => kilder.laes(k.id)));
+        const ok = svar.flatMap((r) => (r.status === 'fulfilled' && r.value.slags === 'mail' ? [r.value.data] : []));
+        return ok.length ? { forbundet: true, kuverter: ok.flat() } : { forbundet: true, kuverter: null };
+      } catch { return { forbundet: false, kuverter: null }; } // a kilder.json that cannot be read: nothing here (the Kø panel says why)
+    },
+  }) : undefined;
+  if (danmark) {
+    const somFejl = <T>(f: () => Promise<T>): Promise<T> => f().catch((err: unknown) => { throw err instanceof DanmarkAfvist ? new ActionError(err.message, err.status === 409 ? 409 : 400) : err; });
+    d.danmark = { start: () => danmark.start(), gem: (a, v) => somFejl(() => danmark.gem(a, v)), ikkeNu: () => danmark.ikkeNu() };
+  }
   d.mailForbindelse = () => mailForbindelse(kilder); // KC-0214: Mail through the connector's verbs when no host mail source is connected
   // KC-0139: what the health state says — cards for Nu, freshness for the rooms, a sentence for the voice. Display only:
   // a kilder.json that cannot be read shows nothing here (the Kø panel says why), it never breaks a page.
@@ -593,6 +624,15 @@ export function createApp(deps: AppDeps) {
     foersteVaerdi: async () => foersteVaerdiFraStart(parseStartState(await deps.store.readState('start')), t.startet),
     dage: async () => (dagstal ? dageFraDagstal(await dagstal.dage(), idagKbh(now())) : []),
   });
+  /** KC-0233: what Nu is told about Digital Post (the owner's): unseen notices, "kan ikke se", or nothing. A damaged state file reads as nothing here. */
+  async function postVisning(): Promise<PostVisning | undefined> {
+    if (!danmark || d.person.rolle !== 'ejer') return undefined;
+    try { return (await danmark.nu()) ?? undefined; } catch (err) {
+      if (!(err instanceof DanmarkFejl)) throw err;
+      console.error('danmark:', err.message);
+      return undefined;
+    }
+  }
   /** KC-0203: what Nu is told about the beta: the plain card first, else the feedback card that is due; the owner's only. */
   async function betaVisning(): Promise<BetaVisning | undefined> {
     if (d.person.rolle !== 'ejer') return undefined;
@@ -828,7 +868,9 @@ export function createApp(deps: AppDeps) {
     const univers = indeks.univers.filter((u) => !u.arkiveret).map((u) => ({ id: u.id, navn: u.navn }));
     for (const u of univers) { const n = (await getRoomModule(universRum(u.id))?.venter(d)) ?? 0; if (n) out[universRum(u.id)] = n; }
     const start = await rejsen(d);
-    const synlige = synligeRum({ roomId, rum: ROOMS.map((r) => r.id), univers: univers.map((u) => u.id), venter: out, aabnet: await laesAabnet(deps.store), now: now(), situation: (await situationNu()).situation, start: { faerdig: start.faerdig, forslag: start.forslag.length }, husstand: await husstandSynlig(d) });
+    // KC-0233: Start is worth a place in the nav while its Digital Post step is open AND the inbox holds a sender that looks like Digital Post (the owner's).
+    const postTilbud = danmark && d.person.rolle === 'ejer' ? await danmark.promover().catch(() => false) : false;
+    const synlige = synligeRum({ roomId, rum: ROOMS.map((r) => r.id), univers: univers.map((u) => u.id), venter: out, aabnet: await laesAabnet(deps.store), now: now(), situation: (await situationNu()).situation, start: { faerdig: start.faerdig, forslag: start.forslag.length + (postTilbud ? 1 : 0) }, husstand: await husstandSynlig(d) });
     return { venter: out, univers, synlige };
   }
   const venter = async (): Promise<Record<string, number>> => (await navData()).venter;
@@ -982,10 +1024,12 @@ export function createApp(deps: AppDeps) {
     const hjemForslag = rum === HJEM && slags === 'forslag';
     // KC-0203: Send on a beta answer (id feedback:<day>) and the consent switch (id samtykke:ja|nej) are taps too.
     const hjemBeta = rum === HJEM && slags === 'beta' && betaPaa();
+    // KC-0233: "Set den" / "Set dem" on Digital Post in Nu (id set:<notice id> or set:*) is a tap too.
+    const hjemPost = rum === HJEM && slags === 'post' && !!danmark;
     // KC-0153: Send on a request in Husstanden (id = request:kind:hash of the text shown) is a tap too; KC-0154: so is
     // Send on an invitation (id = member:invitation:hash of the first message shown).
     const kanalSend = rum === 'husstand' && (slags === 'send' || slags === 'invitation');
-    if (!videnRegel && !hjemForslag && !hjemBeta && !kanalSend &&((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
+    if (!videnRegel && !hjemForslag && !hjemBeta && !hjemPost && !kanalSend &&((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
     const id = slags === 'aktion' ? aktionId(typeof b['id'] === 'string' ? b['id'] : '', typeof b['body'] === 'object' && b['body'] !== null ? b['body'] as Record<string, unknown> : {}) : typeof b['id'] === 'string' ? b['id'] : '';
     if (!id) return c.json({ error: 'Ukendt knap' }, 400);
     return c.json({ ja: TEGN.udsted({ person: c.get('person').id, rum, slags, id }) });
@@ -1194,6 +1238,31 @@ export function createApp(deps: AppDeps) {
     }
     live.notify(HJEM);
     return c.json({ samtykke: til });
+  });
+
+  // KC-0233: "Set den" on the Digital Post card in Nu — the one thing the card does besides linking to the viewer. The owner's, from
+  // Clawco itself, a human tap (the one-time yes of jaFraTryk, for exactly this notice or for "all"). It writes one id into
+  // danmark/digital-post.json; nothing reaches the mail, Hermes or any other service. 404 without a data dir.
+  app.post('/api/danmark/post/set', async (c) => {
+    if (!danmark) return c.json({ error: 'Findes ikke' }, 404);
+    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan sætte Digital Post.');
+    if (fremmed(c)) return c.json({ error: 'Det kan kun gøres fra Clawco selv.' }, 403);
+    const b = await body(c);
+    const alle = b['alle'] === true;
+    const id = typeof b['id'] === 'string' ? b['id'] : '';
+    if (alle === (id !== '') || id.length > 300) return c.json({ error: 'Ugyldig forespørgsel.' }, 400);
+    const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: HJEM, slags: 'post', id: alle ? 'set:*' : `set:${id}` });
+    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    try {
+      if (alle) await danmark.setAlle(); else await danmark.set(id);
+    } catch (err) {
+      if (err instanceof DanmarkAfvist) return c.json({ error: err.message }, err.status);
+      if (err instanceof DanmarkFejl) { console.error('danmark:', err.message); return c.json({ error: 'Digital Post-tilstanden kan ikke læses.' }, 503); }
+      throw err;
+    }
+    await deps.store.appendLog(HJEM, { kilde: 'henrik', tekst: alle ? 'Satte ny Digital Post som set.' : 'Satte en ny Digital Post som set.', zone: 'privat' });
+    live.notify(HJEM);
+    return c.json({ ok: true });
   });
 
   // KC-0188: support on (only from Sky, with its signed bevis, for the owner) and off (the owner). Neither is a
@@ -1545,7 +1614,7 @@ export function createApp(deps: AppDeps) {
   }
   async function ventendeForslagNu(): Promise<Regelforslag[]> { return ventendeForslag(synligKurator(await laesKurator(deps.store), d.person)); }
 
-  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true; beta?: BetaVisning }> {
+  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true; beta?: BetaVisning; digitalPost?: PostVisning }> {
     // KC-0117: Hjem shows (and counts) only what the person looking may see.
     const egne = (await deps.store.readLog(HJEM, 200)).filter((e) => synligFor(d.person, e));
     const gjort = egne.filter((e) => e.handlingId && !e.handlingId.startsWith('regnskab:') && !e.fortrudt).map((e) => e.handlingId as string);
@@ -1559,7 +1628,7 @@ export function createApp(deps: AppDeps) {
     // KC-0142: a rules file that cannot be read is the owner's to fix (one card); otherwise nothing is shown.
     const r = d.person.rolle === 'ejer' && regler ? await regler.laes() : undefined;
     // KC-0144: only the owner answers proposals (the rules file is the household's).
-    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...(ventendeForslag(kurator).length ? { regelforslag: ventendeForslag(kurator) } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
+    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...await postVisning().then((p) => (p ? { digitalPost: p } : {})), ...(ventendeForslag(kurator).length ? { regelforslag: ventendeForslag(kurator) } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
   }
 
   /** Hjem is not a room module: its page is built here from every room's hjemVenter, the logs and Kuratoren's cards. */
@@ -1571,7 +1640,7 @@ export function createApp(deps: AppDeps) {
     // Every active univers: today's prepared meeting.
     for (const u of (await laesIndeks(deps.store)).univers) if (!u.arkiveret) vent.push(...(await universRoom(u.id).hjemVenter(d)));
     const logs = await Promise.all(ROOM_MODULES.map(async (m) => (await deps.store.readLog(m.id, 8)).filter((e) => synligFor(d.person, e))));
-    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud, beta } = await hjemEgneData();
+    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud, beta, digitalPost } = await hjemEgneData();
     const gamle = await gamleNu();
     const egneIds = new Set(egne.slice(0, 8).map((e) => e.id));
     // Only Hjem's own entries can be undone from Hjem; the other rooms' lines are shown plain.
@@ -1588,7 +1657,7 @@ export function createApp(deps: AppDeps) {
     const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
     const sit = await situationNu();
     const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
-    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(digitalPost ? { digitalPost } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
   }
 
   /**

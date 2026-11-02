@@ -138,6 +138,12 @@ async function tailscaleSyn(deps: RoomDeps, faerdig: boolean): Promise<Pick<Star
   return { tailscale: { syn, kanDele: kan(deps.person.rolle, 'aendre-indstillinger') } };
 }
 
+/** KC-0233: the Danmark-pakke step's data — shown only while the window says it is open (never an error on Start). */
+async function digitalPostSyn(deps: RoomDeps): Promise<Pick<StartVisning, 'digitalPost'>> {
+  const syn = await deps.danmark?.start().catch(() => null);
+  return syn ? { digitalPost: { ...syn, kanGemme: kan(deps.person.rolle, 'aendre-indstillinger') } } : {};
+}
+
 async function view(deps: RoomDeps): Promise<RoomView> {
   let s = await laesState(deps);
   if (!s) { s = ny(deps.now()); await deps.store.writeState(RUM, s); } // the first visit: the journey has begun
@@ -161,6 +167,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
       foersteRet: await foersteRetSyn(deps, s),
       ...(await importSyn(deps, s, ctx.model)),
       ...(await tailscaleSyn(deps, faerdig)),
+      ...(await digitalPostSyn(deps)),
       ...(deps.laptop?.() ? { laptop: true } : {}),
       trin, profil: ctx.profil, forslag, log, now: deps.now(), igang: deps.runs.igang(RUM), venter,
       standardNavn: p.rolle === 'ejer' && p.id !== ENEBRUGER.id ? p.navn : '',
@@ -240,6 +247,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
   }
   if (name === 'model-gem' || name === 'model-test' || name === 'model-agent-noegle') return modelAktion(deps, name, body);
   if (name === 'tailscale-del') return tailscaleDel(deps, body);
+  if (name === 'post-afsender-gem' || name === 'post-ikke-nu') return digitalPostAktion(deps, name, body);
   if (name === 'kilde-spring-over') {
     if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren vælger kilderne.');
     const kildeId = str(body['kildeId'], 40);
@@ -249,6 +257,31 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     return deps.runs.local('afvis', async () => faerdigt(deps, `${await springOver(deps, kildeId, ctx)} er sprunget over.`), { room: RUM, label: 'Start: springer en kilde over' });
   }
   return null;
+}
+
+/**
+ * KC-0233: the Danmark-pakke step. "Gem" confirms the notification sender (a typed address wins over the list) and the viewer;
+ * the window refuses an address that is not a Digital Post sender with a plain sentence BEFORE anything is written. Only the
+ * owner. Nothing here reaches Hermes or the mail: it is a setting.
+ */
+async function digitalPostAktion(deps: RoomDeps, name: 'post-afsender-gem' | 'post-ikke-nu', body: Record<string, unknown>): Promise<RunRecord> {
+  const p = deps.person;
+  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren vælger afsenderen.', 403);
+  const dm = deps.danmark;
+  if (!dm) throw new ActionError('Clawco har ingen datamappe, så valget kan ikke gemmes.');
+  if (name === 'post-ikke-nu') {
+    await dm.ikkeNu();
+    return deps.runs.local('afvis', async () => {
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: name, tekst: 'Lagde trinnet om Digital Post væk i 30 dage.' });
+      return faerdigt(deps, 'Lagt væk.');
+    }, { room: RUM, label: 'Start: lægger Digital Post-trinnet væk' });
+  }
+  const afsender = str(body['egen'], 200) || str(body['afsender'], 200);
+  await dm.gem(afsender, str(body['viser'], 20));
+  return deps.runs.local('gem', async () => {
+    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: name, tekst: `Valgte afsenderen til Digital Post: ${afsender.toLowerCase()}.` });
+    return faerdigt(deps, 'Gemt. Nu lægger Clawco et kort i Nu, når der kommer ny Digital Post.');
+  }, { room: RUM, label: 'Start: gemmer Digital Post-afsenderen' });
 }
 
 /**
@@ -412,7 +445,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
 export const startRoom: RoomModule = {
   id: RUM,
   korsel: KORSEL,
-  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-opdater': 'udfoer-med-fortryd', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd' },
+  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-opdater': 'udfoer-med-fortryd', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd', 'post-afsender-gem': 'bogfoer', 'post-ikke-nu': 'sorter' },
   aktionTap: ['tailscale-del'],
   view,
   startOpdater: async () => null,

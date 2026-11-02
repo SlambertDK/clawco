@@ -5,6 +5,7 @@
 import { koebenhavnTilIso } from '../../rooms/univers/tid.ts';
 import type { Moment } from '../typer.ts';
 import { BETA_MOMENTER } from './beta.ts';
+import { POST_MOMENTER } from './digitalpost.ts';
 
 /** KC-0152: the moment with the weekend card. */
 export const TIRSDAG_WEEKEND = 'tirsdag-weekend';
@@ -55,6 +56,8 @@ export const MOMENT_TABEL: readonly Moment[] = [
   // connected and in the household's week, and revoked (Aula answers 410: the card in Nu asks for a new link).
   { id: 'aula-koblet', tid: '09:10', dagPlus: 1, navn: 'Aula er koblet', url: '/rum/husstand', replik: 'Hvad sker der i skolen i denne uge?' },
   { id: 'aula-tilbagekaldt', tid: '09:20', dagPlus: 1, navn: 'Aula-linket er trukket tilbage', url: '/rum/hjem', replik: 'Hvorfor ser jeg ikke skolens kalender?' },
+  // KC-0232/KC-0233: the Danmark-pakke's Digital Post rule — Start's step (mail connected, no sender yet) and the card in Nu (indhold/digitalpost.ts), last so the moments before keep their numbers.
+  ...POST_MOMENTER,
 ];
 
 /** Days after the story's day `dag` that the moment's clock is on: `dagPlus`, or (KC-0147, KC-0152) the days to the next `ugedag`. */
