@@ -217,6 +217,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     tailscale: { koerer: falskTailscale(() => ({ id: nu.id, kold: erKold(nu.id) }), tailscaleDelt), port: 8750, laptop: () => tailscaleLaptop(nu.id) },
     // KC-0188: the support switch (not under Sky: on is refused by the app; the band's Slå fra is the app's own route).
     stoette: { slaaTil: '/api/stoette/start', slaaFra: '/api/stoette/slaa-fra' },
+    // KC-0203: the closed beta is on in the moments whose folder carries beta.json (kunMedFil), nowhere else.
+    beta: { samtykkeStart: false, kunMedFil: true },
     // No run queue: the generation is captured when a run reaches Hermes, so a run queued before a jump must not
     // wait until after it (it would carry the new generation and write into the new moment).
     maxParallel: Number.MAX_SAFE_INTEGER,

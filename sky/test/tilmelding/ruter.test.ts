@@ -310,3 +310,12 @@ test('the client script is served; the dev gallery of every state exists only wi
   // A still picture: the gallery never polls (it would reload forever without a session).
   assert.doesNotMatch(await (await d.side('/dev/tilmelding/klargoering-startet', false)).text(), /data-poll/);
 });
+
+test('KC-0203: the consent box reaches the invitation seam: ticked → true, unticked or anything but "ja" → false; the answer for a good code still moves on', async () => {
+  const set: { kode: string; samtykke: boolean }[] = [];
+  const a = app(verden(), { tilstand: 'invitation', invitation: async (_id, kode, valg) => { set.push({ kode, samtykke: valg.betaSamtykke }); return kode === 'GOD'; } });
+  assert.equal((await a.form('/tilmeld/invitation', { kode: 'GOD', betaSamtykke: 'ja' })).headers.get('location'), '/tilmeld');
+  assert.equal((await a.form('/tilmeld/invitation', { kode: 'GOD' })).headers.get('location'), '/tilmeld');
+  assert.equal((await a.form('/tilmeld/invitation', { kode: 'GOD', betaSamtykke: 'on' })).headers.get('location'), '/tilmeld');
+  assert.deepEqual(set, [{ kode: 'GOD', samtykke: true }, { kode: 'GOD', samtykke: false }, { kode: 'GOD', samtykke: false }]);
+});

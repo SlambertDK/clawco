@@ -123,11 +123,14 @@ ${csrfFelt(f.csrf)}
       const a = s as Extract<SideInput, { visning: { trin: 'invitation' } }>;
       return { titel: t.invitationTitel, skript: false, krop: html`<h1>${t.invitationTitel}</h1>
 <p>${t.invitationIntro}</p>
+<p class="besked">${t.betaKort}</p>
 ${a.svar ? html`<p class="status">${a.svar === 'ukendt' ? t.kodeUkendt : t.kodeIkkeEndnu}</p>` : ''}
 <form method="post" action="/tilmeld/invitation">
 ${csrfFelt(f.csrf)}
 <label for="kode">${t.kodeFelt}</label>
 <input id="kode" type="text" name="kode" required maxlength="64" autocomplete="off">
+<label class="flueben"><input type="checkbox" name="betaSamtykke" value="ja"><span>${t.betaSamtykke}</span></label>
+<p><small>${t.betaListe}</small></p>
 <button type="submit" class="primaer">${t.brugKode}</button>
 </form>` };
     }

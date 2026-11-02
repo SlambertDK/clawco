@@ -16,7 +16,8 @@ function somTenantSer(sti: string): string {
 export function aldrigVidere(sti: string): boolean {
   const p = somTenantSer(sti);
   // KC-0184: /intern/ is the tenant's control route (Sky's own signed calls over the private network only).
-  return p === '/health' || p.startsWith('/health/') || p === '/_sky' || p.startsWith('/_sky/') || p === '/intern' || p.startsWith('/intern/');
+  // KC-0203: so is the beta pull, GET /api/beta/maal — a browser never needs it, and the only caller is Sky's own signed call.
+  return p === '/health' || p.startsWith('/health/') || p === '/_sky' || p.startsWith('/_sky/') || p === '/intern' || p.startsWith('/intern/') || p === '/api/beta/maal';
 }
 
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authorization', 'proxy-authenticate', 'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade']);

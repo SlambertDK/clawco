@@ -753,12 +753,71 @@
     if (svar) kortPost(f.querySelector('button[type="submit"]'), '/api/udvikling/opgaver/' + encodeURIComponent(f.dataset.ccSvarForm) + '/svar', { svar: svar }, 'sender dit svar', 'Svaret er sendt. Claude Code tager den op, næste gang den arbejder i projektet.');
   });
 
+  // KC-0203: the closed beta (only on a page that loaded beta.js). The feedback card builds its preview and its body from
+  // one object (KCBeta.krop), asks for a one-time yes for exactly this answer, and Nu is fetched again: the card is gone.
+  function betaFelter(kort) {
+    var v = kort.querySelector('[data-beta-vurdering][aria-pressed="true"]');
+    var b = kort.querySelector('[data-beta-betale][aria-pressed="true"]');
+    var t = kort.querySelector('[data-beta-tekst]');
+    return { dag: Number(kort.getAttribute('data-beta-feedback')), vurdering: v ? Number(v.getAttribute('data-beta-vurdering')) : null, tekst: t ? t.value : '', betale: b ? b.getAttribute('data-beta-betale') : null };
+  }
+  function betaOpdater(kort) {
+    if (!window.KCBeta) return;
+    var v = betaFelter(kort);
+    var ord = {};
+    try { ord = JSON.parse(kort.getAttribute('data-beta-ord') || '{}'); } catch (e) { ord = {}; }
+    var linje = kort.querySelector('[data-beta-forhaand]');
+    if (linje) linje.textContent = window.KCBeta.forhaandsvisning(v, ord);
+    var send = kort.querySelector('[data-beta-send]');
+    if (send) send.disabled = !window.KCBeta.krop(v);
+  }
+  function betaPost(btn, url, payload, ja, bagefter) {
+    btn.disabled = true;
+    medJa(payload, ja)
+      .then(function (p) { return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }); })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
+      .then(bagefter)
+      .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); btn.disabled = false; });
+  }
+  function betaKlik(btn) {
+    var kort = btn.closest('[data-beta-feedback]');
+    if (btn.hasAttribute('data-beta-luk')) { betaPost(btn, '/api/beta/kort/luk', {}, null, refetchHjem); return true; }
+    if (btn.dataset.betaVurdering && kort) {
+      kort.querySelectorAll('[data-beta-vurdering]').forEach(function (b) { b.setAttribute('aria-pressed', b === btn ? 'true' : 'false'); });
+      betaOpdater(kort);
+      return true;
+    }
+    if (btn.dataset.betaBetale && kort) {
+      var aendre = btn.getAttribute('aria-pressed') !== 'true';
+      kort.querySelectorAll('[data-beta-betale]').forEach(function (b) { b.setAttribute('aria-pressed', b === btn && aendre ? 'true' : 'false'); });
+      betaOpdater(kort);
+      return true;
+    }
+    if (btn.dataset.betaSend && kort && window.KCBeta) {
+      var krop = window.KCBeta.krop(betaFelter(kort));
+      if (!krop) return true;
+      betaPost(btn, '/api/beta/feedback', krop, { rum: 'hjem', slags: 'beta', id: 'feedback:' + krop.dag }, function () { toast(kort.getAttribute('data-beta-tak') || '', false); return refetchHjem(); });
+      return true;
+    }
+    if (btn.dataset.betaIkkenu) { betaPost(btn, '/api/beta/feedback/udsaet', { dag: Number(btn.dataset.betaIkkenu) }, null, refetchHjem); return true; }
+    if (btn.dataset.betaSamtykke) {
+      betaPost(btn, '/api/beta/samtykke', { samtykke: btn.dataset.betaSamtykke }, { rum: 'hjem', slags: 'beta', id: 'samtykke:' + btn.dataset.betaSamtykke }, function () { location.reload(); });
+      return true;
+    }
+    return false;
+  }
+  if (roomEl) roomEl.addEventListener('input', function (ev) {
+    var kort = ev.target && ev.target.closest ? ev.target.closest('[data-beta-feedback]') : null;
+    if (kort && ev.target.hasAttribute('data-beta-tekst')) betaOpdater(kort);
+  });
+
   if (roomEl) {
     roomEl.addEventListener('click', function (ev) {
       var btn = ev.target.closest('button');
       if (btn) {
         if (btn.dataset.lyt !== undefined || btn.dataset.mic !== undefined || btn.dataset.sig !== undefined) return; // handled by the stemme layer
         if (kortHandling(btn)) return;
+        if (betaKlik(btn)) return;
         if (btn.dataset.kildeForbind) { kildeForbind(btn); return; }
         if (btn.dataset.kildeFjern) { kildeFjern(btn); return; }
         if (btn.dataset.handling) {

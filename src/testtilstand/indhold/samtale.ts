@@ -216,7 +216,12 @@ const INTENTS: Intent[] = [
       'Intet haster: sidste uge krævede i snit 6 ting dig om dagen, ugen før 7. Ugens tal står øverst i Nu.',
       'At få weekenden på plads: du og Maja er begge optaget lørdag, og Ella skal have en voksen. Kortet i Husstanden er det samme hos jer begge; vælg, hvem der tager hende.',
       'Søndagstjekket: fire af de fem ting, jeg skjulte i ugen, venter på dit Rigtigt eller Skulle have vist mig det. Det tager et minut.',
-      'At svare på, om vi skal stoppe søndagstjekket: tre uger i træk var alt det, jeg skjulte, rigtigt.'),
+      'At svare på, om vi skal stoppe søndagstjekket: tre uger i træk var alt det, jeg skjulte, rigtigt.',
+      'Intet haster: det her er en lukket beta. Læs kortet i Nu og tryk Forstået, så er det væk.',
+      'At svare på de to små spørgsmål i Nu: en vurdering fra 1 til 5 og eventuelt en linje om, hvad der drillede. Intet sendes, før du trykker Send til Henrik.',
+      'Intet haster: dag 7. Spørgsmålet i Nu tager et minut, og du kan trykke Ikke nu, hvis det passer dårligt.',
+      'At svare på dag 14-spørgsmålet i Nu, også om du ville betale for Clawco. Ingen betaling sker her; det er kun en mening.',
+      'At se, hvad du deler med Henrik: siden Hvad deler jeg? viser præcis de tal, der kan sendes, og du kan slå delingen fra med det samme.'),
   },
   {
     art: 'hvem',

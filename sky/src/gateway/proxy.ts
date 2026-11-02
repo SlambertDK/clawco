@@ -34,6 +34,9 @@ export type GatewayDeps = {
   faaPrMinut?: number;
   /** KC-0188: "Lad support se med" (stoette-vej.ts). Absent = no switch (404) and no support session opens anything. */
   stoette?: StoetteSeams;
+  /** KC-0203: the household behind this tenant was let in today (the beta's retention signal). Called without waiting
+   *  for it, only after a current membership is confirmed, never for a support session; a throw or rejection is ignored. */
+  noterSet?: (slug: string) => void | Promise<void>;
 };
 
 type Haandtering = (req: IncomingMessage, res: ServerResponse, slug: string) => void;
@@ -235,6 +238,7 @@ export function gateway(d: GatewayDeps): Haandtering {
     saetKonto(p.k);
     if (p.g !== undefined) { await stoetteAnmodning(req, res, rute, url, p, noegle); return; }
     if (!(await d.ruter.medlem(slug, p.k))) { svar(res, 403, 'Du har ikke adgang til denne Clawco.'); return; }
+    if (d.noterSet) { try { void Promise.resolve(d.noterSet(slug)).catch(() => {}); } catch { /* a note never changes the answer */ } }
     // KC-0186: mid-upgrade, members see a calm page (only members: nobody else learns the tenant is updating).
     if (rute.opdateres) { svarOpdaterer(res); return; }
     videre(req, res, rute, url, p, nyCookie, noegle);

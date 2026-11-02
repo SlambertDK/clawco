@@ -316,3 +316,26 @@ test('a member of a tenant being updated gets "Opdaterer, et øjeblik": dark, Da
     await s.o.db.query('UPDATE flaade.tenant SET opdateres = NULL WHERE slug = $1', [s.o.slug]);
   } finally { await s.luk(); }
 });
+
+test('KC-0203: a member let through is noted for the household (once per request, by slug); a stranger, an unlogged request and a refused one are not', async () => {
+  const noteret: string[] = [];
+  const s = await stativ({ noterSet: (slug) => { noteret.push(slug); } });
+  try {
+    assert.equal((await anmod(s.gw.port, { host: s.host, sti: '/rum/mail', headers: { cookie: s.cookie() } })).status, 200);
+    assert.deepEqual(noteret, [s.o.slug]);
+    assert.equal((await anmod(s.gw.port, { host: s.host, sti: '/rum/mail', headers: { cookie: s.cookie('fremmed') } })).status, 403);
+    assert.equal((await anmod(s.gw.port, { host: s.host, sti: '/rum/mail' })).status, 302);
+    assert.deepEqual(noteret, [s.o.slug], 'a stranger and a request with no login leave nothing');
+  } finally { await s.luk(); }
+});
+
+test('KC-0203: a failing or slow note never changes the answer', async () => {
+  const s = await stativ({ noterSet: () => Promise.reject(new Error('database nede')) });
+  try {
+    assert.equal((await anmod(s.gw.port, { host: s.host, sti: '/rum/mail', headers: { cookie: s.cookie() } })).status, 200);
+  } finally { await s.luk(); }
+  const t = await stativ({ noterSet: () => { throw new Error('synkront'); } });
+  try {
+    assert.equal((await anmod(t.gw.port, { host: t.host, sti: '/rum/mail', headers: { cookie: t.cookie() } })).status, 200);
+  } finally { await t.luk(); }
+});

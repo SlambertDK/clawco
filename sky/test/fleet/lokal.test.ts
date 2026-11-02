@@ -333,3 +333,43 @@ test('opgrader is idempotent after a kill between remove and run; refuses a tag 
   await assert.rejects(f.opgrader({ id: 'hus-zzzzzzzz', billede: NY }), /disken clawco-t-hus-zzzzzzzz-data findes ikke/);
   assert.ok(!d.kald.slice(n).some((a) => a[1] === 'rm' || a[1] === 'run'));
 });
+
+// KC-0203: a beta household's container knows it is a beta (the tenant shows its feedback cards and answers the daily
+// pull only then); a customer's or a hand-given gift's container is exactly as before.
+import { betaMiljoe } from '../../src/fleet/lokal.ts';
+
+test('KC-0203 betaMiljoe: nothing for a non-beta; KC_BETA and the consent answer for a beta', () => {
+  assert.deepEqual(betaMiljoe({ erBeta: false, samtykke: true }), {}, 'consent without beta is nothing');
+  assert.deepEqual(betaMiljoe({ erBeta: true, samtykke: true }), { KC_BETA: 'ja', KC_BETA_SAMTYKKE: 'ja' });
+  assert.deepEqual(betaMiljoe({ erBeta: true, samtykke: false }), { KC_BETA: 'ja', KC_BETA_SAMTYKKE: 'nej' });
+});
+
+const lavBeta = (d: ReturnType<typeof falskDocker>, beta: (id: string) => Promise<{ samtykke: boolean } | null>) =>
+  lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), beta });
+
+const envAf = (argv: string[]): string[] => argv.flatMap((a, i) => (argv[i - 1] === '--env' ? [a] : []));
+
+test('KC-0203: a beta tenant\'s container gets KC_BETA and KC_BETA_SAMTYKKE after KC_SKY_URL — on first start and on an upgrade', async () => {
+  const d = falskDocker();
+  const f = lavBeta(d, async (id) => (id === 'hus-abcdefgh' ? { samtykke: true } : null));
+  await f.klargoer(EJER);
+  const run = d.kald.find((a) => a[1] === 'run' && !a.includes('--rm'))!;
+  const env = envAf(run);
+  assert.deepEqual(env.slice(-3), ['KC_SKY_URL=https://konto.example.dk', 'KC_BETA=ja', 'KC_BETA_SAMTYKKE=ja']);
+  assert.equal(run.at(-1), 'clawco:test', 'the image stays last');
+  // An upgrade starts the container again with the same env, with the consent as Sky holds it now.
+  const d2 = falskDocker({ containere: { 'clawco-t-hus-abcdefgh': true }, volumener: ['clawco-t-hus-abcdefgh-data'], netvaerk: { 'clawco-sky': { icc: false } } });
+  const f2 = lavBeta(d2, async () => ({ samtykke: false }));
+  await f2.opgrader({ id: 'hus-abcdefgh', billede: NY });
+  const run2 = d2.kald.find((a) => a[1] === 'run')!;
+  assert.deepEqual(envAf(run2).slice(-2), ['KC_BETA=ja', 'KC_BETA_SAMTYKKE=nej']);
+});
+
+test('KC-0203: a tenant that is not a beta household gets no beta env, with or without the seam', async () => {
+  const [a, b] = [falskDocker(), falskDocker()];
+  await lavBeta(a, async () => null).klargoer(EJER);
+  await lav(b).klargoer(EJER);
+  const kun = (d: ReturnType<typeof falskDocker>) => d.kald.find((x) => x[1] === 'run' && !x.includes('--rm'))!;
+  assert.deepEqual(kun(a), kun(b));
+  assert.ok(!kun(a).some((x) => x.startsWith('KC_BETA')));
+});

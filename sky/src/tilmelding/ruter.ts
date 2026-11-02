@@ -48,8 +48,9 @@ export type TilmeldingDeps = {
   proevIgen(kontoId: number): Promise<void>;
   /** The way into a tenant: the gateway's /aabn with next /rum/start. */
   aabnUrl(slug: string): string;
-  /** KC-0203's invitation codes; absent until they exist. */
-  invitation?: (kontoId: number, kode: string) => Promise<boolean>;
+  /** KC-0203's invitation codes: true when the code was live and the account now holds its gift. `betaSamtykke` is the box
+   *  ticked next to the code (the consent for the beta's measures); absent seam = the honest "not yet" answer. */
+  invitation?: (kontoId: number, kode: string, valg: { betaSamtykke: boolean }) => Promise<boolean>;
   /** Where the slow-provisioning alert goes (E10's monitoring is the journal). */
   alarm?: (linje: string) => void;
   nu?: () => Date;
@@ -200,7 +201,7 @@ export function tilmeldingRuter(d: TilmeldingDeps): Hono {
     if (v.trin !== 'invitation') return c.redirect('/tilmeld', 303);
     if (!d.invitation) return c.html(await vis(c, l, sprogFor(c, profil), v, profil, tenant, { svar: 'ikke-endnu' }));
     const kode = typeof f['kode'] === 'string' ? f['kode'].trim().slice(0, 64) : '';
-    if (kode && await d.invitation(l.kontoId, kode)) return c.redirect('/tilmeld', 303);
+    if (kode && await d.invitation(l.kontoId, kode, { betaSamtykke: f['betaSamtykke'] === 'ja' })) return c.redirect('/tilmeld', 303);
     return c.html(await vis(c, l, sprogFor(c, profil), v, profil, tenant, { svar: 'ukendt' }), 400);
   });
 

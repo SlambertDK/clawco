@@ -58,6 +58,10 @@ import { stoetteVejRuter, type StoetteSeams, type StoetteSideDeps } from './gate
 import { aabnStoette, aktiveStoetter, annullerStoette, erPersonale, givStoette, noterUdloebne, sendStoetteKvittering, sessionStartet, stoetteGyldig, tilbagekaldStoette } from './konto/stoette.ts';
 import { tenantKald, type TenantKald } from './gateway/tenantkald.ts';
 import { kontrolKald } from './gateway/kontrolkald.ts';
+import { betaForTenant, indloes } from './beta/invitationer.ts';
+import { betaIndloesDeps } from './betaforbind.ts';
+import { hentLoekke } from './beta/hent.ts';
+import { noterSet } from './beta/set.ts';
 import { husstandensEjer, medlemskabHusstand } from './konto/medlemskab.ts';
 import type { Entitlements } from './konto/invitation.ts';
 import { abonnementEksport } from './abonnement/eksport.ts';
@@ -133,9 +137,10 @@ export function noeglering(env: Record<string, string | undefined>): Noegler {
 /** KC-0212: the fleet SKY_FLAADE picks; null = none (deprovisioning keeps refusing). No paid customers are read
  *  yet, so the hetzner driver sees MRR 0 and refuses (D18). Volumes are not encrypted at rest on the lokal driver
  *  (no root on kira-home for LUKS): the tenant's model keys are, in its own key file (KC-0181). */
-export function flaadeFra(config: SkyConfig): Flaade | null {
+export function flaadeFra(config: SkyConfig, db?: Database): Flaade | null {
   const f = config.flaade;
-  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
+  // KC-0203: a beta household's container is told so (and what it consented to); `db` absent = nobody is a beta.
+  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...(db ? { beta: async (slug: string) => { const b = await betaForTenant(db, slug); return b ? { samtykke: b.samtykke } : null; } } : {}) });
   if (f.driver === 'hetzner') return hetznerFlaade({ omkostninger: () => laesOmkostninger(), mrr: () => 0 });
   return null;
 }
@@ -157,7 +162,7 @@ export function kant(db: Database, ruter: RuteTabel): Kant {
  *  per-tenant lock per process. null without a fleet. The edge hooks come from the gateway (KC-0183; no-ops when
  *  none is handed in); who may have a tenant comes from billing (an active plan or a trial). */
 export function flaadeDeps(config: SkyConfig, db: Database, ring: Noeglering | null = null, k: Kant | null = null, kald: TenantKald | null = null): AfstemDeps | null {
-  const flaade = flaadeFra(config);
+  const flaade = flaadeFra(config, db);
   if (!flaade) return null;
   const nu = () => new Date();
   // KC-0181: every tenant has a data key before its container exists and gets its lager key after each start.
@@ -248,6 +253,8 @@ export function tilmeldingDeps(o: { config: SkyConfig; db: Database; adgang: Ret
       // Not awaited: provisioning can take a minute; the page polls. Failures are recorded on the tenant row.
       void klargoerKonto(fl, id).catch((err: Error) => { console.error(`sky tilmelding: prøv igen for konto ${id} fejlede: ${err.message}`); });
     },
+    // KC-0203: a live code spends itself and gives this account the beta gift; the box next to it is the measures' consent.
+    invitation: (id, kode, valg) => indloes(betaIndloesDeps(db, ab.priser), id, kode, new Date(), { samtykke: valg.betaSamtykke }),
     aabnUrl: (slug) => (o.gateway ? loginUrl({ publicUrl: config.publicUrl, noegle: o.gateway, slug, naeste: '/rum/start' }) : `${tenantOrigin(slug, config.publicUrl, config.basedomain)}/rum/start`),
   };
 }
@@ -293,7 +300,7 @@ export function udrulFra(o: { config: SkyConfig; db: Database; ring: Noeglering 
   if (f.driver !== 'lokal') return { deps: null, grund: 'udrulning kræver SKY_FLAADE=lokal', lager };
   if (!o.ring) return { deps: null, grund: 'udrulning kræver SKY_MASTERNOEGLE (genopretningspunkter krypteres, nøglen leveres efter hver start)', lager };
   const { db, ring } = o;
-  const flaade = flaadeFra(o.config)!;
+  const flaade = flaadeFra(o.config, o.db)!;
   const k = o.kopi;
   return {
     grund: null,
@@ -602,7 +609,11 @@ export async function main(): Promise<void> {
   console.log(`sky: status på ${new URL(config.publicUrl).origin}/status.json${statusSide ? ` (CORS for ${statusSide})` : ' (SKY_STATUS_ORIGIN ikke sat: ingen CORS)'}`);
   const status: StatusDeps = { feed: feedCache({ bygg: () => byggFeed(db, new Date()) }), origin: statusSide, side: `${statusSide ?? new URL(config.publicUrl).origin}/status`, feedUrl: `${new URL(config.publicUrl).origin}/status.atom` };
   const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, ...fl });
-  const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette });
+  const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette, noterSet: noterSet({ db }) });
+  // KC-0203: once a day (a pass at start) the klar beta tenants are asked for their consented measures over the signed
+  // control call; a pass with no beta household is one query.
+  const maalKald = kontrolKald({ noegle: f.gateway.noegle, timeoutMs: 10_000 });
+  const betaMaal = hentLoekke({ db, hent: (t, sti) => maalKald.hent(t, sti) });
   // KC-0188: Sky's log records each support grant's expiry once (the gateway already refuses it by clock on every request).
   const udloeb = setInterval(() => {
     noterUdloebne(db, new Date())
@@ -618,7 +629,7 @@ export async function main(): Promise<void> {
   // KC-0221: never wait on an open stream; 5 s for busy requests, then exit (a timer or a proxy socket left
   // open must not keep Sky alive past systemd's stop timeout).
   const stop = () => {
-    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); fristJob.stop(); helbredLoekke?.stop(); velkomstJob.stop(); }, efter: () => db.close() })
+    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); fristJob.stop(); helbredLoekke?.stop(); velkomstJob.stop(); betaMaal.stop(); }, efter: () => db.close() })
       .then((kode) => process.exit(kode));
   };
   process.once('SIGTERM', stop);

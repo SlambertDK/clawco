@@ -24,6 +24,7 @@ import { OMKOSTNING_SAMLET } from '../shell/omkostninger.ts';
 import { alleTrin } from '../rooms/start/trin.ts';
 import { TRIN } from '../tillid/trin.ts';
 import { TS_TILSTANDE } from '../shell/tailscale.ts';
+import { FEEDBACK_DAGE } from '../beta/tilstand.ts';
 
 export type Daekning = { id: string; marker: string; kilde: 'afledt' | 'haand' };
 
@@ -141,6 +142,11 @@ const HAAND: [string, string][] = [
   ['stikproeve', 'data-stikproeve="'],                                         // KC-0145: the Sunday sample in Nu, five lines with Rigtigt / Skulle have vist mig det (the moment "Søndag aften")
   ['stop-soendagstjek', 'data-soendagstjek-stop'],                             // KC-0145: "Skal vi stoppe søndagstjekket?" after three clean weeks (the moment "Søndag: stop tjekket?")
   ['regelforslag-pause', 'data-regelforslag-pause="'],                         // KC-0145: the proposal to pause the rule that hid a wrong item (the moment "Søndag aften")                                    // KC-0143: a rule for every source says "gælder alt" in Viden
+  ['beta-kort', 'data-beta-kort'],                                              // KC-0203: the plain "lukket beta" card (the moment "Beta: første besøg")
+  ['beta-betale', 'data-beta-betale="'],                                         // KC-0203: the pay question of day 14 (the moment "Beta: dag 14")
+  ['beta-deling-side', 'data-beta-json>'],                                       // KC-0203: "Hvad deler jeg?" with the answer as it stands (/beta/deling, the moment "Beta: Hvad deler jeg?")
+  ['beta-deling-hvis', 'data-beta-json-hvis'],                                   // KC-0203: what switching sharing on would add (consent off)
+  ['beta-deling-link', 'data-beta-deling-link'],                                 // KC-0203: the link in the Kø panel (every beta moment)
   // Excluded: the rule proposal under the explanation card (data-regel-forslag). It shows only when E4 (KC-0108) wires
   // RoomDeps.regelforslag, which the test world has no stand-in for; test/rooms/start/e4-handoff.test.ts holds it until then.
   // Excluded: the blocks forespoergsel and ressource. They are defined in src/shell/katalog.ts, not built; no renderer
@@ -172,6 +178,7 @@ export const DAEKNING: readonly Daekning[] = [
     { id: `start-trin-${t.id}-klaret`, marker: `data-trin="${t.id}" data-trin-status="klaret"`, kilde: 'afledt' },
   ]),
   ...afledt('tailscale', TS_TILSTANDE, (t) => `data-tailscale="${t}"`), // KC-0161: Start's Tailscale card in every state (the moments "Tailscale: …", indhold/tailscale.ts)
+  ...afledt('beta-feedback', FEEDBACK_DAGE.map(String), (d) => `data-beta-feedback="${d}"`), // KC-0203: the feedback card of day 3, 7 and 14 (the moments "Beta: dag …", indhold/beta.ts)
   ...afledt('foresp', FORESP_TILSTANDE, (t) => `data-foresp-tilstand="${t}"`), // KC-0149: a request in every state (indhold/husstand.ts)
   ...afledt('ressource', RESSOURCE_SLAGS, (s) => `data-ressource-slags="${s}"`), // KC-0150: a resource of every kind (indhold/husstand.ts)
   ...afledt('trin', TRIN.map((t) => String(t.trin)), (t) => `data-regel-trin="${t}"`), // KC-0143: a rule on every trin in Viden (indhold/tillid.ts)

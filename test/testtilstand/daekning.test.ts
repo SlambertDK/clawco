@@ -25,6 +25,7 @@ import { OMKOSTNING_SAMLET } from '../../src/shell/omkostninger.ts';
 import { alleTrin } from '../../src/rooms/start/trin.ts';
 import { TILSTANDE as FORESP_TILSTANDE } from '../../src/hushold/foresp.ts';
 import { TS_TILSTANDE } from '../../src/shell/tailscale.ts';
+import { FEEDBACK_DAGE } from '../../src/beta/tilstand.ts';
 
 const rod = await mkdtemp(path.join(tmpdir(), 'kc-daekning-'));
 after(() => rm(rod, { recursive: true, force: true }));
@@ -51,6 +52,9 @@ const sider: Promise<Map<string, string>> = (async () => {
     // KC-0146: what Clawco knows, and Slet alt's confirmation (never the delete itself).
     await hent(m.id, '/viden');
     await hent(m.id, '/viden/slet-alt');
+    // KC-0203: "Hvad deler jeg?" exists only where the closed beta is on (404 everywhere else).
+    const deling = await v.app.request('/beta/deling');
+    if (deling.status === 200) ud.set(`${m.id} /beta/deling`, await deling.text());
     // KC-0120: the Kø panel's Kilder section, as the open panel fetches it.
     const koe = await v.app.request('/api/koe?kilder=1');
     assert.equal(koe.status, 200, `${m.id} /api/koe svarer ${koe.status}`);
@@ -68,7 +72,7 @@ test('DAEKNING lists every value of every derived source, each once', () => {
     ['rum', [...ROOMS.filter((r) => r.built).map((r) => r.id), ...ROOM_MODULES.map((m) => m.id)]],
     ['tone', TONER], ['zone', ZONER], ['billede', BILLEDER],
     ['kort', TYPER], ['regnskab', HVOR], ['art', ART], ['opgave', STATUSSER], ['rolle', ROLLER], ['husstand-rolle', ROLLER], ['datazone', DATAZONER],
-    ['situation', SITUATION_IDER], ['blok', BYGGET], ['kilde-tilstand', KILDE_TILSTANDE], ['omkostninger', OMKOSTNING_SAMLET], ['foresp', FORESP_TILSTANDE], ['tailscale', TS_TILSTANDE],
+    ['situation', SITUATION_IDER], ['blok', BYGGET], ['kilde-tilstand', KILDE_TILSTANDE], ['omkostninger', OMKOSTNING_SAMLET], ['foresp', FORESP_TILSTANDE], ['tailscale', TS_TILSTANDE], ['beta-feedback', FEEDBACK_DAGE.map(String)],
   ];
   for (const [praefiks, vaerdier] of kilder) {
     for (const v of vaerdier) {

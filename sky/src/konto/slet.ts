@@ -83,6 +83,13 @@ export async function sletKonto(
       await tx.query('DELETE FROM medlemskab WHERE tenant_id = $1', [t.tenantId]);
       await tx.query('DELETE FROM invitation WHERE tenant_id = $1', [t.tenantId]);
     }
+    // KC-0203: the beta's numbers about the household (days seen, the consented measures, its feedback) go with the
+    // account; the spent invitation stays as a spent code that names nobody.
+    await tx.query('DELETE FROM beta.set WHERE konto_id = $1', [k.id]);
+    await tx.query('DELETE FROM beta.maal WHERE konto_id = $1', [k.id]);
+    await tx.query('DELETE FROM beta.dagtal WHERE konto_id = $1', [k.id]);
+    await tx.query('DELETE FROM beta.feedback WHERE konto_id = $1', [k.id]);
+    await tx.query('UPDATE beta.invitation SET brugt_af = NULL WHERE brugt_af = $1', [k.id]);
     // The row stays as a tombstone without the email, so billing (KC-0173) can still refer to the id.
     // KC-0206: country, language and the sign-up time go too; what stays, and why, is konto/beholdt.ts.
     await tx.query('UPDATE konto SET email = NULL, slettet_ved = $2, land = NULL, sprog = NULL, tilmelding_ms = NULL WHERE id = $1', [k.id, a.nu.toISOString()]);

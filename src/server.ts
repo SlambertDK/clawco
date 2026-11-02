@@ -140,6 +140,15 @@ import { parseAll } from './rooms/mail/source.ts';
 import { falskKildeData } from './testtilstand/indhold/kilder.ts';
 import { PRODUKT } from './shell/navn.ts';
 import { hjaelpFraMiljoe } from './shell/hjaelp.ts';
+import type { BetaIndstilling } from './beta/miljoe.ts';
+import { betaFraMiljoe } from './beta/miljoe.ts';
+import { BetaFejl, kortDue, lavBetaLager, utcDato, type FeedbackDag } from './beta/tilstand.ts';
+import { parseFeedbackSvar } from './beta/feedback.ts';
+import { byggMaal, dageFraDagstal, foersteVaerdiFraStart, type MaalKilder } from './beta/maal.ts';
+import { laesBetaPriser } from './beta/priser.ts';
+import { renderDeling } from './beta/side.ts';
+import type { BetaVisning } from './rooms/hjem/beta.ts';
+import { parseStartState } from './rooms/start/schema.ts';
 import { manifest } from './shell/manifest.ts';
 import { MODEL_ENV_NOEGLER, udbyderAf, UDBYDERE } from './rooms/start/udbydere.ts';
 import { MODEL_FEJL } from './rooms/start/modelfejl.ts';
@@ -226,6 +235,11 @@ export type AppDeps = {
   stoette?: { slaaTil: string; slaaFra: string };
   /** KC-0187: an unexpected 500 is reported, scrubbed (shell/fejlrapport.ts; off unless KC_FEJLRAPPORT_DSN is set). */
   fejlrapport?: Fejlrapport;
+  /**
+   * KC-0203: the closed beta (KC_BETA=ja, src/beta/miljoe.ts; Clawco Sky sets it when it provisions a beta household).
+   * Absent = nothing of the beta exists: no card, no page, no link, no route. Needs `dataDir` (beta.json lives there).
+   */
+  beta?: BetaIndstilling;
 };
 
 /** KC-0116: who is looking, set once per request by the identity middleware. */
@@ -556,6 +570,37 @@ export function createApp(deps: AppDeps) {
     stier,
     ...(kilder.hent(NOTER_ID) ? { lavMappe: async () => { await kilder.forbind(NOTER_ID, { felter: { opsaetning: 'ny' } }, d.person); } } : {}),
   });
+  // KC-0203: the closed beta's state (beta.json) and what it may send. Nothing exists without deps.beta; in the test world
+  // (kunMedFil) the beta is on only while its data folder carries beta.json, which a moment writes (src/testtilstand).
+  const betaLager = deps.beta && deps.dataDir ? lavBetaLager({ dir: deps.dataDir, nu: now, samtykkeStart: deps.beta.samtykkeStart, ...(deps.beta.kunMedFil ? { kunMedFil: true } : {}) }) : undefined;
+  const betaFil = path.join(deps.dataDir ?? './data', 'beta.json');
+  const betaPaa = (): boolean => !!betaLager && (!deps.beta!.kunMedFil || existsSync(betaFil));
+  /** The beta's state, or null when it is off. A damaged file is logged and read as "no beta now" for Nu (never breaks it). */
+  async function betaNu() {
+    if (!betaLager || !betaPaa()) return null;
+    try { return await betaLager.laes(); } catch (err) {
+      if (!(err instanceof BetaFejl)) throw err;
+      console.error('beta:', err.message);
+      return null;
+    }
+  }
+  /** The numbers the pull route and "Hvad deler jeg?" show, read lazily: with consent off they are not even read. */
+  const maalKilder = (t: NonNullable<Awaited<ReturnType<typeof betaNu>>>): MaalKilder => ({
+    tilstand: t,
+    foersteVaerdi: async () => foersteVaerdiFraStart(parseStartState(await deps.store.readState('start')), t.startet),
+    dage: async () => (dagstal ? dageFraDagstal(await dagstal.dage(), idagKbh(now())) : []),
+  });
+  /** KC-0203: what Nu is told about the beta: the plain card first, else the feedback card that is due; the owner's only. */
+  async function betaVisning(): Promise<BetaVisning | undefined> {
+    if (d.person.rolle !== 'ejer') return undefined;
+    const t = await betaNu();
+    if (!t) return undefined;
+    if (!t.betaKortLukket) return { kort: true };
+    const dag = kortDue(t, now());
+    if (dag === null) return undefined;
+    return { feedback: { dag, priser: dag === 14 ? await laesBetaPriser(deps.beta!.priserFil) : null } };
+  }
+
   const app = new Hono<Env>();
 
   // KC-0017: a MagicDNS short name (`kontrol/`, plain http) goes to the canonical https address.
@@ -593,6 +638,29 @@ export function createApp(deps: AppDeps) {
       if (err instanceof InvitationFejl || err instanceof ActionError) return c.json({ error: err.message }, err.status);
       throw err;
     }
+  });
+
+  // KC-0203: Clawco Sky pulls the beta household's consented numbers (once a day), as a control call: GET, no body, signed
+  // like the one above (identitet/kontrol.ts) — the signature covers this tenant, method GET, the path /api/beta/maal (no
+  // query string) and the SHA-256 of the empty body. Only under konto identity and only while the beta is on (else 404).
+  // Before the identity middleware: it carries no person. No channel from the tenant to Sky exists; this is the only way out.
+  app.get('/api/beta/maal', internGraense, async (c) => {
+    if (!kontrolKonto || !betaPaa()) return c.json({ error: 'Findes ikke' }, 404);
+    const krop = Buffer.from(await c.req.arrayBuffer());
+    const v = verificerKontrol({ headers: c.req.raw.headers, peer: peerAf(c.env), metode: c.req.method, sti: c.req.path, krop }, kontrolKonto, Math.floor(now().getTime() / 1000), kontrolNonces);
+    if (!v.ok) {
+      console.warn('beta: kontrolkald afvist:', v.grund);
+      return c.json({ error: 'Clawco ved ikke, hvem du er.' }, 401);
+    }
+    let t;
+    try { t = await betaLager!.laes(); } catch (err) {
+      if (!(err instanceof BetaFejl)) throw err;
+      console.error('beta:', err.message);
+      return c.json({ error: 'Betaens tilstand kan ikke læses.' }, 503);
+    }
+    if (!t) return c.json({ error: 'Findes ikke' }, 404);
+    c.header('Cache-Control', 'no-store');
+    return c.json(await byggMaal(maalKilder(t)));
   });
 
   // KC-0116: who is looking — before anything is served (static files included); /health stays open.
@@ -694,7 +762,7 @@ export function createApp(deps: AppDeps) {
     const a = c.get('stoette');
     return { stoette: { adgang: aktiv(a, now()) ? { udloeber: a.udloeber, grund: a.grund } : null, slaaTil: deps.stoette.slaaTil, slaaFra: deps.stoette.slaaFra } };
   };
-  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand>; hjaelp?: { href: string }; stoette?: { adgang: { udloeber: string; grund: string } | null; slaaTil: string; slaaFra: string } } => ({ person: c.get('person'), husstand: maaSe(c.get('person'), { slags: 'medlem' }) ? c.get('husstand') : [], ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}), ...(deps.hjaelp ? { hjaelp: deps.hjaelp } : {}), ...stoetteSyn(c) });
+  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand>; hjaelp?: { href: string }; beta?: true; stoette?: { adgang: { udloeber: string; grund: string } | null; slaaTil: string; slaaFra: string } } => ({ person: c.get('person'), husstand: maaSe(c.get('person'), { slags: 'medlem' }) ? c.get('husstand') : [], ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}), ...(deps.hjaelp ? { hjaelp: deps.hjaelp } : {}), ...(betaPaa() ? { beta: true as const } : {}), ...stoetteSyn(c) });
 
   // KC-0018: no-cache = always revalidate, so a deploy reaches the browser and the home-screen app.
   app.use('/*', async (c, next) => { c.header('Cache-Control', 'no-cache'); await next(); });
@@ -891,10 +959,12 @@ export function createApp(deps: AppDeps) {
     const videnRegel = rum === 'viden' && slags === 'regel';
     // KC-0144: Ja on a rule proposal in Nu (id = the proposal's id) is a tap too.
     const hjemForslag = rum === HJEM && slags === 'forslag';
+    // KC-0203: Send on a beta answer (id feedback:<day>) and the consent switch (id samtykke:ja|nej) are taps too.
+    const hjemBeta = rum === HJEM && slags === 'beta' && betaPaa();
     // KC-0153: Send on a request in Husstanden (id = request:kind:hash of the text shown) is a tap too; KC-0154: so is
     // Send on an invitation (id = member:invitation:hash of the first message shown).
     const kanalSend = rum === 'husstand' && (slags === 'send' || slags === 'invitation');
-    if (!videnRegel && !hjemForslag && !kanalSend &&((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
+    if (!videnRegel && !hjemForslag && !hjemBeta && !kanalSend &&((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
     const id = slags === 'aktion' ? aktionId(typeof b['id'] === 'string' ? b['id'] : '', typeof b['body'] === 'object' && b['body'] !== null ? b['body'] as Record<string, unknown> : {}) : typeof b['id'] === 'string' ? b['id'] : '';
     if (!id) return c.json({ error: 'Ukendt knap' }, 400);
     return c.json({ ja: TEGN.udsted({ person: c.get('person').id, rum, slags, id }) });
@@ -974,6 +1044,92 @@ export function createApp(deps: AppDeps) {
     const p = await personerListe();
     const zip = await eksporter(brugermappe(), p ? { personer: { dir: p.dir, filer: p.liste.map((x) => x.sti) } } : {}, now());
     return c.body(new Uint8Array(zip), 200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="clawco-${copenhagenDate(now())}.zip"`, 'Cache-Control': 'no-store' });
+  });
+
+  // KC-0203: the closed beta's own routes — all the owner's, all from Clawco itself, all 404 without KC_BETA. An answer and
+  // the consent switch are human taps (the one-time yes of jaFraTryk, for exactly that answer); closing the plain card and
+  // "Ikke nu" change nothing that leaves the machine. Nothing here reaches Sky: Sky pulls (GET /api/beta/maal above).
+  const KUN_EJER_BETA = 'Kun ejeren kan svare for betaen.';
+  type BetaAdgang = { t: NonNullable<Awaited<ReturnType<typeof betaNu>>> } | Response;
+  const betaAdgang = async (c: Context<Env>): Promise<BetaAdgang> => {
+    if (!betaPaa()) return c.json({ error: 'Findes ikke' }, 404);
+    if (!erEjer(c)) return afvis(c, 403, KUN_EJER_BETA);
+    if (c.req.method !== 'GET' && fremmed(c)) return c.json({ error: SAMME_SIDE }, 403);
+    const t = await betaNu();
+    return t ? { t } : c.json({ error: 'Betaens tilstand kan ikke læses.' }, 503);
+  };
+  const betaLog = (tekst: string) => deps.store.appendLog(HJEM, { kilde: 'henrik', tekst, zone: 'privat' });
+
+  app.get('/beta/deling', async (c) => {
+    if (!betaPaa()) return c.notFound();
+    const a = await betaAdgang(c);
+    if (a instanceof Response) return a;
+    const k = maalKilder(a.t);
+    const pen = (o: unknown): string => JSON.stringify(o, null, 2);
+    const nu = await byggMaal(k);
+    // With consent off: what switching on would add to what goes anyway.
+    const hvis = a.t.samtykke ? undefined : pen(Object.fromEntries(Object.entries(await byggMaal(k, true)).filter(([n]) => !(n in nu))));
+    return videnSide(c, renderDeling({ samtykke: a.t.samtykke, nu: pen(nu), ...(hvis !== undefined ? { hvis } : {}) }), tekst().hvadDeler);
+  });
+
+  app.post('/api/beta/kort/luk', async (c) => {
+    const a = await betaAdgang(c);
+    if (a instanceof Response) return a;
+    if (!a.t.betaKortLukket) await betaLager!.aendre((s) => (s.betaKortLukket ? s : { ...s, betaKortLukket: now().toISOString() }));
+    live.notify(HJEM);
+    return c.json({ ok: true });
+  });
+
+  app.post('/api/beta/feedback/udsaet', async (c) => {
+    const a = await betaAdgang(c);
+    if (a instanceof Response) return a;
+    const b = await body(c);
+    const due = kortDue(a.t, now());
+    if (due === null || b['dag'] !== due) return c.json({ error: 'Det spørgsmål venter ikke på dig lige nu.' }, 409);
+    await betaLager!.aendre((s) => ({ ...s, udsat: { dag: due, dato: utcDato(now()) } }));
+    live.notify(HJEM);
+    return c.json({ ok: true });
+  });
+
+  app.post('/api/beta/feedback', async (c) => {
+    const a = await betaAdgang(c);
+    if (a instanceof Response) return a;
+    const b = await body(c);
+    const u = parseFeedbackSvar(b, { due: kortDue(a.t, now()) });
+    if (!u.ok) return c.json({ error: u.fejl }, u.status);
+    const { svar } = u;
+    const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: HJEM, slags: 'beta', id: `feedback:${svar.dag}` });
+    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    // The card may have been answered between the check and the write (a double tap): the write checks again, once.
+    let gemt = false;
+    await betaLager!.aendre((s) => {
+      if (kortDue(s, now()) !== svar.dag) return s;
+      gemt = true;
+      const tid = now().toISOString();
+      const { udsat: _udsat, ...rest } = s;
+      return { ...rest, svaret: { ...s.svaret, [svar.dag]: tid }, feedback: [...s.feedback, { ...svar, tid }] };
+    });
+    if (!gemt) return c.json({ error: 'Det spørgsmål venter ikke på dig lige nu.' }, 409);
+    await betaLog(`Feedback dag ${svar.dag} sendt til Henrik`);
+    live.notify(HJEM);
+    return c.json({ ok: true });
+  });
+
+  app.post('/api/beta/samtykke', async (c) => {
+    const a = await betaAdgang(c);
+    if (a instanceof Response) return a;
+    const b = await body(c);
+    const v = b['samtykke'];
+    if (v !== 'ja' && v !== 'nej') return c.json({ error: 'Ugyldig forespørgsel.' }, 400);
+    const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: HJEM, slags: 'beta', id: `samtykke:${v}` });
+    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    const til = v === 'ja';
+    if (a.t.samtykke !== til) {
+      await betaLager!.aendre((s) => ({ ...s, samtykke: til }));
+      await betaLog(til ? 'Deling af beta-tal slået til' : 'Deling af beta-tal slået fra');
+    }
+    live.notify(HJEM);
+    return c.json({ samtykke: til });
   });
 
   // KC-0188: support on (only from Sky, with its signed bevis, for the owner) and off (the owner). Neither is a
@@ -1314,7 +1470,7 @@ export function createApp(deps: AppDeps) {
     return { ...(u ? { stikproeve: u } : {}), ...(b.stop && !b.stop.svar ? { stopTilbud: true as const } : {}) };
   }
 
-  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true }> {
+  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true; beta?: BetaVisning }> {
     // KC-0117: Hjem shows (and counts) only what the person looking may see.
     const egne = (await deps.store.readLog(HJEM, 200)).filter((e) => synligFor(d.person, e));
     const gjort = egne.filter((e) => e.handlingId && !e.handlingId.startsWith('regnskab:') && !e.fortrudt).map((e) => e.handlingId as string);
@@ -1328,7 +1484,7 @@ export function createApp(deps: AppDeps) {
     // KC-0142: a rules file that cannot be read is the owner's to fix (one card); otherwise nothing is shown.
     const r = d.person.rolle === 'ejer' && regler ? await regler.laes() : undefined;
     // KC-0144: only the owner answers proposals (the rules file is the household's).
-    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...(d.person.rolle === 'ejer' && kurator.regelforslag?.length ? { regelforslag: kurator.regelforslag } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
+    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...(d.person.rolle === 'ejer' && kurator.regelforslag?.length ? { regelforslag: kurator.regelforslag } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
   }
 
   /** Hjem is not a room module: its page is built here from every room's hjemVenter, the logs and Kuratoren's cards. */
@@ -1340,7 +1496,7 @@ export function createApp(deps: AppDeps) {
     // Every active univers: today's prepared meeting.
     for (const u of (await laesIndeks(deps.store)).univers) if (!u.arkiveret) vent.push(...(await universRoom(u.id).hjemVenter(d)));
     const logs = await Promise.all(ROOM_MODULES.map(async (m) => (await deps.store.readLog(m.id, 8)).filter((e) => synligFor(d.person, e))));
-    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud } = await hjemEgneData();
+    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud, beta } = await hjemEgneData();
     const gamle = await gamleNu();
     const egneIds = new Set(egne.slice(0, 8).map((e) => e.id));
     // Only Hjem's own entries can be undone from Hjem; the other rooms' lines are shown plain.
@@ -1356,7 +1512,7 @@ export function createApp(deps: AppDeps) {
     const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
     const sit = await situationNu();
     const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
-    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
   }
 
   /**
@@ -2099,6 +2255,7 @@ export async function main(): Promise<void> {
   const hostname = env('KC_HOST', '127.0.0.1');
   const adresse = egenAdresse(process.env, hostname, port);
   const hjaelp = hjaelpFraMiljoe(process.env);
+  const beta = betaFraMiljoe(process.env);
   const stemmeMode = env('KC_STEMME_MODE', mode === 'fake' ? 'fake' : 'elevenlabs');
   const stemme = stemmeMode === 'fake' ? createFakeStemme() : env('KC_ELEVENLABS_API_KEY') ? createElevenLabs({ apiKey: env('KC_ELEVENLABS_API_KEY') }) : undefined;
   const kanal = lavKanal(process.env, mode);
@@ -2139,6 +2296,8 @@ export async function main(): Promise<void> {
     ...(kanal ? { kanal } : {}),
     // KC-0201: "Få hjælp" in the settings, only under Clawco Sky (KC_SKY=ja plus KC_SKY_URL).
     ...(hjaelp ? { hjaelp } : {}),
+    // KC-0203: the closed beta (KC_BETA=ja, set by Clawco Sky for a beta household); a self-installed Clawco has none.
+    ...(beta ? { beta } : {}),
     // KC-0188: "Lad support se med" exists only under the Sky gateway (konto identity): the gateway answers the switch.
     ...(konto ? { stoette: { slaaTil: '/_sky/stoette', slaaFra: '/_sky/stoette/slaa-fra' } } : {}),
     // KC-0187: scrubbed error reports only when KC_FEJLRAPPORT_DSN is set (the owner's switch under Sky; default off).

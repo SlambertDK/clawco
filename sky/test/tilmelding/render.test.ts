@@ -172,3 +172,35 @@ test('user text is escaped', () => {
   const side = tilmeldingSide(e.faelles, { ...e.side, til: '/tilmeld?plan="><script>' } as typeof e.side);
   assert.doesNotMatch(side, /"><script>/);
 });
+
+// KC-0203: the invitation step of the closed beta says what a beta is, and asks for the one consent the measures need.
+for (const sprog of ['da', 'en'] as const) {
+  test(`KC-0203 (${sprog}): the invitation step carries the beta card and an unticked consent box with the closed list in plain words`, () => {
+    const e = EKSEMPLER['invitation']!;
+    const { document } = parseHTML(tilmeldingSide({ ...e.faelles, sprog }, e.side));
+    const tekst = document.body.textContent!.replace(/\s+/g, ' ');
+    assert.ok(tekst.includes(TEKSTER[sprog].betaKort), 'the beta card');
+    assert.ok(tekst.includes(TEKSTER[sprog].betaListe), 'the closed list');
+    const boks = document.querySelector('form[action="/tilmeld/invitation"] input[type="checkbox"][name="betaSamtykke"]')!;
+    assert.ok(boks, 'the checkbox is in the invitation form');
+    assert.equal(boks.getAttribute('value'), 'ja');
+    assert.equal(boks.hasAttribute('checked'), false, 'unticked by default');
+    assert.equal(boks.hasAttribute('required'), false, 'optional: a household can join without sharing');
+    assert.ok(boks.closest('label')!.textContent!.replace(/\s+/g, ' ').includes(TEKSTER[sprog].betaSamtykke));
+  });
+}
+
+test('KC-0203: the wording the ticket fixed', () => {
+  assert.equal(TEKSTER.da.betaKort, 'Det her er en lukket beta: det kan gå galt, og vi skriver til dig, før noget slutter.');
+  assert.equal(TEKSTER.en.betaKort, 'This is a closed beta: things can break, and we write to you before anything ends.');
+  assert.match(TEKSTER.da.betaSamtykke, /^Som betatester deler jeg disse tal: hvor lang tid der gik til det første nyttige element, og hvor mange ting der krævede mig per dag\. Aldrig indhold\.$/);
+  assert.match(TEKSTER.da.betaListe, /Aldrig indhold/);
+  assert.match(TEKSTER.en.betaListe, /Never content/);
+});
+
+test('KC-0203: no other step shows the beta box', () => {
+  for (const [navn, e] of Object.entries(EKSEMPLER)) {
+    if (e.side.visning.trin === 'invitation') continue;
+    assert.ok(!tilmeldingSide(e.faelles, e.side).includes('betaSamtykke'), navn);
+  }
+});

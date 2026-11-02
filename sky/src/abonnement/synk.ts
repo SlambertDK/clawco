@@ -85,12 +85,26 @@ export async function synkKunde(
   return { fra, til, aendret: true };
 }
 
-/** A gift (private beta, KC-0203): set by an admin script only; webhooks never change it. */
-export async function saetGave(db: Database, kontoId: number, plan: string, priser: Priser, nu: Date): Promise<void> {
+/** A gift (private beta, KC-0203): set by an admin script or the beta's invitation redemption only; webhooks never
+ *  change it. `slutter` is the end date a beta gift carries (it is information for the person and the beta-end
+ *  notice; nothing cuts a gift off by itself). */
+export async function saetGave(db: Database, kontoId: number, plan: string, priser: Priser, nu: Date, slutter: Date | null = null): Promise<void> {
   const p = priser.planer[plan];
   if (!p || !Object.hasOwn(priser.planer, plan)) throw new Error(`ukendt plan: ${plan}`);
   await db.transaction(async (tx) => {
     const fra = await laesRaekke(tx, kontoId);
-    await skriv(tx, kontoId, fra, { ...INGEN, kilde: 'gave', plan, status: 'aktiv', medlemmerMax: p.medlemmer }, 'gave', null, nu);
+    await skriv(tx, kontoId, fra, { ...INGEN, kilde: 'gave', plan, status: 'aktiv', medlemmerMax: p.medlemmer, periodeSlutter: slutter ? slutter.toISOString() : null }, 'gave', null, nu);
+  });
+}
+
+/** KC-0203's beta-end notice: moves a gift's end date to `til` when that is later than what it has now (no end date
+ *  counts as earlier). Never shortens, never touches a Stripe entitlement. True when it changed. */
+export async function forlaengGave(db: Database, kontoId: number, til: Date, nu: Date): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const fra = await laesRaekke(tx, kontoId);
+    if (!fra || fra.kilde !== 'gave') return false;
+    if (fra.periodeSlutter !== null && new Date(fra.periodeSlutter).getTime() >= til.getTime()) return false;
+    await skriv(tx, kontoId, fra, { ...fra, periodeSlutter: til.toISOString() }, 'gave-forlaenget', null, nu);
+    return true;
   });
 }

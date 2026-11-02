@@ -4,6 +4,7 @@
 
 import { koebenhavnTilIso } from '../../rooms/univers/tid.ts';
 import type { Moment } from '../typer.ts';
+import { BETA_MOMENTER } from './beta.ts';
 
 /** KC-0152: the moment with the weekend card. */
 export const TIRSDAG_WEEKEND = 'tirsdag-weekend';
@@ -44,6 +45,8 @@ export const MOMENT_TABEL: readonly Moment[] = [
   // and the variant where the third clean week in a row has just been answered (the stop question).
   { id: 'soendag', tid: '18:30', ugedag: 0, navn: 'Søndag aften', url: '/rum/hjem', replik: 'Hvad skjulte du i denne uge?' },
   { id: 'soendag-stop', tid: '18:40', ugedag: 0, navn: 'Søndag: stop tjekket?', url: '/rum/hjem', replik: 'Skal vi blive ved med søndagstjekket?' },
+  // KC-0203: the closed beta — the plain card, the three feedback cards and the page of what is shared (indhold/beta.ts).
+  ...BETA_MOMENTER,
 ];
 
 /** Days after the story's day `dag` that the moment's clock is on: `dagPlus`, or (KC-0147, KC-0152) the days to the next `ugedag`. */

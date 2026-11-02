@@ -99,10 +99,42 @@ test('the call fails closed: no key sends nothing; a non-200 or an answer withou
 });
 
 test('the gateway never forwards /intern/ and strips a client\'s Clawco-Kontrol (a replayed header never reaches a tenant)', () => {
-  for (const sti of ['/intern', '/intern/', '/intern/husstand/medlem', '/INTERN/husstand/medlem', '/x/../intern/husstand/medlem', '/%69ntern/husstand/medlem', '//intern//husstand/medlem']) {
+  for (const sti of ['/intern', '/intern/', '/intern/husstand/medlem', '/INTERN/husstand/medlem', '/x/../intern/husstand/medlem', '/%69ntern/husstand/medlem', '//intern//husstand/medlem', '/api/beta/maal', '/API/beta/maal', '/x/../api/beta/maal']) {
     assert.equal(aldrigVidere(sti), true, sti);
   }
   assert.equal(aldrigVidere('/internt'), false);
+  assert.equal(aldrigVidere('/api/beta/feedback'), false);
   const ud = rensInd({ 'clawco-kontrol': V.header, 'clawco-konto': 'v1.x', accept: 'text/html' });
   assert.deepEqual(ud, { accept: 'text/html' });
+});
+
+test('KC-0203: GET /api/beta/maal — no body, the empty body\'s SHA-256 in the signature, its own nonce, never a person; the JSON of a 200 comes back', async () => {
+  const t = await tenant(() => ({ status: 200, krop: '{"version":1,"samtykke":false}' }));
+  const n = ['cccccccccccccccc', 'dddddddddddddddd'];
+  const kald = kontrolKald({ noegle: NOEGLE, nu: () => NU, nonce: () => n.shift()! });
+  assert.deepEqual(await kald.hent({ ...T, adresse: t.adresse }, '/api/beta/maal'), { version: 1, samtykke: false });
+  await kald.hent({ ...T, adresse: t.adresse }, '/api/beta/maal');
+  const s = t.set[0]!;
+  assert.equal(s.metode, 'GET');
+  assert.equal(s.sti, '/api/beta/maal');
+  assert.equal(s.krop, '');
+  assert.equal(s.headers['clawco-konto'], undefined, 'never a person');
+  assert.equal(s.headers['content-type'], undefined);
+  const m = /^k1\.([A-Za-z0-9_-]{11})\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{86})$/.exec(String(s.headers[KONTROL_HEADER.toLowerCase()]));
+  assert.ok(m);
+  assert.ok(verify(null, Buffer.from(`k1.${m[1]}.${m[2]}`), PUB, Buffer.from(m[3]!, 'base64url')));
+  const p = JSON.parse(Buffer.from(m[2]!, 'base64url').toString('utf8')) as Record<string, unknown>;
+  assert.deepEqual(p, { aud: KONTROL_AUD, t: T.slug, m: 'GET', p: '/api/beta/maal', h: createHash('sha256').update('').digest('base64url'), iat: V.nu, n: 'cccccccccccccccc' });
+  assert.notEqual(String(t.set[1]!.headers['clawco-kontrol']), String(s.headers['clawco-kontrol']), 'every call its own nonce');
+  await t.luk();
+});
+
+test('KC-0203: the read fails closed: no key sends nothing; a non-200, a redirect or a body that is not JSON throws', async () => {
+  const t = await tenant((s) => (s.sti === '/api/beta/maal' ? { status: 503, krop: '{}' } : { status: 200, krop: 'ikke json' }));
+  await assert.rejects(kontrolKald({ noegle: null }).hent({ ...T, adresse: t.adresse }, '/api/beta/maal'), /gateway-nøgle/);
+  assert.equal(t.set.length, 0);
+  const kald = kontrolKald({ noegle: NOEGLE, nu: () => NU });
+  await assert.rejects(kald.hent({ ...T, adresse: t.adresse }, '/api/beta/maal'), /503/);
+  await assert.rejects(kald.hent({ ...T, adresse: t.adresse }, '/api/andet'), /JSON/);
+  await t.luk();
 });

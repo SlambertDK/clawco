@@ -22,6 +22,8 @@
     "hemmeligheder": "node --env-file-if-exists=.env scripts/hemmeligheder.mjs",
     "live:tjek": "node scripts/live-tjek.mjs",
     "betaling:tjek": "node scripts/betaling-tjek.mjs",
+    "beta:invitation": "node scripts/beta-invitation.mjs",
+    "beta:rapport": "node scripts/beta-rapport.mjs",
     "koldstart": "node --test test/testtilstand/koldstart.test.ts",
     "docker:tjek": "node scripts/docker-tjek.mjs"
   },

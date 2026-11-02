@@ -13,6 +13,9 @@ import { TRIN, type Trin } from '../../tillid/trin.ts';
 import { SKJULT_KILDE } from '../../tillid/skjulte.ts';
 import type { KortType } from './kort.ts';
 
+/** Whole kroner as "79", otherwise with two decimals in the language's own separator. */
+const kroner = (n: number, sprog: 'da' | 'en'): string => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace('.', sprog === 'da' ? ',' : '.'));
+
 const da = {
   // Header and room
   overskrift: 'Det, der kalder på dig lige nu.',
@@ -137,6 +140,25 @@ const da = {
   stopTekst: 'Tre uger i træk var alt det, jeg skjulte, rigtigt. Du kan tænde tjekket igen med Fortryd i loggen.',
   jaStop: 'Ja, stop det',
   nejFortsaet: 'Nej, fortsæt',
+
+  // The closed beta (KC-0203, beta.ts): only under KC_BETA=ja
+  betaGruppe: 'Beta',
+  betaTitel: 'Det her er en lukket beta',
+  betaTekst: `Det her er en lukket beta: det kan gå galt, og vi skriver til dig, før noget slutter.`,
+  forstaaet: 'Forstået',
+  fbTitel: (dag: number): string => `Hvordan går det? (dag ${dag})`,
+  fbSpoergsmaal: `Hvor godt virker ${PRODUKT} for dig? 1 er dårligt, 5 er godt.`,
+  fbVurderingGruppe: 'Vurdering fra 1 til 5',
+  fbVurderingN: (n: number): string => `${n} af 5`,
+  fbDrillede: 'Hvad drillede?',
+  fbDrilledeNote: 'Valgfrit, højst 500 tegn. Det er det eneste, du selv skriver.',
+  fbBetale: (solo: number, husstand: number): string => `Ville du betale ${kroner(solo, 'da')} kr (Solo) / ${kroner(husstand, 'da')} kr (Husstand) om måneden for det her?`,
+  fbBetaleSvar: { ja: 'Ja', maaske: 'Måske', nej: 'Nej' } as Record<'ja' | 'maaske' | 'nej', string>,
+  /** The words of the preview line (public/beta.js builds it from the same object that is sent). */
+  fbOrd: { sendes: 'Sendes til Henrik', vurdering: 'vurdering', betale: 'betale', ja: 'ja', maaske: 'måske', nej: 'nej', vaelg: 'vælg en vurdering for at sende' },
+  fbSend: 'Send til Henrik',
+  fbIkkeNu: 'Ikke nu',
+  fbTak: 'Tak. Det er sendt til Henrik.',
 };
 
 export type HjemTekster = typeof da;
@@ -267,6 +289,23 @@ const en: HjemTekster = {
   stopTekst: 'Three weeks in a row, everything I hid was right. You can turn the check back on with Undo in the log.',
   jaStop: 'Yes, stop it',
   nejFortsaet: 'No, keep going',
+
+  betaGruppe: 'Closed beta',
+  betaTitel: 'This is a closed beta',
+  betaTekst: 'This is a closed beta: it can go wrong, and we will write to you before anything ends.',
+  forstaaet: 'Got it',
+  fbTitel: (dag) => `How is it going? (day ${dag})`,
+  fbSpoergsmaal: `How well does ${PRODUKT} work for you? 1 is poor, 5 is good.`,
+  fbVurderingGruppe: 'Rating from 1 to 5',
+  fbVurderingN: (n) => `${n} of 5`,
+  fbDrillede: 'What was in the way?',
+  fbDrilledeNote: 'Optional, at most 500 characters. It is the only thing you write yourself.',
+  fbBetale: (solo, husstand) => `Would you pay DKK ${kroner(solo, 'en')} (Solo) / DKK ${kroner(husstand, 'en')} (Household) a month for this?`,
+  fbBetaleSvar: { ja: 'Yes', maaske: 'Maybe', nej: 'No' },
+  fbOrd: { sendes: 'Sent to Henrik', vurdering: 'rating', betale: 'would pay', ja: 'yes', maaske: 'maybe', nej: 'no', vaelg: 'pick a rating to send' },
+  fbSend: 'Send to Henrik',
+  fbIkkeNu: 'Not now',
+  fbTak: 'Thanks. It has been sent to Henrik.',
 };
 
 export const HJEM_TEKSTER: { da: HjemTekster; en: HjemTekster } = { da, en };

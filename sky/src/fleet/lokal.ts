@@ -99,7 +99,7 @@ export const HAERDNING = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privile
 
 /** How a tenant's app runs, after `--volume …:/data`: read-only root, its key tmpfs, its user, hardening,
  *  limits and identity. The same for a tenant and for a restored copy of it (fleet/kopi.ts). */
-export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[] }): string[] {
+export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[]; beta?: Record<string, string> }): string[] {
   return [
     // Read-only root; only /data (the volume) and a small /tmp are writable.
     '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
@@ -120,22 +120,34 @@ export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubke
     '--env', 'KC_AGENT=direkte',
     // KC-0201: the app's "Få hjælp" points at this Sky's account app (SKY_PUBLIC_URL).
     '--env', 'KC_SKY=ja', '--env', `KC_SKY_URL=${o.skyUrl}`,
+    // KC-0203: a beta household's Clawco knows it (see betaMiljoe); nothing extra for anyone else.
+    ...Object.entries(o.beta ?? {}).flatMap(([k, v]) => ['--env', `${k}=${v}`]),
   ];
 }
 
-export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: string; kontoPubkey: string; skyUrl: string; kryptering: VolumenKryptering; noegleFlag: string[] }): Flaade {
+/** KC-0203: the env a beta household's container gets: KC_BETA=ja (the feedback cards and the daily measures route) and
+ *  KC_BETA_SAMTYKKE=ja|nej (the consent ticked at redemption, the starting point of the tenant's own switch). Nothing
+ *  for a tenant that is not a beta household, whatever its consent. */
+export function betaMiljoe(o: { erBeta: boolean; samtykke: boolean }): Record<string, string> {
+  return o.erBeta ? { KC_BETA: 'ja', KC_BETA_SAMTYKKE: o.samtykke ? 'ja' : 'nej' } : {};
+}
+
+export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: string; kontoPubkey: string; skyUrl: string; kryptering: VolumenKryptering; noegleFlag: string[];
+  /** KC-0203: is this tenant a beta household, and has it consented to the numbers? (server.ts: beta/invitationer.ts betaForTenant.) */
+  beta?: (tenantId: string) => Promise<{ samtykke: boolean } | null> }): Flaade {
   const navne = (id: string) => ({ container: `clawco-t-${tjekTenantId(id)}`, volumen: `clawco-t-${id}-data` });
   const docker = dockerKommando(o.koer);
   const adresse = (container: string) => beholderAdresse(docker, o.netvaerk, container);
 
   /** The tenant container's `docker run`: the same for a first start and for an upgrade or rollback (KC-0186). */
-  function koerArgs(id: string, gateway: string, billede: string): string[] {
+  async function koerArgs(id: string, gateway: string, billede: string): Promise<string[]> {
     const { container, volumen } = navne(id);
+    const b = o.beta ? await o.beta(id) : null;
     return [
       'run', '--detach', '--name', container, '--label', `${ETIKET}=${id}`,
       '--network', o.netvaerk, '--restart', 'unless-stopped',
       '--volume', `${volumen}:/data`,
-      ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag }),
+      ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag, beta: betaMiljoe({ erBeta: b !== null, samtykke: b?.samtykke ?? false }) }),
       billede,
     ];
   }
@@ -162,7 +174,7 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
           'run', '--rm', '--label', `${ETIKET}=${t.id}`, '--network', 'none', '--read-only', ...HAERDNING, '--user', BRUGER,
           '--volume', `${volumen}:/data`, '--entrypoint', 'node', o.billede, '-e', SKRIV_HUSSTAND, husstand,
         ]);
-        await docker(koerArgs(t.id, gateway, o.billede));
+        await docker(await koerArgs(t.id, gateway, o.billede));
       } else if (s === 'stoppet') {
         await docker(['start', container]);
       }
@@ -199,7 +211,7 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
       if ((await docker(['volume', 'inspect', volumen], true)) === null) throw new Error(`disken ${volumen} findes ikke`);
       const gateway = await sikrNetvaerk(docker, o.netvaerk);
       await docker(['rm', '--force', container], true);
-      await docker(koerArgs(t.id, gateway, t.billede));
+      await docker(await koerArgs(t.id, gateway, t.billede));
       return { tenantId: t.id, container, volumen, adresse: await adresse(container), krypteret: o.kryptering.krypteret };
     },
     async maerkede() {

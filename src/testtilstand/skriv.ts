@@ -40,7 +40,7 @@ export async function skrivFroe(dataDir: string, froe: Froe, store: RumLager, da
   for (const navn of OPRYDDES) await rm(path.join(rod, navn), { recursive: true, force: true });
   for (const navn of await readdir(rod)) if (/^avis_\d{4}-\d{2}-\d{2}\.json$/.test(navn)) await rm(path.join(rod, navn), { force: true });
   // KC-0124: the kill switch's pause and the audit log are per moment too.
-  for (const navn of await readdir(rod)) if (navn === 'pause.json' || navn === 'stoette.json' || navn === 'kilder.json' || navn === 'helbred.json' || navn === 'profil.json' || navn === 'indstillinger.json' || /^revision-\d{4}-\d{2}\.jsonl$/.test(navn)) await rm(path.join(rod, navn), { force: true });
+  for (const navn of await readdir(rod)) if (navn === 'pause.json' || navn === 'stoette.json' || navn === 'beta.json' || navn === 'kilder.json' || navn === 'helbred.json' || navn === 'profil.json' || navn === 'indstillinger.json' || /^revision-\d{4}-\d{2}\.jsonl$/.test(navn)) await rm(path.join(rod, navn), { force: true });
 
   for (const [rum, r] of Object.entries(froe.rum)) {
     await store.writeState(rum, r.state);
@@ -62,6 +62,7 @@ export async function skrivFroe(dataDir: string, froe: Froe, store: RumLager, da
   if (froe.stikproever) await skrivAtomisk(path.join(rod, 'tillid', 'stikproever.json'), JSON.stringify(froe.stikproever, null, 2));
   if (froe.pause) await skrivAtomisk(path.join(rod, 'pause.json'), JSON.stringify(froe.pause, null, 2));
   if (froe.stoette) await skrivAtomisk(path.join(rod, 'stoette.json'), JSON.stringify(froe.stoette, null, 2)); // KC-0188: support looking along
+  if (froe.beta) await skrivAtomisk(path.join(rod, 'beta.json'), JSON.stringify(froe.beta, null, 2)); // KC-0203: the closed beta is on
   if (froe.kilder) await skrivKonfig(rod, froe.kilder); // KC-0132: the moment's connected fakes
   if (froe.helbred) await skrivAtomisk(path.join(rod, 'helbred.json'), JSON.stringify({ kilder: froe.helbred }, null, 2)); // KC-0139: the moment's connection health
   if (froe.profil) await skrivAtomisk(path.join(rod, 'profil.json'), JSON.stringify(froe.profil, null, 2)); // KC-0126: Start's step 1

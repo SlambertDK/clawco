@@ -45,6 +45,8 @@ export type ShellOpts = {
   pause?: PauseTilstand;
   /** KC-0201: under Clawco Sky (KC_SKY=ja) the address of the account app's help page; shown as "Få hjælp" in the Kø panel. Absent = no link. */
   hjaelp?: { href: string };
+  /** KC-0203: the closed beta is on (KC_BETA=ja): "Hvad deler jeg?" in the Kø panel (the owner's) and the card script. Absent = nothing of the beta. */
+  beta?: true;
   /**
    * KC-0188: "Lad support se med". `adgang` = the grant that is on now (from the tenant's own record), null = off;
    * `slaaTil`/`slaaFra` = where the owner's card and the band's Slå fra post. Absent = no switch: no band, no card.
@@ -167,7 +169,7 @@ ${stoetteBaand(o)}
       <div class="kilder-panel" data-kilder="panel" hidden></div>
       ${!o.person || o.person.rolle === 'ejer' ? html`<div class="omkostninger-panel" data-omkostninger="panel" hidden></div>` : ''}
       ${!o.person || o.person.rolle === 'ejer' ? html`<div class="viden-link"><a class="btn btn-ghost" href="/viden">${T.hvadVed}</a></div>` : ''}
-      ${o.hjaelp ? html`<div class="viden-link"><a class="btn btn-ghost" href="${o.hjaelp.href}" data-hjaelp>${T.faaHjaelp}</a></div>` : ''}
+      ${o.hjaelp ? html`<div class="viden-link"><a class="btn btn-ghost" href="${o.hjaelp.href}" data-hjaelp>${T.faaHjaelp}</a></div>` : ''}${o.beta && (!o.person || o.person.rolle === 'ejer') ? html`<div class="viden-link"><a class="btn btn-ghost" href="/beta/deling" data-beta-deling-link>${T.hvadDeler}</a></div>` : ''}
       ${stoetteKort(o)}
       <form id="indstillinger" class="indstillinger" onsubmit="return false">
         <span class="eyebrow">${T.taenkeniveau}</span>
@@ -225,7 +227,7 @@ ${stoetteBaand(o)}
 </dialog>
 <button type="button" id="chat-toggle" aria-controls="aside" aria-expanded="false">${T.spoergHermes}<span class="count" id="chat-toggle-count" hidden></span></button>
 ${o.stemme === 'samtale' ? html`<script src="${ELEVENLABS_SDK}" defer></script>` : ''}
-${o.stemme ? html`<script src="/lyt.js" defer></script>` : ''}
+${o.stemme ? html`<script src="/lyt.js" defer></script>` : ''}${o.beta ? html`<script src="/beta.js" defer></script>` : ''}
 <script src="/ark.js" defer></script>
 <script src="/frisk.js" defer></script>
 <script src="/forbindelse.js" defer></script>

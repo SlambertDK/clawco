@@ -48,6 +48,10 @@ const da = {
   brugKode: 'Brug koden',
   kodeIkkeEndnu: 'Invitationskoder kan ikke indløses endnu. Din konto er gemt, så du kan fortsætte her, når du har fået adgang.',
   kodeUkendt: 'Den kode kender vi ikke. Tjek, at den er skrevet rigtigt.',
+  // KC-0203: draft wording (KC-0174 checks it): the beta card, the one consent the measures need, and its closed list.
+  betaKort: 'Det her er en lukket beta: det kan gå galt, og vi skriver til dig, før noget slutter.',
+  betaSamtykke: 'Som betatester deler jeg disse tal: hvor lang tid der gik til det første nyttige element, og hvor mange ting der krævede mig per dag. Aldrig indhold.',
+  betaListe: 'Det deles, og intet andet: tiden fra din tilmelding til din Clawco er klar, tiden til en kilde er forbundet og tiden til det første nyttige element, og for hver dag ét tal for, hvor mange ting der krævede dig. Aldrig indhold: ingen titler, mails, kalenderposter eller navne. Du kan slå delingen fra senere, og tallene slettes, når du sletter din konto. Svarene på de små spørgsmål i Clawco sender du kun, når du selv trykker Send.',
 
   planTitel: 'Vælg din plan',
   planIntro: (dage: number): string => `${dage} dage gratis, intet kort. Når prøven slutter, sættes din Clawco på pause, indtil du selv vælger at betale.`,
@@ -135,6 +139,9 @@ const en: Tekster = {
   brugKode: 'Use the code',
   kodeIkkeEndnu: 'Invitation codes cannot be redeemed yet. Your account is saved, so you can continue here once you have access.',
   kodeUkendt: 'We do not know that code. Check that it is spelled correctly.',
+  betaKort: 'This is a closed beta: things can break, and we write to you before anything ends.',
+  betaSamtykke: 'As a beta tester I share these numbers: how long it took to the first useful item, and how many things needed me per day. Never content.',
+  betaListe: 'This is shared, and nothing else: the time from your sign-up until your Clawco is ready, the time until a source is connected and the time until the first useful item, and for each day one number for how many things needed you. Never content: no titles, mails, calendar entries or names. You can switch the sharing off later, and the numbers are deleted when you delete your account. The answers to the small questions in Clawco are sent only when you press Send yourself.',
 
   planTitel: 'Choose your plan',
   planIntro: (dage) => `${dage} days free, no card. When the trial ends, your Clawco is paused until you choose to pay.`,

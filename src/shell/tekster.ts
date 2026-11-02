@@ -72,6 +72,8 @@ const da = {
   henter: 'Henter …',
   hvadVed: `Hvad ${PRODUKT} ved om dig`,
   faaHjaelp: 'Få hjælp',
+  /** KC-0203: the closed beta's page of what is shared (only under KC_BETA=ja). */
+  hvadDeler: 'Hvad deler jeg?',
   taenkeniveau: 'Tænkeniveau',
   smaating: 'Småting (chat, handlinger, kladder)',
   analyse: 'Analyse og forslag (bygge rum, udkast, forslag)',
@@ -259,6 +261,7 @@ const en: Tekster = {
   henter: 'Loading …',
   hvadVed: `What ${PRODUKT} knows about you`,
   faaHjaelp: 'Get help',
+  hvadDeler: 'What am I sharing?',
   taenkeniveau: 'Thinking level',
   smaating: 'Small things (chat, actions, drafts)',
   analyse: 'Analysis and proposals (building rooms, drafts, proposals)',
