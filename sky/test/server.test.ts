@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { createSkyApp, kontoDeps, flaadeFra, forbind, fordeler } from '../src/server.ts';
+import { createSkyApp, kontoDeps, flaadeFra, noegleskiftFra, forbind, fordeler } from '../src/server.ts';
 import { FROE as GW_FROE, OFFENTLIG as GW_OFFENTLIG } from './gateway/hjaelp.ts';
 import { laesConfig } from '../src/config.ts';
 import { pgliteDatabase } from './pglite.ts';
@@ -378,4 +378,11 @@ test('KC-0184: household invitations stay off until SKY_HUSSTAND_INVITATIONER=1 
   const taendt = await forbind(laesConfig(ENV), db, { SKY_HUSSTAND_INVITATIONER: '1' });
   assert.ok(taendt.konto.medlemskab);
   await db.close();
+});
+
+test('KC-0217: noegleskiftFra says forberedt only for a lokal fleet that has the next public key', () => {
+  const NY = 'Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc';
+  assert.equal(noegleskiftFra(laesConfig({ ...LOKAL, SKY_KONTO_PUBKEY_NY: NY })), 'forberedt');
+  assert.equal(noegleskiftFra(laesConfig(LOKAL)), undefined);
+  assert.equal(noegleskiftFra(laesConfig(ENV)), undefined);
 });

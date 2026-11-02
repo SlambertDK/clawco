@@ -93,6 +93,22 @@ test('KC-0182: lokal refuses to start without a well-formed SKY_KONTO_PUBKEY (te
   assert.equal(laesConfig({ ...gyldig, SKY_FLAADE: 'hetzner' }).flaade.driver, 'hetzner');
 });
 
+test('KC-0217: SKY_KONTO_PUBKEY_NY is the next public key of a rotation; absent = none in progress, and the config has no such key', () => {
+  const P = 'A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg';
+  const NY = 'Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc';
+  const lokal = { ...gyldig, SKY_FLAADE: 'lokal', SKY_TENANT_BILLEDE: 'clawco:test', SKY_KONTO_PUBKEY: P };
+  const uden = laesConfig(lokal).flaade;
+  assert.equal('kontoPubkeyNy' in uden, false);
+  assert.equal('kontoPubkeyNy' in laesConfig({ ...lokal, SKY_KONTO_PUBKEY_NY: '  ' }).flaade, false);
+  assert.deepEqual(laesConfig({ ...lokal, SKY_KONTO_PUBKEY_NY: NY }).flaade, { ...uden, kontoPubkeyNy: NY });
+  // The same key twice is a mistake (no rotation at all): Sky says so in plain words and does not start.
+  assert.throws(() => laesConfig({ ...lokal, SKY_KONTO_PUBKEY_NY: P }), /SKY_KONTO_PUBKEY_NY.*samme nøgle som SKY_KONTO_PUBKEY/);
+  afviser({ ...lokal, SKY_KONTO_PUBKEY_NY: P }, 'SKY_KONTO_PUBKEY_NY');
+  for (const v of ['kort', `${NY}=`, NY.replace('_', '+'), `${NY}A`, 'Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdd']) afviser({ ...lokal, SKY_KONTO_PUBKEY_NY: v }, 'SKY_KONTO_PUBKEY_NY');
+  // Nothing is provisioned without the lokal driver, so the key is not read there.
+  assert.equal(laesConfig({ ...gyldig, SKY_FLAADE: 'hetzner', SKY_KONTO_PUBKEY_NY: 'kort' }).flaade.driver, 'hetzner');
+});
+
 test('KC-0183: the base domain localhost (tenants on <slug>.localhost) is for local development only', () => {
   assert.equal(laesConfig({ ...gyldig, SKY_DEV: '1', SKY_BASEDOMAIN: 'localhost' }).basedomain, 'localhost');
   afviser({ ...gyldig, SKY_BASEDOMAIN: 'localhost' }, 'SKY_BASEDOMAIN');

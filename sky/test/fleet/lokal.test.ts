@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { noegleRunFlag } from '../../src/hemmeligheder/levering.ts';
-import { lokalFlaade, koerProces, SKRIV_HUSSTAND, type Koersel } from '../../src/fleet/lokal.ts';
+import { lokalFlaade, koerProces, tenantKoersel, SKRIV_HUSSTAND, type Koersel } from '../../src/fleet/lokal.ts';
 import { ingenKryptering } from '../../src/fleet/kryptering.ts';
 
 type Svar = { kode: number; ud: string; fejl: string };
@@ -372,4 +372,29 @@ test('KC-0203: a tenant that is not a beta household gets no beta env, with or w
   const kun = (d: ReturnType<typeof falskDocker>) => d.kald.find((x) => x[1] === 'run' && !x.includes('--rm'))!;
   assert.deepEqual(kun(a), kun(b));
   assert.ok(!kun(a).some((x) => x.startsWith('KC_BETA')));
+});
+
+test('KC-0217: tenantKoersel hands a tenant the next key beside the current one; without it the argv is the one it always was', () => {
+  const NY_NOEGLE = 'Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc';
+  const o = { tenantId: 'hus-abcdefgh', gateway: '172.18.0.1', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', noegleFlag: noegleRunFlag() };
+  const uden = tenantKoersel(o);
+  assert.deepEqual(tenantKoersel({ ...o, kontoPubkeyNy: undefined }), uden);
+  assert.ok(!uden.some((a) => a.includes('KC_KONTO_PUBKEY_NY')));
+  const med = tenantKoersel({ ...o, kontoPubkeyNy: NY_NOEGLE });
+  const i = uden.indexOf(`KC_KONTO_PUBKEY=${PUBKEY}`);
+  assert.deepEqual(med, [...uden.slice(0, i + 1), '--env', `KC_KONTO_PUBKEY_NY=${NY_NOEGLE}`, ...uden.slice(i + 1)]);
+});
+
+test('KC-0217: a tenant container created or recreated while a rotation is prepared carries both keys; the data volume is the same', async () => {
+  const NY_NOEGLE = 'Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc';
+  const d = falskDocker();
+  const f = lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, kontoPubkeyNy: NY_NOEGLE, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
+  await f.klargoer(EJER);
+  const run = d.kald.find((a) => a[1] === 'run' && !a.includes('--rm'))!;
+  assert.ok(run.includes(`KC_KONTO_PUBKEY=${PUBKEY}`) && run.includes(`KC_KONTO_PUBKEY_NY=${NY_NOEGLE}`));
+  const antal = d.kald.length;
+  await f.opgrader({ id: EJER.id, billede: GAMMEL });
+  const igen = d.kald.slice(antal).find((a) => a[1] === 'run')!;
+  assert.ok(igen.includes(`KC_KONTO_PUBKEY_NY=${NY_NOEGLE}`));
+  assert.ok(igen.includes('clawco-t-hus-abcdefgh-data:/data'));
 });

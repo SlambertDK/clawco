@@ -39,21 +39,64 @@ SKY_GATEWAY_SIGNERINGSNOEGLE` (hidden prompt; prints name and length only). The 
 cookie and the login path's `next` (HKDF, separate purposes), so changing it logs every tenant browser out
 once (they are sent through login again; nothing else is lost).
 
-## Rotation
+## Rotation (KC-0217)
 
-The tenant verifier (`src/identitet/konto.ts`) accepts two public keys, `KC_KONTO_PUBKEY` and
-`KC_KONTO_PUBKEY_NY`, picked by the key id in the header. The order:
+The tenant verifier (`src/identitet/konto.ts`) accepts two public keys, `KC_KONTO_PUBKEY` and `KC_KONTO_PUBKEY_NY`,
+picked by the key id in the header. Sky hands a tenant the second one when `SKY_KONTO_PUBKEY_NY` is set (public, not
+a secret; Sky refuses to start if it equals `SKY_KONTO_PUBKEY`). A container's environment is fixed when it is created,
+so `sky/scripts/genstart-flaade.ts` recreates every klar tenant's container with the current environment (same image,
+same volume, so the data stays; the rollout's order intern → kanari → alle, key delivery and `/health` wait; one tenant
+at a time; stops at the first failure; `--dry-run` lists and changes nothing; refused while a rollout is active).
 
-1. Make a new seed and its public key on a trusted machine (`noegleFraFroe` in `sky/src/gateway/signer.ts`).
-2. Give every tenant the new public key as `KC_KONTO_PUBKEY_NY` beside the old one, and restart them.
-3. Set the new seed as `SKY_GATEWAY_SIGNERINGSNOEGLE` and the new public key as `SKY_KONTO_PUBKEY`; restart
-   Sky. Requests are now signed with the new key; tenants accept it as `…_NY`.
-4. Move the new key to `KC_KONTO_PUBKEY` on every tenant and drop `KC_KONTO_PUBKEY_NY`.
+**What it costs a customer.** Each tenant restarts once per `genstart-flaade` run (steps 2 and 4), a few seconds behind
+the "Opdaterer, et øjeblik" page. **Step 3 logs every tenant browser out once:** the seed also keys the tenant cookie and
+the login path's `next` (HKDF, `gateway/noegle.ts`), so a new seed invalidates every cookie and any login link in flight;
+people are sent through the account login again and nothing else is lost. That is the current design, not a fault.
+Do step 3 at a quiet hour.
 
-**Not yet possible on the lokal fleet:** `sky/src/fleet/lokal.ts` sets a tenant's environment when its
-container is first created and has no `KC_KONTO_PUBKEY_NY`, so step 2 needs a fleet change (a follow-up
-ticket) before a rotation can be rehearsed. Until then a rotation means recreating every tenant container
-with the new key (the volume, and so the data, is kept).
+Commands run from the repo root on the Mac (`HOST=henrik@kira-home`, key `~/.ssh/kira-home`); secrets never reach the
+terminal, only names and lengths. Use a 0600 file in `$HOME` for a seed (`umask 077`) and delete it at the end.
+
+1. **A new seed and its public key.** The seed goes to a file, the public key is printed:
+   ```
+   (umask 077; node --input-type=module -e "import { randomBytes } from 'node:crypto'; import { noegleFraFroe } from './sky/src/gateway/signer.ts'; const f = randomBytes(32); console.log(f.toString('base64url')); console.error('ny offentlig: ' + noegleFraFroe(f).offentlig + ' (frø: ' + f.length + ' bytes)')" > ~/.clawco-ny-froe)
+   (umask 077; ssh -i ~/.ssh/kira-home henrik@kira-home "sudo -n -u sky bash -c 'grep ^SKY_GATEWAY_SIGNERINGSNOEGLE= /srv/sky/.env'" | cut -d= -f2 > ~/.clawco-gammel-froe)   # kept for rollback
+   ```
+   Note the printed public key (`NY_PUB` below) and the old one (`SKY_KONTO_PUBKEY` in `/srv/sky/.env`, `GAMMEL_PUB`).
+2. **Every tenant gets both keys.** Mac first, then kira-home as `sky` in `/srv/sky/kontrolcenter` (as for `udrul.ts`,
+   `sky/deploy/README.md`, Udrulning; run it under `tmux`):
+   ```
+   printf '%s\n' "$NY_PUB" | sky/scripts/saet-hemmelighed.sh SKY_KONTO_PUBKEY_NY
+   ssh kira-home 'sudo systemctl restart sky'
+   # kira-home:
+   curl -s http://127.0.0.1:8781/health    # shows "noegleskift":"forberedt"
+   node --env-file=/srv/sky/.env sky/scripts/genstart-flaade.ts --dry-run   # the list, nothing changes
+   node --env-file=/srv/sky/.env sky/scripts/genstart-flaade.ts             # "<slug>: genstartet" per tenant, then "N genstartet, 0 fejlede"
+   ```
+   Go on only when it ends `0 fejlede` (otherwise fix the named tenant and run it again; a tenant created in the
+   meantime already has both keys). Requests are still signed with the old key.
+3. **Sign with the new key** (logs browsers out once, see above). Mac, then kira-home:
+   ```
+   sky/scripts/saet-hemmelighed.sh SKY_GATEWAY_SIGNERINGSNOEGLE < ~/.clawco-ny-froe
+   printf '%s\n' "$NY_PUB" | sky/scripts/saet-hemmelighed.sh SKY_KONTO_PUBKEY
+   # kira-home, as henrik: take SKY_KONTO_PUBKEY_NY out of the file
+   sudo -u sky bash -c "sed -i '/^SKY_KONTO_PUBKEY_NY=/d' /srv/sky/.env"
+   sudo systemctl restart sky
+   curl -s http://127.0.0.1:8781/health    # gateway "ok", no "noegleskift"
+   ```
+   Sky checks the pair at start (a seed that does not match `SKY_KONTO_PUBKEY` leaves every tenant at 503 and `/health`
+   at `gateway: "mangler"`: put the old values back, see Rollback). Tenants that still run with the old key as
+   `KC_KONTO_PUBKEY` accept the new one as `KC_KONTO_PUBKEY_NY`; a tenant created from now on has the new key as
+   `KC_KONTO_PUBKEY`. Open one tenant address (Checking it, below) to see it answer.
+4. **Drop the old key everywhere.** On kira-home, as in step 2: `node --env-file=/srv/sky/.env
+   sky/scripts/genstart-flaade.ts` once more. Every tenant now has `KC_KONTO_PUBKEY=<new>` and no `_NY`; the old key
+   is accepted nowhere. Then on the Mac `rm ~/.clawco-ny-froe ~/.clawco-gammel-froe`.
+
+**Rollback.** Until step 4 has run: put the old values back (`saet-hemmelighed.sh SKY_GATEWAY_SIGNERINGSNOEGLE <
+~/.clawco-gammel-froe`, and `SKY_KONTO_PUBKEY` = `GAMMEL_PUB`), remove `SKY_KONTO_PUBKEY_NY` as in step 3, restart Sky:
+the tenants' primary key is still the old one, so they accept it at once (browsers are logged out once more). Run
+`genstart-flaade` afterwards only to take `KC_KONTO_PUBKEY_NY` out of the containers. After step 4 the old key is gone
+from every tenant, so going back is a new rotation with the old seed as the "new" one.
 
 ## Checking it
 

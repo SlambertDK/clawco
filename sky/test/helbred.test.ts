@@ -103,3 +103,15 @@ test('KC-0183: health reports the gateway key as ok or mangler (a word, never a 
   assert.equal(((await r.json()) as { gateway?: string }).gateway, 'mangler');
   await db.close();
 });
+
+test('KC-0217: health says noegleskift: forberedt while SKY_KONTO_PUBKEY_NY is set (one word, no key); never otherwise', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  assert.equal((await helbred({ db, sha: 'abc1234', startet: 1_000, flaade: 'lokal', noegler: 'ok', gateway: 'ok', noegleskift: 'forberedt' })).noegleskift, 'forberedt');
+  assert.equal('noegleskift' in (await helbred({ db, sha: 'abc1234', startet: 1_000, flaade: 'lokal', noegler: 'ok', gateway: 'ok' })), false);
+  const r = await createSkyApp({ db, sha: 'x', startet: Date.now(), flaade: 'lokal', noegler: 'ok', gateway: 'ok', noegleskift: 'forberedt' }).request('/health');
+  assert.equal(r.status, 200, 'a rotation in progress is not a fault');
+  assert.equal(((await r.json()) as { noegleskift?: string }).noegleskift, 'forberedt');
+  assert.equal('noegleskift' in ((await (await createSkyApp({ db, sha: 'x', startet: Date.now() }).request('/health')).json()) as object), false);
+  await db.close();
+});

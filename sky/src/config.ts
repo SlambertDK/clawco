@@ -23,7 +23,9 @@ export type SkyConfig = {
   tilmelding: 'invitation' | 'open';
 };
 
-export type FlaadeValg = { driver: 'ingen' } | { driver: 'hetzner' } | { driver: 'lokal'; billede: string; netvaerk: string; kontoPubkey: string };
+export type FlaadeValg = { driver: 'ingen' } | { driver: 'hetzner' } | { driver: 'lokal'; billede: string; netvaerk: string; kontoPubkey: string;
+  /** KC-0217: the NEXT public key while the gateway's signing key is being rotated (SKY_KONTO_PUBKEY_NY); absent = no rotation in progress. */
+  kontoPubkeyNy?: string };
 export const STANDARD_NETVAERK = 'clawco-sky';
 
 
@@ -84,11 +86,17 @@ function flaadeValg(env: Record<string, string | undefined>): FlaadeValg {
   // raw 32 bytes, base64url without padding. Without it a tenant refuses every request, so Sky refuses to
   // start instead. Its private half is SKY_GATEWAY_SIGNERINGSNOEGLE (gateway/noegle.ts), checked against it at start.
   const kontoPubkey = kraevet(env, 'SKY_KONTO_PUBKEY');
-  if (!/^[A-Za-z0-9_-]{43}$/.test(kontoPubkey) || Buffer.from(kontoPubkey, 'base64url').toString('base64url') !== kontoPubkey) {
-    throw ugyldig('SKY_KONTO_PUBKEY', 'skal være en Ed25519-offentlig nøgle: 32 bytes som base64url uden udfyldning (43 tegn)');
-  }
-  return { driver, billede, netvaerk, kontoPubkey };
+  if (!offentligNoegle(kontoPubkey)) throw ugyldig('SKY_KONTO_PUBKEY', PUBKEY_KRAV);
+  // KC-0217: during a rotation (sky/deploy/gateway/README.md) every tenant is given the next key too, as
+  // KC_KONTO_PUBKEY_NY, so it accepts both. Absent = no rotation in progress. The same key twice is a mistake.
+  const kontoPubkeyNy = (env['SKY_KONTO_PUBKEY_NY'] ?? '').trim();
+  if (kontoPubkeyNy && !offentligNoegle(kontoPubkeyNy)) throw ugyldig('SKY_KONTO_PUBKEY_NY', PUBKEY_KRAV);
+  if (kontoPubkeyNy === kontoPubkey) throw ugyldig('SKY_KONTO_PUBKEY_NY', 'er den samme nøgle som SKY_KONTO_PUBKEY, og et nøgleskift skal have en ny nøgle (fjern SKY_KONTO_PUBKEY_NY, eller sæt den nye nøgle)');
+  return { driver, billede, netvaerk, kontoPubkey, ...(kontoPubkeyNy ? { kontoPubkeyNy } : {}) };
 }
+
+const PUBKEY_KRAV = 'skal være en Ed25519-offentlig nøgle: 32 bytes som base64url uden udfyldning (43 tegn)';
+const offentligNoegle = (v: string): boolean => /^[A-Za-z0-9_-]{43}$/.test(v) && Buffer.from(v, 'base64url').toString('base64url') === v;
 
 /** KC-0185: where the nightly copies go (Cloudflare R2, the free tier, an EU-jurisdiction bucket). The secret is a
  *  function so no JSON or log of this object can carry it. */

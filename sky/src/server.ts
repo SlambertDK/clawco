@@ -92,7 +92,7 @@ import { noterPost } from './drift/helbred/historik.ts';
 import { pollerLoekke } from './drift/helbred/poller.ts';
 
 export type DevStripe = Parameters<typeof devStripeRuter>[0];
-export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport; status?: StatusDeps };
+export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport; status?: StatusDeps };
 
 export function createSkyApp(deps: SkyDeps): Hono {
   const app = new Hono();
@@ -105,7 +105,7 @@ export function createSkyApp(deps: SkyDeps): Hono {
     return c.text('Internal Server Error', 500);
   });
   app.get('/health', async (c) => {
-    const h = await helbred({ db: deps.db, sha: deps.sha, startet: deps.startet, ...(deps.flaade ? { flaade: deps.flaade } : {}), ...(deps.noegler ? { noegler: deps.noegler } : {}), ...(deps.gateway ? { gateway: deps.gateway } : {}) });
+    const h = await helbred({ db: deps.db, sha: deps.sha, startet: deps.startet, ...(deps.flaade ? { flaade: deps.flaade } : {}), ...(deps.noegler ? { noegler: deps.noegler } : {}), ...(deps.gateway ? { gateway: deps.gateway } : {}), ...(deps.noegleskift ? { noegleskift: deps.noegleskift } : {}) });
     return c.json(h, h.ok ? 200 : 503);
   });
   // KC-0189: the public status feed (counts only); its handler ends the chain like /health.
@@ -140,9 +140,14 @@ export function noeglering(env: Record<string, string | undefined>): Noegler {
 export function flaadeFra(config: SkyConfig, db?: Database): Flaade | null {
   const f = config.flaade;
   // KC-0203: a beta household's container is told so (and what it consented to); `db` absent = nobody is a beta.
-  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...(db ? { beta: async (slug: string) => { const b = await betaForTenant(db, slug); return b ? { samtykke: b.samtykke } : null; } } : {}) });
+  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, kontoPubkeyNy: f.kontoPubkeyNy, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...(db ? { beta: async (slug: string) => { const b = await betaForTenant(db, slug); return b ? { samtykke: b.samtykke } : null; } } : {}) });
   if (f.driver === 'hetzner') return hetznerFlaade({ omkostninger: () => laesOmkostninger(), mrr: () => 0 });
   return null;
+}
+
+/** KC-0217: `forberedt` while a key rotation is prepared (SKY_KONTO_PUBKEY_NY set with the lokal fleet), shown on /health. */
+export function noegleskiftFra(config: SkyConfig): 'forberedt' | undefined {
+  return config.flaade.driver === 'lokal' && config.flaade.kontoPubkeyNy ? 'forberedt' : undefined;
 }
 
 /** The edge hooks (KC-0183): the gateway's route table is the fleet's own rows, so putting a tenant in or out of
@@ -608,7 +613,7 @@ export async function main(): Promise<void> {
   });
   console.log(`sky: status på ${new URL(config.publicUrl).origin}/status.json${statusSide ? ` (CORS for ${statusSide})` : ' (SKY_STATUS_ORIGIN ikke sat: ingen CORS)'}`);
   const status: StatusDeps = { feed: feedCache({ bygg: () => byggFeed(db, new Date()) }), origin: statusSide, side: `${statusSide ?? new URL(config.publicUrl).origin}/status`, feedUrl: `${new URL(config.publicUrl).origin}/status.atom` };
-  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, ...fl });
+  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, ...(noegleskiftFra(config) ? { noegleskift: 'forberedt' as const } : {}), loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, ...fl });
   const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette, noterSet: noterSet({ db }) });
   // KC-0203: once a day (a pass at start) the klar beta tenants are asked for their consented measures over the signed
   // control call; a pass with no beta household is one query.

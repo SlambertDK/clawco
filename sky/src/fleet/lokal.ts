@@ -99,7 +99,7 @@ export const HAERDNING = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privile
 
 /** How a tenant's app runs, after `--volume …:/data`: read-only root, its key tmpfs, its user, hardening,
  *  limits and identity. The same for a tenant and for a restored copy of it (fleet/kopi.ts). */
-export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[]; beta?: Record<string, string> }): string[] {
+export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubkey: string; kontoPubkeyNy?: string | undefined; skyUrl: string; noegleFlag: string[]; beta?: Record<string, string> }): string[] {
   return [
     // Read-only root; only /data (the volume) and a small /tmp are writable.
     '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
@@ -116,6 +116,8 @@ export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubke
     '--env', 'KC_HOST=0.0.0.0',
     // Identity from Sky's signed header only (KC-0179); the gateway connects from the bridge's host side.
     '--env', 'KC_IDENTITET=konto', '--env', `KC_KONTO_TENANT=${o.tenantId}`, '--env', `KC_KONTO_PUBKEY=${o.kontoPubkey}`,
+    // KC-0217: the next key while the gateway's signing key is rotated; the tenant accepts both (picked by key id).
+    ...(o.kontoPubkeyNy ? ['--env', `KC_KONTO_PUBKEY_NY=${o.kontoPubkeyNy}`] : []),
     '--env', `KC_KONTO_GATEWAY=${o.gateway}`,
     '--env', 'KC_AGENT=direkte',
     // KC-0201: the app's "Få hjælp" points at this Sky's account app (SKY_PUBLIC_URL).
@@ -132,7 +134,7 @@ export function betaMiljoe(o: { erBeta: boolean; samtykke: boolean }): Record<st
   return o.erBeta ? { KC_BETA: 'ja', KC_BETA_SAMTYKKE: o.samtykke ? 'ja' : 'nej' } : {};
 }
 
-export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: string; kontoPubkey: string; skyUrl: string; kryptering: VolumenKryptering; noegleFlag: string[];
+export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: string; kontoPubkey: string; kontoPubkeyNy?: string | undefined; skyUrl: string; kryptering: VolumenKryptering; noegleFlag: string[];
   /** KC-0203: is this tenant a beta household, and has it consented to the numbers? (server.ts: beta/invitationer.ts betaForTenant.) */
   beta?: (tenantId: string) => Promise<{ samtykke: boolean } | null> }): Flaade {
   const navne = (id: string) => ({ container: `clawco-t-${tjekTenantId(id)}`, volumen: `clawco-t-${id}-data` });
@@ -147,7 +149,7 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
       'run', '--detach', '--name', container, '--label', `${ETIKET}=${id}`,
       '--network', o.netvaerk, '--restart', 'unless-stopped',
       '--volume', `${volumen}:/data`,
-      ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag, beta: betaMiljoe({ erBeta: b !== null, samtykke: b?.samtykke ?? false }) }),
+      ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, kontoPubkeyNy: o.kontoPubkeyNy, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag, beta: betaMiljoe({ erBeta: b !== null, samtykke: b?.samtykke ?? false }) }),
       billede,
     ];
   }
