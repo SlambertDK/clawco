@@ -11,8 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseEnv } from 'node:util';
 import { ArkivFejl, erFjernmonteret, gendan, skrivArkiv, valider } from '../src/store/arkiv.ts';
-import { lavVaultStier } from '../src/kilder/noter/stier.ts';
-import { vaultRod } from '../src/store/vault.ts';
+import { lavVaultStier, vaultRodAf } from '../src/kilder/noter/stier.ts';
 import { listSikkerhedskopi } from '../src/tillid/brugermappe.ts';
 
 const BRUG = `Brug:
@@ -55,13 +54,12 @@ const mb = (b) => (b >= 1 << 20 ? `${(b / (1 << 20)).toFixed(1)} MB` : b >= 1 <<
 const indenfor = (rod, p) => p === rod || p.startsWith(rod + path.sep);
 const ud = (t = '') => process.stdout.write(t + '\n');
 
-/** The vault root: the flag, then an explicit env setting, then the vault chosen on the notes card, then <data>/vault. */
+/** The vault root: the flag, else the one answer (env, the vault chosen on the notes card, <data>/vault). */
 function findVault(dataDir, flag, env) {
   if (flag['vault-mappe']) return path.resolve(flag['vault-mappe']);
-  const eksplicit = vaultRod({ KC_VAULT_DIR: env.KC_VAULT_DIR, KC_VAULT_INBOX: env.KC_VAULT_INBOX });
-  if (eksplicit) return eksplicit;
-  const valgt = lavVaultStier({ dataDir, env: {} })().rod;
-  return valgt ? path.resolve(valgt) : vaultRod({ KC_DATA_DIR: dataDir });
+  // KC-0213: the one answer (kilder/noter/stier.ts): env, else the vault chosen on the notes card, else <data>/vault.
+  const rod = lavVaultStier({ dataDir, env: { KC_VAULT_DIR: env.KC_VAULT_DIR, KC_VAULT_INBOX: env.KC_VAULT_INBOX } })().rod;
+  return rod ? path.resolve(rod) : '';
 }
 
 async function backup(args, env) {
@@ -116,7 +114,7 @@ async function restore(args, env) {
   if (pos.length !== 1) { process.stderr.write(`restore skal have én fil.\n${BRUG}\n`); process.exitCode = 2; return; }
   const fil = path.resolve(pos[0]);
   const data = path.resolve(flag['data-mappe'] || env.KC_DATA_DIR || './data');
-  const eksplicitVault = flag['vault-mappe'] || vaultRod({ KC_VAULT_DIR: env.KC_VAULT_DIR, KC_VAULT_INBOX: env.KC_VAULT_INBOX });
+  const eksplicitVault = flag['vault-mappe'] || vaultRodAf({ KC_VAULT_DIR: env.KC_VAULT_DIR, KC_VAULT_INBOX: env.KC_VAULT_INBOX }, '');
   const maal = { data, vault: eksplicitVault ? path.resolve(eksplicitVault) : `${data}-vault`, miljoe: `${data}-miljoe` };
 
   const o = await valider(fil);

@@ -4,12 +4,13 @@
 // Hermes already follows (src/tillid/start.ts) as the first rules file in
 // <vault>/Clawco/regler.md — only when no rules file exists. Prints the path
 // and what it did; never prints anything from .env.
-import { vaultRod } from '../src/store/vault.ts';
+import { lavVaultStier } from '../src/kilder/noter/stier.ts';
 import { lavReglerLager } from '../src/tillid/lager.ts';
 import { skrivStartregler } from '../src/tillid/start.ts';
 
 const dataDir = (process.env.KC_DATA_DIR ?? '').trim() || './data';
-const vaultDir = vaultRod({ KC_VAULT_DIR: process.env.KC_VAULT_DIR, KC_VAULT_INBOX: process.env.KC_VAULT_INBOX, KC_DATA_DIR: dataDir });
+// KC-0213: the one vault root (env, else the vault chosen on the notes card, else <data>/vault).
+const vaultDir = lavVaultStier({ dataDir, env: { KC_VAULT_DIR: process.env.KC_VAULT_DIR, KC_VAULT_INBOX: process.env.KC_VAULT_INBOX } })().rod;
 const dato = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(new Date());
 const lager = lavReglerLager({ vaultDir, dataDir });
 const udfald = await skrivStartregler(lager, dato);

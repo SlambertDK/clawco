@@ -102,7 +102,7 @@ import { renderRevision } from './shell/revision.ts';
 import { renderKilder } from './shell/kilder.ts';
 import { renderOmkostninger } from './shell/omkostninger.ts';
 import { daekning, laesOmkostningsfil, OmkostningsFejl, OMKOSTNINGSFIL, type Omkostninger } from './omkostninger/regnskab.ts';
-import { vaultRod } from './store/vault.ts';
+import { lavRegnskabsfil } from './kurator/regnskabssti.ts';
 import { lavReglerLager } from './tillid/lager.ts';
 import { jaFraTryk, regelFraForslag } from './graenser/regelforslag.ts';
 import { eksporter, opgoer, type Brugermappe } from './tillid/brugermappe.ts';
@@ -173,7 +173,7 @@ export type AppDeps = {
   mailRunner?: Runner;
   himalaya?: string;
   vaultInbox?: string;
-  /** KC-0142: the vault root (KC_VAULT_DIR); absent = the parent of vaultInbox, else <dataDir>/vault (store/vault.ts). */
+  /** KC-0142: the vault root (KC_VAULT_DIR, only when set); absent = the parent of vaultInbox, else the vault chosen on the notes card, else <dataDir>/vault (kilder/noter/stier.ts, KC-0213). */
   vaultDir?: string;
   maxParallel?: number;
   kalenderScript?: string;
@@ -260,13 +260,15 @@ export function createApp(deps: AppDeps) {
   const profil = deps.dataDir ? lavProfilLager(deps.dataDir) : undefined;
   // KC-0136: the inbox and the people register come from the vault chosen on the notes card (kilder.json);
   // vaultInbox / personer (KC_VAULT_INBOX / KC_PEOPLE_DIR) still win.
-  const stier = lavVaultStier({ ...(deps.dataDir ? { dataDir: deps.dataDir } : {}), env: { KC_VAULT_INBOX: deps.vaultInbox, KC_PEOPLE_DIR: deps.personer }, ...(deps.vaultInboxStandard ? { standardIndbakke: deps.vaultInboxStandard } : {}) });
+  const stier = lavVaultStier({ ...(deps.dataDir ? { dataDir: deps.dataDir } : {}), env: { KC_VAULT_DIR: deps.vaultDir, KC_VAULT_INBOX: deps.vaultInbox, KC_PEOPLE_DIR: deps.personer }, ...(deps.vaultInboxStandard ? { standardIndbakke: deps.vaultInboxStandard } : {}) });
   const personerNu = (): string | undefined => stier().personer || undefined;
   const runs = createRunRegistry(deps.hermes, { maxParallel: deps.maxParallel ?? 2, now, pause: lavPause(deps.dataDir), personer: () => stier().personer, ...(profil ? { profil: () => profil.laesNu() } : {}) });
   const revision = deps.dataDir ? lavRevisionslog(deps.dataDir, { nu: now }) : undefined;
   // KC-0142: the rules file in the vault; its integrity sha lives in the data dir (none without one: no rules).
-  const vaultDir = vaultRod({ KC_VAULT_DIR: deps.vaultDir, KC_VAULT_INBOX: deps.vaultInbox, KC_DATA_DIR: deps.dataDir });
-  const regler = vaultDir && deps.dataDir ? lavReglerLager({ vaultDir, dataDir: deps.dataDir }) : undefined;
+  // KC-0213: the ONE vault root (stier().rod) — the rules file and the ledgers follow it, as do the inbox and the register.
+  const vaultDir = (): string => stier().rod;
+  const regler = vaultDir() && deps.dataDir ? lavReglerLager({ vaultDir: vaultDir(), dataDir: deps.dataDir }) : undefined;
+  const regnskabsfil = lavRegnskabsfil({ dataDir: deps.dataDir, rod: vaultDir });
   // KC-0147: what required Henrik, per day (none without a data dir).
   const dagstal = deps.dataDir ? lavDagstal({ dir: deps.dataDir }) : undefined;
   // KC-0145: what the app kept off the screen, and the Sunday sample's ledger (none without a data dir).
@@ -289,6 +291,8 @@ export function createApp(deps: AppDeps) {
     mailRunner: deps.mailRunner ?? defaultRunner(),
     himalaya: deps.himalaya ?? 'himalaya',
     get vaultInbox(): string { return stier().indbakke; },
+    get vaultRod(): string { return vaultDir(); },
+    regnskabsfil,
     kalenderScript: deps.kalenderScript ?? '',
     ...(revision ? { revision } : {}),
     ...(regler ? { regler } : {}),
@@ -925,7 +929,7 @@ export function createApp(deps: AppDeps) {
   /** The user's folder (D7): the data dir and the vault's Clawco/; the vault, people register and inbox are the user's own notes. */
   const brugermappe = (): Brugermappe => {
     const s = stier();
-    return { dataDir: deps.dataDir ?? './data', ...(vaultDir ? { vaultDir } : {}), beskyt: [s.personer, s.indbakke].filter((p) => !!p) };
+    return { dataDir: deps.dataDir ?? './data', ...(vaultDir() ? { vaultDir: vaultDir() } : {}), beskyt: [s.personer, s.indbakke].filter((p) => !!p) };
   };
   const personerListe = async (): Promise<{ dir: string; liste: { navn: string; relation: string; sti: string }[] } | null> => {
     const dir = personerNu();
@@ -2111,7 +2115,7 @@ export async function main(): Promise<void> {
     vaultInbox: env('KC_VAULT_INBOX'),
     // KC-0136: in dev the old scratch inbox until a vault is chosen on the notes card.
     ...(mode === 'fake' ? { vaultInboxStandard: path.join(env('KC_DATA_DIR', './data'), 'dev-vault-indbakke') } : {}),
-    vaultDir: vaultRod({ KC_VAULT_DIR: env('KC_VAULT_DIR'), KC_VAULT_INBOX: env('KC_VAULT_INBOX'), KC_DATA_DIR: env('KC_DATA_DIR', './data') }),
+    ...(env('KC_VAULT_DIR') ? { vaultDir: env('KC_VAULT_DIR') } : {}),
     sha: gitSha(path.join(here, '..')),
     publicDir,
     ...(adresse ? { adresse } : {}),

@@ -61,6 +61,18 @@
 <p data-i="install.docker.p">From a copy of the Clawco source folder, one Compose command starts Clawco as a container, reachable on this machine only.</p>
 <pre><code data-cmd="compose">docker compose up -d --build</code></pre>
 <p class="actions"><a class="btn" href="/docs/docker" data-i="install.docker.link">Read the Docker guide</a> <a class="btn" href="/docs/" data-i="install.docs.link">All documentation</a></p>
+<h2 data-i="install.cloud.h">Run it in your own cloud</h2>
+<p data-i="install.cloud.p">No machine at home? Clawco can run on a small server in a cloud account you own. It is reachable only on your own Tailscale net, with no open port. Your data lives on that server and never with us.</p>
+<p data-i="install.cloud.cost">Cost: about 4–5 euro a month, paid to Hetzner for its smallest server. Clawco itself and a personal Tailscale account are free.</p>
+<p data-i="install.cloud.need">You need a Hetzner Cloud account with an API token, and a Tailscale account with HTTPS turned on and a single-use auth key saved in a file.</p>
+<p data-i="install.cloud.look">In a terminal on a Mac or Linux machine, download the script and look at the plan first. This changes nothing and needs no token:</p>
+<pre><code data-cmd="cloud-dry">curl -fsSL https://clawco.work/egen-sky/hetzner.sh -o hetzner.sh
+bash hetzner.sh --dry-run --authkey-fil tskey.txt</code></pre>
+<p data-i="install.cloud.run">To create the server, put your Hetzner token in HCLOUD_TOKEN and run the script without --dry-run:</p>
+<pre><code data-cmd="cloud-run">export HCLOUD_TOKEN=your-hetzner-token
+bash hetzner.sh --authkey-fil tskey.txt</code></pre>
+<p data-i="install.cloud.nossh">The server has no SSH and no open port. It is replaced, not repaired: delete it in the Hetzner console and run the script again.</p>
+<p class="small"><a href="/egen-sky/hetzner.sh" data-i="install.cloud.script">Read the script first</a></p>
 <p class="muted" data-i="docs.checked">Last checked against the code: 2026-11-02.</p>
 </div>
 </section>

@@ -1,5 +1,5 @@
-// The whole "build" of clawco.work (KC-0164): copy site/ and deploy/install.sh into an output
-// folder and prove the installer arrived byte-identical. No bundler, no transform. The one generated part is
+// The whole "build" of clawco.work (KC-0164): copy site/ and deploy/install.sh (and, KC-0171, the own-cloud recipe
+// deploy/egen-sky/hetzner.sh as /egen-sky/hetzner.sh) into an output folder and prove they arrived byte-identical. No bundler, no transform. The one generated part is
 // the legal pages (KC-0204): docs/legal/*.md rendered by scripts/juridisk.ts, checked against their source hash.
 //   node scripts/site-byg.mjs [--ud DIR]     (default: .site-ud/, which is gitignored)
 // The pricing page (KC-0199) is rendered from config/priser.json by scripts/priser-side.ts, and only when asked for:
@@ -56,6 +56,13 @@ const a = hash(path.join(rod, 'deploy/install.sh'));
 const b = hash(path.join(ud, 'install.sh'));
 if (a !== b) { console.error(`install.sh differs from deploy/install.sh (${a} vs ${b})`); process.exit(1); }
 
+// KC-0171: the own-cloud recipe is a download too (read the script first, run it with --dry-run), same proof.
+mkdirSync(path.join(ud, 'egen-sky'), { recursive: true });
+cpSync(path.join(rod, 'deploy/egen-sky/hetzner.sh'), path.join(ud, 'egen-sky/hetzner.sh'));
+const c = hash(path.join(rod, 'deploy/egen-sky/hetzner.sh'));
+const d = hash(path.join(ud, 'egen-sky/hetzner.sh'));
+if (c !== d) { console.error(`hetzner.sh differs from deploy/egen-sky/hetzner.sh (${c} vs ${d})`); process.exit(1); }
+
 let juridiske;
 try { juridiske = byggJuridisk({ docsDir: path.join(rod, 'docs/legal'), ud, siteDir: kilde }); } catch (e) { console.error(`legal pages: ${e.message}`); process.exit(1); }
 let priserNote = 'priser.html left out (KC-0199: build with --preview to look at it, --live to publish it)';
@@ -63,4 +70,4 @@ if (priser) {
   try { byggPriser({ siteDir: kilde, ud, priser, maal: live ? 'live' : 'preview' }); } catch (e) { console.error(`price page: ${e.message}`); process.exit(1); }
   priserNote = `priser.html built from config/priser.json (${live ? 'live' : 'preview'}, status ${priser.status})`;
 }
-console.log(`site built into ${ud}: ${filer(ud).length} files (${juridiske.length} legal pages); install.sh sha256 ${b}; ${priserNote}`);
+console.log(`site built into ${ud}: ${filer(ud).length} files (${juridiske.length} legal pages); install.sh sha256 ${b}; hetzner.sh sha256 ${d}; ${priserNote}`);

@@ -40,6 +40,10 @@ export type RoomDeps = {
   himalaya: string;
   /** Skrive: folder where "Gem i Obsidian" writes notes (Henrik's vault inbox). */
   vaultInbox: string;
+  /** KC-0213: the one vault root every writer shares ('' = none known): the rules file, the ledgers, the inbox, the register. */
+  vaultRod: string;
+  /** KC-0213: the absolute file of the ledger `hvor` (the install's regnskab.json, else <vault>/Clawco/Regnskab/); '' without a vault root. */
+  regnskabsfil: (hvor: 'shelfatlas' | 'privat') => string;
   /** Rooms notify after every change so open pages refresh themselves. */
   live: LiveBus;
   /** The meeting tick (univers/moedetik.ts): path to scripts/kalender_uge.py (empty = off). Dagen reads `ugeKalender`. */

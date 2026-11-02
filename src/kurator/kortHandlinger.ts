@@ -7,12 +7,11 @@
 // of card `id` is (status 'skrevet') or was ('fortrudt'), and the card's
 // `skrevet` is set exactly while the row is in a file.
 
-import path from 'node:path';
 import type { RoomDeps } from '../rooms/module.ts';
 import type { RunRecord } from '../runs.ts';
 import { MAX_LUKKET, zoneFelter, type Kort, type KuratorState, type Regnskabslinje, type RegnskabsStatus } from '../rooms/hjem/kort.ts';
 import { endreKurator, HJEM, laesKurator } from './kurator.ts';
-import { FORTRYD_FJERN, FORTRYD_FLYT, fjernRegnskab, harRegnskab, regnskabsfil, skrivRegnskab } from './regnskab.ts';
+import { FORTRYD_FJERN, FORTRYD_FLYT, fjernRegnskab, harRegnskab, skrivRegnskab } from './regnskab.ts';
 import { buildKortFortrydRun, buildKortHandlingRun, buildLaerRun } from './kortprompt.ts';
 import { FORTRYD_SENERE, senereTekst, senereTid, type Senere } from './senere.ts';
 import { extractForslagBlok } from '../tillid/forslag.ts';
@@ -133,7 +132,7 @@ const logTekst = (verbum: string, l: Pick<Regnskabslinje, 'leverandoer' | 'beloe
  * then nothing is recorded as undone.
  */
 async function fjernRaekke(d: RoomDeps, s: KuratorState, id: string, hvor: Hvor): Promise<KuratorState | null> {
-  if (!(await fjernRegnskab(regnskabsfil(path.dirname(d.vaultInbox), hvor), id))) return null;
+  if (!(await fjernRegnskab(d.regnskabsfil(hvor), id))) return null;
   return { ...s, kort: medKort(s, id, (c) => uden(c, 'skrevet')), regnskab: { ...s.regnskab, [id]: { ...s.regnskab?.[id], hvor, status: 'fortrudt' } } };
 }
 
@@ -146,7 +145,7 @@ export async function regnskabFortryd(d: RoomDeps, id: string): Promise<Udfald> 
     const k = s.kort.find((x) => x.id === id);
     const r = s.regnskab?.[id];
     if (!k && !r) return [s, ukendt];
-    if (!d.vaultInbox) return [s, ingenVault];
+    if (!d.vaultRod) return [s, ingenVault];
     const hvor = k ? k.skrevet?.hvor : r?.status === 'skrevet' ? r.hvor : undefined;
     if (!hvor) return [s, konflikt(k ? 'Kortet er ikke skrevet i et regnskab' : 'Linjen står ikke længere i et regnskab')];
     const ny = await fjernRaekke(d, s, id, hvor);
@@ -165,17 +164,16 @@ export async function regnskabFlyt(d: RoomDeps, id: string, til?: Hvor): Promise
   const ud = await gem(d, async (s): Promise<[KuratorState, { u: Udfald; linje?: Regnskabslinje }]> => {
     const k = s.kort.find((x) => x.id === id);
     if (!k) return [s, { u: ukendt }];
-    if (!d.vaultInbox) return [s, { u: ingenVault }];
+    if (!d.vaultRod) return [s, { u: ingenVault }];
     if (!k.skrevet || !k.regnskab) return [s, { u: konflikt('Kortet er ikke skrevet i et regnskab') }];
     const fra = k.skrevet.hvor;
     if (til === fra) return [s, { u: { ok: true } }];
-    const rod = path.dirname(d.vaultInbox);
-    if (!(await harRegnskab(regnskabsfil(rod, fra), id))) return [s, { u: tabt() }];
+    if (!(await harRegnskab(d.regnskabsfil(fra), id))) return [s, { u: tabt() }];
     const maal = anden(fra);
     const linje: Regnskabslinje = { ...k.regnskab, hvor: maal };
-    const fil = regnskabsfil(rod, maal);
+    const fil = d.regnskabsfil(maal);
     await skrivRegnskab(fil, id, linje); // throws: nothing removed, nothing stored, nothing logged
-    await fjernRegnskab(regnskabsfil(rod, fra), id);
+    await fjernRegnskab(d.regnskabsfil(fra), id);
     return [{ ...s, kort: medKort(s, id, (c) => ({ ...c, regnskab: linje, skrevet: { hvor: maal, fil } })), regnskab: { ...s.regnskab, [id]: status(linje, k) } }, { u: { ok: true }, linje }];
   });
   if (ud.linje) await d.store.appendLog(HJEM, { kilde: 'henrik', tekst: logTekst('Flyttede', ud.linje, ud.linje.hvor), handlingId: `regnskab:${id}`, fortryd: FORTRYD_FLYT });
@@ -199,10 +197,10 @@ export async function regnskabVaelg(d: RoomDeps, id: string, hvor: Hvor): Promis
   const ud = await gem(d, async (s): Promise<[KuratorState, { u: Udfald; linje?: Regnskabslinje }]> => {
     const k = s.kort.find((x) => x.id === id);
     if (!k) return [s, { u: ukendt }];
-    if (!d.vaultInbox) return [s, { u: ingenVault }];
+    if (!d.vaultRod) return [s, { u: ingenVault }];
     if (k.skrevet || !(k.regnskabUklart || k.regnskab)) return [s, { u: konflikt('Kortet venter ikke på et valg af regnskab') }];
     const linje = linjeForUklart(k, hvor, d.now());
-    const fil = regnskabsfil(path.dirname(d.vaultInbox), hvor);
+    const fil = d.regnskabsfil(hvor);
     await skrivRegnskab(fil, id, linje);
     return [{ ...s, kort: medKort(s, id, (c) => { const { kraeverRegel: _svaret, ...uden } = c; const ny: Kort = { ...uden, regnskab: linje, skrevet: { hvor, fil }, regnskabUklart: false }; return ny; }), regnskab: { ...s.regnskab, [id]: status(linje, k) } }, { u: { ok: true }, linje }];
   });
@@ -233,7 +231,7 @@ export async function fortrydLog(d: RoomDeps, logId: string): Promise<Udfald> {
   }
   const raekke = e.handlingId?.startsWith('regnskab:') ? e.handlingId.slice('regnskab:'.length) : null;
   if (raekke !== null) {
-    if (!d.vaultInbox) return ingenVault;
+    if (!d.vaultRod) return ingenVault;
     if (e.fortryd === FORTRYD_FLYT) {
       // A read for the message only: regnskabFlyt checks again inside the chain.
       const s = await laesKurator(d.store);
@@ -244,13 +242,12 @@ export async function fortrydLog(d: RoomDeps, logId: string): Promise<Udfald> {
       await d.store.updateLog(HJEM, logId, { fortrudt: d.now().toISOString() });
       return u;
     }
-    const rod = path.dirname(d.vaultInbox);
     const u = await gem(d, async (s): Promise<[KuratorState, Udfald]> => {
       const nu = s.regnskab?.[raekke];
       if (nu && nu.status !== 'skrevet') return [s, konflikt('Linjen står ikke længere i et regnskab')];
       let hvor: Hvor | undefined = nu?.hvor;
       // No entry (a write that was never recorded): the marker says which ledger holds the row.
-      for (const h of ['shelfatlas', 'privat'] as const) if (!hvor && (await harRegnskab(regnskabsfil(rod, h), raekke))) hvor = h;
+      for (const h of ['shelfatlas', 'privat'] as const) if (!hvor && (await harRegnskab(d.regnskabsfil(h), raekke))) hvor = h;
       if (!hvor) return [s, tabt()];
       const ny = await fjernRaekke(d, s, raekke, hvor);
       return ny ? [ny, { ok: true }] : [s, tabt()];

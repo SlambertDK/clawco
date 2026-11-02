@@ -131,7 +131,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     else await appendFile(fil, (findes.endsWith('\n') ? '' : '\n') + linje + '\n', 'utf8');
     if (!state.gemt.includes(nyhedId)) state.gemt.push(nyhedId);
     await deps.store.writeState(RUM, state);
-    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: zoneAf(n), tekst: `Gemte "${n.titel}" til senere i Obsidian.`, handlingId: `gem-${nyhedId}`, fortryd: `lokal:${JSON.stringify({ nyhedId, linje })}` });
+    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: zoneAf(n), tekst: `Gemte "${n.titel}" til senere i Obsidian.`, handlingId: `gem-${nyhedId}`, fortryd: `lokal:${JSON.stringify({ nyhedId, linje, fil })}` });
     return rendered(deps, { text: 'Gemt til senere.' });
   });
 }
@@ -141,9 +141,10 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
   const entry = log.find((e) => e.id === logId);
   if (!entry || !entry.fortryd || entry.fortrudt) return null;
   if (entry.fortryd.startsWith('lokal:')) {
-    const spec = JSON.parse(entry.fortryd.slice(6)) as { nyhedId: string; linje: string };
+    // KC-0213: the file the save wrote (absolute), so a vault changed since still finds it; an older entry has none.
+    const spec = JSON.parse(entry.fortryd.slice(6)) as { nyhedId: string; linje: string; fil?: string };
     return deps.runs.local('fortryd', async () => {
-      const fil = path.join(deps.vaultInbox, LAES_SENERE);
+      const fil = spec.fil && path.isAbsolute(spec.fil) && path.basename(spec.fil) === LAES_SENERE ? spec.fil : path.join(deps.vaultInbox, LAES_SENERE);
       const text = await readFile(fil, 'utf8').catch(() => null);
       if (text !== null && text.includes(spec.linje + '\n')) await writeFile(fil, text.replace(spec.linje + '\n', ''), 'utf8');
       if (state) { state.gemt = state.gemt.filter((id) => id !== spec.nyhedId); await deps.store.writeState(RUM, state); }

@@ -18,6 +18,7 @@ import type { RoomDeps } from '../../src/rooms/module.ts';
 import type { Runner } from '../../src/rooms/mail/source.ts';
 import type { ReglerLaest } from '../../src/tillid/lager.ts';
 import { lavSkjulte } from '../../src/tillid/skjulte.ts';
+import { regnskabsfil } from '../../src/kurator/regnskab.ts';
 import { parseKuratorSvar } from '../../src/rooms/hjem/kort.ts';
 import { rejsenFaerdig } from '../fixtures/start.ts';
 
@@ -36,7 +37,7 @@ async function opsaet(answer: () => string) {
   const store = createFileStore(join(rod, 'data'));
   const skjulte = lavSkjulte({ dir: join(rod, 'data') });
   const d = {
-    store, hermes, runs, live: createLiveBus(), now: () => NOW, mailRunner: inbox, himalaya: 'himalaya', vaultInbox: join(rod, 'vault', '00-Indbakke'),
+    store, hermes, runs, live: createLiveBus(), now: () => NOW, mailRunner: inbox, himalaya: 'himalaya', vaultInbox: join(rod, 'vault', '00-Indbakke'), vaultRod: join(rod, 'vault'), regnskabsfil: (h: 'shelfatlas' | 'privat') => regnskabsfil(join(rod, 'vault'), h),
     person: { id: 'ingen', login: null, navn: 'Ingen', rolle: 'gaest' }, skjulte,
     regler: { fil: join(rod, 'vault', 'Clawco', 'regler.md'), laes: async () => REGLER },
   } as unknown as RoomDeps;

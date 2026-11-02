@@ -20,10 +20,10 @@ import { NU } from '../hjaelp.ts';
 const post = (over: Partial<KonfigPost> = {}): KonfigPost => ({ id: NOTER_ID, status: 'forbundet', zone: 'privat', valg: { opsaetning: 'ny', mappe: '/hjem/Clawco/Vault' }, tid: NU.toISOString(), af: 'henrik', ...over });
 
 test('noterStier: with the env unset the paths come from the chosen vault; with it set the env wins', () => {
-  assert.deepEqual(noterStier({}, '/v'), { rod: '/v', indbakke: path.join('/v', '00-Indbakke'), personer: path.join('/v', '40-Mennesker', 'People') });
-  assert.deepEqual(noterStier({ KC_VAULT_INBOX: ' /nas/In ', KC_PEOPLE_DIR: '/nas/P' }, '/v'), { rod: '/v', indbakke: '/nas/In', personer: '/nas/P' });
-  assert.deepEqual(noterStier({ KC_PEOPLE_DIR: '/nas/P' }, '/v'), { rod: '/v', indbakke: path.join('/v', '00-Indbakke'), personer: '/nas/P' });
-  assert.deepEqual(noterStier({}, ''), { rod: '', indbakke: '', personer: '' });
+  assert.deepEqual(noterStier({}, '/v'), { rod: '/v', valgt: '/v', indbakke: path.join('/v', '00-Indbakke'), personer: path.join('/v', '40-Mennesker', 'People') });
+  assert.deepEqual(noterStier({ KC_VAULT_INBOX: ' /nas/In ', KC_PEOPLE_DIR: '/nas/P' }, '/v'), { rod: '/nas', valgt: '/v', indbakke: '/nas/In', personer: '/nas/P' }); // KC-0213: the env inbox's parent is the one root
+  assert.deepEqual(noterStier({ KC_PEOPLE_DIR: '/nas/P' }, '/v'), { rod: '/v', valgt: '/v', indbakke: path.join('/v', '00-Indbakke'), personer: '/nas/P' });
+  assert.deepEqual(noterStier({}, ''), { rod: '', valgt: '', indbakke: '', personer: '' });
 });
 
 test('valgtVault: the connected notes connector\'s folder, nothing when disconnected or another source', () => {

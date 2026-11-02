@@ -19,7 +19,7 @@ async function opsaet(now: Date) {
   const hermes = createFakeAgent();
   const deps: RoomDeps = {
     store, hermes, runs: createRunRegistry(hermes), now: () => now, dagenSourceGlob: '', mailStateDir: '', mailRunner: async () => ({ code: 1, stdout: '', stderr: '' }),
-    himalaya: 'himalaya', vaultInbox: '', live: createLiveBus(), kalenderScript: '', person: ENEBRUGER,
+    himalaya: 'himalaya', vaultInbox: '', vaultRod: '', regnskabsfil: () => '', live: createLiveBus(), kalenderScript: '', person: ENEBRUGER,
   };
   return { deps, store, ryd: () => rm(dir, { recursive: true, force: true }) };
 }

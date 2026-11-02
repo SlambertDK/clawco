@@ -20,7 +20,7 @@ import { lavZip } from './zip.ts';
 
 export type Brugermappe = {
   dataDir: string;
-  /** The vault root (store/vault.ts); its Clawco/ folder is the user's, the rest is not touched. */
+  /** The vault root (kilder/noter/stier.ts); its Clawco/ folder is the user's, the rest is not touched. */
   vaultDir?: string;
   /** More folders that are the user's own notes (people register, inbox): never listed or deleted from the data dir. */
   beskyt?: readonly string[];

@@ -10,6 +10,7 @@ import { join } from 'node:path';
 import { laesKurator, startKurator } from '../../src/kurator/kurator.ts';
 import { buildKuratorRun, type KuratorInput } from '../../src/kurator/prompt.ts';
 import { knytBeskeder } from '../../src/kurator/beskeder.ts';
+import { regnskabsfil } from '../../src/kurator/regnskab.ts';
 import { parseKuratorSvar } from '../../src/rooms/hjem/kort.ts';
 import { udpak, udenData } from '../../src/agent/udtroet.ts';
 import { createFakeAgent } from '../../src/agent/fake.ts';
@@ -73,7 +74,7 @@ async function opsaet(answer: (req: AgentRunRequest) => string, beskeder: Kurato
   const runs = createRunRegistry(hermes);
   runs.setModels({ lille: 'model-lille', taenker: 'model-taenker' });
   const store = createFileStore(join(rod, 'data'));
-  const d = { store, hermes, runs, live: createLiveBus(), now: () => NOW, mailRunner: ingenMail, himalaya: 'himalaya', vaultInbox: join(rod, 'vault', '00-Indbakke'), beskeder: async () => beskeder } as unknown as RoomDeps;
+  const d = { store, hermes, runs, live: createLiveBus(), now: () => NOW, mailRunner: ingenMail, himalaya: 'himalaya', vaultInbox: join(rod, 'vault', '00-Indbakke'), vaultRod: join(rod, 'vault'), regnskabsfil: (h: 'shelfatlas' | 'privat') => regnskabsfil(join(rod, 'vault'), h), beskeder: async () => beskeder } as unknown as RoomDeps;
   return { d, hermes, store, ryd: () => rm(rod, { recursive: true, force: true }) };
 }
 

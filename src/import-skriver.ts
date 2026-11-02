@@ -15,8 +15,11 @@ const erMappe = async (p: string): Promise<boolean> => (p ? (await stat(p).catch
 
 export function lavImportSkriver(o: { stier: () => VaultStier; lavMappe?: () => Promise<void> }): ImportSkriver {
   const personer = (): string => o.stier().personer;
+  // KC-0213: the profile note belongs to the vault chosen on the notes card (where the connector made its folder), not to
+  // the env root or the data-dir default the rules and ledgers may use.
+  const valgtRod = (): string => o.stier().valgt;
   const rod = (): string => {
-    const r = o.stier().rod;
+    const r = valgtRod();
     if (!r) throw new KildeFejl(409, 'Der er ingen notemappe til profilen.');
     return r;
   };
@@ -27,7 +30,7 @@ export function lavImportSkriver(o: { stier: () => VaultStier; lavMappe?: () => 
       return (await laesPersoner(personer(), { zone: 'privat' })).map((p) => ({ navn: p.navn, relation: p.relation, ...(p.org ? { org: p.org } : {}), ...(p.foedselsdag ? { foedselsdag: p.foedselsdag } : {}) }));
     },
     async profil() {
-      const r = o.stier().rod;
+      const r = valgtRod();
       if (!r || !(await erMappe(r))) return null;
       const t = await laesProfil(r);
       return t === null || t === PROFIL_SKABELON || !t.trim() ? null : t;

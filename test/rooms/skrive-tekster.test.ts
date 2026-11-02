@@ -66,7 +66,7 @@ test('Skrive: the Nu line is in the language of the request', async () => {
     const hermes = createFakeAgent();
     const deps: RoomDeps = {
       store, hermes, runs: createRunRegistry(hermes), now: () => golden.NU, dagenSourceGlob: '', mailStateDir: '', mailRunner: async () => ({ code: 1, stdout: '', stderr: '' }),
-      himalaya: 'himalaya', vaultInbox: '', live: createLiveBus(), kalenderScript: '', person: ENEBRUGER,
+      himalaya: 'himalaya', vaultInbox: '', vaultRod: '', regnskabsfil: () => '', live: createLiveBus(), kalenderScript: '', person: ENEBRUGER,
     };
     await store.writeState('skrive', { dokumenter: [{ id: 'dok-1', titel: 'Note to ops', brief: 'b', afsnit: [{ id: 'a1', tekst: 'T' }], kilder: [], oprettet: '2026-10-27T10:00:00Z', aendret: '2026-10-27T10:00:00Z' }], aktivt: 'dok-1', forslag: [{ id: 'f-1', dokId: 'dok-1', afsnitId: 'a1', ny: 'N', hvorfor: '', tid: '2026-10-27T10:04:00Z' }, { id: 'f-2', dokId: 'dok-9', afsnitId: 'a1', ny: 'N', hvorfor: '', tid: '2026-10-27T10:04:00Z' }], hermesStatus: 'Ready' });
     const nu = async (sprog?: 'da' | 'en') => (await (sprog ? medSprog(sprog, () => skriveRoom.hjemVenter!(deps)) : skriveRoom.hjemVenter!(deps))).map((l) => l.tekst);

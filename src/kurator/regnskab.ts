@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Regnskabslinje } from '../rooms/hjem/kort.ts';
 import { PRODUKT } from '../shell/navn.ts';
+import { STANDARD_STIER, type Regnskabsstier } from './regnskabssti.ts';
 
 type Hvor = Regnskabslinje['hvor'];
 
@@ -12,10 +13,9 @@ export const FORTRYD_FLYT = 'flyt-tilbage';
 const TITEL: Record<Hvor, string> = { shelfatlas: 'ShelfAtlas', privat: 'Abonnementer (privat)' };
 const HEADER = '| Dato | Leverandør | Beløb | Valuta | Periode | Art | Mail (emne) |\n| --- | --- | --- | --- | --- | --- | --- |\n';
 
-export function regnskabsfil(vaultRod: string, hvor: Hvor): string {
-  return hvor === 'shelfatlas'
-    ? join(vaultRod, '30-Projekter', 'ShelfAtlas', 'Regnskab.md')
-    : join(vaultRod, '10-Privat', 'Økonomi', 'abonnementer.md');
+/** The ledger file under the vault root: `stier` is the install's map (KC-0213), the default lives inside <vault>/Clawco/. */
+export function regnskabsfil(vaultRod: string, hvor: Hvor, stier: Regnskabsstier = STANDARD_STIER): string {
+  return join(vaultRod, ...stier[hvor].split('/'));
 }
 
 const markoer = (id: string): string => `<!-- kc:${id} -->`;

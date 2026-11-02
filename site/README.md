@@ -13,6 +13,7 @@ content-security policy that forbids everything else, so a stray third-party ref
   `TAGLINE_DEFAULT` picks the hero headline (1 or 2); `?tagline=2` shows the other one on a preview.
 - `billeder/`: real screenshots from the app's test world (fictional data, dark, phone width, WebP), under 1.5 MB in total.
 - `install.sh` is not kept here: the build copies `deploy/install.sh` byte-identically.
+- `egen-sky/hetzner.sh` is not kept here either (KC-0171): the build copies `deploy/egen-sky/hetzner.sh` byte-identically; the install page's "Run it in your own cloud" section links it.
 - Source links point at the public mirror https://github.com/SlambertDK/clawco (KC-0228), the repository install.sh clones.
 
 ## The legal pages (KC-0204)

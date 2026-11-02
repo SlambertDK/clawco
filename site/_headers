@@ -8,6 +8,10 @@
   Content-Type: text/plain; charset=utf-8
   Cache-Control: no-cache
 
+/egen-sky/hetzner.sh
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: no-cache
+
 /.well-known/security.txt
   Content-Type: text/plain; charset=utf-8
   Cache-Control: public, max-age=86400

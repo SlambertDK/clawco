@@ -11,8 +11,8 @@
 
 import { access } from 'node:fs/promises';
 import path from 'node:path';
-import { vaultRod } from '../../store/vault.ts';
 import { kiraNoter } from '../noter/noter.ts';
+import { vaultRodAf } from '../noter/stier.ts';
 import { STRUKTUR } from '../noter/vault.ts';
 import { KildeFejl, type Kilde, type KildeKort, type Kuvert, type Nyhed, type NyhedsStatus } from '../types.ts';
 
@@ -101,7 +101,7 @@ export function legacyKilder(env: Record<string, string | undefined>, deps: { ru
   if (deps.kalenderScript.trim()) ud.push(kiraKalender({ script: deps.kalenderScript.trim(), run: deps.run }));
   if (v('KC_DAGEN_SOURCE_GLOB')) ud.push(kiraMorgenavis({ glob: v('KC_DAGEN_SOURCE_GLOB'), laes: deps.laesNyheder }));
   if (v('KC_HIMALAYA')) ud.push(kiraMail({ himalaya: v('KC_HIMALAYA'), run: deps.run, parse: deps.parseMail }));
-  const rod = vaultRod({ KC_VAULT_DIR: v('KC_VAULT_DIR'), KC_VAULT_INBOX: v('KC_VAULT_INBOX') });
+  const rod = vaultRodAf({ KC_VAULT_DIR: v('KC_VAULT_DIR'), KC_VAULT_INBOX: v('KC_VAULT_INBOX') }, '');
   if (rod) ud.push(kiraNoter({ rod, personer: v('KC_PEOPLE_DIR') || path.join(rod, ...STRUKTUR.personer.split('/')) }));
   return ud;
 }

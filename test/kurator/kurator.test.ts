@@ -54,6 +54,7 @@ async function opsaet(o: { answer?: () => string; runner?: Runner; delayMs?: num
   const d = {
     store, hermes, runs, live, now: () => NOW,
     mailRunner: o.runner ?? envelopes(), himalaya: 'himalaya', vaultInbox: o.vaultInbox ?? join(vault, '00-Indbakke'),
+    vaultRod: o.vaultInbox === '' ? '' : vault, regnskabsfil: (hvor: 'shelfatlas' | 'privat') => (o.vaultInbox === '' ? '' : regnskabsfil(vault, hvor)),
     // Timers run as INGEN (a guest): the rules, not the role, decide what Kuratoren writes on its own (KC-0143).
     person: { id: 'ingen', login: null, navn: 'Ingen', rolle: 'gaest' },
     ...(o.regler === null ? {} : { regler: { fil: join(vault, 'Clawco', 'regler.md'), laes: async () => o.regler ?? regelFil() } }),

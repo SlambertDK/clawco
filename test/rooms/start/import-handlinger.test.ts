@@ -36,7 +36,7 @@ async function medVault(o: Opsaet, fn: (s: Sut & { rod: string; personer: string
     if (o.foer) await o.foer(personer, vault);
     const tmp = path.join(rod, 'tmp');
     const kald: AgentRunRequest[] = [];
-    const skriver = lavImportSkriver({ stier: () => (o.udenVault ? { rod: '', indbakke: '', personer: '' } : { rod: vault, indbakke: path.join(vault, '00-Indbakke'), personer }) });
+    const skriver = lavImportSkriver({ stier: () => (o.udenVault ? { rod: '', valgt: '', indbakke: '', personer: '' } : { rod: vault, valgt: vault, indbakke: path.join(vault, '00-Indbakke'), personer }) });
     await medStart({
       state: tom, importSkriver: skriver, importTmp: tmp,
       svar: (r) => { kald.push(r); return (o.svar ?? (() => fenced(SVAR)))(r); },

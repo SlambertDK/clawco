@@ -138,6 +138,6 @@ test('a leverandoer with a forged marker does not create a second marker; fjernR
 });
 
 test('regnskabsfil maps shelfatlas and privat to their vault paths', () => {
-  assert.equal(regnskabsfil('/vault', 'shelfatlas'), '/vault/30-Projekter/ShelfAtlas/Regnskab.md');
-  assert.equal(regnskabsfil('/vault', 'privat'), '/vault/10-Privat/Økonomi/abonnementer.md');
+  assert.equal(regnskabsfil('/vault', 'shelfatlas'), '/vault/Clawco/Regnskab/shelfatlas.md', 'KC-0213: the default stays inside <vault>/Clawco/');
+  assert.equal(regnskabsfil('/vault', 'privat'), '/vault/Clawco/Regnskab/privat.md');
 });

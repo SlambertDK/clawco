@@ -5,7 +5,6 @@
 // `sete` are stored only when the run succeeds, so a failed run re-reads the
 // same mail next time (the ledger marker makes that safe).
 
-import path from 'node:path';
 import type { RoomDeps } from '../rooms/module.ts';
 import type { RunRecord } from '../runs.ts';
 import type { RumLager } from '../store/types.ts';
@@ -15,7 +14,7 @@ import { synligFor, zoneAf } from '../identitet/zoner.ts';
 import type { Person } from '../identitet/husstand.ts';
 import { extractJson } from '../rooms/dagen/schema.ts';
 import { copenhagenDate } from '../rooms/dagen/source.ts';
-import { FORTRYD_FJERN, regnskabsfil, skrivRegnskab } from './regnskab.ts';
+import { FORTRYD_FJERN, skrivRegnskab } from './regnskab.ts';
 import { KURATOR_MAPPER, nyeMails } from './input.ts';
 import { buildKuratorRun } from './prompt.ts';
 import { knytBeskeder, nyeBeskeder, seteEfter } from './beskeder.ts';
@@ -102,11 +101,10 @@ async function skrivRegninger(d: RoomDeps, merged: KuratorState, fraSvar: Set<st
   const gammelt = merged.regnskab ?? {};
   const emner = merged.kort.filter((k) => fraSvar.has(k.id) && k.type === 'regning' && k.regnskab && !k.regnskabUklart && !gammelt[k.id]);
   if (emner.length === 0) return merged;
-  if (!d.vaultInbox) {
-    console.error('kurator: KC_VAULT_INBOX er tom — regnskabslinjer skrives ikke i denne kørsel');
+  if (!d.vaultRod) {
+    console.error('kurator: ingen vault sat op — regnskabslinjer skrives ikke i denne kørsel');
     return merged;
   }
-  const rod = path.dirname(d.vaultInbox);
   const regler = d.regler ? await d.regler.laes() : undefined;
   const regnskab = { ...gammelt };
   const skrevne = new Map<string, Kort>();
@@ -121,7 +119,7 @@ async function skrivRegninger(d: RoomDeps, merged: KuratorState, fraSvar: Set<st
       skrevne.set(k.id, { ...k, kraeverRegel: true });
       continue;
     }
-    const fil = regnskabsfil(rod, l.hvor);
+    const fil = d.regnskabsfil(l.hvor);
     const resultat = await skrivRegnskab(fil, k.id, l);
     if (resultat === 'skrevet' || !(await d.store.readLog(HJEM, 1000)).some((e) => e.handlingId === handlingId)) {
       await d.store.appendLog(HJEM, { kilde: 'hermes', tekst: `Skrev ${l.leverandoer} ${l.beloeb} ${l.valuta} ind i ${HVOR_TEKST[l.hvor]}`, handlingId, fortryd: FORTRYD_FJERN });
@@ -186,7 +184,7 @@ export async function startKurator(
     lukket: state.lukket ?? [],
     dyb,
     now,
-    stier: { vault: d.vaultInbox ? path.dirname(d.vaultInbox) : '', ...(o.personer ? { personer: o.personer } : {}) },
+    stier: { vault: d.vaultRod, ...(o.personer ? { personer: o.personer } : {}) },
     ...(regler ? { regler } : {}),
     ...(v ? { mailKilde: 'forbindelse' as const } : {}),
     ...(beskeder.length ? { beskeder } : {}),

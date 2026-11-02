@@ -185,7 +185,7 @@ test('every local link resolves to a file; every canonical is in the sitemap', (
     if (!p) return true;
     const rel = p.replace(/^\//, '');
     return [rel, `${rel}.html`, `${rel}index.html`].some((c) => c !== '' && existsSync(path.join(SITE, c)) && statSync(path.join(SITE, c)).isFile())
-      || p === '/install.sh' || GENERERET.has(p) || (p === '/' && existsSync(path.join(SITE, 'index.html')));
+      || p === '/install.sh' || p === '/egen-sky/hetzner.sh' || GENERERET.has(p) || (p === '/' && existsSync(path.join(SITE, 'index.html')));
   };
   for (const side of SIDER) {
     const d = dok(side);
@@ -396,4 +396,33 @@ test('every footer links to the public source, the repository install.sh clones 
     assert.ok(a, `${side}: no source link`);
     assert.equal(a.getAttribute('data-i'), 'c.nav.source', side);
   }
+});
+
+test('install page: a "Run it in your own cloud" section names Hetzner, the monthly cost, the dry run and the no-SSH fact, in both languages and without "hosted" wording (KC-0171)', () => {
+  const d = dok('install.html');
+  const sek = Array.from(d.querySelectorAll('h2')).find((h) => h.getAttribute('data-i') === 'install.cloud.h');
+  assert.ok(sek, 'the section heading exists');
+  assert.equal(flad(sek.textContent ?? ''), 'Run it in your own cloud');
+  const t = laesTabel();
+  assert.equal(t.da['install.cloud.h'], 'Kør det i din egen sky');
+  const nøgler = Object.keys(t.en).filter((k) => k.startsWith('install.cloud.'));
+  assert.ok(nøgler.length >= 6, 'the section has its copy');
+  for (const k of nøgler) assert.ok(k in t.da, `${k} missing in Danish`);
+  const en = nøgler.map((k) => t.en[k]).join('\n');
+  const da = nøgler.map((k) => t.da[k]).join('\n');
+  assert.match(en, /Hetzner/);
+  assert.match(en, /4–5 euro/);
+  assert.match(da, /Hetzner/);
+  assert.match(da, /4–5 euro/);
+  assert.match(en, /Tailscale/);
+  assert.match(en, /no SSH/i);
+  assert.match(en, /never with us/i, 'the data stays with the user');
+  assert.ok(!/\bhosted\b/i.test(en + readFileSync(path.join(SITE, 'install.html'), 'utf8')), 'no "hosted" wording (D3)');
+  // The command downloads the script from the site and looks first (--dry-run); it names no other host.
+  const kommandoer = Array.from(d.querySelectorAll('[data-cmd^="cloud"]')).map((e) => e.textContent ?? '');
+  assert.ok(kommandoer.length >= 2);
+  assert.ok(kommandoer.some((k) => k.includes('--dry-run') && k.includes('https://clawco.work/egen-sky/hetzner.sh') && k.includes('-o hetzner.sh')), 'download, then dry-run');
+  assert.ok(kommandoer.every((k) => !/https?:\/\/(?!clawco\.work\/)/.test(k)), 'no other host in a command');
+  const laenke = d.querySelector('a[href="/egen-sky/hetzner.sh"]');
+  assert.ok(laenke, 'the script can be read first');
 });
