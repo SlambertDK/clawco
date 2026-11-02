@@ -12,7 +12,7 @@ import { forslagFra } from '../graenser/regelforslag.ts';
 import { skjulAdresser, zoneFelter } from '../rooms/hjem/kort.ts';
 import type { Zoneret } from '../identitet/zoner.ts';
 import type { ReglerLaest } from './lager.ts';
-import type { Regelsaet } from './regler.ts';
+import type { Regel, Regelsaet } from './regler.ts';
 import { erTrin, maksTrinForForslag, type Trin } from './trin.ts';
 
 export type Art = 'ret' | 'ikke-relevant';
@@ -35,6 +35,10 @@ export type Regelforslag = {
   afgjort?: string;
   /** The rule a Ja made. */
   regelId?: string;
+  /** KC-0145: the rule that hid an item Henrik says he should have seen — a Ja pauses it (and, unless `kunPause`, adds this narrower rule). */
+  pauser?: string;
+  /** KC-0145: only pause `pauser`; no new rule (the fields describe the rule being paused). */
+  kunPause?: true;
 } & Zoneret;
 
 export type ForslagFelter = Pick<Regelforslag, 'titel' | 'tekst' | 'trin' | 'gaelder'>;
@@ -132,6 +136,34 @@ export function laegTil(liste: readonly Regelforslag[] | undefined, nyt: Regelfo
 /** Marks proposal `id` decided (and, for a Ja, with the rule it made). */
 export function afgoerForslag(liste: readonly Regelforslag[], id: string, status: 'godkendt' | 'afvist', nu: Date, regelId?: string): Regelforslag[] {
   return liste.map((f) => (f.id === id ? { ...f, status, afgjort: nu.toISOString(), ...(regelId ? { regelId } : {}) } : f));
+}
+
+/**
+ * KC-0145: the app's own proposal to pause `regel`, after Henrik said an item it hid should have been shown ("Skulle have
+ * vist mig det" on the Sunday sample). Pending like any proposal; only his Ja pauses the rule.
+ */
+export function pauseForslag(regel: Regel, o: { kort: { id: string; titel: string } & Zoneret; nu: Date }): Regelforslag {
+  const titel = linje(`Sæt «${regel.titel}» på pause`, MAX_TITEL);
+  const tekst = linje(`Reglen ${regel.id} skjulte «${o.kort.titel}», som du ville have set. På pause følger Hermes den ikke, før du tænder den igen.`, MAX_TEKST);
+  return { ...lavForslag({ titel, tekst, trin: regel.trin, gaelder: { ...regel.gaelder } }, { kort: o.kort, art: 'ret', nu: o.nu }), pauser: regel.id, kunPause: true };
+}
+
+/** The rules with rule `id` set to `status`; null when there is no such rule. `naesteId` and every other rule stay. */
+export function saetStatus(saet: Regelsaet, id: string, status: Regel['status']): Regelsaet | null {
+  return saet.regler.some((r) => r.id === id) ? { ...saet, regler: saet.regler.map((r) => (r.id === id ? { ...r, status } : r)) } : null;
+}
+
+/** KC-0145: the app's Fortryd of a rule decision ("lokal:{…}"): the rule a Ja made and/or the rule it paused. Null for anything else. */
+export function regelFortryd(fortryd: string | undefined): { fjernRegel?: string; genoptag?: string } | null {
+  if (!fortryd?.startsWith('lokal:')) return null;
+  let o: unknown;
+  try { o = JSON.parse(fortryd.slice('lokal:'.length)); } catch { return null; }
+  if (typeof o !== 'object' || o === null || Array.isArray(o)) return null;
+  const r = o as Record<string, unknown>;
+  const id = (v: unknown): v is string => typeof v === 'string' && /^R-\d{4,}$/.test(v);
+  if (Object.keys(r).some((k) => k !== 'fjernRegel' && k !== 'genoptag') || (r['fjernRegel'] === undefined && r['genoptag'] === undefined)) return null;
+  if ((r['fjernRegel'] !== undefined && !id(r['fjernRegel'])) || (r['genoptag'] !== undefined && !id(r['genoptag']))) return null;
+  return { ...(id(r['fjernRegel']) ? { fjernRegel: r['fjernRegel'] } : {}), ...(id(r['genoptag']) ? { genoptag: r['genoptag'] } : {}) };
 }
 
 /** The rules without rule `id`; `naesteId` stays, so the id is never used again. Null when there is no such rule. */

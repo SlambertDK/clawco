@@ -214,7 +214,9 @@ const INTENTS: Intent[] = [
       'Intet haster: Gmail er koblet, og dine ulæste mails står i Nu. Clawco læser kun afsender, emne og tid.',
       'At logge ind med Google igen: din Gmail er logget ud, så Clawco kan ikke læse den. Tryk "Log ind igen" på kortet under Forbindelser.',
       'Intet haster: sidste uge krævede i snit 6 ting dig om dagen, ugen før 7. Ugens tal står øverst i Nu.',
-      'At få weekenden på plads: du og Maja er begge optaget lørdag, og Ella skal have en voksen. Kortet i Husstanden er det samme hos jer begge; vælg, hvem der tager hende.'),
+      'At få weekenden på plads: du og Maja er begge optaget lørdag, og Ella skal have en voksen. Kortet i Husstanden er det samme hos jer begge; vælg, hvem der tager hende.',
+      'Søndagstjekket: fire af de fem ting, jeg skjulte i ugen, venter på dit Rigtigt eller Skulle have vist mig det. Det tager et minut.',
+      'At svare på, om vi skal stoppe søndagstjekket: tre uger i træk var alt det, jeg skjulte, rigtigt.'),
   },
   {
     art: 'hvem',

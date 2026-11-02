@@ -20,6 +20,10 @@ import { KURATOR_MAPPER, nyeMails } from './input.ts';
 import { buildKuratorRun } from './prompt.ts';
 import { knytBeskeder, nyeBeskeder, seteEfter } from './beskeder.ts';
 import { afgoer } from '../graenser/afgoer.ts';
+import type { Intet } from '../rooms/hjem/kort.ts';
+import type { ReglerLaest } from '../tillid/lager.ts';
+import type { Skjult } from '../tillid/skjulte.ts';
+import { createHash } from 'node:crypto';
 
 export const HJEM = 'hjem';
 
@@ -129,6 +133,24 @@ async function skrivRegninger(d: RoomDeps, merged: KuratorState, fraSvar: Set<st
   return { ...merged, kort: merged.kort.map((k) => skrevne.get(k.id) ?? k), regnskab };
 }
 
+/** KC-0145: an intet line's cited rule stays only when it is an active rule in the file this run read; else it is dropped. */
+function medGyldigRegel(intet: Intet[], regler: ReglerLaest | undefined): Intet[] {
+  const aktive = new Set(regler?.tilstand === 'ok' ? regler.saet.regler.filter((r) => r.status === 'aktiv').map((r) => r.id) : []);
+  return intet.map((i) => {
+    if (!i.regel || aktive.has(i.regel)) return i;
+    const { regel: _ugyldig, ...uden } = i;
+    return uden;
+  });
+}
+
+/** KC-0145: the records of the intet lines this merge added (new lines and the cards that did not fit). */
+function skjulteFra(nye: Intet[], stamp: string): Skjult[] {
+  return nye.map((i, n) => ({
+    id: `intet:${createHash('sha256').update(`${stamp}|${n}|${i.titel}`).digest('hex').slice(0, 16)}`,
+    tid: stamp, titel: i.titel, kilde: 'kuratoren', ...(i.regel ? { regelId: i.regel } : {}),
+  }));
+}
+
 /**
  * Starts one Kuratoren run. Null when nothing is new (and not a deeper run) or
  * a Kuratoren run is already queued or running. A deep run is allowed once a
@@ -155,6 +177,8 @@ export async function startKurator(
   // Another start may have slipped in while we read mail: check again, synchronously before runs.start.
   if (iFlugt(d)) return null;
 
+  // KC-0142: the rules as they are on disk now (Henrik may have edited them since the last run).
+  const regler = d.regler ? await d.regler.laes() : undefined;
   const spec = buildKuratorRun({
     mails: input.mails,
     nyheder: o.nyheder,
@@ -163,8 +187,7 @@ export async function startKurator(
     dyb,
     now,
     stier: { vault: d.vaultInbox ? path.dirname(d.vaultInbox) : '', ...(o.personer ? { personer: o.personer } : {}) },
-    // KC-0142: the rules as they are on disk now (Henrik may have edited them since the last run).
-    ...(d.regler ? { regler: await d.regler.laes() } : {}),
+    ...(regler ? { regler } : {}),
     ...(v ? { mailKilde: 'forbindelse' as const } : {}),
     ...(beskeder.length ? { beskeder } : {}),
   });
@@ -175,15 +198,17 @@ export async function startKurator(
     label: dyb ? 'Kuratoren tænker grundigt' : 'Kuratoren tænker',
     spec,
     onDone: async (output) => {
+      let skjulte: Skjult[] = [];
       const raa = parseKuratorSvar(extractJson(output)); // throws SvarFejl: one correction by Hermes (KC-0050), else the run fails; nothing is written
       // Inside the chain: Henrik may have dismissed a card or undone a row while Hermes thought, and
       // no button can write between our merge and our write.
       const ny = await endreKurator(d.store, async (nu) => {
         // KC-0138: a card on a message gets the app's sender line; a beskedId this run did not send (nor a stored card) is dropped.
-        const svar = { ...raa, nye: knytBeskeder(raa.nye, beskeder, nu.kort), opdater: knytBeskeder(raa.opdater, beskeder, nu.kort) };
+        const svar = { ...raa, nye: knytBeskeder(raa.nye, beskeder, nu.kort), opdater: knytBeskeder(raa.opdater, beskeder, nu.kort), intet: medGyldigRegel(raa.intet, regler) };
         // Merge first: only a card that stays on screen gets a ledger row (and so an undo button).
         const merged = await skrivRegninger(d, mergeKort(nu, svar, d.now(), KORSEL), new Set([...svar.nye, ...svar.opdater].map((k) => k.id)));
         const stamp = d.now().toISOString();
+        skjulte = skjulteFra(merged.intet.filter((i) => !nu.intet.includes(i)), stamp);
         const s: KuratorState = { ...merged, cursor: input.cursor, sete: input.sete, sidst: stamp };
         if (dyb) s.sidstDyb = stamp;
         if (beskeder.length) s.beskederSete = seteEfter(nu.beskederSete ?? [], beskeder);
@@ -191,6 +216,8 @@ export async function startKurator(
         if (o.nyheder !== null && o.nyhederStempel) s.nyhederSet = o.nyhederStempel;
         return s;
       });
+      // KC-0145: what this run kept off the screen, as the app's own record (the Sunday sample counts these).
+      if (d.skjulte && skjulte.length) await d.skjulte.noter(skjulte).catch((err: unknown) => console.error('skjulte:', err instanceof Error ? err.message : err));
       d.live.notify(HJEM);
       return { text: `${ny.kort.length} kort` };
     },

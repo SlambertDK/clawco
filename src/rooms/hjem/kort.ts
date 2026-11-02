@@ -30,7 +30,8 @@ export type Kort = { id: string; type: KortType; titel: string; betyder: string;
   besked?: { kanal: string; afsender: string };
   /** KC-0143: the app's, never Hermes': the bill's row was not written on its own because no rule covers it; the card asks which should. */
   kraeverRegel?: true } & Zoneret;
-export type Intet = { titel: string; hvorfor: string } & Zoneret;
+/** KC-0145: `regel` = the rule Kuratoren cites as the reason (kept only when it is an active rule in the file read for the run). */
+export type Intet = { titel: string; hvorfor: string; regel?: string } & Zoneret;
 /** KC-0039: a card Henrik closed and his reason in his own words (empty = none given); newest first. */
 export type Lukning = { id: string; titel: string; grund: string; dato: string } & Zoneret;
 export type KuratorState = { kort: Kort[]; intet: Intet[]; afvist: string[]; sete: string[]; cursor?: string; sidst?: string; sidstDyb?: string;
@@ -207,7 +208,8 @@ export function parseKuratorSvar(raw: unknown): KuratorSvar {
       if (!isObj(v)) continue;
       const titel = str(v['titel'], 200);
       const zone = zoneAfSvar(v['zone']);
-      if (titel) svar.intet.push({ titel, hvorfor: str(v['hvorfor'], 300), zone });
+      const regel = str(v['regel'], 20);
+      if (titel) svar.intet.push({ titel, hvorfor: str(v['hvorfor'], 300), zone, ...(/^R-\d{4,}$/.test(regel) ? { regel } : {}) });
     }
   }
   return svar;

@@ -175,6 +175,8 @@ export function svar(req: AgentRunRequest, ctx: SvarKontekst): string {
     const kortTitel = /Kortet fra Kuratoren: "([^"\n]+)"/.exec(segment(req, 'kort'))?.[1] ?? '';
     return i.includes('"regelforslag"') && MOENSTER.test(grund) ? fenced(noteret, { regelforslag: regelforslagTil(kortTitel) }) : noteret;
   }
+  // KC-0145: "Skulle have vist mig det" on the Sunday sample — Hermes notes it; a rule's pause proposal is already the app's.
+  if (i.includes('søndagens stikprøve')) return 'Noteret: den slags viser jeg dig fremover i stedet for at lægge den væk.';
   if (i.includes('trykket "Fortryd"')) return handlingSvar(segment(req, 'fortryd'), f, true);
   if (i.includes('gem den som kladde')) {
     const id = /mail (\d+)/.exec(input)?.[1] ?? '';

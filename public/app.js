@@ -560,6 +560,15 @@
       })
       .catch(function (err) { toast('Fejl: ' + fejlTekst(err), true); btn.disabled = false; });
   }
+  // KC-0145: the Sunday sample. Rigtigt / Skulle have vist mig det on one line, and the stop question; the server records
+  // each answer once, and Nu redraws (the card folds away when every line is answered).
+  function soendagSvar(btn, url, body, okText) {
+    btn.disabled = true;
+    fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
+      .then(function () { if (okText) toast(okText, false); return refetchHjem(); })
+      .catch(function (err) { toast('Fejl: ' + fejlTekst(err), true); btn.disabled = false; });
+  }
   function kopier(text) {
     // The clipboard API needs permission/a secure page; the textarea fallback works without.
     function gammel() {
@@ -638,6 +647,17 @@
     }
     if (btn.dataset.regelforslagJa) { regelforslagSvar(btn, 'godkend', btn.dataset.regelforslagJa); return true; }
     if (btn.dataset.regelforslagNej) { regelforslagSvar(btn, 'afvis', btn.dataset.regelforslagNej); return true; }
+    if (btn.dataset.stikproeveSvar) {
+      var forkert = btn.dataset.stikproeveSvar === 'forkert';
+      soendagSvar(btn, '/api/tillid/stikproeve/' + encodeURIComponent(btn.dataset.uge) + '/' + encodeURIComponent(btn.dataset.id), { svar: btn.dataset.stikproeveSvar },
+        forkert ? 'Noteret. Hermes ser på, hvad der skal ændres; et forslag kommer i Nu.' : '');
+      return true;
+    }
+    if (btn.dataset.soendagstjekStopSvar) {
+      var stopJa = btn.dataset.soendagstjekStopSvar === 'ja';
+      soendagSvar(btn, '/api/tillid/soendagstjek/stop', { svar: btn.dataset.soendagstjekStopSvar }, stopJa ? 'Søndagstjekket er stoppet. Fortryd i loggen tænder det igen.' : 'Søndagstjekket fortsætter.');
+      return true;
+    }
     if (btn.dataset.hjemFortryd) {
       kortPost(btn, '/api/rum/hjem/fortryd/' + encodeURIComponent(btn.dataset.hjemFortryd), {}, 'fortryder', 'Fortrudt.');
       return true;

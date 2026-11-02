@@ -212,23 +212,23 @@ export function laesDokumenter(dir: string): Dokument[] {
 
 const T = {
   da: {
-    udkast: 'UDKAST, ikke juridisk gennemgået', udkastTekst: 'Teksten er endnu ikke udgivet og er ikke juridisk rådgivning.',
-    laest: 'Læst, endnu ikke udgivet', laestTekst: 'Teksten er læst, men venter på en juridisk gennemgang og udgivelse.',
-    version: 'Version', status: { udkast: 'Udkast', laest: 'Læst', udgivet: 'Udgivet' }, tidligere: 'Tidligere versioner', ingen: 'Ingen tidligere versioner endnu.',
+    udkast: 'UDKAST — ikke endeligt', udkastTekst: 'Teksten er et udkast, er endnu ikke udgivet og er ikke juridisk rådgivning.',
+    laest: 'Udkast — læst af ejeren, ikke endeligt', laestTekst: 'Ejeren har læst teksten, men den er endnu ikke udgivet og er ikke juridisk rådgivning.',
+    version: 'Version', status: { udkast: 'Udkast', laest: 'Læst af ejeren', udgivet: 'Udgivet' }, tidligere: 'Tidligere versioner', ingen: 'Ingen tidligere versioner endnu.',
     erstattet: (v: string) => `Denne version er erstattet af version ${v}.`, gaelder: 'Se den gældende version', andetSprog: 'English', andetSprogLabel: 'Switch language to English',
     indexH1: 'Juridiske dokumenter', indexIntro: 'Vilkår, privatliv, databehandleraftale, cookies, underdatabehandlere og sletning og eksport for Clawco Sky. Hver tekst har et versionsnummer og en dato.',
     indexDesc: 'De juridiske tekster for Clawco Sky, hver med versionsnummer, dato og status: vilkår, privatliv, databehandleraftale, cookies, underdatabehandlere, sletning og eksport.',
-    beskrivelse: { udkast: 'Udkast, endnu ikke udgivet eller juridisk gennemgået.', laest: 'Læst, venter på juridisk gennemgang.', udgivet: 'Gældende tekst for Clawco Sky.' },
+    beskrivelse: { udkast: 'Udkast, endnu ikke udgivet.', laest: 'Udkast, læst af ejeren, endnu ikke udgivet.', udgivet: 'Gældende tekst for Clawco Sky.' },
     dato: 'dato', legalNav: 'Juridisk', legalHref: '/juridisk', q: '?lang=da', nav: 'Hovedmenu', foot: 'Sidefod',
   },
   en: {
-    udkast: 'DRAFT, not legally reviewed', udkastTekst: 'This text has not been published yet and is not legal advice.',
-    laest: 'Read, not yet published', laestTekst: 'This text has been read but is waiting for legal review and publication.',
-    version: 'Version', status: { udkast: 'Draft', laest: 'Read', udgivet: 'Published' }, tidligere: 'Earlier versions', ingen: 'No earlier versions yet.',
+    udkast: 'DRAFT — not final', udkastTekst: 'This text is a draft, has not been published yet and is not legal advice.',
+    laest: 'Draft — read by the owner, not final', laestTekst: 'The owner has read this text, but it has not been published yet and is not legal advice.',
+    version: 'Version', status: { udkast: 'Draft', laest: 'Read by the owner', udgivet: 'Published' }, tidligere: 'Earlier versions', ingen: 'No earlier versions yet.',
     erstattet: (v: string) => `This version has been replaced by version ${v}.`, gaelder: 'See the current version', andetSprog: 'Dansk', andetSprogLabel: 'Skift sprog til dansk',
     indexH1: 'Legal documents', indexIntro: 'Terms, privacy, data processing agreement, cookies, subprocessors, and deletion and export for Clawco Sky. Every text has a version number and a date.',
     indexDesc: 'The legal texts for Clawco Sky, each with version number, date and status: terms, privacy, data processing agreement, cookies, subprocessors, deletion and export.',
-    beskrivelse: { udkast: 'Draft, not yet published or legally reviewed.', laest: 'Read, waiting for legal review.', udgivet: 'The current text for Clawco Sky.' },
+    beskrivelse: { udkast: 'Draft, not yet published.', laest: 'Draft, read by the owner, not yet published.', udgivet: 'The current text for Clawco Sky.' },
     dato: 'date', legalNav: 'Legal', legalHref: '/legal', q: '', nav: 'Main', foot: 'Footer',
   },
 } as const;
@@ -342,7 +342,11 @@ function indexSide(c: Record<Sprog, Chrome>, sprog: Sprog, alle: Dokument[]): { 
   const dok = alle.filter((d) => d.sprog === sprog);
   const noindex = !dok.some((d) => d.meta.status === 'udgivet');
   const liste = dok.map((d) => `<li><a href="${offentlig(sprog, d.sti)}"><span class="t">${esc(d.titel)}</span><span class="muted small">${t.version} ${esc(d.meta.version)} · ${esc(d.meta.dato)} · ${t.status[d.meta.status]}</span></a></li>`).join('\n');
-  const krop = `<h1>${t.indexH1}</h1>\n<p class="intro">${t.indexIntro}</p>\n<ul class="doclist">\n${liste}\n</ul>`;
+  // While any listed text is unpublished, the overview says so as loudly as the loudest text does (KC-0164):
+  // a draft's banner if one is still udkast, otherwise the read-by-the-owner banner while any is laest.
+  const udkast = dok.some((d) => d.meta.status === 'udkast') ? banner(sprog, 'udkast')
+    : dok.some((d) => d.meta.status === 'laest') ? banner(sprog, 'laest') : '';
+  const krop = [udkast, `<h1>${t.indexH1}</h1>\n<p class="intro">${t.indexIntro}</p>\n<ul class="doclist">\n${liste}\n</ul>`].filter(Boolean).join('\n');
   const sti = sprog === 'da' ? '/juridisk' : '/legal';
   const alt = sprog === 'da' ? '/legal' : '/juridisk';
   return { rel: sprog === 'da' ? 'juridisk.html' : 'legal.html', noindex, html: sideHtml(c, { sprog, titel: t.indexH1, beskrivelse: t.indexDesc, sti, alt, noindex, kilde: null, krop }) };

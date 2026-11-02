@@ -129,7 +129,10 @@ const HAAND: [string, string][] = [
   ['slet-alt-bekraeft', 'data-slet-alt="bekraeft"'],                         // KC-0146: Slet alt's confirmation view (/viden/slet-alt)
   ['kraever-regel', 'data-kraever-regel'],                                    // KC-0143: a bill not written on its own, no rule covers it (the moment "Næste morgen": the rules file is broken)
   ['regelforslag', 'data-regelforslag="'],                                      // KC-0144: the card "Skal jeg gøre det til en regel?" after Ikke relevant on the parcel card (the moments "Lige før et møde" to "Eftermiddag")
-  ['regel-gaelder-alt', 'data-regel-alt'],                                    // KC-0143: a rule for every source says "gælder alt" in Viden
+  ['regel-gaelder-alt', 'data-regel-alt'],
+  ['stikproeve', 'data-stikproeve="'],                                         // KC-0145: the Sunday sample in Nu, five lines with Rigtigt / Skulle have vist mig det (the moment "Søndag aften")
+  ['stop-soendagstjek', 'data-soendagstjek-stop'],                             // KC-0145: "Skal vi stoppe søndagstjekket?" after three clean weeks (the moment "Søndag: stop tjekket?")
+  ['regelforslag-pause', 'data-regelforslag-pause="'],                         // KC-0145: the proposal to pause the rule that hid a wrong item (the moment "Søndag aften")                                    // KC-0143: a rule for every source says "gælder alt" in Viden
   // Excluded: the rule proposal under the explanation card (data-regel-forslag). It shows only when E4 (KC-0108) wires
   // RoomDeps.regelforslag, which the test world has no stand-in for; test/rooms/start/e4-handoff.test.ts holds it until then.
   // Excluded: the blocks forespoergsel and ressource. They are defined in src/shell/katalog.ts, not built; no renderer

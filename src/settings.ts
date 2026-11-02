@@ -13,7 +13,8 @@ export type Stemme = { voiceId?: string; agentId?: string; toolIds?: Record<stri
 /** One tier's last live test (KC-0127): passed or not, when, how fast, for which revision, and the kind of failure. */
 export type ModelTest = { ok: boolean; tid: string; ms: number; rev: string; fejl?: string };
 export type ModelTests = Partial<Record<keyof Modeller, ModelTest>>;
-export type Settings = { modeller: Modeller; stemme: Stemme; udbyder?: string; modelTest?: ModelTests };
+/** `soendagstjek` (KC-0145): the Sunday sample; absent = on, false = Henrik said stop. */
+export type Settings = { modeller: Modeller; stemme: Stemme; udbyder?: string; modelTest?: ModelTests; soendagstjek?: boolean };
 
 const NAME = /^[A-Za-z0-9._:/-]{1,80}$/;
 const UDBYDER = /^[a-z0-9][a-z0-9-]{0,39}$/;
@@ -52,7 +53,7 @@ export function createSettings(dataDir: string) {
       if (typeof m.taenker === 'string' && NAME.test(m.taenker)) out.taenker = m.taenker;
       const udbyder = typeof raw.udbyder === 'string' && UDBYDER.test(raw.udbyder) ? raw.udbyder : undefined;
       const modelTest = cleanTests(raw.modelTest);
-      return { modeller: out, stemme: cleanStemme(raw.stemme), ...(udbyder ? { udbyder } : {}), ...(modelTest ? { modelTest } : {}) };
+      return { modeller: out, stemme: cleanStemme(raw.stemme), ...(udbyder ? { udbyder } : {}), ...(modelTest ? { modelTest } : {}), ...(typeof raw.soendagstjek === 'boolean' ? { soendagstjek: raw.soendagstjek } : {}) };
     } catch { return { modeller: {}, stemme: {} }; }
   }
   function cleanStemme(v: unknown): Stemme {
@@ -104,6 +105,12 @@ export function createSettings(dataDir: string) {
     await write(s);
     return s;
   }
-  return { read, setModels, setStemme, setModelTest };
+  /** KC-0145: the Sunday sample on (true) or off (false). */
+  async function setSoendagstjek(til: boolean): Promise<Settings> {
+    const s: Settings = { ...(await read()), soendagstjek: til };
+    await write(s);
+    return s;
+  }
+  return { read, setModels, setStemme, setModelTest, setSoendagstjek };
 }
 export type SettingsStore = ReturnType<typeof createSettings>;

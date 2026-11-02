@@ -99,3 +99,12 @@ export function konfliktDue(plan: KonfliktPlan, now: Date): boolean {
   const ugedag = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Copenhagen', weekday: 'short' }).format(now);
   return ugedag === 'Tue' && copenhagenHHMM(now) >= plan.kl;
 }
+
+/**
+ * KC-0145: the Sunday sample — a Sunday in Copenhagen, from 18:00. Once per week is the job's own gate (the ledger holds
+ * the week), so a restart later on Sunday evening catches up.
+ */
+export function soendagDue(now: Date): boolean {
+  const ugedag = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Copenhagen', weekday: 'short' }).format(now);
+  return ugedag === 'Sun' && copenhagenHHMM(now) >= '18:00';
+}

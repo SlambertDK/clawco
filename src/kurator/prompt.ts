@@ -73,7 +73,7 @@ const SKEMA = `\`\`\`json
     { "id": "id på et åbent kort", "status": "behold | opdater | fjern", "hvorfor": "én linje" }
   ],
   "intet": [
-    { "titel": "...", "hvorfor": "én linje" }
+    { "titel": "...", "hvorfor": "én linje", "regel": "R-0004 (kun hvis en af Henriks regler er grunden; ellers udelad feltet)" }
   ]
 }
 \`\`\``;

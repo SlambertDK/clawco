@@ -56,6 +56,10 @@ export async function skrivFroe(dataDir: string, froe: Froe, store: RumLager, da
     await mkdir(path.join(rod, 'tillid'), { recursive: true });
     await skrivAtomisk(path.join(rod, 'tillid', 'dagstal.jsonl'), froe.dagstal.map((d) => `${JSON.stringify(d)}\n`).join(''));
   }
+  // KC-0145: what the app kept off the screen and the Sunday sample's ledger, as the app's own stores read them.
+  if (froe.skjulte?.length || froe.stikproever) await mkdir(path.join(rod, 'tillid'), { recursive: true });
+  if (froe.skjulte?.length) await skrivAtomisk(path.join(rod, 'tillid', 'skjulte.jsonl'), froe.skjulte.map((s) => `${JSON.stringify(s)}\n`).join(''));
+  if (froe.stikproever) await skrivAtomisk(path.join(rod, 'tillid', 'stikproever.json'), JSON.stringify(froe.stikproever, null, 2));
   if (froe.pause) await skrivAtomisk(path.join(rod, 'pause.json'), JSON.stringify(froe.pause, null, 2));
   if (froe.kilder) await skrivKonfig(rod, froe.kilder); // KC-0132: the moment's connected fakes
   if (froe.helbred) await skrivAtomisk(path.join(rod, 'helbred.json'), JSON.stringify({ kilder: froe.helbred }, null, 2)); // KC-0139: the moment's connection health

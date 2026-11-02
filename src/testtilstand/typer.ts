@@ -11,6 +11,8 @@ import type { Profil } from '../store/profil.ts';
 import type { Settings } from '../settings.ts';
 import type { Post } from '../kilder/helbred.ts';
 import type { Dagstal } from '../tillid/dagstal.ts';
+import type { Skjult } from '../tillid/skjulte.ts';
+import type { Stikbog } from '../tillid/stikproeve.ts';
 
 /** One moment of the day the panel can jump to. */
 export type Moment = {
@@ -58,6 +60,10 @@ export type Froe = {
   regler?: string;
   /** KC-0147: dagstal.jsonl — one snapshot per past day (eight weeks and the current week so far); absent = a fresh install, no history. */
   dagstal?: Dagstal[];
+  /** KC-0145: skjulte.jsonl — what the app kept off the screen; absent = nothing recorded. */
+  skjulte?: Skjult[];
+  /** KC-0145: stikproever.json — the Sunday sample's ledger; absent = none drawn. */
+  stikproever?: Stikbog;
   /** KC-0132: kilder.json — which fake connectors are connected at this moment; absent = none. */
   kilder?: KilderKonfig;
   /** KC-0139: helbred.json — what the app remembers of each connected source's health; absent = nothing (all ok). */

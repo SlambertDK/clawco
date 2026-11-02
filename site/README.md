@@ -20,8 +20,9 @@ content-security policy that forbids everything else, so a stray third-party ref
 `/vilkaar`, `/privatliv`, `/databehandler`, `/cookies`, `/underdatabehandlere` and `/sletning-og-eksport` (Danish) and the
 same under `/en/` are not files here: `scripts/site-byg.mjs` renders them from `docs/legal/*.md` with `scripts/juridisk.ts`
 (plus the indexes `/juridisk` and `/legal`). Each text starts with frontmatter (`version`, `dato`, `status`, `sprog`);
-the Danish and the English file of one document must agree on the first three. `status: udkast` shows the red "UDKAST,
-ikke juridisk gennemgået" banner and keeps the page out of search and the sitemap; the build fails when a text with
+the Danish and the English file of one document must agree on the first three. `status: udkast` shows the red "UDKAST —
+ikke endeligt" banner, `status: laest` (read by the owner) the "Udkast — læst af ejeren, ikke endeligt" banner; both keep
+the page out of search and the sitemap (only `udgivet` is indexed); the build fails when a text with
 `status: udgivet` still contains `[Selskab]`, `[CVR]` or UDKAST. Every page names the SHA-256 of its source file
 (`<meta name="clawco-kilde">`), checked again at the end of the build.
 
@@ -37,14 +38,15 @@ node scripts/site-byg.mjs            # copies site/ + deploy/install.sh into .si
 node --test test/site.test.ts
 ```
 
-## Deploy (Cloudflare Pages, preview only until Henrik says yes)
+## Deploy (Cloudflare Pages, production on clawco.work since 2026-11-02)
 
 ```bash
-npx wrangler pages deploy .site-ud --project-name clawco-site
+npx wrangler pages deploy .site-ud --project-name clawco-site --branch main      # production: https://clawco.work
+npx wrangler pages deploy .site-ud --project-name clawco-site --branch preview   # preview: noindex
 ```
 
-Free tier, static assets, honours `_headers`, and gives a `*.pages.dev` preview URL. The DNS for `clawco.work` is
-Henrik's and is not touched. After a deploy, check the live file: the SHA-256 of `https://<preview>/install.sh`
+Free tier, static assets, honours `_headers`. `clawco.work` is the project's custom domain (apex CNAME to
+`clawco-site.pages.dev`, proxied, KC-0164); wrangler needs `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` in its env. After a deploy, check the live file: the SHA-256 of `https://<preview>/install.sh`
 must equal the SHA-256 of `deploy/install.sh` (the build prints it).
 
 ## Regenerating the screenshots

@@ -21,6 +21,8 @@ import { kildeFriskhed, type KildeFriskhed } from '../../shell/friskhed.ts';
 import { kildeHelbredElementer, type KildeHelbredKort } from '../../shell/kilde-helbred.ts';
 import { TRIN } from '../../tillid/trin.ts';
 import type { Regelforslag } from '../../tillid/forslag.ts';
+import type { Stikuge } from '../../tillid/stikproeve.ts';
+import { stikproeveKort, stopKort } from './stikproeve.ts';
 
 export const CANVAS_URL = 'https://claude.ai/artifact/UETuFBpsk39GAAXUFprqyD';
 
@@ -69,6 +71,10 @@ export type HjemData = {
   gamle?: Partial<Record<string, KildeFriskhed>>;
   /** KC-0147: the week's number (src/tillid/dagstal.ts ugeLinje), built by the server and passed only on Mondays (KC-0052); absent = not shown. */
   ugetal?: Markup;
+  /** KC-0145: the Sunday sample while a drawn line waits for an answer (the owner's, the check on); absent = no card. */
+  stikproeve?: Stikuge;
+  /** KC-0145: the stop question after three clean weeks is pending (the owner's); absent = not asked. */
+  stopTilbud?: true;
 };
 
 export type CcRaekke = { id: string; status: 'sendt' | 'modtaget' | 'i-gang' | 'parkeret' | 'faerdig'; projekt: string; saetning: string; oprettet: string; ticket?: string; bevis?: string; pr?: string; grund?: string;
@@ -226,7 +232,8 @@ function logRaekke(h: HjemData['hermes'][number], now: Date): Markup {
 }
 
 /** What waits on Henrik in Hjem itself: Claude Code's questions and parked opgaver, and Kuratoren's open cards. */
-function egneDele(d: Pick<HjemData, 'kort' | 'gjort' | 'claudeCode' | 'person' | 'reglerFejl' | 'kildeHelbred' | 'regelforslag'>) {
+type EgneFelter = 'kort' | 'gjort' | 'claudeCode' | 'person' | 'reglerFejl' | 'kildeHelbred' | 'regelforslag' | 'stikproeve' | 'stopTilbud';
+function egneDele(d: Pick<HjemData, EgneFelter>) {
   const gjort = new Set(d.gjort ?? []);
   const cc = d.claudeCode ?? [];
   // A card is done when its handling ran (and was not undone) or, without a handling, when it was written to the ledger.
@@ -236,9 +243,9 @@ function egneDele(d: Pick<HjemData, 'kort' | 'gjort' | 'claudeCode' | 'person' |
 }
 
 /** KC-0093: Hjem's own share of "venter på dig" — the nav and the tab title add it to every room's count. */
-export function hjemEgne(d: Pick<HjemData, 'kort' | 'gjort' | 'claudeCode' | 'person' | 'reglerFejl' | 'kildeHelbred' | 'regelforslag'>): number {
+export function hjemEgne(d: Pick<HjemData, EgneFelter>): number {
   const e = egneDele(d);
-  return e.aabne.length + e.spoerger.length + e.parkerede.length + e.forbindelser.length + e.forslag.length + (d.reglerFejl ? 1 : 0);
+  return e.aabne.length + e.spoerger.length + e.parkerede.length + e.forbindelser.length + e.forslag.length + (d.reglerFejl ? 1 : 0) + (d.stikproeve ? 1 : 0) + (d.stopTilbud ? 1 : 0);
 }
 
 /** KC-0099: nothing waits anywhere — say so calmly, with what comes next today, instead of an empty page. */
@@ -259,15 +266,34 @@ function reglerFejlKort(f: NonNullable<HjemData['reglerFejl']>): Markup {
 
 /** KC-0144: Hermes saw a pattern in a Ret or an Ikke relevant. Ja is the one primary and only Henrik's own tap; Ret reglen opens the chat with the proposal. */
 function regelforslagKort(f: Regelforslag): Markup {
+  if (f.kunPause) return pauseforslagKort(f);
   const t = TRIN[f.trin];
   return html`<article class="card kort" data-regelforslag="${f.id}" data-blok="beslutning" data-element="Regelforslag: ${f.titel}"${zoneData(f)}>
     ${visHoved({ ikon: 'list-checks' }, 'Skal jeg gøre det til en regel?', 'Forslag til en regel')}${zoneChip(f)}
     <p class="row-title">${f.titel}</p>
     <p class="betydning">${f.tekst}</p>
     <p class="row-note">Gælder ${f.gaelder.kilde}${f.gaelder.slags ? html` · ${f.gaelder.slags}` : ''} · Trin ${f.trin}, ${t.navn}: ${t.saetning}</p>
-    <p class="row-note">Kom fra: dit ${f.art === 'ret' ? 'Ret' : 'Ikke relevant'} på «${f.kortTitel}»</p>
+    ${f.pauser ? html`<p class="row-note">Et ja sætter samtidig ${f.pauser} på pause.</p>` : ''}
+    <p class="row-note">Kom fra: ${kom(f)}</p>
     ${handlinger(
       knap({ label: 'Ja, gør det til en regel', slags: 'primaer', attrs: { 'data-regelforslag-ja': f.id } }),
+      [spoerg(`Forslag: ${f.titel}`, 'Ret reglen'), knap({ label: 'Nej tak', attrs: { 'data-regelforslag-nej': f.id } })],
+    )}
+  </article>`;
+}
+
+/** Where a proposal came from: a Ret or Ikke relevant on a card, or (KC-0145) the Sunday sample. */
+const kom = (f: Regelforslag): string => (f.kortId.startsWith('skjult:') ? `søndagstjekket: «${f.kortTitel}» skulle have været vist` : `dit ${f.art === 'ret' ? 'Ret' : 'Ikke relevant'} på «${f.kortTitel}»`);
+
+/** KC-0145: the app's proposal to pause the rule that hid an item Henrik says he should have seen. Only his Ja pauses it. */
+function pauseforslagKort(f: Regelforslag): Markup {
+  return html`<article class="card kort" data-regelforslag="${f.id}" data-regelforslag-pause="${f.pauser ?? ''}" data-blok="beslutning" data-element="Regelforslag: ${f.titel}"${zoneData(f)}>
+    ${visHoved({ ikon: 'list-checks' }, 'Skal jeg sætte reglen på pause?', 'Forslag til en regel')}${zoneChip(f)}
+    <p class="row-title">${f.titel}</p>
+    <p class="betydning">${f.tekst}</p>
+    <p class="row-note">Kom fra: ${kom(f)}</p>
+    ${handlinger(
+      knap({ label: 'Ja, sæt den på pause', slags: 'primaer', attrs: { 'data-regelforslag-ja': f.id } }),
       [spoerg(`Forslag: ${f.titel}`, 'Ret reglen'), knap({ label: 'Nej tak', attrs: { 'data-regelforslag-nej': f.id } })],
     )}
   </article>`;
@@ -288,6 +314,8 @@ function kraeverGrupper(d: HjemData, nu: Date, unik: (id: string) => string): Gr
   const unikNoegle = unikIder(); // a waiting row's identity for counting: its room and its words, not its place in the list
   return [
     { titel: 'Regler', form: 'kort', elementer: [...(d.reglerFejl ? [{ id: 'regler:ulaeselig', html: reglerFejlKort(d.reglerFejl) }] : []), ...forslag.map((f) => ({ id: `regelforslag:${f.id}`, html: regelforslagKort(f) }))] },
+    // KC-0145: the Sunday sample (one bunke, gone when all lines are answered) and the stop question.
+    { titel: 'Søndagstjek', form: 'kort', elementer: [...(d.stikproeve ? [{ id: `stikproeve:${d.stikproeve.uge}`, html: stikproeveKort(d.stikproeve) }] : []), ...(d.stopTilbud ? [{ id: 'soendagstjek:stop', html: stopKort() }] : [])] },
     // KC-0139: a connection that does not work — one card per source, gone when it works again.
     { titel: 'Forbindelser', form: 'kort', elementer: kildeHelbredElementer(forbindelser, nu) },
     { titel: 'Claude Code spørger', form: 'kort', elementer: spoerger.map((o) => ({ id: `cc:${o.id}`, html: spoergsmaalKort(o) })) },

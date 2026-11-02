@@ -15,7 +15,8 @@ export const kanForeslaa = (d: RoomDeps): boolean => (d.regler ? d.person.rolle 
  * Hermes' `blok` for card `kort` → a pending proposal. `blok` undefined or null is no proposal; a bad one is dropped and
  * logged (journal), never stored. Resolves to what happened; never throws on Hermes' text.
  */
-export async function gemRegelforslag(d: RoomDeps, o: { kort: { id: string; titel: string } & Zoneret; art: Art; blok: unknown }): Promise<LagtUdfald | 'droppet' | 'intet'> {
+/** KC-0145: `pauser` = the rule that hid the item (the Sunday sample): the proposal is a narrower rule that replaces it, so a Ja also pauses it. */
+export async function gemRegelforslag(d: RoomDeps, o: { kort: { id: string; titel: string } & Zoneret; art: Art; blok: unknown; pauser?: string }): Promise<LagtUdfald | 'droppet' | 'intet'> {
   if (o.blok === undefined || o.blok === null) return 'intet';
   const regler = d.regler ? await d.regler.laes() : undefined;
   const r = parseRegelforslag(o.blok, { regler, art: o.art, kortId: o.kort.id });
@@ -24,7 +25,7 @@ export async function gemRegelforslag(d: RoomDeps, o: { kort: { id: string; tite
     return 'droppet';
   }
   const nu = d.now();
-  const f = lavForslag(r.forslag, { kort: o.kort, art: o.art, nu });
+  const f = { ...lavForslag(r.forslag, { kort: o.kort, art: o.art, nu }), ...(o.pauser ? { pauser: o.pauser } : {}) };
   let udfald: LagtUdfald = 'lagt';
   await endreKurator(d.store, (s) => {
     const l = laegTil(s.regelforslag, f, nu);

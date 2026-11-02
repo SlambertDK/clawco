@@ -14,6 +14,7 @@ import { ActionError, type MailForbindelse, type RoomDeps, type RoomModule, type
 import { handlingensVerb, kraevJson } from '../dagen/schema.ts';
 import { handlingerIMail, KORSEL, kunFaerdig, parseMailState, synligMail, venterMail, type MailState } from './schema.ts';
 import { synligFor } from '../../identitet/zoner.ts';
+import { koebenhavnTilIso } from '../../shell/tid.ts';
 import { fraForbindelse, readMailSource, type TrimmedMail } from './source.ts';
 import { buildBaggrundFlytRun, buildKladdeRun, buildMailChatRun, buildMailFortrydRun, buildMailHandlingRun, buildMailRefreshForbindelseRun, buildMailRefreshRun, buildSendRun } from './prompt.ts';
 import { renderMail, renderMailEmpty } from './render.ts';
@@ -86,6 +87,11 @@ async function startOpdater(deps: RoomDeps, mode: string): Promise<RunRecord | n
       const state = parseMailState(raw, facts, deps.now(), previous);
       for (const b of state.beslutninger) { const e = emner.get(b.mailId); if (e) { b.emne = b.emne === '(uden emne)' ? e.emne : b.emne; b.modtaget = b.modtaget || e.modtaget; } }
       await deps.store.writeState(RUM, state);
+      // KC-0145: what the night's auto-sort put in Ordnet was kept off the screen — the app's own record, once per post.
+      if (deps.skjulte && state.ordnet.length) {
+        await deps.skjulte.noter(state.ordnet.map((o) => ({ id: `mail:${o.mailId}:${o.tid}`, tid: koebenhavnTilIso(o.tid) ?? deps.now().toISOString(), titel: o.emne || `Mail lagt i ${o.til}`, kilde: 'mail' })))
+          .catch((err: unknown) => console.error('skjulte:', err instanceof Error ? err.message : err));
+      }
       const fejl = data.fejl?.length ? ` Kunne ikke læse: ${data.fejl.join('; ').slice(0, 200)}.` : '';
       await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: `Hermes læste Handling (${state.beslutninger.length} mails, ${data.tal.sorteretIDag} sorteret i dag).${fejl}` });
       return rendered(deps);

@@ -36,6 +36,10 @@ export const MOMENT_TABEL: readonly Moment[] = [
   { id: 'mandag', tid: '07:30', ugedag: 1, navn: 'Mandag morgen', url: '/rum/hjem', replik: 'Hvordan gik sidste uge?' },
   // KC-0152: the first Tuesday after the story's day, 07.40 — the Tuesday check has just looked at the coming weekend.
   { id: TIRSDAG_WEEKEND, tid: '07:40', ugedag: 2, navn: 'Tirsdag før weekenden', url: '/rum/husstand', replik: 'Hvem har Ella i weekenden?' },
+  // KC-0145: the first Sunday after the story day, after 18.00 — the Sunday sample (one line already answered wrong),
+  // and the variant where the third clean week in a row has just been answered (the stop question).
+  { id: 'soendag', tid: '18:30', ugedag: 0, navn: 'Søndag aften', url: '/rum/hjem', replik: 'Hvad skjulte du i denne uge?' },
+  { id: 'soendag-stop', tid: '18:40', ugedag: 0, navn: 'Søndag: stop tjekket?', url: '/rum/hjem', replik: 'Skal vi blive ved med søndagstjekket?' },
 ];
 
 /** Days after the story's day `dag` that the moment's clock is on: `dagPlus`, or (KC-0147, KC-0152) the days to the next `ugedag`. */

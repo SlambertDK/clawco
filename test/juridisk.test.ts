@@ -115,13 +115,13 @@ test('laesDokumenter: earlier versions are the archived files, newest first; non
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('the real files: all twelve have frontmatter, version 0.1-udkast status udkast, and the pairs agree', () => {
+test('the real files: all twelve have frontmatter, version 0.1-udkast status laest, and the pairs agree', () => {
   const alle = laesDokumenter(DOCS);
   assert.equal(alle.length, 12);
   for (const d of alle) {
-    // The version Henrik accepted at sign-up; 1.0 comes with the lawyer's reading, not before (no re-accept of an unchanged text).
+    // The version accounts accepted at sign-up; 1.0 comes with publication, not before (no re-accept of an unchanged text).
     assert.equal(d.meta.version, '0.1-udkast', d.fil);
-    assert.equal(d.meta.status, 'udkast', `${d.fil} stays a draft until Henrik and a lawyer say yes`);
+    assert.equal(d.meta.status, 'laest', `${d.fil}: read by the owner 2026-11-02, not yet published`);
     assert.ok(d.titel.length > 3, `${d.fil} has an h1`);
   }
 });
@@ -157,14 +157,28 @@ test('byggJuridisk: a page per document and language, with title, one h1, lang, 
 });
 
 test('byggJuridisk: a draft shows the red-bordered banner in its own language, version and date in the header, and is not indexed', () => {
+  const dir = lavDocs((id) => (id === 'vilkaar' ? { meta: { version: '0.1-udkast' } } : {}));
+  const { ud } = byg(dir);
+  try {
+    const d = side(ud, 'vilkaar.html');
+    assert.match(d.querySelector('.udkast')?.textContent ?? '', /UDKAST — ikke endeligt/);
+    assert.match(d.querySelector('.dokmeta')?.textContent ?? '', /Version 0\.1-udkast · 2026-10-31 · Udkast/);
+    assert.match(side(ud, 'en/vilkaar.html').querySelector('.udkast')?.textContent ?? '', /DRAFT — not final/);
+    assert.equal(d.querySelector('meta[name="robots"]')?.getAttribute('content'), 'noindex');
+  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(ud, { recursive: true, force: true }); }
+});
+
+test('byggJuridisk: a laest page (read by the owner) shows its own banner, version and date in the header, and is not indexed', () => {
   const { ud } = byg(DOCS);
   try {
     const da = side(ud, 'vilkaar.html');
-    assert.match(da.querySelector('.udkast')?.textContent ?? '', /UDKAST, ikke juridisk gennemgået/);
+    assert.match(da.querySelector('.udkast.laest')?.textContent ?? '', /Udkast — læst af ejeren, ikke endeligt/);
     assert.match(da.querySelector('.dokmeta')?.textContent ?? '', /Version 0\.1-udkast/);
-    assert.match(da.querySelector('.dokmeta')?.textContent ?? '', /2026-10-31/);
+    assert.match(da.querySelector('.dokmeta')?.textContent ?? '', /2026-11-02/);
+    assert.match(da.querySelector('.dokmeta')?.textContent ?? '', /Læst af ejeren/);
     const en = side(ud, 'en/vilkaar.html');
-    assert.match(en.querySelector('.udkast')?.textContent ?? '', /DRAFT, not legally reviewed/);
+    assert.match(en.querySelector('.udkast.laest')?.textContent ?? '', /Draft — read by the owner, not final/);
+    assert.equal(en.querySelector('meta[name="robots"]')?.getAttribute('content'), 'noindex');
     assert.match(en.querySelector('.dokmeta')?.textContent ?? '', /Version 0\.1-udkast/);
     assert.equal(da.querySelector('meta[name="robots"]')?.getAttribute('content'), 'noindex');
     assert.equal(da.querySelector('link[rel="alternate"][hreflang="en"]')?.getAttribute('href'), 'https://clawco.work/en/vilkaar');
@@ -253,5 +267,48 @@ test('the real build: node scripts/site-byg.mjs writes the legal pages next to t
         if (!/^(https?:|mailto:|#)/.test(v)) assert.ok(loes(v), `${f}: broken ${v}`);
       }
     }
+  } finally { rmSync(ud, { recursive: true, force: true }); }
+});
+
+test('byggJuridisk: the overview pages carry the draft banner while any of their texts is a draft (KC-0164)', () => {
+  const { ud } = byg(DOCS);
+  try {
+    for (const [rel, tekst] of [['juridisk.html', 'Udkast — læst af ejeren, ikke endeligt'], ['legal.html', 'Draft — read by the owner, not final']] as const) {
+      const b = side(ud, rel).querySelector('main .udkast[role="note"]');
+      assert.ok(b, `${rel}: no banner`);
+      assert.match(b.textContent ?? '', new RegExp(tekst));
+    }
+  } finally { rmSync(ud, { recursive: true, force: true }); }
+  // One draft among read texts: the overview says the louder of the two.
+  const dir = lavDocs((id) => ({ meta: { status: id === 'cookies' ? 'udkast' : 'laest' } }));
+  const b = byg(dir);
+  try {
+    assert.match(side(b.ud, 'juridisk.html').querySelector('main .udkast')?.textContent ?? '', /UDKAST — ikke endeligt/);
+  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(b.ud, { recursive: true, force: true }); }
+});
+
+test('byggJuridisk: a laest text stays out of the sitemap and is noindex; the overview too while nothing is published', () => {
+  const dir = lavDocs(() => ({ meta: { status: 'laest' } }));
+  const { ud } = byg(dir);
+  try {
+    for (const rel of ['vilkaar.html', 'en/cookies.html', 'juridisk.html', 'legal.html']) {
+      assert.equal(side(ud, rel).querySelector('meta[name="robots"]')?.getAttribute('content'), 'noindex', rel);
+    }
+    assert.ok(!readFileSync(path.join(ud, 'sitemap.xml'), 'utf8').match(/vilkaar|cookies|juridisk|legal/), 'nothing legal in the sitemap');
+  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(ud, { recursive: true, force: true }); }
+});
+
+// KC-0204 (Henrik 2026-11-02: no lawyer): no text, banner or page may claim or promise a lawyer's review.
+const ADVOKATORD = /advokat|jurist|juridisk gennemgået|legally reviewed|lawyer/i;
+const alleFiler = (d: string): string[] => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? alleFiler(path.join(d, e.name)) : [path.join(d, e.name)]));
+
+test('no lawyer language in the legal texts, the site source, the legal page renderer or any built legal page', () => {
+  const kilder = [...alleFiler(DOCS).filter((f) => f.endsWith('.md')), ...alleFiler(path.join(ROD, 'site')).filter((f) => /\.(html|js|css|md|txt)$/.test(f)), path.join(ROD, 'scripts/juridisk.ts')];
+  const fund = kilder.flatMap((f) => { const m = ADVOKATORD.exec(readFileSync(f, 'utf8')); return m ? [`${path.relative(ROD, f)}: ${m[0]}`] : []; });
+  assert.deepEqual(fund, []);
+  const { ud, stier } = byg(DOCS);
+  try {
+    const sider = stier.flatMap((rel) => { const m = ADVOKATORD.exec(readFileSync(path.join(ud, rel), 'utf8')); return m ? [`${rel}: ${m[0]}`] : []; });
+    assert.deepEqual(sider, []);
   } finally { rmSync(ud, { recursive: true, force: true }); }
 });

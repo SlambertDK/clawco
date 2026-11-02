@@ -1,14 +1,14 @@
 ---
 version: 0.1-udkast
-dato: 2026-10-31
-status: udkast
+dato: 2026-11-02
+status: laest
 sprog: en
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31 som udkast til gennemlæsning af en advokat. Ikke juridisk rådgivning. Ikke offentliggjort.
+> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
 
-Version 0.1-udkast · 2026-10-31
+Version 0.1-udkast · 2026-11-02
 
-> English translation of the Danish draft. Written by Claude as a draft for review by a lawyer. Not legal advice. Not published. If the two versions differ, the Danish text is the master until a lawyer decides otherwise.
+> English translation of the Danish draft, written by Claude and read by the owner (Henrik Lambert) on 2026-11-02. Not legal advice. Not published. If the two versions differ, the Danish text applies.
 
 # Subprocessors for Clawco Sky
 
@@ -22,20 +22,15 @@ The list belongs with the Privacy Policy and the Data Processing Agreement. All 
 
 | Name | What they do | Where | Basis for transfer |
 |---|---|---|---|
-| Hetzner Online GmbH | Hosting of instances, volumes and backups | Germany and Finland (Falkenstein, Helsinki) [confirm] | No transfer outside the EU. The company is in the EU. |
-| Cloudflare, Inc. | Tunnel and DNS for *.clawco.work (TLS terminates at Cloudflare's edge); R2 for encrypted backups | USA/EU (data localisation: [confirm]) | SCC/DPF (verify). **For the lawyer (KC-0212):** because TLS terminates at Cloudflare's edge, Cloudflare sees the traffic to and from your Clawco unencrypted there, content included. Assess whether the agreement and the standard contractual clauses cover that, and whether the Privacy Policy must say so. |
-| Stripe Payments Europe Ltd | Payment, subscription, invoices and VAT | Ireland [confirm] | The company is in the EU. If the Stripe group transfers data to the USA, that rests on Stripe's own basis, for example standard contractual clauses or the EU-US Data Privacy Framework — verify |
-| [E-mailudbyder] | Sends emails from us: sign-in links, receipts, reminders | [EU country] | [No transfer if the provider uses the EU only — verify] |
-| [Fejlovervågning] | Receives error reports without content, so we can fix faults | [EU region] | [If the provider is a company outside the EU: standard contractual clauses — verify] |
-| [Modeludbydere] | Only if you use the "included model" add-on: reads the parts of your content the model needs and answers | [countries, for example USA — to be filled in] | [Standard contractual clauses or Data Privacy Framework — verify. A requirement of no storage and no training must be in the agreement] |
-| [Voice provider] | Only if the voice feature is offered in Clawco Sky: converts speech and text | [country — to be filled in] | [verify] |
-| [DNS and domain provider] | Translates our addresses into the right servers. Only sees that someone visits the site. | [country — to be filled in] | [verify] |
+| Cloudflare, Inc. | Tunnel and DNS for clawco.work and the addresses under it. Encryption (TLS) ends at Cloudflare's edge, so Cloudflare can technically see the traffic to and from your Clawco there, content included. R2 for encrypted backups (built, not yet switched on). | The edge: Cloudflare's data centres, usually the nearest one. R2: EU jurisdiction. | Cloudflare is a US company: EU-US Data Privacy Framework and the EU Standard Contractual Clauses (verify). |
+| Stripe Payments Europe Ltd | Payment, subscription, invoices and VAT | Ireland | The company is in the EU. If the Stripe group transfers data to the USA, that rests on Stripe's own basis, for example standard contractual clauses or the EU-US Data Privacy Framework — verify |
+| Resend, Inc. | Sends emails from us: sign-in links, invitations, receipts and reminders | Sending from its EU region in Ireland. Account data, metadata and logs about the emails in the USA. | Resend is a US company: standard contractual clauses and the EU-US Data Privacy Framework (verify). |
 
-Rows in square brackets are not settled. They must be filled in or removed before the list is published. Rows marked "only if" apply only if you use that feature.
+There is no hosting provider on the list: your Clawco and our database run on our own server in Denmark. We use no external error monitoring, and we use no model provider on your behalf.
 
 ## What is not a subprocessor
 
-**Your own model provider.** If you use your own key, you choose the provider yourself, and your instance sends your content there under your agreement with them. It is your choice and your relationship with the provider.
+**Your own model provider.** If you use your own key, you choose the provider yourself, and your instance sends your content there under your agreement with them. Today you can choose Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) or OpenRouter (USA), or a model you run yourself (LM Studio or Ollama). It is your choice and your relationship with the provider. The "included model" add-on, where we pay for the model, does not exist yet. When it comes, the providers join the list with 30 days' notice.
 
 **The services you connect yourself.** Your email, calendar, notes and news live with the providers you chose. Clawco reads them for you. They are not our suppliers.
 
@@ -47,7 +42,7 @@ We do this every time the list changes:
 
 - We write to you by email at least 30 days before a new subprocessor starts processing your data, or before we replace one.
 - We say who it is, what they will do, where they are, and on what basis any transfer takes place.
-- You can object within the 30 days if you have a good reason. If we cannot meet it, you can cancel the subscription at no extra cost. We refund what you have paid for the time after cancellation [proposal].
+- You can object within the 30 days if you have a good reason. If we cannot meet it, you can cancel the subscription at no extra cost. We refund what you have paid for the time after cancellation.
 - We update the list and add a line to the change log below. The date at the top changes.
 
 If it is urgent for security reasons, for example if a supplier drops out, we may switch faster. Then we write to you as soon as possible, and you have the same right to object.
@@ -62,4 +57,4 @@ We have a written agreement with each subprocessor. They have the same data prot
 
 ## Questions
 
-Write to [Kontakt-e-mail]. Company: Henrik Lambert (a private individual, no company), company no. no CVR number (not VAT-registered; registers when the legal threshold is reached), [Adresse].
+Write to kontakt@clawco.work. Company: Henrik Lambert (a private individual, no company), company no. no CVR number (not VAT-registered; registers when the legal threshold is reached), Banevænget 13, 5270 Odense N, Denmark.

@@ -68,7 +68,7 @@ import { medTesttilstand, testDataDir } from './testtilstand/kontakt.ts';
 import { lavTestverden } from './testtilstand/verden.ts';
 import { rumFraBesked, erHjaelp, erVidenBesked, hjaelpSvar } from './shell/aabn.ts';
 import { laesAabnet, markerAabnet } from './store/aabnet.ts';
-import { afgoerForslag, extractForslagBlok, fjernRegel, type Regelforslag } from './tillid/forslag.ts';
+import { afgoerForslag, extractForslagBlok, fjernRegel, regelFortryd, saetStatus, type Regelforslag } from './tillid/forslag.ts';
 import { maksTrinForForslag } from './tillid/trin.ts';
 import { gemRegelforslag, kanForeslaa } from './kurator/regelforslag.ts';
 import { fortrydLog, luk, regnskabFlyt, regnskabFortryd, regnskabVaelg, startKortHandling, udsaet, type Udfald } from './kurator/kortHandlinger.ts';
@@ -98,6 +98,10 @@ import { eksporter, opgoer, type Brugermappe } from './tillid/brugermappe.ts';
 import { sletAlt } from './tillid/slet.ts';
 import { renderSletAlt, renderViden, type Viden, type VidenKilde } from './tillid/viden.ts';
 import { idagKbh } from './shell/tid.ts';
+import { lavSkjulte } from './tillid/skjulte.ts';
+import { aabenUge, besvar, lavStikbog, medStopTilbud, type Stikuge } from './tillid/stikproeve.ts';
+import { soendagsTjek } from './tillid/soendag.ts';
+import { skulleVises } from './kurator/stikproeve.ts';
 import { erMandag, faerdigeDage, fortrudtPaaDag, lavDagstal, raekke as ugeraekke, ugeAf, ugeLinje, ugeVisning } from './tillid/dagstal.ts';
 import { laesPersoner } from './kilder/noter/personer.ts';
 import { kan } from './identitet/roller.ts';
@@ -227,6 +231,9 @@ export function createApp(deps: AppDeps) {
   const regler = vaultDir && deps.dataDir ? lavReglerLager({ vaultDir, dataDir: deps.dataDir }) : undefined;
   // KC-0147: what required Henrik, per day (none without a data dir).
   const dagstal = deps.dataDir ? lavDagstal({ dir: deps.dataDir }) : undefined;
+  // KC-0145: what the app kept off the screen, and the Sunday sample's ledger (none without a data dir).
+  const skjulte = deps.dataDir ? lavSkjulte({ dir: deps.dataDir }) : undefined;
+  const stikbog = deps.dataDir ? lavStikbog({ dir: deps.dataDir }) : undefined;
   const settings = createSettings(deps.dataDir ?? './data');
   void settings.read().then((s) => runs.setModels(s.modeller, hermesProvider(s)));
   const live = createLiveBus(Date.now());
@@ -244,6 +251,7 @@ export function createApp(deps: AppDeps) {
     kalenderScript: deps.kalenderScript ?? '',
     ...(revision ? { revision } : {}),
     ...(regler ? { regler } : {}),
+    ...(skjulte ? { skjulte } : {}),
     ...(profil ? { profil } : {}),
     retBus: lavRetBus(),
     ...(deps.regelforslag ? { regelforslag: deps.regelforslag } : {}),
@@ -841,7 +849,6 @@ export function createApp(deps: AppDeps) {
   // KC-0144: the card "Skal jeg gøre det til en regel?". The ONLY writer of the rules file from a proposal is Ja below: a
   // redeemed human-tap token (jaFraTryk) for exactly that proposal, from the owner, from the app itself. Hermes' text and
   // mail never reach it. Fortryd of the log line removes exactly the rule made (the app, no Hermes run).
-  const FORTRYD_REGEL = /^lokal:\{"fjernRegel":"(R-\d{4,})"\}$/;
   const SAMME_SIDE = 'Forslaget kan kun besvares fra Clawco selv.';
   type ForslagUdfald = { status: 200; regelId?: string; igen?: true; forslag?: Regelforslag } | { status: 404 | 409 | 503; error: string };
 
@@ -863,6 +870,14 @@ export function createApp(deps: AppDeps) {
       if (f.status === 'afvist') { u = { status: 409, error: 'Du har allerede sagt nej tak til det forslag.' }; return s; }
       const l = await regler.laes();
       if (l.tilstand === 'ulaeselig') { u = { status: 409, error: 'Reglerne kan ikke læses; ret filen først.' }; return s; }
+      // KC-0145: a pause only (the Sunday sample): the rule is paused, nothing is added.
+      if (f.kunPause) {
+        const pauset = l.tilstand === 'ok' && f.pauser ? saetStatus(l.saet, f.pauser, 'pause') : null;
+        if (!pauset) { u = { status: 409, error: 'Reglen står ikke længere i filen' }; return s; }
+        await regler.skriv(pauset);
+        u = { status: 200, ...(f.pauser ? { regelId: f.pauser } : {}), forslag: f };
+        return { ...s, regelforslag: afgoerForslag(s.regelforslag ?? [], id, 'godkendt', now(), f.pauser) };
+      }
       // The cap is checked again against the file as it is now: it may have changed since the card was made.
       if (f.trin > maksTrinForForslag(l, f.gaelder)) { u = { status: 409, error: 'Reglerne er ændret, siden forslaget blev lavet. Tryk Ret reglen.' }; return s; }
       const saet = l.tilstand === 'ok' ? l.saet : { naesteId: 1, regler: [], ugyldige: [] };
@@ -871,7 +886,8 @@ export function createApp(deps: AppDeps) {
       let regelId = findes?.id;
       if (!findes) {
         const ny = regelFraForslag(saet, { titel: f.titel, tekst: f.tekst, trin: f.trin, gaelder: f.gaelder, oprindelse: { art: f.art, kortId: f.kortId } }, ja, idagKbh(now()));
-        await regler.skriv(ny.saet);
+        // KC-0145: a narrower rule from the Sunday sample replaces the one that hid the item: that one is paused in the same write.
+        await regler.skriv((f.pauser ? saetStatus(ny.saet, f.pauser, 'pause') : null) ?? ny.saet);
         regelId = ny.regel.id;
       }
       u = { status: 200, ...(regelId ? { regelId } : {}), forslag: f };
@@ -880,7 +896,9 @@ export function createApp(deps: AppDeps) {
     if (u.status !== 200) return c.json({ error: u.error }, u.status);
     if (u.forslag && u.regelId && !u.igen) {
       const f = u.forslag;
-      await deps.store.appendLog(HJEM, { kilde: 'henrik', tekst: `Gjorde det til en regel: ${f.titel} (${u.regelId})`, handlingId: `regelforslag:${id}`, fortryd: `lokal:${JSON.stringify({ fjernRegel: u.regelId })}`, zone: zoneAf(f), ...(f.ejer ? { ejer: f.ejer } : {}) });
+      const tekst = f.kunPause ? `Satte reglen på pause: ${f.titel.replace(/^Sæt «(.*)» på pause$/, '$1')} (${u.regelId})` : `Gjorde det til en regel: ${f.titel} (${u.regelId})${f.pauser ? `; ${f.pauser} er sat på pause` : ''}`;
+      const fortryd = f.kunPause ? { genoptag: u.regelId } : { fjernRegel: u.regelId, ...(f.pauser ? { genoptag: f.pauser } : {}) };
+      await deps.store.appendLog(HJEM, { kilde: 'henrik', tekst, handlingId: `regelforslag:${id}`, fortryd: `lokal:${JSON.stringify(fortryd)}`, zone: zoneAf(f), ...(f.ejer ? { ejer: f.ejer } : {}) });
       await revision?.skriv({ person: c.get('person').id, kanal: 'knap', rum: HJEM, verb: 'bogfoer', udfald: 'tillad', hvorfor: 'Ejeren trykkede Ja til et forslag om en regel.', handlingId: `regelforslag:${id}`, zoner: [zoneAf(f)], kilde: 'forslag' });
       live.notify(HJEM);
     }
@@ -906,8 +924,62 @@ export function createApp(deps: AppDeps) {
     return c.json({ id });
   });
 
-  /** Fortryd on "Gjorde det til en regel": removes exactly that rule, once. Not a Hermes run. */
-  async function fortrydRegel(logId: string, regelId: string): Promise<Udfald> {
+  // KC-0145: the Sunday sample. Each drawn line is answered once (the owner, from Clawco itself); a wrong feeds the KC-0144
+  // proposal flow (src/kurator/stikproeve.ts: a pending proposal, never a write to the rules file). The last answer of a
+  // third clean week asks the stop question.
+  const FORTRYD_SOENDAG = 'lokal:{"soendagstjek":"til"}';
+  app.post('/api/tillid/stikproeve/:uge/:id', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren svarer på søndagstjekket.');
+    if (fremmed(c)) return c.json({ error: 'Søndagstjekket kan kun besvares fra Clawco selv.' }, 403);
+    if (!stikbog) return c.json({ error: 'Søndagstjekket er ikke sat op.' }, 503);
+    const svar = (await body(c))['svar'];
+    if (svar !== 'rigtigt' && svar !== 'forkert') return c.json({ error: 'svar skal være rigtigt eller forkert' }, 400);
+    let r: ReturnType<typeof besvar> | undefined;
+    await stikbog.endre((b) => {
+      r = besvar(b, c.req.param('uge'), c.req.param('id'), svar, now());
+      return r.udfald === 'ok' ? medStopTilbud(r.bog, now()) : b;
+    });
+    if (!r || r.udfald === 'ukendt') return c.json({ error: 'Linjen findes ikke' }, 404);
+    if (r.udfald === 'allerede' || !r.post) return c.json({ error: 'Du har allerede svaret på den.' }, 409);
+    const run = svar === 'forkert' ? await skulleVises(d, r.post) : undefined;
+    live.notify(HJEM);
+    return c.json({ ok: true, ...(run ? { runId: run.id } : {}) });
+  });
+
+  app.post('/api/tillid/soendagstjek/stop', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan stoppe søndagstjekket.');
+    if (fremmed(c)) return c.json({ error: 'Søndagstjekket kan kun stoppes fra Clawco selv.' }, 403);
+    if (!stikbog) return c.json({ error: 'Søndagstjekket er ikke sat op.' }, 503);
+    const svar = (await body(c))['svar'];
+    if (svar !== 'ja' && svar !== 'nej') return c.json({ error: 'svar skal være ja eller nej' }, 400);
+    let ok = false;
+    await stikbog.endre((b) => {
+      if (!b.stop || b.stop.svar) return b;
+      ok = true;
+      return { ...b, stop: { ...b.stop, svar } };
+    });
+    if (!ok) return c.json({ error: 'Der er ikke spurgt.' }, 409);
+    if (svar === 'ja') {
+      await settings.setSoendagstjek(false);
+      await deps.store.appendLog(HJEM, { kilde: 'henrik', tekst: 'Stoppede søndagstjekket', handlingId: 'soendagstjek:stop', fortryd: FORTRYD_SOENDAG, zone: 'privat' });
+    }
+    live.notify(HJEM);
+    return c.json({ ok: true });
+  });
+
+  /** Fortryd on "Stoppede søndagstjekket": the check is on again, once. */
+  async function fortrydSoendag(logId: string): Promise<Udfald> {
+    const e = (await deps.store.readLog(HJEM, 1000)).find((x) => x.id === logId);
+    if (!e) return { ok: false, status: 404, error: 'Linjen findes ikke' };
+    if (e.fortrudt) return { ok: false, status: 409, error: 'Allerede fortrudt' };
+    await settings.setSoendagstjek(true);
+    await deps.store.updateLog(HJEM, logId, { fortrudt: now().toISOString() });
+    live.notify(HJEM);
+    return { ok: true };
+  }
+
+  /** Fortryd on "Gjorde det til en regel": removes exactly that rule and (KC-0145) turns on the rule it paused, once. Not a Hermes run. */
+  async function fortrydRegel(logId: string, r: { fjernRegel?: string; genoptag?: string }): Promise<Udfald> {
     if (!regler) return { ok: false, status: 503, error: 'Der er ingen regelfil.' };
     let u = { ok: false, status: 404, error: 'Linjen findes ikke' } as Udfald; // set inside the chain step below
     await endreKurator(deps.store, async (s) => {
@@ -916,9 +988,10 @@ export function createApp(deps: AppDeps) {
       if (e.fortrudt) { u = { ok: false, status: 409, error: 'Allerede fortrudt' }; return s; }
       const l = await regler.laes();
       if (l.tilstand !== 'ok') { u = { ok: false, status: 409, error: 'Reglerne kan ikke læses; ret filen først.' }; return s; }
-      const uden = fjernRegel(l.saet, regelId);
-      if (!uden) { u = { ok: false, status: 409, error: 'Reglen står ikke længere i filen' }; return s; }
-      await regler.skriv(uden);
+      const uden = r.fjernRegel ? fjernRegel(l.saet, r.fjernRegel) : l.saet;
+      const igen = uden && r.genoptag ? saetStatus(uden, r.genoptag, 'aktiv') : uden;
+      if (!igen) { u = { ok: false, status: 409, error: 'Reglen står ikke længere i filen' }; return s; }
+      await regler.skriv(igen);
       await deps.store.updateLog(HJEM, logId, { fortrudt: now().toISOString() });
       u = { ok: true };
       return s;
@@ -1031,7 +1104,16 @@ export function createApp(deps: AppDeps) {
   }
 
   /** Hjem's own waiting things, read once for the page and for the nav count (KC-0093: one definition). */
-  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[] }> {
+  /** KC-0145: the Sunday sample's card and the stop question — the owner's only, and the sample only while the check is on. */
+  async function soendagNu(): Promise<{ stikproeve?: Stikuge; stopTilbud?: true }> {
+    if (!stikbog || d.person.rolle !== 'ejer') return {};
+    const b = await stikbog.laes();
+    const til = (await settings.read()).soendagstjek !== false;
+    const u = til ? aabenUge(b) : undefined;
+    return { ...(u ? { stikproeve: u } : {}), ...(b.stop && !b.stop.svar ? { stopTilbud: true as const } : {}) };
+  }
+
+  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true }> {
     // KC-0117: Hjem shows (and counts) only what the person looking may see.
     const egne = (await deps.store.readLog(HJEM, 200)).filter((e) => synligFor(d.person, e));
     const gjort = egne.filter((e) => e.handlingId && !e.handlingId.startsWith('regnskab:') && !e.fortrudt).map((e) => e.handlingId as string);
@@ -1045,7 +1127,7 @@ export function createApp(deps: AppDeps) {
     // KC-0142: a rules file that cannot be read is the owner's to fix (one card); otherwise nothing is shown.
     const r = d.person.rolle === 'ejer' && regler ? await regler.laes() : undefined;
     // KC-0144: only the owner answers proposals (the rules file is the household's).
-    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(d.person.rolle === 'ejer' && kurator.regelforslag?.length ? { regelforslag: kurator.regelforslag } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
+    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...(d.person.rolle === 'ejer' && kurator.regelforslag?.length ? { regelforslag: kurator.regelforslag } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
   }
 
   /** Hjem is not a room module: its page is built here from every room's hjemVenter, the logs and Kuratoren's cards. */
@@ -1057,7 +1139,7 @@ export function createApp(deps: AppDeps) {
     // Every active univers: today's prepared meeting.
     for (const u of (await laesIndeks(deps.store)).univers) if (!u.arkiveret) vent.push(...(await universRoom(u.id).hjemVenter(d)));
     const logs = await Promise.all(ROOM_MODULES.map(async (m) => (await deps.store.readLog(m.id, 8)).filter((e) => synligFor(d.person, e))));
-    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag } = await hjemEgneData();
+    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud } = await hjemEgneData();
     const gamle = await gamleNu();
     const egneIds = new Set(egne.slice(0, 8).map((e) => e.id));
     // Only Hjem's own entries can be undone from Hjem; the other rooms' lines are shown plain.
@@ -1073,7 +1155,7 @@ export function createApp(deps: AppDeps) {
     const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
     const sit = await situationNu();
     const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
-    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now()), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now()), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
   }
 
   /**
@@ -1275,7 +1357,7 @@ export function createApp(deps: AppDeps) {
         const text = udenForslag.replace(FLYT_BLOCK, '').trim() || '(intet svar)';
         await deps.store.appendChat(HJEM, { fra: 'hermes', tekst: text });
         const forslagKort = kort ?? (revideret ? { id: revideret.kortId, titel: revideret.kortTitel, ...(revideret.zone ? { zone: revideret.zone } : {}), ...(revideret.ejer ? { ejer: revideret.ejer } : {}) } : undefined);
-        if (forslagKort) await gemRegelforslag(dd, { kort: forslagKort, art: revideret?.art ?? 'ret', blok }).catch((err: unknown) => console.error('regelforslag:', err instanceof Error ? err.message : err));
+        if (forslagKort) await gemRegelforslag(dd, { kort: forslagKort, art: revideret?.art ?? 'ret', blok, ...(revideret?.pauser ? { pauser: revideret.pauser } : {}) }).catch((err: unknown) => console.error('regelforslag:', err instanceof Error ? err.message : err));
         // A correction names the ledger the row should be in; it moves only when that differs from where it is now.
         // Unknown ids, cards without a written row and a missing/same target are ignored. A vault error must not fail the run.
         try {
@@ -1432,9 +1514,12 @@ export function createApp(deps: AppDeps) {
   app.post('/api/rum/hjem/fortryd/:logId', async (c) => {
     const logId = c.req.param('logId');
     // KC-0144: the undo of a rule made from a proposal is the app's own (it shrinks the rules file), for the owner only.
-    const regelId = FORTRYD_REGEL.exec((await deps.store.readLog(HJEM, 1000)).find((x) => x.id === logId)?.fortryd ?? '')?.[1];
-    if (regelId && !erEjer(c)) return afvis(c, 403, 'Kun ejeren kan fortryde en regel.');
-    const u = await kortGennem(c, logId, 'udfoer-med-fortryd', () => (regelId ? fortrydRegel(logId, regelId) : fortrydLog(d, logId)));
+    const fortryd = (await deps.store.readLog(HJEM, 1000)).find((x) => x.id === logId)?.fortryd;
+    const regel = regelFortryd(fortryd);
+    // KC-0145: Fortryd on "Stoppede søndagstjekket" turns the Sunday check on again (the app's own, the owner's).
+    const soendag = fortryd === FORTRYD_SOENDAG;
+    if ((regel || soendag) && !erEjer(c)) return afvis(c, 403, 'Kun ejeren kan fortryde det.');
+    const u = await kortGennem(c, logId, 'udfoer-med-fortryd', () => (regel ? fortrydRegel(logId, regel) : soendag ? fortrydSoendag(logId) : fortrydLog(d, logId)));
     return u.ok ? kortSvar(c, u) : kortFejl(c, u);
   });
 
@@ -1587,6 +1672,15 @@ export function createApp(deps: AppDeps) {
     return startTik(async () => { await konfliktTik(plan); }, 60_000, () => !runs.paaPause());
   };
 
+  // KC-0145: the Sunday sample — Sunday from 18:00 the week is drawn once (the ledger remembers); nothing while paused.
+  const soendagTik = async (): Promise<Awaited<ReturnType<typeof soendagsTjek>> | null> => {
+    if (runs.paaPause() || !skjulte || !stikbog) return null;
+    const r = await soendagsTjek({ skjulte, bog: stikbog, til: async () => (await settings.read()).soendagstjek !== false, now: now() });
+    if (r === 'oprettet') live.notify(HJEM);
+    return r;
+  };
+  const soendag = (): (() => void) => startTik(async () => { await soendagTik(); }, 60_000, () => !runs.paaPause());
+
   // KC-0139: every connected source's health once now and then every 30 minutes (and right after a failed read, see the registry); nothing while paused.
   const helbredTik = (): (() => void) => {
     const tik = (): Promise<void> => helbred.pollAlle();
@@ -1594,7 +1688,7 @@ export function createApp(deps: AppDeps) {
     return startTik(tik, 30 * 60_000, () => !runs.paaPause());
   };
 
-  return { app, runs, live, frontload, bygPlanlagt, kurator, kuratorTik, konflikt, konfliktTik, moedeTik, moedeTikNu: () => koerMoedeTik(d), rumTik, tikNu, helbred, helbredTik };
+  return { app, runs, live, frontload, bygPlanlagt, kurator, kuratorTik, konflikt, konfliktTik, soendag, soendagTik, moedeTik, moedeTikNu: () => koerMoedeTik(d), rumTik, tikNu, helbred, helbredTik };
 }
 
 function env(name: string, fallback = ''): string { return (process.env[name] ?? fallback).trim(); }
@@ -1734,7 +1828,7 @@ export async function main(): Promise<void> {
   const adresse = egenAdresse(process.env, hostname, port);
   const stemmeMode = env('KC_STEMME_MODE', mode === 'fake' ? 'fake' : 'elevenlabs');
   const stemme = stemmeMode === 'fake' ? createFakeStemme() : env('KC_ELEVENLABS_API_KEY') ? createElevenLabs({ apiKey: env('KC_ELEVENLABS_API_KEY') }) : undefined;
-  const { app, frontload, kurator, konflikt, moedeTik, rumTik, helbredTik } = createApp({
+  const { app, frontload, kurator, konflikt, soendag, moedeTik, rumTik, helbredTik } = createApp({
     store: createFileStore(env('KC_DATA_DIR', './data')),
     hermes,
     ...(stemme ? { stemme } : {}),
@@ -1769,6 +1863,7 @@ export async function main(): Promise<void> {
   frontload(env('KC_FRONTLOAD', standardFrontload(process.env)));
   kurator(env('KC_KURATOR', '07-22/60'));
   konflikt(env('KC_LORDAGSKONFLIKT', '07:30')); // KC-0152: Tuesdays; "fra" turns it off
+  soendag(); // KC-0145: Sundays from 18:00; the setting soendagstjek turns it off
   moedeTik();
   rumTik();
   helbredTik();

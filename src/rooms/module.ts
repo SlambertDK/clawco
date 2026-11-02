@@ -14,6 +14,7 @@ import type { DataZone } from '../identitet/zoner.ts';
 import type { Verb } from '../graenser/verber.ts';
 import type { Revisionslog } from '../graenser/revisionslog.ts';
 import type { ReglerLager } from '../tillid/lager.ts';
+import type { SkjultLager } from '../tillid/skjulte.ts';
 import type { ProfilLager } from '../store/profil.ts';
 import type { ModelSyn, ModelTestSyn, Niveau } from './start/trin.ts';
 import type { KalenderLaesning } from '../hushold/uge.ts';
@@ -68,6 +69,8 @@ export type RoomDeps = {
   revision?: Revisionslog;
   /** KC-0142: Henrik's rules file (<vault>/Clawco/regler.md), read fresh by every run that thinks; absent = no rules (trin 0). */
   regler?: ReglerLager;
+  /** KC-0145: where the app records what it kept off the screen (the Sunday sample's count); absent = not recorded. */
+  skjulte?: SkjultLager;
   /** KC-0126: the user's profile ($KC_DATA_DIR/profil.json); absent = no data dir, so no profile can be saved. */
   profil?: ProfilLager;
   /** KC-0126: what Start reads of the rest of the app, wired by the composition root (rooms import neither src/kilder nor src/kurator). Absent = nothing connected, journey not Done. */

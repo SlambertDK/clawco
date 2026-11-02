@@ -20,6 +20,8 @@ import { husstandState, TEST_HUSSTAND } from './husstand.ts';
 import { pauseFroe } from './nodstop.ts';
 import { reglerTekst } from './tillid.ts';
 import { erKold, koldFroe, startFaerdig } from './start.ts';
+import { mandagFor } from '../../tillid/dagstal.ts';
+import { skjulteFroe, soendagForslag, stikbogFroe } from './stikproeve.ts';
 
 /** When Henrik opened each room (moment index it is true from, room, Copenhagen time): the nav shows what is relevant now (KC-0052). */
 const AABNET: [number, string, string][] = [
@@ -63,5 +65,10 @@ export function froe(momentId: string, dag: string): Froe {
     start: { state: startFaerdig(f) }, // KC-0126: the day is an install past onboarding
     husstand: { state: husstandState(n, f) }, // KC-0149: requests in every state
   };
-  return { rum, mappe: mappe(s, f), avis: avisFil(f), mailPlan: mailPlan(), husstand: TEST_HUSSTAND, regler: reglerTekst(momentId, dag), dagstal: dagstalFroe(plusDag(dag, plus)), kilder: kilderKonfig(momentId, f), beskeder: beskedFroe(n, f, momentId), ...(helbredFroe(momentId, f) ? { helbred: helbredFroe(momentId, f) as NonNullable<ReturnType<typeof helbredFroe>> } : {}), ...(momentId === 'pause' ? pauseFroe(f) : {}) };
+  // KC-0145: the Sunday sample — the week's records, the ledger, and the pause proposal from the line answered wrong.
+  const mandag = mandagFor(plusDag(dag, plus));
+  const stikbog = stikbogFroe(momentId, mandag, new Date(nu));
+  const pause = soendagForslag(momentId, mandag, new Date(nu), reglerTekst(momentId, dag));
+  if (pause.length) { const h = rum['hjem']!.state as { regelforslag?: unknown[] }; h.regelforslag = [...(h.regelforslag ?? []), ...pause]; }
+  return { ...(stikbog ? { skjulte: [...skjulteFroe(plusDag(mandag, -14)), ...skjulteFroe(plusDag(mandag, -7)), ...skjulteFroe(mandag)], stikproever: stikbog } : {}), rum, mappe: mappe(s, f), avis: avisFil(f), mailPlan: mailPlan(), husstand: TEST_HUSSTAND, regler: reglerTekst(momentId, dag), dagstal: dagstalFroe(plusDag(dag, plus)), kilder: kilderKonfig(momentId, f), beskeder: beskedFroe(n, f, momentId), ...(helbredFroe(momentId, f) ? { helbred: helbredFroe(momentId, f) as NonNullable<ReturnType<typeof helbredFroe>> } : {}), ...(momentId === 'pause' ? pauseFroe(f) : {}) };
 }

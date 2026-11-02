@@ -1,22 +1,22 @@
 ---
 version: 0.1-udkast
-dato: 2026-10-31
-status: udkast
+dato: 2026-11-02
+status: laest
 sprog: da
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31 som udkast til gennemlæsning af en advokat. Ikke juridisk rådgivning. Ikke offentliggjort.
+> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
 
-Version 0.1-udkast · 2026-10-31
+Version 0.1-udkast · 2026-11-02
 
 # Databehandleraftale for Clawco Sky
 
-Aftalen tilbydes de kunder, der ønsker en. Den følger GDPR art. 28 (verificér). En advokat kan vælge i stedet at bruge Datatilsynets eller EU-Kommissionens standardbestemmelser efter art. 28, stk. 7-8 (verificér).
+Aftalen tilbydes de kunder, der ønsker en. Den følger GDPR art. 28 (verificér).
 
 ## 1. Parterne
 
 **Kunden:** [Kundens navn], [Kundens adresse], [Kundens e-mail] (i det følgende "kunden").
 
-**Databehandleren:** Henrik Lambert (personligt drevet, uden selskab), CVR intet CVR-nummer (ikke momsregistreret; registreres når lovens grænse nås), [Adresse], [Kontakt-e-mail] (i det følgende "vi").
+**Databehandleren:** Henrik Lambert (personligt drevet, uden selskab), CVR intet CVR-nummer (ikke momsregistreret; registreres når lovens grænse nås), Banevænget 13, 5270 Odense N, Danmark, kontakt@clawco.work (i det følgende "vi").
 
 Aftalen er et bilag til Vilkår for Clawco Sky. Hvis de to er uenige om behandling af personoplysninger, gælder denne aftale.
 
@@ -24,7 +24,7 @@ Aftalen er et bilag til Vilkår for Clawco Sky. Hvis de to er uenige om behandli
 
 Kunden er dataansvarlig for de personoplysninger, der ligger i kundens instans ("indholdet"). Vi er databehandler for indholdet. For kundens kontooplysninger og betaling er vi selv dataansvarlig, se Privatlivspolitik.
 
-[Advokat: hvis kunden er en privatperson til rent personlig brug, gælder GDPR måske slet ikke for kundens behandling (art. 2(2)(c)). Aftalen er så en frivillig tryghed, og den er relevant for kunder, der bruger Clawco til mere end privat brug — verificér.]
+Bruger kunden Clawco til rent personlige formål, gælder GDPR måske slet ikke for kundens egen behandling (art. 2(2)(c) — verificér). Aftalen er så en frivillig tryghed. Den er relevant for kunder, der bruger Clawco til mere end privat brug.
 
 ## 3. Instruks
 
@@ -34,7 +34,7 @@ Vi behandler ikke indholdet til egne formål. Vi sælger det ikke og bruger det 
 
 ## 4. Tavshedspligt
 
-Alle hos os, der kan komme i nærheden af indholdet, har tavshedspligt. Vores medarbejdere har ingen adgang til indholdet. Eneste vej ind er kundens egen tændte, tidsbegrænsede og loggede funktion "Lad support se med". Den er slået fra som standard.
+Alle hos os, der kan komme i nærheden af indholdet, har tavshedspligt. Vi læser ikke indholdet, og der findes ingen supportfunktion, der giver os adgang til kundens instans. Den, der driver serveren, har teknisk adgang til dens diske, og i beta er diskene endnu ikke krypteret i hvile. Den adgang bruges kun til drift.
 
 ## 5. Sikkerhed
 
@@ -44,34 +44,34 @@ Vi har tekniske og organisatoriske foranstaltninger, der passer til risikoen (ar
 
 Kunden giver generel tilladelse til de underdatabehandlere, der står i vores offentlige liste Underdatabehandlere. Vi har en aftale med hver af dem med samme databeskyttelsesforpligtelser som i denne aftale. Vi hæfter for dem.
 
-Vi varsler kunden på e-mail mindst 30 dage, før vi tilføjer eller skifter en underdatabehandler. Kunden kan gøre indsigelse inden for de 30 dage, hvis der er en saglig grund. Kan vi ikke imødekomme indsigelsen, kan kunden opsige abonnementet uden ekstra omkostning, og vi refunderer den betalte periode, som ikke er brugt [forslag].
+Vi varsler kunden på e-mail mindst 30 dage, før vi tilføjer eller skifter en underdatabehandler. Kunden kan gøre indsigelse inden for de 30 dage, hvis der er en saglig grund. Kan vi ikke imødekomme indsigelsen, kan kunden opsige abonnementet uden ekstra omkostning, og vi refunderer den betalte periode, som ikke er brugt.
 
 Hvis kunden bruger sin egen modelnøgle, er den valgte modeludbyder kundens egen leverandør, ikke vores underdatabehandler.
 
 ## 7. Overførsel uden for EU
 
-Vi hoster indholdet i EU. Overfører vi indhold til et land uden for EU, fx til en modeludbyder under "inkluderet model", sker det kun på et gyldigt grundlag efter GDPR kap. V, fx standardkontrakter (verificér).
+Vi hoster indholdet i EU, på vores egen server i Danmark. Trafikken til og fra instansen går gennem Cloudflare, Inc. (USA), hvor krypteringen (TLS) afsluttes, se Underdatabehandlere. Overfører vi indhold til et land uden for EU, sker det kun på et gyldigt grundlag efter GDPR kap. V, fx standardkontrakter (verificér).
 
 ## 8. Bistand
 
 Vi hjælper kunden, så vidt vi kan, med:
 
-- at svare på de registreredes rettigheder (art. 12-22 — verificér). Kunden kan selv hente alt som zip og slette det hele.
+- at svare på de registreredes rettigheder (art. 12-22 — verificér). Kunden kan selv hente alt som zip ("Hent alt") og slette sin konto.
 - sikkerhed, konsekvensanalyser og høring af tilsynet (art. 32-36 — verificér)
 
-Vi må tage rimeligt betaling for bistand, der kræver meget arbejde [forslag].
+Vi må tage rimeligt betaling for bistand, der kræver meget arbejde.
 
 ## 9. Brud på persondatasikkerheden
 
-Opdager vi et brud, der berører indholdet, giver vi kunden besked uden unødigt ophold og senest [48] timer efter, vi har fået kendskab til det (art. 33(2) — verificér). Beskeden beskriver, hvad vi ved: hvad der er sket, hvilke oplysninger og hvilke instanser der er berørt, og hvad vi gør ved det.
+Opdager vi et brud, der berører indholdet, giver vi kunden besked uden unødigt ophold og senest 48 timer efter, vi har fået kendskab til det (art. 33(2) — verificér). Beskeden beskriver, hvad vi ved: hvad der er sket, hvilke oplysninger og hvilke instanser der er berørt, og hvad vi gør ved det.
 
 ## 10. Sletning og tilbagelevering
 
-Når aftalen ophører, kan kunden hente alt som zip i 30 dage. Derefter sletter vi instansen og dens data. Backup udløber senest 30 dage efter. Kunden kan også slette selv når som helst, se Sletning og eksport. På anmodning bekræfter vi sletningen skriftligt. Regnskabsbilag, som vi selv er forpligtet til at gemme, er ikke omfattet.
+Når aftalen ophører, kan kunden hente alt som zip i 30 dage. Derefter sletter vi instansen og dens data. Sletter kunden selv sin konto, sker det med det samme. Sikkerhedskopier udløber senest 30 dage efter (i beta er de endnu ikke slået til). Kunden kan også slette selv når som helst, se Sletning og eksport. På anmodning bekræfter vi sletningen skriftligt. Regnskabsbilag, som vi selv er forpligtet til at gemme, er ikke omfattet.
 
 ## 11. Revision
 
-Kunden har ret til at få de oplysninger, der skal til for at vise, at vi overholder aftalen, og til at lade en revisor gennemgå dem. Revision aftales mindst 30 dage før, sker i arbejdstiden og uden at forstyrre andre kunder. Vi kan i stedet vise en uafhængig rapport eller et certifikat, hvis vi har et [forslag]. Kunden kan ikke kræve adgang til vores underleverandørers datacentre.
+Kunden har ret til at få de oplysninger, der skal til for at vise, at vi overholder aftalen, og til at lade en revisor gennemgå dem. Revision aftales mindst 30 dage før, sker i arbejdstiden og uden at forstyrre andre kunder. Vi har i dag ingen uafhængig rapport eller certificering. Får vi en, kan vi vise den i stedet. Kunden kan ikke kræve adgang til vores underleverandørers datacentre.
 
 ## 12. Varighed
 
@@ -79,7 +79,7 @@ Aftalen gælder, så længe vi behandler indhold for kunden, og ophører med abo
 
 ## 13. Lovvalg
 
-Dansk ret. Værneting [Retskreds].
+Dansk ret. Værneting Retten i Odense.
 
 ## 14. Underskrift
 
@@ -98,10 +98,10 @@ For kunden: [navn, dato]. For Henrik Lambert (personligt drevet, uden selskab): 
 ## Bilag B. Sikkerhedsforanstaltninger
 
 - **Isolation:** én beholder og ét volumen per kunde. Ingen deler en instans.
-- **Kryptering:** data i hvile er krypteret. Al trafik går over TLS. Modelnøgler ligger i en krypteret konvolut per kunde.
+- **Kryptering:** al trafik går over TLS frem til Cloudflares kant og derfra gennem en krypteret tunnel til serveren. Modelnøgler ligger i en krypteret fil per kunde, og hver kunde har sin egen datanøgle. Diskene er i beta endnu ikke krypteret i hvile.
 - **Netværk:** ingen instans har en offentlig port. Al adgang går gennem vores gateway, som tjekker login ved indgangen.
 - **Logning uden indhold:** logs og fejlrapporter indeholder aldrig mailtekster, beskeder eller prompts.
-- **Adgangsstyring:** ingen adgang til indhold for medarbejdere. Adgang til drift kræver personligt login og to-faktor [bekræft mod driften]. Support kan kun komme ind via kundens egen tilladelse, tidsbegrænset og logget.
-- **Backup:** hver nat, gemt i 30 dage, i EU.
+- **Adgangsstyring:** ingen adgang til indhold for medarbejdere. Adgang til serveren kræver en personlig SSH-nøgle. Der findes ingen supportadgang til kundens instans.
+- **Backup:** bygget, men endnu ikke slået til i beta. Når den er: hver nat, krypteret per kunde, gemt højst 30 dage i EU.
 - **Politiklag:** agenten kan ikke betale, skrive til andre eller slette uden kundens ja.
-- **Beredskab:** plan for brud og for gendannelse [skal skrives].
+- **Beredskab:** en skriftlig plan for brud og gendannelse er endnu ikke skrevet. Indtil den er, gælder pkt. 9.
