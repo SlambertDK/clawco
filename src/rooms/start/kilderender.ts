@@ -10,7 +10,7 @@ import { tilstandChip } from '../../shell/sprog.ts';
 import type { KildeKortSyn } from '../module.ts';
 import { DATAZONER, type DataZone } from '../../identitet/zoner.ts';
 import { renderForhaandsvisning, type Forhaandsvisning } from './forhaandsvisning.ts';
-import { FOERSTE_SLAGS } from './trin.ts';
+import { FOERSTE_SLAGS, erPakkeKilde } from './trin.ts';
 import type { TrinStatus } from './schema.ts';
 
 export type KildeVisning = {
@@ -53,7 +53,7 @@ function opsaetTrin(k: KildeKortSyn): Markup {
 }
 
 /** One source's connect card. `efter`: where the browser goes once connected (step 3 → Nu, where the first value stands). */
-function forbindKort(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean }): Markup {
+export function forbindKort(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean; ikkeNu?: string }): Markup {
   const form = forbindForm(k, o);
   return html`<div class="kilde-kort" data-kilde-kort="${k.id}" data-kilde-slags="${k.slags}" data-element="Kilde: ${k.kort.titel}">
     <p class="row-title">${k.kort.titel}</p><p class="row-note">${k.kort.tekst}</p>${opsaetTrin(k)}${form}
@@ -61,13 +61,15 @@ function forbindKort(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen
 }
 
 /** The card's form: its fields, the zone choice and the button (Spring over in step 4). */
-function forbindForm(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean }): Markup {
+function forbindForm(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean; ikkeNu?: string }): Markup {
   const formId = `kilde-form-${k.id}`;
   const zone = html`<label class="field kilde-zone"><span class="row-note">Det her er</span><select name="zone">${DATAZONER.filter((z) => !(o.laptop && z === 'husstand')).map((z) => html`<option value="${z}"${z === k.zone ? html` selected` : ''}>${ZONE_TEKST[z]}</option>`)}</select></label>`;
   const spring = o.spring ? html`<button type="button" class="btn btn-ghost" data-aktion="kilde-spring-over" data-arg="${JSON.stringify({ kildeId: k.id })}" data-status="springer over">Spring over</button>` : '';
+  // KC-0236: a pack card is put away for a while, not skipped for good (the handling named here; Start's own state is not touched).
+  const ikkeNu = o.ikkeNu ? html`<button type="button" class="btn btn-ghost" data-aktion="${o.ikkeNu}" data-status="lægger væk">Ikke nu</button>` : '';
   return html`<form id="${formId}" class="nyt-form" onsubmit="return false" autocomplete="off">
       ${k.kort.felter.filter((f) => !f.skjult).map((f) => felt(f, formId))}${zone}
-      <div class="actions"><button type="button" class="btn btn-primary" data-kilde-forbind="${k.id}" data-form="${formId}"${o.efter ? html` data-efter="${o.efter}"` : ''} data-status="forbinder">${o.igen ? 'Prøv igen' : k.kort.handling}</button>${spring}</div>
+      <div class="actions"><button type="button" class="btn btn-primary" data-kilde-forbind="${k.id}" data-form="${formId}"${o.efter ? html` data-efter="${o.efter}"` : ''} data-status="forbinder">${o.igen ? 'Prøv igen' : k.kort.handling}</button>${spring}${ikkeNu}</div>
     </form>`;
 }
 
@@ -85,7 +87,8 @@ function forbundetKort(k: KildeKortSyn, v: KildeVisning, now: Date, spring: bool
 /** The content of step 3 (foerste-kilde) or step 4 (flere-kilder) for its status. */
 export function kildeIndhold(trinId: string, status: TrinStatus, v: KildeVisning, now: Date): Markup {
   if (trinId === 'foerste-kilde') {
-    const kort = v.kort.filter((k) => FOERSTE_SLAGS.includes(k.slags));
+    // KC-0236: a source of the Danmark-pakke has its own place (the pack's group) and is not a first source.
+    const kort = v.kort.filter((k) => FOERSTE_SLAGS.includes(k.slags) && !erPakkeKilde(k.id));
     if (status === 'klaret') {
       return html`${kort.filter((k) => k.forbundet).map((k) => forbundetKort(k, v, now, false))}<p class="row-note"><a href="/rum/hjem">Se det i Nu</a></p>`;
     }
@@ -93,8 +96,8 @@ export function kildeIndhold(trinId: string, status: TrinStatus, v: KildeVisning
     return html`<div class="stack kilde-valg">${kort.map((k) => (k.forbundet ? forbundetKort(k, v, now, false) : forbindKort(k, { spring: false, efter: '/rum/hjem', ...(v.laptop ? { laptop: true } : {}) })))}</div>`;
   }
   // Step 4: the previews of the further kinds (a second calendar/mail shows under step 3), then the next source on offer.
-  const vist = v.forhaandsvisninger.filter((f) => !FOERSTE_SLAGS.includes(f.slags));
-  const naeste = v.kort.find((k) => k.id === v.flere[0]);
+  const vist = v.forhaandsvisninger.filter((f) => !FOERSTE_SLAGS.includes(f.slags) && !erPakkeKilde(f.kildeId));
+  const naeste = v.kort.find((k) => k.id === v.flere.filter((id) => !erPakkeKilde(id))[0]);
   const tilbud = naeste && v.kanForbinde ? forbindKort(naeste, { spring: true, ...(v.laptop ? { laptop: true } : {}) }) : '';
   return html`${vist.map((f) => renderForhaandsvisning(f, now))}${tilbud}`;
 }

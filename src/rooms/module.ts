@@ -133,6 +133,9 @@ export type DanmarkVindue = {
   /** Confirm the notification sender and the viewer; refuses an address that is not a Digital Post sender. */
   gem(afsender: string, viser: string): Promise<void>;
   ikkeNu(): Promise<void>;
+  /** KC-0236: whether the Aula card in the Danmark-pakke group was put away less than 30 days ago, and the "Ikke nu" that puts it away. */
+  aulaUdsat(): Promise<boolean>;
+  aulaIkkeNu(): Promise<void>;
 };
 
 /** KC-0161: Start's window on Tailscale. The runner behind it only ever runs the three allow-listed commands (src/shell/tailscale.ts). */

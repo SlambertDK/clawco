@@ -98,7 +98,7 @@ const HAAND: [string, string][] = [
   ['kilde-gmail-kort', 'data-kilde="mail-gmail"'],               // Gmail through "Log ind med Google" over the world's fake Google in Kilder (KC-0135; the moment "Gmail er koblet")
   ['kilde-gmail-trin', 'data-kilde-trin="mail-gmail"'],          // KC-0135: Gmail's setup steps in Start step 3 (the cold start), with its own return address and the mail scope to copy
   ['kilde-gmail-kun-mail', 'Google er allerede koblet: kun mail mangler'], // KC-0135: Gmail's card when the calendar is connected, only mail missing (the moment "Kold start: Google koblet, mail mangler")
-  ['kilde-aula-forbind', 'data-kilde-kort="aula-kalender"'],      // KC-0235: Aula's connect card in Start (a calendar kind, so step 3 offers it; the cold start)
+  ['kilde-aula-forbind', 'data-kilde-kort="aula-kalender"'],      // KC-0235: Aula's connect card in Start (KC-0236: inside the Danmark-pakke group, not among step 3's calendars; the cold start)
   ['kilde-aula-trin', 'data-kilde-trin="aula-kalender"'],          // KC-0235: its steps in Aula's own words, one at a time
   ['kilde-aula-kort', 'data-kilde="aula-kalender"'],               // KC-0235: Aula connected in Kilder in Kø (the moments "Aula er koblet" and "Aula-linket er trukket tilbage")
   ['kilde-aula-uge', 'Skole-hjem-samtale for Ella'],               // KC-0235: an Aula event in the household's shared week (the moment "Aula er koblet"); its organizer, invitees and description are in the file and never on screen
@@ -178,6 +178,12 @@ const HAAND: [string, string][] = [
   ['post-viser', 'data-post-viser'],                                            // KC-0233: its link to the person's chosen viewer
   ['post-set', 'data-post-set="'],                                              // KC-0233: its one button, "Set den"
   ['post-kan-ikke-se', 'data-post-kort="kan-ikke-se"'],                          // KC-0233: the card when the mail cannot be read (the moment "Digital Post: mailen svarer ikke")
+  ['pakke-gruppe', 'data-danmark-pakke'],                                        // KC-0236: Start's one group "Danmark-pakke" (the cold start: Aula's card; "Digital Post: Start-trinnet": Aula's card and the Digital Post step together)
+  ['pakke-aula-ikke-nu', 'data-aktion="aula-ikke-nu"'],                          // KC-0236: Aula's card can be put away for 30 days
+  ['nu-aula', 'data-aula-kort="'],                                               // KC-0236: a school event today or tomorrow as an element in Nu (the moment "Aula er koblet")
+  ['nu-aula-i-dag', 'data-aula-dag="i-dag"'],                                    // KC-0236: ... one that is today
+  ['nu-aula-i-morgen', 'data-aula-dag="i-morgen"'],                              // KC-0236: ... and one that is tomorrow
+  ['uge-institution', 'data-uge-institution'],                                   // KC-0236: the institution (the calendar's name) as the source label of an event in the shared week
   // Excluded: the blocks forespoergsel and ressource. They are defined in src/shell/katalog.ts, not built; no renderer
   // draws them until E5 builds them (KC-0109), so nothing can show them (BYGGET leaves them out).
   // Excluded: "Se ændringen (PR)" on a finished opgave. Its schema (udvikling/opgaver.ts) only accepts GitHub pull

@@ -80,6 +80,16 @@ registrerTrin({
 /** A registered source as the steps see it. */
 export type KildeTrin = { id: string; navn: string; slags: string; forbundet: boolean };
 
+/**
+ * KC-0236: the sources of the Danmark-pakke (Start's group, danmarkpakke.ts). They are offered there, never as a first
+ * source in step 3 nor in step 4's pile, and they do not make step 3 or 4 Klaret. The ids are the connectors' own
+ * (rooms import nothing from src/kilder), held equal by test/rooms/start/danmarkpakke.test.ts.
+ */
+export const PAKKE_KILDER: readonly string[] = ['aula-kalender'];
+export const erPakkeKilde = (id: string): boolean => PAKKE_KILDER.includes(id);
+/** The registry as the journey's steps and suggestions read it: without the pack's sources. */
+export const utenPakke = <T extends { id: string }>(kilder: readonly T[]): T[] => kilder.filter((k) => !erPakkeKilde(k.id));
+
 /** Step 3 offers these kinds (the user picks one); step 4 offers the other, then the rest in this order. */
 export const FOERSTE_SLAGS: readonly string[] = ['kalender', 'mail'];
 const FLERE_SLAGS: readonly string[] = ['noter', 'nyheder', 'beskeder'];

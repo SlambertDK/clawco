@@ -17,6 +17,8 @@ export type FaellesPost = {
   /** Member ids the entry belongs to; empty = the whole household. */
   hvem: string[];
   kilde: 'kalender' | 'booking' | 'aftale';
+  /** KC-0236: the calendar's own name — the source label; for Aula's calendar it is the school's or kindergarten's name. Calendar entries only. */
+  institution?: string;
 };
 export type FaellesDag = { dato: string; poster: FaellesPost[] };
 /** What the week reads of a request (KC-0149): an accepted one at its agreed time. */
@@ -65,6 +67,7 @@ function fraKalender(k: KalenderLaesning, medlemmer: readonly Medlem[]): Faelles
       const p: FaellesPost = { id: s(e['id'], 200) || `${titel}|${start}`, titel, start, heldag, hvem: [], kilde: 'kalender' };
       const slut = s(e['end'], 40); if (slut) p.slut = slut;
       const sted = s(e['location'], 120); if (sted) p.sted = sted;
+      const institution = s(e['calendar'], 80); if (institution) p.institution = institution;
       const hvem = medlemmerI(e, medlemmer);
       p.hvem = hvem.length ? hvem : ejer ? [ejer] : [];
       ud.push(p);

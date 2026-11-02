@@ -129,7 +129,7 @@ import { lavVaultStier, NOTER_ID } from './kilder/noter/stier.ts';
 import { noterKilde } from './kilder/noter/noter.ts';
 import { mailImapKilde } from './kilder/mail-imap/mail-imap.ts';
 import { nyhederRss, NYHEDER_RSS_ID, type NyhederRssKilde } from './kilder/nyheder-rss/kilde.ts';
-import { aulaKalender } from './kilder/aula-kalender/kilde.ts';
+import { aulaKalender, AULA_KALENDER_ID } from './kilder/aula-kalender/kilde.ts';
 import { beskederKilde, BESKEDER_ID, type BeskederKilde } from './kilder/beskeder/kilde.ts';
 import type { Kontakt } from './kilder/beskeder/besked.ts';
 import { mailForbindelse } from './kilder/mail-vindue.ts';
@@ -150,6 +150,7 @@ import { laesBetaPriser } from './beta/priser.ts';
 import { renderDeling } from './beta/side.ts';
 import type { BetaVisning } from './rooms/hjem/beta.ts';
 import type { PostVisning } from './rooms/hjem/digitalpost.ts';
+import { aulaHaendelser, type AulaVisning } from './rooms/hjem/aula.ts';
 import { DanmarkFejl, lavDanmarkLager } from './danmark/tilstand.ts';
 import { DanmarkAfvist, lavDanmark, type MailSyn } from './danmark/vindue.ts';
 import { parseStartState } from './rooms/start/schema.ts';
@@ -425,7 +426,7 @@ export function createApp(deps: AppDeps) {
   }) : undefined;
   if (danmark) {
     const somFejl = <T>(f: () => Promise<T>): Promise<T> => f().catch((err: unknown) => { throw err instanceof DanmarkAfvist ? new ActionError(err.message, err.status === 409 ? 409 : 400) : err; });
-    d.danmark = { start: () => danmark.start(), gem: (a, v) => somFejl(() => danmark.gem(a, v)), ikkeNu: () => danmark.ikkeNu() };
+    d.danmark = { start: () => danmark.start(), gem: (a, v) => somFejl(() => danmark.gem(a, v)), ikkeNu: () => danmark.ikkeNu(), aulaUdsat: () => danmark.aulaUdsat(), aulaIkkeNu: () => danmark.aulaIkkeNu() };
   }
   d.mailForbindelse = () => mailForbindelse(kilder); // KC-0214: Mail through the connector's verbs when no host mail source is connected
   // KC-0139: what the health state says — cards for Nu, freshness for the rooms, a sentence for the voice. Display only:
@@ -632,6 +633,24 @@ export function createApp(deps: AppDeps) {
       console.error('danmark:', err.message);
       return undefined;
     }
+  }
+  /**
+   * KC-0236: what Nu is told about Aula — today's and tomorrow's events, for whoever the shared week is for (src/hushold/rettigheder.ts
+   * `maaSe`, the same check as the week's: owner, member and child yes, a guest no; in the zone the connection was made in, so a
+   * connection moved to privat is its owner's alone). The events come through the registry like every read. Nothing due, not
+   * connected or not readable = nothing here (the Kø panel and Nu's connection card say why).
+   */
+  async function aulaVisning(): Promise<AulaVisning | undefined> {
+    try {
+      const k = (await kilder.forbundne('kalender')).find((x) => x.id === AULA_KALENDER_ID);
+      if (!k) return undefined;
+      const { zone, af } = await kilder.hvor(k.id);
+      if (!maaSe(d.person, { slags: 'uge', zone, ...(af ? { ejer: af } : {}) })) return undefined;
+      const l = await kilder.laes(k.id);
+      if (l.slags !== 'kalender') return undefined;
+      const haendelser = aulaHaendelser(l.data, now());
+      return haendelser.length ? { haendelser, zone } : undefined;
+    } catch { return undefined; }
   }
   /** KC-0203: what Nu is told about the beta: the plain card first, else the feedback card that is due; the owner's only. */
   async function betaVisning(): Promise<BetaVisning | undefined> {
@@ -1614,7 +1633,7 @@ export function createApp(deps: AppDeps) {
   }
   async function ventendeForslagNu(): Promise<Regelforslag[]> { return ventendeForslag(synligKurator(await laesKurator(deps.store), d.person)); }
 
-  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true; beta?: BetaVisning; digitalPost?: PostVisning }> {
+  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true; beta?: BetaVisning; digitalPost?: PostVisning; aula?: AulaVisning }> {
     // KC-0117: Hjem shows (and counts) only what the person looking may see.
     const egne = (await deps.store.readLog(HJEM, 200)).filter((e) => synligFor(d.person, e));
     const gjort = egne.filter((e) => e.handlingId && !e.handlingId.startsWith('regnskab:') && !e.fortrudt).map((e) => e.handlingId as string);
@@ -1628,7 +1647,7 @@ export function createApp(deps: AppDeps) {
     // KC-0142: a rules file that cannot be read is the owner's to fix (one card); otherwise nothing is shown.
     const r = d.person.rolle === 'ejer' && regler ? await regler.laes() : undefined;
     // KC-0144: only the owner answers proposals (the rules file is the household's).
-    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...await postVisning().then((p) => (p ? { digitalPost: p } : {})), ...(ventendeForslag(kurator).length ? { regelforslag: ventendeForslag(kurator) } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
+    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...await postVisning().then((p) => (p ? { digitalPost: p } : {})), ...await aulaVisning().then((v) => (v ? { aula: v } : {})), ...(ventendeForslag(kurator).length ? { regelforslag: ventendeForslag(kurator) } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
   }
 
   /** Hjem is not a room module: its page is built here from every room's hjemVenter, the logs and Kuratoren's cards. */
@@ -1640,7 +1659,7 @@ export function createApp(deps: AppDeps) {
     // Every active univers: today's prepared meeting.
     for (const u of (await laesIndeks(deps.store)).univers) if (!u.arkiveret) vent.push(...(await universRoom(u.id).hjemVenter(d)));
     const logs = await Promise.all(ROOM_MODULES.map(async (m) => (await deps.store.readLog(m.id, 8)).filter((e) => synligFor(d.person, e))));
-    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud, beta, digitalPost } = await hjemEgneData();
+    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud, beta, digitalPost, aula } = await hjemEgneData();
     const gamle = await gamleNu();
     const egneIds = new Set(egne.slice(0, 8).map((e) => e.id));
     // Only Hjem's own entries can be undone from Hjem; the other rooms' lines are shown plain.
@@ -1657,7 +1676,7 @@ export function createApp(deps: AppDeps) {
     const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
     const sit = await situationNu();
     const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
-    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(digitalPost ? { digitalPost } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(digitalPost ? { digitalPost } : {}), ...(aula ? { aula } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
   }
 
   /**

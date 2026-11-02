@@ -12,7 +12,7 @@ import { synligFor } from '../../identitet/zoner.ts';
 import { kan } from '../../identitet/roller.ts';
 import { ENEBRUGER } from '../../identitet/identitet.ts';
 import { parseStartState, ProfilFejl, validerProfil, type Forslag, type Profil, type StartModel, type StartState } from './schema.ts';
-import { alleTrin, NIVEAUER, trinStatus, type ModelSyn, type Niveau, type TrinKontekst } from './trin.ts';
+import { alleTrin, NIVEAUER, PAKKE_KILDER, trinStatus, utenPakke, type ModelSyn, type Niveau, type TrinKontekst } from './trin.ts';
 import { erRejsenFaerdig } from './rejsen.ts';
 import { foreslaaTilfoejelse } from './forslag.ts';
 import { renderStart, testTekst, type StartVisning } from './render.ts';
@@ -23,6 +23,7 @@ import { MODEL_FEJL, modelFejlArt, type ModelFejlArt } from './modelfejl.ts';
 import { MODEL_TEST } from '../../agent/prompt.ts';
 import type { AgentStatus } from '../../agent/types.ts';
 import { kildeKontekst, kildeVisning, springOver } from './vaerdi.ts';
+import type { KildeVisning } from './kilderender.ts';
 import { flereKilderKoe } from './trin.ts';
 import { IMPORT_AKTIONER, IMPORT_LABEL, importAktion, importFortryd, importKvitteringer, rydGamleUploads, type Hjaelp as ImportHjaelp } from './import/handlinger.ts';
 import type { ImportVisning } from './import/render.ts';
@@ -52,7 +53,7 @@ async function forslagAf(deps: RoomDeps, s: StartState | null): Promise<Forslag[
   const nu = deps.now();
   if (s?.forslag && nu.getTime() - Date.parse(s.forslag.tid) < FORSLAG_GYLDIG_MS) return s.forslag.liste.filter((f) => !s.afvist[f.kildeId]);
   let kilder;
-  try { kilder = await deps.rejse.kilder(); } catch { return []; } // a registry that cannot be read suggests nothing (fail closed)
+  try { kilder = utenPakke(await deps.rejse.kilder()); } catch { return []; } // a registry that cannot be read suggests nothing (fail closed); the Danmark-pakke's sources have their own group (KC-0236)
   const liste = await foreslaaTilfoejelse({ kilder, mail: () => deps.rejse!.mail(), nu, afvist: s?.afvist ?? {} });
   if (s) await deps.store.writeState(RUM, { ...s, forslag: { tid: nu.toISOString(), liste } });
   return liste;
@@ -144,6 +145,18 @@ async function digitalPostSyn(deps: RoomDeps): Promise<Pick<StartVisning, 'digit
   return syn ? { digitalPost: { ...syn, kanGemme: kan(deps.person.rolle, 'aendre-indstillinger') } } : {};
 }
 
+/**
+ * KC-0236: Aula's card in the Danmark-pakke group — the owner's (the one who connects), while no Aula source is connected and
+ * the card was not put away less than 30 days ago. Without the window (no data folder) there is no card: nowhere to keep "Ikke nu".
+ */
+async function aulaSyn(deps: RoomDeps, kilder: KildeVisning | undefined): Promise<Pick<StartVisning, 'aula'>> {
+  if (!deps.danmark || !kilder?.kanForbinde) return {};
+  const k = kilder.kort.find((x) => PAKKE_KILDER.includes(x.id));
+  if (!k || k.forbundet) return {};
+  if (await deps.danmark.aulaUdsat().catch(() => false)) return {};
+  return { aula: { kort: k, ...(kilder.laptop ? { laptop: true as const } : {}) } };
+}
+
 async function view(deps: RoomDeps): Promise<RoomView> {
   let s = await laesState(deps);
   if (!s) { s = ny(deps.now()); await deps.store.writeState(RUM, s); } // the first visit: the journey has begun
@@ -168,6 +181,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
       ...(await importSyn(deps, s, ctx.model)),
       ...(await tailscaleSyn(deps, faerdig)),
       ...(await digitalPostSyn(deps)),
+      ...(await aulaSyn(deps, kilder)),
       ...(deps.laptop?.() ? { laptop: true } : {}),
       trin, profil: ctx.profil, forslag, log, now: deps.now(), igang: deps.runs.igang(RUM), venter,
       standardNavn: p.rolle === 'ejer' && p.id !== ENEBRUGER.id ? p.navn : '',
@@ -248,6 +262,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
   if (name === 'model-gem' || name === 'model-test' || name === 'model-agent-noegle') return modelAktion(deps, name, body);
   if (name === 'tailscale-del') return tailscaleDel(deps, body);
   if (name === 'post-afsender-gem' || name === 'post-ikke-nu') return digitalPostAktion(deps, name, body);
+  if (name === 'aula-ikke-nu') return aulaIkkeNu(deps);
   if (name === 'kilde-spring-over') {
     if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren vælger kilderne.');
     const kildeId = str(body['kildeId'], 40);
@@ -282,6 +297,19 @@ async function digitalPostAktion(deps: RoomDeps, name: 'post-afsender-gem' | 'po
     await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: name, tekst: `Valgte afsenderen til Digital Post: ${afsender.toLowerCase()}.` });
     return faerdigt(deps, 'Gemt. Nu lægger Clawco et kort i Nu, når der kommer ny Digital Post.');
   }, { room: RUM, label: 'Start: gemmer Digital Post-afsenderen' });
+}
+
+/** KC-0236: "Ikke nu" on the Aula card — a setting (30 days); it reaches neither Hermes nor Aula. Only the owner. */
+async function aulaIkkeNu(deps: RoomDeps): Promise<RunRecord> {
+  const p = deps.person;
+  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren vælger kilderne.', 403);
+  const dm = deps.danmark;
+  if (!dm) throw new ActionError('Clawco har ingen datamappe, så valget kan ikke gemmes.');
+  await dm.aulaIkkeNu();
+  return deps.runs.local('afvis', async () => {
+    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'aula-ikke-nu', tekst: 'Lagde Aula-kortet væk i 30 dage.' });
+    return faerdigt(deps, 'Lagt væk.');
+  }, { room: RUM, label: 'Start: lægger Aula-kortet væk' });
 }
 
 /**
@@ -445,7 +473,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
 export const startRoom: RoomModule = {
   id: RUM,
   korsel: KORSEL,
-  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-opdater': 'udfoer-med-fortryd', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd', 'post-afsender-gem': 'bogfoer', 'post-ikke-nu': 'sorter' },
+  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-opdater': 'udfoer-med-fortryd', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd', 'post-afsender-gem': 'bogfoer', 'post-ikke-nu': 'sorter', 'aula-ikke-nu': 'sorter' },
   aktionTap: ['tailscale-del'],
   view,
   startOpdater: async () => null,

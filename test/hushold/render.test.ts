@@ -64,3 +64,15 @@ test('renderIkkeHer names nobody', () => {
   assert.match(h, /Husstanden/);
   assert.doesNotMatch(h, /Henrik|Maja/);
 });
+
+// KC-0236: the institution (the calendar's name) is the source label of an Aula event in the shared week.
+test('KC-0236: the shared week shows the institution beside the event, escaped, and none where there is none', () => {
+  const uge: FaellesDag[] = [{ dato: '2026-11-03', poster: [
+    { id: 'a', titel: 'Skole-hjem-samtale', start: '2026-11-03T16:30:00+01:00', slut: '2026-11-03T17:15:00+01:00', heldag: false, hvem: ['henrik'], kilde: 'kalender', institution: 'Kløvermarkskolen <i>' },
+    { id: 'b', titel: 'Fællesspisning', start: '2026-11-03T18:00:00+01:00', heldag: false, hvem: [], kilde: 'kalender' },
+  ] }];
+  const h = String(renderHusstand({ medlemmer: MEDLEMMER, person: HENRIK, uge, now: NU }));
+  assert.match(h, /data-uge-institution>· Kløvermarkskolen &lt;i&gt;<\/span>/);
+  assert.equal((h.match(/data-uge-institution/g) ?? []).length, 1);
+  assert.doesNotMatch(h, /<i>/);
+});

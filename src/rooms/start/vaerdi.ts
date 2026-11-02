@@ -15,7 +15,7 @@ import { synligFor } from '../../identitet/zoner.ts';
 import { dagStr } from '../../shell/friskhed.ts';
 import { parseStartState, type StartState } from './schema.ts';
 import { byggForhaandsvisning, type Forhaandsvisning, type KildeNavn, type RaaLaesning } from './forhaandsvisning.ts';
-import { alleTrin, flereKilderKoe, FOERSTE_SLAGS, type KildeTrin, type TrinKontekst } from './trin.ts';
+import { alleTrin, flereKilderKoe, FOERSTE_SLAGS, utenPakke, type KildeTrin, type TrinKontekst } from './trin.ts';
 import type { KildeVisning } from './kilderender.ts';
 
 const RUM = 'start';
@@ -72,7 +72,8 @@ export async function forhaandsvisningerNu(deps: RoomDeps): Promise<Forhaandsvis
 export async function kildeKontekst(deps: RoomDeps): Promise<{ kilder?: KildeTrin[] }> {
   if (!deps.rejse) return {};
   try {
-    return { kilder: (await deps.rejse.kilder()).map((k) => ({ id: k.id, navn: k.navn, slags: k.slags, forbundet: k.forbundet })) };
+    // KC-0236: the Danmark-pakke's sources are not the journey's (they have their own group in Start).
+    return { kilder: utenPakke(await deps.rejse.kilder()).map((k) => ({ id: k.id, navn: k.navn, slags: k.slags, forbundet: k.forbundet })) };
   } catch { return {}; } // fail closed: no source counts as connected
 }
 

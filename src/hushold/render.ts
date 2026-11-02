@@ -106,7 +106,7 @@ function dagRaekke(d: FaellesDag, v: HusstandVisning): Markup {
       <span class="row-title">${label}</span>
       <span class="uge-aftaler">${d.poster.map((p) => {
         const tid = p.heldag ? T.heleDagen : `${klokkeVis(p.start)}${p.slut && klokkeVis(p.slut) ? `–${klokkeVis(p.slut)}` : ''}`;
-        return html`<span class="uge-aftale" data-post-kilde="${p.kilde}" data-uge-hvem="${p.hvem.join(' ') || 'alle'}"><span class="mono muted">${tid}</span> ${p.titel} <span class="mono muted">· ${hvemTekst(p, v)}</span></span>`;
+        return html`<span class="uge-aftale" data-post-kilde="${p.kilde}" data-uge-hvem="${p.hvem.join(' ') || 'alle'}"><span class="mono muted">${tid}</span> ${p.titel} <span class="mono muted">· ${hvemTekst(p, v)}</span>${p.institution ? html` <span class="mono muted" data-uge-institution>· ${p.institution}</span>` : ''}</span>`;
       })}</span>
     </span>
     <span class="actions">${spoerg(T.faellesElement(label))}</span>

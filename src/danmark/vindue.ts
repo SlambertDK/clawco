@@ -85,6 +85,17 @@ export function lavDanmark(o: { lager: DanmarkLager; laesMail: () => Promise<Mai
       await o.lager.aendre((s) => ({ ...s, afvist: o.nu().toISOString() }));
     },
 
+    /** KC-0236: whether the Aula card in Start's Danmark-pakke group was put away ("Ikke nu") less than 30 days ago. Needs no mail. */
+    async aulaUdsat(): Promise<boolean> {
+      const s = await o.lager.laes();
+      return !!s.aulaAfvist && o.nu().getTime() - Date.parse(s.aulaAfvist) < UDSAT_DAGE * DAG_MS;
+    },
+
+    /** KC-0236: "Ikke nu" on the Aula card. */
+    async aulaIkkeNu(): Promise<void> {
+      await o.lager.aendre((s) => ({ ...s, aulaAfvist: o.nu().toISOString() }));
+    },
+
     /** "Set dem": every unseen notice now is marked seen (the one card that folds more than three). */
     async setAlle(): Promise<void> {
       const s = await o.lager.laes();

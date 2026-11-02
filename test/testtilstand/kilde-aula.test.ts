@@ -42,6 +42,52 @@ test('the cold start: Aula\'s card and its steps in Aula\'s own words are in Sta
   assert.match(h, /tid, titel, sted og institution/);
 });
 
+// ---------- KC-0236: the Danmark-pakke ----------
+
+test('KC-0236 the cold start: Start has ONE group "Danmark-pakke" holding Aula\'s card (no Digital Post step: no mail yet), and step 3 does not offer Aula', async () => {
+  await verden.hop('kold');
+  const h = await side('/rum/start');
+  assert.equal((h.match(/data-danmark-pakke/g) ?? []).length, 1);
+  assert.match(h, /<h3 class="eyebrow">Danmark-pakke<\/h3>/);
+  assert.equal((h.match(/data-kilde-kort="aula-kalender"/g) ?? []).length, 1);
+  assert.ok(h.indexOf('data-kilde-kort="aula-kalender"') > h.indexOf('data-danmark-pakke'), 'inside the group');
+  assert.match(h, /data-aktion="aula-ikke-nu"/);
+  assert.doesNotMatch(h, /data-post-start/);
+});
+
+test('KC-0236 "Digital Post: Start-trinnet": the same group holds both cards, Aula\'s first', async () => {
+  await verden.hop('post-start');
+  const h = await side('/rum/start');
+  assert.equal((h.match(/data-danmark-pakke/g) ?? []).length, 1);
+  assert.equal((h.match(/Danmark-pakke<\/h3>/g) ?? []).length, 1);
+  const a = h.indexOf('data-kilde-kort="aula-kalender"');
+  assert.ok(a > h.indexOf('data-danmark-pakke') && h.indexOf('data-post-start') > a);
+});
+
+test('KC-0236 aula-koblet: Nu shows the school day — today\'s sports day and tomorrow\'s parent talk — as elements with no handling; the week labels each event with the institution', async () => {
+  await verden.hop('aula-koblet');
+  const hjem = await side('/rum/hjem');
+  assert.match(hjem, /data-gruppe="Aula"/);
+  assert.match(hjem, /I dag: Idrætsdag i 2\.B \(Kløvermarkskolen, kl\. 13\.00\)/);
+  assert.match(hjem, /I morgen: Skole-hjem-samtale for Ella \(Kløvermarkskolen, kl\. 16\.30\)/);
+  assert.equal((hjem.match(/data-aula-kort="/g) ?? []).length, 2, 'the sports day and the talk; the later ones are not for Nu');
+  const g = hjem.indexOf('data-gruppe="Aula"');
+  const rest = hjem.slice(g + 10);
+  const del = hjem.slice(g, g + 10 + rest.search(/<section|<\/main>|data-gruppe=|data-baand=/));
+  for (const ikke of ['Skolen holder fri', 'Sommerfest', 'Gymnastik', 'Næste måneds']) assert.ok(!del.includes(ikke), `${ikke} is not for Nu`);
+  for (const forbudt of ['<button', 'data-handling', 'data-aktion', 'data-spoerg', '<form', ...ALDRIG]) assert.ok(!del.includes(forbudt), forbudt);
+  const uge = await side('/rum/husstand');
+  assert.ok((uge.match(/data-uge-institution>· Kløvermarkskolen<\/span>/g) ?? []).length >= 4, 'every Aula event in the week carries the institution');
+});
+
+test('KC-0236 outside the moments with Aula connected, and when the link is revoked: no school element in Nu', async () => {
+  for (const m of ['kold', 'aula-tilbagekaldt']) {
+    await verden.hop(m);
+    const h = await side('/rum/hjem');
+    assert.doesNotMatch(h, /data-aula-kort|data-gruppe="Aula"/, m);
+  }
+});
+
 test('aula-koblet: connected in the husstand zone and ok; the shared week shows the events (the kindergarten\'s too), the cancelled one not, and nothing of who is invited', async () => {
   await verden.hop('aula-koblet');
   const a = await aula();

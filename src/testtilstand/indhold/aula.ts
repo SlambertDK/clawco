@@ -23,7 +23,8 @@ const dato = (dag: string): string => dag.replaceAll('-', '');
 const LANG_TEKST = 'En lang tekst til forældrene om turen, madpakker, skiftetøj og hvem der skal med bussen. '.repeat(12);
 
 /**
- * The week the moment's day starts: Ella (2.B) at Kløvermarkskolen, Mads at the kindergarten Solsikken. Each event carries an
+ * The week the moment's day starts: Ella (2.B) at Kløvermarkskolen, Mads at the kindergarten Solsikken (today: a sports day, tomorrow:
+ * the parent-teacher talk; both are for Nu, KC-0236). Each event carries an
  * organizer, invitees and a long description to be dropped. The moment is on the day after the story's day (dagPlus 1).
  */
 export function aulaIcs(f: Fakta): string {
@@ -37,6 +38,8 @@ export function aulaIcs(f: Fakta): string {
     hendelse('opdigtet-1@aula.example', 'SUMMARY:Skole-hjem-samtale for Ella', `DTSTART;${tz}:${d(1)}T163000`, `DTEND;${tz}:${d(1)}T171500`, 'LOCATION:Klasselokale 2.B',
       'ORGANIZER;CN=Lærer Lund:mailto:lund@kloevermark.example', kun('Ella Opdigtet', 'ella@kloevermark.example'), kun('Mads Opdigtet', 'mads@boernehuset.example'),
       `DESCRIPTION:${LANG_TEKST}`, 'URL:https://www.aula.dk/besked/12345'),
+    // KC-0236: today, later in the day (Nu shows it as "I dag" and it leaves the screen once it is over); the first event above is tomorrow.
+    hendelse('opdigtet-7@aula.example', 'SUMMARY:Idrætsdag i 2.B', `DTSTART;${tz}:${d(0)}T130000`, `DTEND;${tz}:${d(0)}T143000`, 'LOCATION:Idrætsanlægget', 'ORGANIZER;CN=Lærer Lund:mailto:lund@kloevermark.example', `DESCRIPTION:${LANG_TEKST}`),
     hendelse('opdigtet-2@aula.example', 'SUMMARY:Skolen holder fri (lærerkursus)', `DTSTART;VALUE=DATE:${d(2)}`, `DTEND;VALUE=DATE:${d(3)}`, `DESCRIPTION:${LANG_TEKST}`),
     hendelse('opdigtet-3@aula.example', 'SUMMARY:Gymnastik i 2.B', `DTSTART;${tz}:${dato(f.plus(1 + 3 - 7))}T143000`, `DTEND;${tz}:${dato(f.plus(1 + 3 - 7))}T153000`, 'RRULE:FREQ=WEEKLY', 'LOCATION:Gymnastiksalen',
       'ORGANIZER;CN=Lærer Lund:mailto:lund@kloevermark.example'),

@@ -20,7 +20,8 @@ import { renderRegelforslag } from './regelforslag.ts';
 import type { Regelforslag } from '../../tillid/forslag.ts';
 import { importIndhold, type ImportVisning } from './import/render.ts';
 import { renderTailscaleKort, type TailscaleVisning } from './tailscalekort.ts';
-import { renderDigitalPostStart, type PostStartVisning } from './digitalpost.ts';
+import type { PostStartVisning } from './digitalpost.ts';
+import { renderDanmarkPakke, type AulaStartVisning } from './danmarkpakke.ts';
 import { startTekst } from './tekster.ts';
 import { sprogNu, tekst } from '../../shell/tekster.ts';
 
@@ -53,6 +54,8 @@ export type StartVisning = {
   tailscale?: TailscaleVisning;
   /** KC-0233: the Danmark-pakke step under the steps (absent = none: no mail connected, a sender confirmed, or put away). */
   digitalPost?: PostStartVisning;
+  /** KC-0236: Aula's card in the Danmark-pakke group (absent = none: Aula connected, put away, not the owner, or not offered). */
+  aula?: AulaStartVisning;
   foersteRet?: { punkt: { titel: string | null } | null; ret?: StartRet; forslag?: Regelforslag[]; kanSpringeOver: boolean };
 };
 
@@ -224,7 +227,7 @@ export function renderStart(v: StartVisning): Markup {
   const aabne = v.trin.filter((x) => x.status !== 'klaret' && x.status !== 'sprunget-over');
   const rest = v.trin.filter((x) => x.status === 'klaret' || x.status === 'sprunget-over');
   const venter = v.venter ?? aabne.filter((x) => x.trin.krav === 'obligatorisk').length;
-  const bunke = html`<div class="stack" data-trin-bunke>${[...aabne, ...rest].map((x) => html`${trinKort(x.trin, x.status, v)}${x.trin.id === 'foerste-ret' ? efterRet(v) : ''}`)}${v.tailscale ? renderTailscaleKort(v.tailscale) : ''}${v.digitalPost ? renderDigitalPostStart(v.digitalPost) : ''}</div>`;
+  const bunke = html`<div class="stack" data-trin-bunke>${[...aabne, ...rest].map((x) => html`${trinKort(x.trin, x.status, v)}${x.trin.id === 'foerste-ret' ? efterRet(v) : ''}`)}${v.tailscale ? renderTailscaleKort(v.tailscale) : ''}${renderDanmarkPakke({ aula: v.aula, post: v.digitalPost })}</div>`;
   // Optional, so not under Kræver dig: a source worth adding sits under the steps, one line each (a bunke).
   const T = startTekst();
   const forslag = v.forslag.length ? html`<div class="card card-list gruppe" data-blok="bunke" data-gruppe="${T.vaerdAtTilfoeje}"><div class="card-head"><h3 class="eyebrow">${T.vaerdAtTilfoeje}</h3><span class="muted mono">${v.forslag.length}</span></div>${v.forslag.map(forslagRaekke)}</div>` : '';

@@ -173,3 +173,33 @@ test("the state file is read on every call: a change on disk shows without a res
   await t.lager.aendre((s) => ({ ...s, afsendere: [A] }));
   assert.equal((await t.v.nu())?.slags, 'notitser');
 });
+
+// ---------- KC-0236: the Aula card's "Ikke nu" ----------
+
+test('KC-0236 Aula: not put away at first; "Ikke nu" puts it away for 30 days, then it is back; Digital Post\'s step is untouched', async () => {
+  const t = opsaet(() => forbundet(kv('1')));
+  assert.equal(await t.v.aulaUdsat(), false);
+  await t.v.aulaIkkeNu();
+  assert.equal(await t.v.aulaUdsat(), true);
+  t.ur.nu = new Date(NU.getTime() + 29 * 86_400_000);
+  assert.equal(await t.v.aulaUdsat(), true, 'day 29');
+  t.ur.nu = new Date(NU.getTime() + 31 * 86_400_000);
+  assert.equal(await t.v.aulaUdsat(), false, 'day 31: back');
+  assert.notEqual(await t.v.start(), null, 'Digital Post\'s step was never put away by this');
+});
+
+test('KC-0236 Aula and Digital Post are put away separately, and confirming the sender keeps Aula\'s setting', async () => {
+  const t = opsaet(() => forbundet(kv('1')));
+  await t.v.aulaIkkeNu();
+  await t.v.gem(A, 'mit.dk');
+  assert.equal(await t.v.aulaUdsat(), true);
+  await t.v.ikkeNu();
+  const s = await t.lager.laes();
+  assert.ok(s.afvist && s.aulaAfvist);
+});
+
+test('KC-0236 Aula: needs no mail — it is put away and read back with nothing connected', async () => {
+  const t = opsaet(() => ({ forbundet: false, kuverter: [] }));
+  await t.v.aulaIkkeNu();
+  assert.equal(await t.v.aulaUdsat(), true);
+});

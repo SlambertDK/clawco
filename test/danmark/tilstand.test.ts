@@ -66,3 +66,11 @@ test('the viewers: a fixed https front page each, no query, no fragment, never b
   }
   assert.ok(!erViser('google.com') && !erViser(undefined) && !erViser('constructor'));
 });
+
+// KC-0236: the Aula card's "Ikke nu" is kept in the pack's own small memory, beside Digital Post's.
+test('KC-0236 parse: aulaAfvist is an optional ISO time; anything else refuses the file', () => {
+  const ok: DanmarkTilstand = { afsendere: [], set: [], viser: 'mit.dk', aulaAfvist: '2026-11-02T10:00:00.000Z' };
+  assert.deepEqual(parseDanmarkTilstand(JSON.parse(JSON.stringify(ok))), ok);
+  assert.equal(parseDanmarkTilstand({ afsendere: [], set: [], viser: 'mit.dk' })?.aulaAfvist, undefined);
+  for (const daarlig of ['i går', 7, null, {}]) assert.equal(parseDanmarkTilstand({ afsendere: [], set: [], viser: 'mit.dk', aulaAfvist: daarlig }), null, JSON.stringify(daarlig));
+});

@@ -24,6 +24,7 @@ import { stikproeveKort, stopKort } from './stikproeve.ts';
 import { regelforslagKort } from '../../shell/regelforslagkort.ts';
 import { betaKort, feedbackKort, type BetaVisning } from './beta.ts';
 import { POST_GRUPPE, postElementer, type PostVisning } from './digitalpost.ts';
+import { AULA_GRUPPE, aulaElementer, type AulaVisning } from './aula.ts';
 import { hjemTekst } from './tekster.ts';
 import { tekst } from '../../shell/tekster.ts';
 
@@ -84,6 +85,8 @@ export type HjemData = {
   beta?: BetaVisning;
   /** KC-0233: the Danmark-pakke's card — unseen Digital Post notices, or "kan ikke se" (the owner's; absent = nothing to say). */
   digitalPost?: PostVisning;
+  /** KC-0236: the Danmark-pakke's Aula events due today or tomorrow (only for whom the shared week is for; absent = nothing due). Not something that waits: it never counts. */
+  aula?: AulaVisning;
 };
 
 export type CcRaekke = { id: string; status: 'sendt' | 'modtaget' | 'i-gang' | 'parkeret' | 'faerdig'; projekt: string; saetning: string; oprettet: string; ticket?: string; bevis?: string; pr?: string; grund?: string;
@@ -347,7 +350,11 @@ export function renderHjem(d: HjemData): Markup {
   ];
   // KC-0128: the first look at a new source is content, not something that waits on Henrik.
   const foerste = d.forhaandsvisninger?.length ? html`<div class="stack gruppe" data-gruppe="${t.foersteKig}">${d.forhaandsvisninger.map((e) => medId(e.id, e.html))}</div>` : undefined;
-  const indhold = d.venterIalt === 0 ? html`${foerste ?? ''}${altOrdnet(d.naeste)}` : foerste;
+  // KC-0236: today's and tomorrow's school events are content too (the shared week's, in Nu while they matter): one group, only when something is due.
+  const aulaEls = aulaElementer(d.aula, nu);
+  const skole = aulaEls.length ? html`<div class="stack gruppe" data-gruppe="${AULA_GRUPPE}">${aulaEls.map((e) => medId(e.id, e.html))}</div>` : undefined;
+  const forst = foerste || skole ? html`${foerste ?? ''}${skole ?? ''}` : undefined;
+  const indhold = d.venterIalt === 0 ? html`${forst ?? ''}${altOrdnet(d.naeste)}` : forst;
   return html`
   <header class="room-head"><div><h1>${d.hilsen}</h1>${d.naeste && vis.has('naeste') ? naesteLinje(d.naeste, nu) : ''}${d.naeste && vis.has('naeste') && d.gamle?.['kalender'] ? html`<p class="row-note" data-gammel="kalender">${t.kalenderen}${kildeFriskhed(d.gamle['kalender'], nu)}</p>` : ''}<p class="muted">${t.overskrift}</p></div></header>
   ${d.ugetal ?? ''}

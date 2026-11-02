@@ -1,5 +1,5 @@
 // KC-0233, the Danmark-pakke's small memory: the sender address(es) the person confirmed in Start, the notices marked
-// "Set den", which viewer the card's link goes to, and (optionally) when Start's step was put away. One file,
+// "Set den", which viewer the card's link goes to, and (optionally) when Start's step was put away (and, KC-0236, the Aula card). One file,
 // $KC_DATA_DIR/danmark/digital-post.json, written atomically; changes one at a time. Pure parse + a lager that only
 // reads and writes. Nothing here is mail content: ids and addresses only.
 
@@ -24,6 +24,8 @@ export type DanmarkTilstand = {
   viser: Viser;
   /** When Start's step was put away ("Ikke nu"); absent = it shows. */
   afvist?: string;
+  /** KC-0236: the same for the Aula card in Start's Danmark-pakke group; absent = it shows (while Aula is not connected). */
+  aulaAfvist?: string;
 };
 
 export const STANDARD: DanmarkTilstand = { afsendere: [], set: [], viser: 'mit.dk' };
@@ -40,7 +42,9 @@ export function parseDanmarkTilstand(raw: unknown): DanmarkTilstand | null {
   if (!raw['afsendere'].every(erAdresse) || !raw['set'].every((s) => typeof s === 'string' && s.length > 0 && s.length <= 300)) return null;
   const afvist = raw['afvist'];
   if (afvist !== undefined && !erIso(afvist)) return null;
-  return { afsendere: [...raw['afsendere']] as string[], set: [...raw['set']] as string[], viser: raw['viser'], ...(afvist !== undefined ? { afvist } : {}) };
+  const aulaAfvist = raw['aulaAfvist'];
+  if (aulaAfvist !== undefined && !erIso(aulaAfvist)) return null;
+  return { afsendere: [...raw['afsendere']] as string[], set: [...raw['set']] as string[], viser: raw['viser'], ...(afvist !== undefined ? { afvist } : {}), ...(aulaAfvist !== undefined ? { aulaAfvist } : {}) };
 }
 
 export type DanmarkLager = {

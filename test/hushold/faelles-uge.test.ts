@@ -110,3 +110,24 @@ test('ugeDage: seven Copenhagen dates from today (late evening UTC is already to
   assert.deepEqual(ugeDage(new Date('2026-11-01T23:30:00Z')), UGE);
   assert.equal(ugeDage(new Date('2026-11-02T08:00:00Z'), 2).length, 2);
 });
+
+// KC-0236: the calendar's name is the event's source label — for Aula it is the institution's name.
+test('KC-0236: a calendar event carries its calendar\'s name as the institution label; a calendar without a name gives none, and the name is capped', () => {
+  const u = faellesUge(MEDLEMMER, {
+    ...ingen,
+    kalendere: [kal('husstand', 'henrik', [
+      ev('s1', 'Skole-hjem-samtale', '2026-11-03T16:30:00+01:00', '2026-11-03T17:15:00+01:00', { calendar: 'Kløvermarkskolen' }),
+      ev('s2', 'Uden navn', '2026-11-03T18:00:00+01:00', '2026-11-03T19:00:00+01:00', { calendar: null }),
+      ev('s3', 'Langt navn', '2026-11-03T20:00:00+01:00', '2026-11-03T21:00:00+01:00', { calendar: 'x'.repeat(300) }),
+    ])],
+  }, UGE);
+  const p = alle(u);
+  assert.equal(p.find((x) => x.titel === 'Skole-hjem-samtale')!.institution, 'Kløvermarkskolen');
+  assert.equal(p.find((x) => x.titel === 'Uden navn')!.institution, undefined);
+  assert.equal(p.find((x) => x.titel === 'Langt navn')!.institution!.length, 80);
+});
+
+test('KC-0236: a booking and an accepted request have no institution', () => {
+  const forespoergsler: FaellesForesp[] = [{ id: 'f1', fra: 'ella', til: 'henrik', titel: 'Kørsel', tid: { start: '2026-11-06T17:00:00.000Z', slut: '2026-11-06T18:00:00.000Z' }, tilstand: 'accepteret' }];
+  assert.equal(alle(faellesUge(MEDLEMMER, { kalendere: [], ressourcer: [], forespoergsler }, UGE))[0]!.institution, undefined);
+});
