@@ -14,7 +14,7 @@ import { GENFORBIND_KANAL } from '../helbred-tekst.ts';
 import { KildeFejl, type Besked, type Helbred, type Kilde, type KildeKontekst, type KildeKort } from '../types.ts';
 import { tilBesked, type Kontakt } from './besked.ts';
 import { laesLog, laesStatus, type Kanal, type RaaBesked } from './jsonl.ts';
-import { felter, KANAL_NAVN, samtaleNoegle, samtaler, valgte, type Samtale } from './valg.ts';
+import { felter, KANAL_NAVN, nytValg, samtaleNoegle, samtaler, valgte, type Samtale } from './valg.ts';
 
 export const BESKEDER_ID = 'beskeder';
 export const STANDARD_DAGE = 14;
@@ -59,14 +59,31 @@ async function skrivCache(fil: string, beskeder: Besked[]): Promise<void> {
   await rename(tmp, fil);
 }
 
-export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?: () => Promise<Kontakt[]>; dage?: number }): Kilde {
+/** KC-0224: one conversation as the Kø panel lists it: its name, channel and kind, whether Clawco reads it and in which zone. */
+export type SamtaleVisning = { noegle: string; navn: string; kanal: string; gruppe: boolean; valgt: boolean; zone?: DataZone };
+
+/** KC-0224: Beskeder with the two functions that change the choice after the connection (the registry's aendreValg writes the result). */
+export type BeskederKilde = Kilde & {
+  samtalerMedValg(valg: Readonly<Record<string, string>>): Promise<SamtaleVisning[]>;
+  vaelgSamtaler(noegler: readonly string[], ctx: KildeKontekst): Promise<{ tekst: string; valg: Record<string, string>; samtaler: SamtaleVisning[] }>;
+};
+
+export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?: () => Promise<Kontakt[]>; dage?: number }): BeskederKilde {
   const logDir = o.logDir ?? path.join(o.dataDir, 'beskeder');
   const fil = cacheFil(o.dataDir);
   const vindueMs = Math.max(1, o.dage ?? STANDARD_DAGE) * 86_400_000;
   const kontakter = async (): Promise<Kontakt[]> => { try { return (await o.kontakter?.()) ?? []; } catch { return []; } };
 
+  // KC-0224: the choice as the last change or setup left it, so a read that began before an un-choosing (and so holds the
+  // old options) can never put the conversation back in the cache; cache work runs one at a time. Null until the first
+  // change in this process: then the options of the read are the truth (a restart reads kilder.json, written first).
+  let gaeldende: Map<string, DataZone> | null = null;
+  let kaede: Promise<unknown> = Promise.resolve();
+  const serielt = <T,>(f: () => Promise<T>): Promise<T> => { const n = kaede.then(f, f); kaede = n.catch(() => undefined); return n; };
+
   /** The cache cut to the chosen conversations and the window; written back only when that changed it. */
-  async function ryd(valg: Map<string, DataZone>, nu: Date, nye: Besked[] = []): Promise<Besked[]> {
+  const ryd = (valgFraKald: Map<string, DataZone>, nu: Date, nye: Besked[] = []): Promise<Besked[]> => serielt(async () => {
+    const valg = gaeldende ?? valgFraKald;
     const gamle = await laesCache(fil);
     const graense = nu.getTime() - vindueMs;
     const set = new Map<string, Besked>();
@@ -83,7 +100,7 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
       else await rm(fil, { force: true });
     }
     return ud;
-  }
+  });
 
   const loggen = async (): Promise<RaaBesked[] | null> => {
     try { return await laesLog(logDir); } catch { throw new KildeFejl(502, 'Hermes’ beskedlog kunne ikke læses.'); }
@@ -103,6 +120,11 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
     const laeser = valgteNavn.length ? `Clawco læser ${valgteNavn.length} af ${liste.length} samtaler: ${opremsning(valgteNavn)}.` : 'Vælg, hvilke Clawco må læse; grupper er fra, til du vælger dem.';
     return `${ser} ${laeser} ${ERLIG}`;
   }
+
+  const visning = (liste: Samtale[], v: Map<string, DataZone>): SamtaleVisning[] => liste.map((s) => {
+    const zone = v.get(s.noegle);
+    return { noegle: s.noegle, navn: s.navn, kanal: KANAL_NAVN[s.kanal], gruppe: s.gruppe, valgt: zone !== undefined, ...(zone ? { zone } : {}) };
+  });
 
   return {
     id: BESKEDER_ID, navn: 'Beskeder', slags: 'beskeder', zone: 'privat', auth: 'bridge', tillid: 'uklar',
@@ -138,10 +160,29 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
       const log = await loggen();
       if (!log) throw new KildeFejl(400, 'Hermes skriver ingen beskeder til Clawco endnu. Sæt Clawcos beskedkrog op hos Hermes først.');
       const valg = valgte(ctx.valg);
+      gaeldende = valg;
       await ryd(valg, ctx.nu); // un-chosen conversations are forgotten at once, not at the next read
       const navne = samtaler(log).filter((s) => valg.has(s.noegle)).map((s) => s.navn);
       const tekst = navne.length ? `Clawco læser nu ${opremsning(navne)}.` : 'Clawco læser ingen samtaler endnu.';
       return { tekst, valg: Object.fromEntries(valg) };
+    },
+
+    /** KC-0224: every conversation the log shows, each with whether it is chosen (the panel's list; no text, no ids). */
+    async samtalerMedValg(valg) {
+      return visning(samtaler((await loggen().catch(() => null)) ?? []), valgte(valg));
+    },
+
+    /** KC-0224: the choice after the connection. An unknown key is a 400; an un-chosen conversation is forgotten at once (the same purge as the card's). */
+    async vaelgSamtaler(noegler, ctx) {
+      const log = await loggen();
+      if (!log) throw new KildeFejl(502, 'Hermes skriver ingen beskeder til Clawco endnu.');
+      const liste = samtaler(log);
+      const nyt = nytValg(liste, valgte(ctx.valg), noegler, ctx.zone);
+      if (!nyt) throw new KildeFejl(400, 'Den samtale kender Clawco ikke. Prøv igen.');
+      gaeldende = nyt;
+      await ryd(nyt, ctx.nu);
+      const tekst = `Clawco læser nu ${nyt.size} af ${liste.length} ${liste.length === 1 ? 'samtale' : 'samtaler'}.`;
+      return { tekst, valg: Object.fromEntries(nyt), samtaler: visning(liste, nyt) };
     },
 
     async helbred(ctx): Promise<Helbred> {
@@ -157,6 +198,7 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
     },
 
     async frakobl(): Promise<void> {
+      gaeldende = null;
       await rm(path.dirname(fil), { recursive: true, force: true });
     },
   };

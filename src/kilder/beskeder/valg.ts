@@ -51,3 +51,18 @@ export function felter(liste: readonly Samtale[]): Felt[] {
     navn: s.noegle, etiket: `${s.navn} (${s.gruppe ? 'gruppe' : 'samtale'} på ${KANAL_NAVN[s.kanal]})`, type: 'tekst', paakraevet: false, muligheder,
   }));
 }
+
+/**
+ * KC-0224: the chosen conversations after the user's change made once the source is connected. Every key must be a
+ * conversation the log shows (null otherwise); one already chosen keeps its zone, a new one is read in `standard`;
+ * a conversation not given is no longer chosen. The old choice is left as it was.
+ */
+export function nytValg(liste: readonly Samtale[], nu: ReadonlyMap<string, DataZone>, noegler: readonly string[], standard: DataZone): Map<string, DataZone> | null {
+  const kendt = new Set(liste.map((s) => s.noegle));
+  const ud = new Map<string, DataZone>();
+  for (const n of noegler) {
+    if (!kendt.has(n)) return null;
+    ud.set(n, nu.get(n) ?? standard);
+  }
+  return ud;
+}

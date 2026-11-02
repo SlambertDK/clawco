@@ -11,6 +11,7 @@ import { tekst } from './tekster.ts';
 import { virker, type Helbred } from '../kilder/types.ts';
 import { kortTekst } from '../kilder/helbred-tekst.ts';
 import type { KildeOversigt } from '../kilder/register.ts';
+import type { DataZone } from '../identitet/zoner.ts';
 
 /** The four states a connected source can be in on screen (the testtilstand coverage derives from this list). */
 export const KILDE_TILSTANDE = ['forbundet', 'log-ind-igen', 'nede', 'langsom'] as const;
@@ -28,7 +29,9 @@ export function kildeTilstand(h: Helbred | null): KildeTilstand {
 }
 
 /** KC-0222: `feeder` = a source that keeps a list of its own (the news feeds): id and name of each, shown to the owner with Fjern and an add field. */
-export type KildeVisning = Pick<KildeOversigt, 'id' | 'navn' | 'slags' | 'auth' | 'zone' | 'forbundet' | 'helbred' | 'sidstLaest'> & { feeder?: readonly { id: string; navn: string }[] };
+/** KC-0224: `samtaler` = Beskeder' conversations as Hermes sees them, each with whether Clawco reads it (and in which zone): one checkbox each for the owner. */
+export type SamtaleRaekke = { noegle: string; navn: string; kanal: string; gruppe: boolean; valgt: boolean; zone?: DataZone };
+export type KildeVisning = Pick<KildeOversigt, 'id' | 'navn' | 'slags' | 'auth' | 'zone' | 'forbundet' | 'helbred' | 'sidstLaest'> & { feeder?: readonly { id: string; navn: string }[]; samtaler?: readonly SamtaleRaekke[] };
 
 /** KC-0139: what is wrong, from the fixed table — never the connector's own words (they can echo a provider). */
 function hvadErGalt(k: KildeVisning, t: KildeTilstand): string {
@@ -43,6 +46,12 @@ function egneKilder(k: KildeVisning & { feeder: NonNullable<KildeVisning['feeder
   return html`<details class="kilde-feeds" data-kilde-feeds="${k.id}"><summary class="row-note">${T.egneKilder(k.feeder.length)}</summary>${k.feeder.map((f) => html`<div class="row kilde-feed" data-kilde-feed="${f.id}"><span class="row-main"><span class="row-title">${f.navn}</span></span>${sidste ? '' : html`<button type="button" class="btn kilde-feed-fjern" data-kilde-feed-fjern="${f.id}">${T.fjernKilde}</button>`}</div>`)}<form class="nyt-form kilde-feed-tilfoej" data-kilde-feed-tilfoej="${k.id}" onsubmit="return false" autocomplete="off"><label class="field"><span class="row-note">${T.tilfoejKildeEtiket}</span><input name="adresse" type="text" inputmode="url" maxlength="2000" data-kilde-feed-adresse></label><button type="submit" class="btn" data-kilde-feed-ny="${k.id}">${T.tilfoejKilde}</button></form><p class="row-note" data-kilde-feed-fejl hidden></p></details>`;
 }
 
+/** KC-0224: the conversations Clawco may read: collapsed "n valgt af m", a checkbox per conversation (public/app.js sends the whole set), and the place for a refusal. */
+function samtaleListe(k: KildeVisning & { samtaler: NonNullable<KildeVisning['samtaler']> }): Markup {
+  const T = tekst();
+  return html`<details class="kilde-feeds" data-kilde-samtaler="${k.id}"><summary class="row-note">${T.samtalerOverskrift(k.samtaler.filter((s) => s.valgt).length, k.samtaler.length)}</summary>${k.samtaler.map((s) => html`<label class="row kilde-feed kilde-samtale" data-kilde-samtale="${s.noegle}" data-valgt="${s.valgt ? 'ja' : 'nej'}"><span class="row-main"><span class="row-title">${s.navn}</span><span class="row-note">${[s.kanal, s.gruppe ? T.samtaleGruppe : T.samtaleEn, s.valgt && s.zone ? T.zone[s.zone] : T.samtaleLaesesIkke].join(' · ')}</span></span><input type="checkbox" class="kilde-samtale-valg" data-kilde-samtale-valg="${s.noegle}"${s.valgt ? html` checked` : ''}></label>`)}<p class="row-note kilde-feed">${T.samtalerNote}</p><p class="row-note" data-kilde-samtale-fejl hidden></p></details>`;
+}
+
 export function renderKilder(liste: readonly KildeVisning[], o: { nu: Date; maaFrakoble: boolean }): Markup {
   const forbundne = liste.filter((k) => k.forbundet);
   if (!forbundne.length) return html``;
@@ -50,6 +59,6 @@ export function renderKilder(liste: readonly KildeVisning[], o: { nu: Date; maaF
   return html`<div class="card card-list kilder" data-blok="bunke" data-gruppe="Kilder"><div class="card-head"><h3 class="eyebrow">${T.kilder}</h3><span class="muted mono">${forbundne.length}</span></div>${forbundne.map((k) => {
     const t = kildeTilstand(k.helbred);
     const note = [T.zone[k.zone], hvadErGalt(k, t), k.sidstLaest ? T.sidstLaest(hvornaar(k.sidstLaest, o.nu)) : ''].filter(Boolean).join(' · ');
-    return html`<div class="row kilde-row" data-kilde="${k.id}" data-kilde-tilstand="${t}"><span class="row-main"><span class="row-title">${k.navn}</span><span class="row-note">${note}</span></span>${tilstandChip(FARVE[t], T.kildeTilstand[t])}${o.maaFrakoble ? html`<button type="button" class="btn kilde-frakobl" data-kilde-frakobl="${k.id}">${T.frakobl}</button>` : ''}</div>${o.maaFrakoble && k.feeder ? egneKilder({ ...k, feeder: k.feeder }) : ''}`;
+    return html`<div class="row kilde-row" data-kilde="${k.id}" data-kilde-tilstand="${t}"><span class="row-main"><span class="row-title">${k.navn}</span><span class="row-note">${note}</span></span>${tilstandChip(FARVE[t], T.kildeTilstand[t])}${o.maaFrakoble ? html`<button type="button" class="btn kilde-frakobl" data-kilde-frakobl="${k.id}">${T.frakobl}</button>` : ''}</div>${o.maaFrakoble && k.feeder ? egneKilder({ ...k, feeder: k.feeder }) : ''}${o.maaFrakoble && k.samtaler?.length ? samtaleListe({ ...k, samtaler: k.samtaler }) : ''}`;
   })}</div>`;
 }

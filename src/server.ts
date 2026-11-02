@@ -129,7 +129,7 @@ import { lavVaultStier, NOTER_ID } from './kilder/noter/stier.ts';
 import { noterKilde } from './kilder/noter/noter.ts';
 import { mailImapKilde } from './kilder/mail-imap/mail-imap.ts';
 import { nyhederRss, NYHEDER_RSS_ID, type NyhederRssKilde } from './kilder/nyheder-rss/kilde.ts';
-import { beskederKilde } from './kilder/beskeder/kilde.ts';
+import { beskederKilde, BESKEDER_ID, type BeskederKilde } from './kilder/beskeder/kilde.ts';
 import type { Kontakt } from './kilder/beskeder/besked.ts';
 import { mailForbindelse } from './kilder/mail-vindue.ts';
 import { googleKalender } from './kilder/google-kalender/kilde.ts';
@@ -878,6 +878,12 @@ export function createApp(deps: AppDeps) {
     return k && 'tilfoejFeed' in k ? (k as NyhederRssKilde) : null;
   };
 
+  /** KC-0224: the Beskeder connector with the functions that change its choice (null on a host that did not register it). */
+  const beskedKilde = (): BeskederKilde | null => {
+    const k = kilder.hent(BESKEDER_ID);
+    return k && 'vaelgSamtaler' in k ? (k as BeskederKilde) : null;
+  };
+
   /** KC-0120: "Kilder" in the Kø panel, rendered here (escaped); Frakobl only for whoever may change settings. */
   async function kilderPanel(person: Person): Promise<string> {
     try {
@@ -886,7 +892,10 @@ export function createApp(deps: AppDeps) {
       // KC-0222: the news sources keep a list of their own, shown (to the owner) under their row.
       const rss = rssKilde();
       const feeder = rss ? rss.feeds((await kilder.forbindelse(NYHEDER_RSS_ID))?.valg ?? {}) : null;
-      const liste = (await kilder.oversigt()).map((o) => ({ ...o, sidstLaest: fil[o.id]?.sidstLaest ?? o.sidstLaest, ...(o.id === NYHEDER_RSS_ID && o.forbundet && feeder ? { feeder } : {}) }));
+      // KC-0224: Beskeder lists the conversations Hermes sees, with a checkbox each, under its row.
+      const besked = beskedKilde();
+      const samtaler = besked ? await besked.samtalerMedValg((await kilder.forbindelse(BESKEDER_ID))?.valg ?? {}) : null;
+      const liste = (await kilder.oversigt()).map((o) => ({ ...o, sidstLaest: fil[o.id]?.sidstLaest ?? o.sidstLaest, ...(o.id === NYHEDER_RSS_ID && o.forbundet && feeder ? { feeder } : {}), ...(o.id === BESKEDER_ID && o.forbundet && samtaler ? { samtaler } : {}) }));
       return String(renderKilder(liste, { nu: now(), maaFrakoble: kan(person.rolle, 'aendre-indstillinger') }));
     } catch (err) {
       if (!(err instanceof KonfigFejl)) throw err;
@@ -1015,6 +1024,23 @@ export function createApp(deps: AppDeps) {
     const id = c.req.param('id');
     if (!/^f-[0-9a-f]{12}$/.test(id)) return c.json({ error: 'Den kilde findes ikke længere.' }, 404);
     return aendrFeeds(c, (k) => (ctx) => k.fjernFeed(id, ctx));
+  });
+  // KC-0224: which conversations Clawco may read, after the connection. The whole set is sent (what is not in it is
+  // un-chosen and forgotten at once); the connector checks it, the registry writes it and logs it (counts only).
+  const VALG_BODY = 'Send {"valgte": ["…"]} med de samtaler, Clawco må læse.';
+  app.put('/api/kilder/beskeder/valg', async (c) => {
+    const nej = ejerKun(c); if (nej) return nej;
+    if (fremmed(c)) return c.json({ error: 'Kilderne kan kun ændres fra Clawco selv.' }, 403);
+    const besked = beskedKilde();
+    if (!besked) return c.json({ error: 'Ukendt forbindelse' }, 404);
+    let b: unknown;
+    try { b = await c.req.json(); } catch { return c.json({ error: VALG_BODY }, 400); }
+    const o = typeof b === 'object' && b !== null && !Array.isArray(b) ? (b as Record<string, unknown>) : null;
+    const valgte = o && Object.keys(o).every((n) => n === 'valgte') ? o['valgte'] : undefined;
+    if (!Array.isArray(valgte) || valgte.length > 500 || !valgte.every((v) => typeof v === 'string' && /^s-[0-9a-f]{12}$/.test(v))) return c.json({ error: VALG_BODY }, 400);
+    const svar = await kilder.aendreValg(BESKEDER_ID, c.get('person'), (ctx) => besked.vaelgSamtaler(valgte as string[], ctx));
+    live.notify(HJEM);
+    return c.json({ samtaler: svar.samtaler, tekst: svar.tekst });
   });
   app.get('/api/kilder/:id/tilbage', async (c) => {
     const nej = ejerKun(c); if (nej) return nej;

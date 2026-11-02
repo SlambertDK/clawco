@@ -161,3 +161,37 @@ test('a read fails while a chosen conversation’s channel is gone from Hermes, 
     assert.equal((await data(k, { [FAMILIE]: 'privat' })).length, 1);
   } finally { await ryd(); }
 });
+
+// KC-0224: choosing after the connection, by the connector's own function (the registry's aendreValg writes the result).
+test('vaelgSamtaler: lists every conversation with its state; the new choice is purged from the cache at once and reported by count', async () => {
+  const { dir, k, ryd } = await verden(LINJER);
+  try {
+    assert.ok('vaelgSamtaler' in k && 'samtalerMedValg' in k, 'the connector offers the change');
+    const b = k as Kilde & { samtalerMedValg(v: Record<string, string>): Promise<{ noegle: string; navn: string; valgt: boolean; zone?: string }[]>; vaelgSamtaler(n: string[], c: KildeKontekst): Promise<{ tekst: string; valg: Record<string, string> }> };
+    const foer = { [MAJA]: 'privat', [FAMILIE]: 'husstand' };
+    await data(k, foer);
+    assert.equal(JSON.parse(await readFile(cacheFil(dir), 'utf8')).beskeder.length, 2);
+    const liste = await b.samtalerMedValg({ [MAJA]: 'privat' });
+    assert.deepEqual(liste.map((s) => [s.noegle, s.valgt]).sort(), [[FAMILIE, false], [MAJA, true]].sort());
+    const r = await b.vaelgSamtaler([FAMILIE], ctx(foer));
+    assert.deepEqual(r.valg, { [FAMILIE]: 'husstand' });
+    assert.match(r.tekst, /1 af 2/);
+    assert.ok(!r.tekst.includes('Familien'), 'counts only');
+    const cache = JSON.parse(await readFile(cacheFil(dir), 'utf8')).beskeder as { samtaleId: string }[];
+    assert.deepEqual(cache.map((m) => m.samtaleId), [FAMILIE]);
+    await assert.rejects(() => b.vaelgSamtaler(['s-000000000000'], ctx(foer)), (e: unknown) => e instanceof KildeFejl && e.status === 400);
+  } finally { await ryd(); }
+});
+
+test('a read that began before an un-choosing (and holds the old options) cannot put the conversation back in the cache', async () => {
+  const { dir, k, ryd } = await verden(LINJER);
+  try {
+    const b = k as Kilde & { vaelgSamtaler(n: string[], c: KildeKontekst): Promise<unknown> };
+    const gamle = { [MAJA]: 'privat', [FAMILIE]: 'privat' };
+    await data(k, gamle);
+    await b.vaelgSamtaler([FAMILIE], ctx(gamle));
+    const sent = await data(k, gamle); // the stale read, finishing after the change
+    assert.deepEqual(sent.map((m) => m.samtaleId), [FAMILIE], 'what it returns is cut to the new choice too');
+    assert.deepEqual((JSON.parse(await readFile(cacheFil(dir), 'utf8')).beskeder as { samtaleId: string }[]).map((m) => m.samtaleId), [FAMILIE]);
+  } finally { await ryd(); }
+});

@@ -72,6 +72,8 @@ const HAAND: [string, string][] = [
   ['kilde-nyheder-egne', 'data-kilde-feed="'],                    // KC-0222: the news sources by name in Kilder in Kø, Fjern on each (the world's three feeds)
   ['kilde-nyheder-tilfoej', 'data-kilde-feed-adresse'],           // KC-0222: the field that adds a source by its address under the same list
   ['kilde-beskeder-kort', 'data-kilde="beskeder"'],                  // KC-0138: Beskeder connected over the world's inbound log in Kilder (from the moment "Aften")
+  ['kilde-beskeder-samtale', 'data-kilde-samtale="'],                // KC-0224: Beskeder' conversations by name in Kilder in Kø, Ella and Maja chosen, the street's group not (from "Aften")
+  ['kilde-beskeder-valg', 'data-kilde-samtale-valg="'],              // KC-0224: the checkbox that chooses or un-chooses a conversation after the connection
   ['kilde-beskeder-besked', 'data-besked-kanal="'],                  // KC-0138: a card in Nu on one message, sender by name, "Clawco læser kun" (Ella on Signal, "Aften")
   ['kilde-beskeder-log-ind-igen', 'Hermes har mistet en af dine beskedkanaler'], // KC-0138: Signal is gone from Hermes overnight — Nu's connection card in the fixed words (the moment "Lørdag i næste uge")
   // Not in the world: Beskeder's connect card in Start (the day is past onboarding, and in the cold start the pile offers

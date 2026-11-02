@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { felter, IKKE, samtaleNoegle, samtaler, valgte } from '../../../src/kilder/beskeder/valg.ts';
+import { felter, IKKE, nytValg, samtaleNoegle, samtaler, valgte } from '../../../src/kilder/beskeder/valg.ts';
 import type { RaaBesked } from '../../../src/kilder/beskeder/jsonl.ts';
 
 const raa = (o: Partial<RaaBesked>): RaaBesked => ({ kanal: 'signal', samtale: '+4512345678', gruppe: false, afsender: '+4512345678', tid: '2026-11-01T08:00:00.000Z', tekst: 'Hej', ...o });
@@ -60,4 +60,16 @@ test('a one-to-one conversation without its own name is named by the sender’s 
   assert.equal(samtaler([raa({ afsenderNavn: 'Ella' })])[0]?.navn, 'Ella');
   assert.equal(samtaler([raa({ afsenderNavn: '+45 12 34 56 78' })])[0]?.navn, 'Samtale på Signal');
   assert.equal(samtaler([raa({ gruppe: true, samtale: 'g', afsenderNavn: 'Søren' })])[0]?.navn, 'Gruppe på Signal');
+});
+
+// KC-0224: the chosen set after a change made after the connection.
+test('nytValg: a chosen conversation keeps its zone, a new one gets the standard zone, an un-chosen one is gone, an unknown key is refused', () => {
+  const liste = samtaler([raa({ samtale: 'a' }), raa({ samtale: 'b' }), raa({ samtale: 'c' })]);
+  const [a, b, c] = ['a', 'b', 'c'].map((x) => samtaleNoegle('signal', x)) as [string, string, string];
+  const foer = new Map([[a, 'husstand' as const], [b, 'arbejde' as const]]);
+  assert.deepEqual([...(nytValg(liste, foer, [a, c], 'privat') ?? [])].sort(), [[a, 'husstand'], [c, 'privat']].sort());
+  assert.deepEqual([...(nytValg(liste, foer, [], 'privat') ?? [])], []);
+  assert.deepEqual([...(nytValg(liste, foer, [c, c], 'privat') ?? [])], [[c, 'privat']], 'a repeat is one');
+  assert.equal(nytValg(liste, foer, [a, 's-000000000000'], 'privat'), null);
+  assert.deepEqual([...foer.keys()], [a, b], 'the old choice is not mutated');
 });

@@ -1100,6 +1100,26 @@
       .then(function () { loadKoe(true); })
       .catch(function (err) { if (knap) knap.disabled = false; feedFejl(inde, err.message); });
   });
+  // KC-0224: Beskeder' conversations — one checkbox each; a change sends the whole chosen set at once (an un-ticked one is forgotten by Clawco at once).
+  function samtaleFejl(inde, tekst) {
+    var note = inde && inde.querySelector('[data-kilde-samtale-fejl]');
+    if (!note) return;
+    note.textContent = tekst || '';
+    note.hidden = !tekst;
+  }
+  if (kilderPanel) kilderPanel.addEventListener('change', function (e) {
+    var boks = e.target.closest('[data-kilde-samtale-valg]');
+    if (!boks) return;
+    var inde = boks.closest('[data-kilde-samtaler]');
+    var alle = [].slice.call(inde.querySelectorAll('[data-kilde-samtale-valg]'));
+    var valgte = alle.filter(function (x) { return x.checked; }).map(function (x) { return x.getAttribute('data-kilde-samtale-valg'); });
+    alle.forEach(function (x) { x.disabled = true; });
+    samtaleFejl(inde, '');
+    fetch('/api/kilder/beskeder/valg', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ valgte: valgte }) })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; }); })
+      .then(function () { loadKoe(true); })
+      .catch(function (err) { boks.checked = !boks.checked; alle.forEach(function (x) { x.disabled = false; }); samtaleFejl(inde, err.message); });
+  });
   if (kilderPanel) kilderPanel.addEventListener('click', function (e) {
     var fjern = e.target.closest('[data-kilde-feed-fjern]');
     if (fjern) {
@@ -1135,10 +1155,11 @@
       // KC-0222: nor is an address half typed in a source's add field; an open list stays open.
       var adresseFelt = kilderPanel && kilderPanel.querySelector('[data-kilde-feed-adresse]');
       var skriver = !!adresseFelt && (adresseFelt.value !== '' || document.activeElement === adresseFelt);
-      if (kilderPanel && typeof d.kilder === 'string' && (tving === true || (!kilderPanel.querySelector('[data-bekraeft]:not([disabled])') && !skriver))) {
-        var aabne = [].map.call(kilderPanel.querySelectorAll('details[open][data-kilde-feeds]'), function (n) { return n.getAttribute('data-kilde-feeds'); });
+      if (kilderPanel && typeof d.kilder === 'string' && (tving === true || (!kilderPanel.querySelector('[data-bekraeft]:not([disabled]), [data-kilde-samtale-valg][disabled]') && !skriver))) {
+        // KC-0224: so does an open list of conversations; and one being sent (its boxes are disabled) is not swept away either.
+        var aabne = [].map.call(kilderPanel.querySelectorAll('details[open][data-kilde-feeds], details[open][data-kilde-samtaler]'), function (n) { return n.hasAttribute('data-kilde-feeds') ? ['data-kilde-feeds', n.getAttribute('data-kilde-feeds')] : ['data-kilde-samtaler', n.getAttribute('data-kilde-samtaler')]; });
         kilderPanel.innerHTML = d.kilder; kilderPanel.hidden = !d.kilder;
-        aabne.forEach(function (id) { var n = kilderPanel.querySelector('details[data-kilde-feeds="' + id + '"]'); if (n) n.setAttribute('open', ''); });
+        aabne.forEach(function (p) { var n = kilderPanel.querySelector('details[' + p[0] + '="' + p[1] + '"]'); if (n) n.setAttribute('open', ''); });
       }
       // KC-0212: the owner's cost card, rendered (escaped) by the server while the panel is open; '' = no card.
       if (omkostningerPanel && typeof d.omkostninger === 'string') { omkostningerPanel.innerHTML = d.omkostninger; omkostningerPanel.hidden = !d.omkostninger; }
