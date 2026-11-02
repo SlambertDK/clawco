@@ -6,8 +6,13 @@
 # Layout under $CLAWCO_HOME (default ~/.clawco): app/ = the code (git clone),
 # data/ = the user folder (KC_DATA_DIR, D7), .env = settings (mode 600),
 # log/ = service and npm logs. Code and user folder are never the same place.
-# Re-running is an update: the code fast-forwards; .env and data/ are never
-# overwritten. Installer-only variables: CLAWCO_HOME, CLAWCO_REPO, CLAWCO_LABEL.
+# Re-running is an update: an existing install hands over to deploy/opdater.sh
+# (KC-0158; installs from before it fast-forward here, once); .env and data/ are
+# never overwritten. Installer-only variables: CLAWCO_HOME, CLAWCO_REPO,
+# CLAWCO_LABEL. opdater.sh sources this file with CLAWCO_FUNKTIONER=1 (main then
+# returns at once) so the service handling exists in one place. Test hooks only:
+# CLAWCO_GENSTART (a command that replaces the service restart),
+# CLAWCO_HEALTH_KOMMANDO (replaces the /health probe), CLAWCO_VENTETID (s), CLAWCO_VENTEPAUSE (s).
 # Must stay bash 3.2 compatible (macOS /bin/bash): no associative arrays.
 set -euo pipefail
 
@@ -118,6 +123,17 @@ skriv_env() {
   mv "$tmp" "$ENV_FIL"
 }
 
+# LABEL and SERVICE_FIL for this platform (caller declares both, and OS).
+tjeneste_find() {
+  if [ "$OS" = Darwin ]; then
+    LABEL=${CLAWCO_LABEL:-work.clawco}
+    SERVICE_FIL="$HOME/Library/LaunchAgents/$LABEL.plist"
+  else
+    LABEL=${CLAWCO_LABEL:-clawco}
+    SERVICE_FIL="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$LABEL.service"
+  fi
+}
+
 # Fill a service template (@LABEL@ @APP@ @NODE@ @ENV@ @LOG@ @PATH@); xml escapes for the plist.
 render() {
   CLAWCO_R_LABEL=$LABEL CLAWCO_R_APP=$APP CLAWCO_R_NODE=$NODE CLAWCO_R_ENV=$ENV_FIL \
@@ -165,30 +181,46 @@ installer_systemd() {
   fi
 }
 
-# Bounded wait (~30 s) for /health with this install's git sha (another program on the port does not count).
-vent_paa_health() {
-  local forventet
-  forventet=$(git -C "$APP" rev-parse --short HEAD)
+# (Re)start the service from the code in $APP: write the unit/agent from its template and start it.
+genstart_tjeneste() {
+  if [ -n "${CLAWCO_GENSTART:-}" ]; then "$CLAWCO_GENSTART"
+  elif [ "$OS" = Darwin ]; then installer_launchd
+  else installer_systemd; fi
+}
+
+# One /health probe: prints {"sha":"…","uptimeSec":N} or fails (CLAWCO_HEALTH_KOMMANDO replaces it in tests).
+hent_health() {
+  if [ -n "${CLAWCO_HEALTH_KOMMANDO:-}" ]; then "$CLAWCO_HEALTH_KOMMANDO" "$1"; return; fi
   node -e '
-    const [url, forventet] = process.argv.slice(1);
-    const slut = Date.now() + 30000;
-    let andet = "";
-    (async () => {
-      while (Date.now() < slut) {
-        try {
-          const r = await fetch(url, { signal: AbortSignal.timeout(2000) });
-          const j = await r.json();
-          if (j.sha === forventet) { console.log(j.sha); return; }
-          andet = String(j.sha);
-        } catch {}
-        await new Promise((ok) => setTimeout(ok, 500));
-      }
-      console.error(andet ? "porten svarer, men med version " + andet + " (forventet " + forventet + ")" : "intet svar");
-      process.exit(1);
-    })();' "$1" "$forventet"
+    fetch(process.argv[1], { signal: AbortSignal.timeout(2000) }).then((r) => r.json())
+      .then((j) => { console.log(JSON.stringify({ sha: j.sha, uptimeSec: j.uptimeSec })); })
+      .catch(() => process.exit(1));' "$1"
+}
+
+# Bounded wait (default 30 s) for /health to answer with git sha $2 (another program on the
+# port, or the old version, does not count). Prints "<sha> <uptime seconds>"; the reason goes to stderr.
+vent_paa_health() {
+  local url=$1 forventet=$2 svar sha slut andet='' op
+  slut=$(( $(date +%s) + ${CLAWCO_VENTETID:-30} ))
+  while :; do
+    if svar=$(hent_health "$url" 2>/dev/null); then
+      sha=$(printf '%s' "$svar" | sed -n 's/.*"sha":"\([^"]*\)".*/\1/p')
+      if [ "$sha" = "$forventet" ]; then
+        op=$(printf '%s' "$svar" | sed -n 's/.*"uptimeSec":\([0-9]*\).*/\1/p')
+        printf '%s %s\n' "$sha" "${op:-0}"
+        return 0
+      fi
+      andet=$sha
+    fi
+    [ "$(date +%s)" -lt "$slut" ] || break
+    sleep "${CLAWCO_VENTEPAUSE:-0.5}"
+  done
+  if [ -n "$andet" ]; then echo "porten svarer, men med version $andet (forventet $forventet)" >&2; else echo "intet svar" >&2; fi
+  return 1
 }
 
 main() {
+  [ -z "${CLAWCO_FUNKTIONER:-}" ] || return 0 # sourced by opdater.sh: only the functions are wanted
   local JA=0 TOER=0 UDEN_SERVICE=0 BAERBAR=0 PORT='' DATA='' AGENT_URL='' NOEGLE='' VAERDI='' NODE_VERSION=''
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -218,13 +250,7 @@ main() {
   ENV_FIL="$HJEM/.env"
   LOGMAPPE="$HJEM/log"
   REPO=${CLAWCO_REPO:-https://github.com/SlambertDK/clawco.git}
-  if [ "$OS" = Darwin ]; then
-    LABEL=${CLAWCO_LABEL:-work.clawco}
-    SERVICE_FIL="$HOME/Library/LaunchAgents/$LABEL.plist"
-  else
-    LABEL=${CLAWCO_LABEL:-clawco}
-    SERVICE_FIL="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/$LABEL.service"
-  fi
+  tjeneste_find
 
   # Settings: an existing .env decides; otherwise flags, then questions, then defaults.
   local INTERAKTIV=0
@@ -259,6 +285,14 @@ main() {
     if [ "$UDEN_SERVICE" = 1 ]; then info "  6. Tjek: springes over (ingen tjeneste)"
     else info "  6. Tjek: http://127.0.0.1:${VIS_PORT:-<KC_PORT fra .env.example>}/health"; fi
     return 0
+  fi
+
+  # An existing install is updated by opdater.sh (safety copy, health check, roll back); installs
+  # from before it have no opdater.sh yet and fast-forward in step 2 below this one time.
+  if [ -d "$APP/.git" ] && [ -f "$ENV_FIL" ] && [ -f "$APP/deploy/opdater.sh" ]; then
+    info "Clawco er allerede installeret i $APP; opdaterer i stedet for at installere igen."
+    export CLAWCO_HOME="$HJEM" CLAWCO_REPO="$REPO" CLAWCO_LABEL="$LABEL"
+    exec bash "$APP/deploy/opdater.sh"
   fi
 
   # Advanced: the agent key, read hidden; only its name and length are ever shown.
@@ -314,14 +348,15 @@ main() {
     return 0
   fi
   trin 5 "Baggrundstjeneste"
-  if [ "$OS" = Darwin ]; then installer_launchd; else installer_systemd; fi
+  genstart_tjeneste
 
   trin 6 "Tjek"
   local VAERT URL SHA
   VAERT=$(vaerdi_i KC_HOST "$ENV_FIL")
   case "$VAERT" in ''|0.0.0.0|::) VAERT=127.0.0.1;; esac
   URL="http://$VAERT:$PORT"
-  SHA=$(vent_paa_health "$URL/health") || fejl "Clawco svarer ikke på $URL/health efter 30 sekunder." "Se loggen: $([ "$OS" = Darwin ] && echo "$LOGMAPPE/clawco.log" || echo "journalctl --user -u $LABEL")"
+  SHA=$(vent_paa_health "$URL/health" "$(git -C "$APP" rev-parse --short HEAD)") || fejl "Clawco svarer ikke på $URL/health efter 30 sekunder." "Se loggen: $([ "$OS" = Darwin ] && echo "$LOGMAPPE/clawco.log" || echo "journalctl --user -u $LABEL")"
+  SHA=${SHA%% *}
   info "Clawco kører (version $SHA). Åbn: $URL/"
   if command -v tailscale >/dev/null 2>&1; then
     info "Tailscale fundet: 'tailscale serve --bg $PORT' gør Clawco tilgængelig på dit tailnet."

@@ -17,6 +17,8 @@
     "stripe:opsaet": "npm --prefix sky run --silent stripe:opsaet --",
     "tickets:new": "node scripts/tickets/new.mjs",
     "tickets:check": "node scripts/tickets/check.mjs",
+    "backup": "node --env-file-if-exists=.env scripts/arkiv.mjs backup",
+    "restore": "node --env-file-if-exists=.env scripts/arkiv.mjs restore",
     "hemmeligheder": "node --env-file-if-exists=.env scripts/hemmeligheder.mjs",
     "live:tjek": "node scripts/live-tjek.mjs",
     "koldstart": "node --test test/testtilstand/koldstart.test.ts",

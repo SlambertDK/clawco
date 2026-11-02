@@ -24,6 +24,11 @@ Without `GIT_SHA` the image still builds; `/health` then says `"sha": "unknown"`
   `docker run --rm -v clawco_clawco-data:/data -v "$PWD":/ud busybox tar czf /ud/clawco-data.tgz -C /data .`
 - **No root.** The app runs as the image's `node` user (uid 1000).
 
+## Updating
+
+`docker compose pull && docker compose up -d`; the user folder volume is untouched. Details in
+`deploy/docker/opdater.md` (KC-0158).
+
 ## The agent
 
 The container starts with the keyless real agent (`KC_AGENT=hermes-http`), exactly as

@@ -57,15 +57,18 @@ const indenfor = (rod: string, p: string): boolean => p === rod || p.startsWith(
 
 type Fund = { filer: Fil[]; hemmelige: number };
 
+/** What `gaa` hides: by default every secret (erHemmelig); `kunEnv` only `.env` files (a vault holds notes); `alle` nothing (KC-0159 --med-noegler). */
+type Skjul = { kunEnv?: boolean; alle?: boolean };
+
 /** Every regular file under `dir` (zip prefix `praefiks`), skipping symlinks, `beskyt` and secrets (counted). */
-async function gaa(dir: string, praefiks: string, beskyt: readonly string[], fund: Fund, hemmelig = false): Promise<void> {
+async function gaa(dir: string, praefiks: string, beskyt: readonly string[], fund: Fund, hemmelig = false, skjul: Skjul = {}): Promise<void> {
   let poster;
   try { poster = await readdir(dir, { withFileTypes: true }); } catch { return; }
   for (const p of poster) {
     const abs = path.join(dir, p.name);
     if (p.isSymbolicLink() || beskyt.includes(abs)) continue;
-    const skjult = hemmelig || erHemmelig(p.name);
-    if (p.isDirectory()) await gaa(abs, `${praefiks}/${p.name}`, beskyt, fund, skjult);
+    const skjult = !skjul.alle && (hemmelig || (skjul.kunEnv ? ENV.test(p.name.normalize('NFC')) : erHemmelig(p.name)));
+    if (p.isDirectory()) await gaa(abs, `${praefiks}/${p.name}`, beskyt, fund, skjult, skjul);
     else if (p.isFile()) {
       if (skjult) { fund.hemmelige += 1; continue; }
       fund.filer.push({ sti: `${praefiks}/${p.name}`.normalize('NFC'), abs, bytes: (await lstat(abs)).size });
@@ -153,4 +156,46 @@ export async function eksporter(m: Brugermappe, o: Parameters<typeof listBrugerf
     try { ud.push({ navn: f.sti, data: await readFile(f.abs) }); } catch { /* removed meanwhile */ }
   }
   return lavZip(ud, tid ? { tid } : {});
+}
+
+/** Where the vault stands in a backup: `med` (in it), `ikke-lokal` (on a network mount, left out), `ingen` (no vault folder). */
+export type VaultStatus = { status: 'med' | 'ikke-lokal' | 'ingen'; rod?: string; sti?: string };
+
+/**
+ * KC-0159: the files a backup copies — the same folder as the export, one list. Differences, on purpose: the whole
+ * data dir (also the vault when it sits inside it) and the whole local vault, not only <vault>/Clawco/; secrets
+ * are left out and counted (`udeladt`) unless `medNoegler`. A vault on a network mount (`vaultFjern`) stays out
+ * unless `medVault`. `envFil`: the install's settings file, only with `medNoegler`, under `miljoe/`.
+ * Zip-path style prefixes: `data/…`, `vault/…`, `miljoe/…`; symlinks are never followed.
+ */
+export async function listSikkerhedskopi(
+  m: { dataDir: string; vaultDir?: string },
+  o: { medNoegler?: boolean; medVault?: boolean; vaultFjern?: boolean; envFil?: string } = {},
+): Promise<{ filer: Fil[]; udeladt: number; vault: VaultStatus }> {
+  const fund: Fund = { filer: [], hemmelige: 0 };
+  const alle = o.medNoegler === true;
+  const data = await aegte(m.dataDir);
+  const vaultRodReel = m.vaultDir?.trim() && (await lstat(m.vaultDir).catch(() => null))?.isDirectory() ? await aegte(m.vaultDir) : '';
+  const vault: VaultStatus = vaultRodReel ? { status: 'med', rod: vaultRodReel } : { status: 'ingen' };
+  const ude = !!vaultRodReel && o.vaultFjern === true && o.medVault !== true;
+  if (ude) vault.status = 'ikke-lokal';
+  const inde = !!vaultRodReel && indenfor(data, vaultRodReel) && vaultRodReel !== data;
+  if (inde) vault.sti = `data/${path.relative(data, vaultRodReel).split(path.sep).join('/')}`.normalize('NFC');
+  // The data dir is walked without the vault (a vault inside it is walked below under its own rule: it holds notes,
+  // so only .env files are hidden there; a word like "key" in a note's name is no reason to leave the note out).
+  if ((await lstat(data).catch(() => null))?.isDirectory()) {
+    await gaa(data, 'data', inde ? [vaultRodReel] : [], fund, false, alle ? { alle } : {});
+  }
+  if (vaultRodReel && !ude && vaultRodReel !== data) {
+    vault.sti ??= 'vault';
+    await gaa(vaultRodReel, vault.sti, [], fund, false, alle ? { alle } : { kunEnv: true });
+  }
+  if (alle && o.envFil?.trim()) {
+    const env = await aegte(o.envFil);
+    const s = await lstat(env).catch(() => null);
+    if (s?.isFile() && !indenfor(data, env) && !(vaultRodReel && indenfor(vaultRodReel, env))) {
+      fund.filer.push({ sti: `miljoe/${path.basename(env)}`.normalize('NFC'), abs: env, bytes: s.size });
+    }
+  }
+  return { filer: fund.filer.sort(sorter), udeladt: fund.hemmelige, vault };
 }

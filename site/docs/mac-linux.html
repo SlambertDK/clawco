@@ -65,6 +65,15 @@
 <li><code>~/.clawco/log</code> <span data-i="ml.where.log">the service log.</span></li>
 </ul>
 <p class="muted" data-i="ml.where.home">Set CLAWCO_HOME before you run the installer to use another place.</p>
+<h2 data-i="ml.bak.h">Back up and restore</h2>
+<p data-i="ml.bak.p1">One command saves everything Clawco knows about you as a single file with the date in its name, in ~/Clawco-backups. Run it in the app folder:</p>
+<pre><code>cd ~/.clawco/app &amp;&amp; npm run backup</code></pre>
+<p data-i="ml.bak.p2">The file can be read by you only. It holds your user folder, and your notes folder when it is on this machine. A notes folder on a network drive is not included, because it already lives elsewhere; add --med-vault to include it. Keys and passwords are left out; add --med-noegler to include them, and the file is then a secret itself.</p>
+<p data-i="ml.bak.p3">To restore on this or another machine, install Clawco, stop it, and give the file to the restore command. It refuses to write into a folder that already holds files. With --erstat it first moves the old folder to the side, next to it, under a name that ends in .foer-gendannelse and the date. Nothing is deleted. It then prints how many rooms and notes came back. Start Clawco again afterwards.</p>
+<pre><code>npm run restore -- ~/Clawco-backups/clawco-backup-2026-11-02-0930.tar.gz --erstat</code></pre>
+<p data-i="ml.bak.p4">Old backups are never removed for you. To prune by hand, look at the list and delete the files you no longer need:</p>
+<pre><code>ls -l ~/Clawco-backups
+rm ~/Clawco-backups/clawco-backup-2026-11-02-0930.tar.gz</code></pre>
 <h2 data-i="ml.opt.h">Options</h2>
 <p data-i="ml.opt.p">Pass options after bash -s --, for example to see the plan without changing anything:</p>
 <pre><code data-cmd="dryrun">curl -fsSL https://clawco.work/install.sh | bash -s -- --dry-run</code></pre>
