@@ -50,7 +50,7 @@ test('univers chat: the answer contract (prose, one elementer block, ids, html r
   assert.match(t, /én .*json-blok|ét .*json-blok|ÉN .*json/i);
   assert.match(t, /samme id|genbrug.*id/i);
   assert.match(t, /ingen scripts|uden scripts/i);
-  assert.match(t, /Google Fonts/);
+  assert.match(t, /systemskrifttyper/);
   assert.match(t, /mørk/i);
   assert.match(t, /sektion/i);
   assert.match(t, /kartotek|personer/i);
@@ -84,7 +84,7 @@ test('forbered run: marker, meeting facts, the schema, Henrik\'s wish and the gu
   for (const k of ['maal', 'deltagere', 'navn', 'hvem', 'baggrund', 'vil', 'talepunkter', 'opgaver', 'praesentation', 'titel', 'html']) assert.ok(r.instructions.includes(`"${k}"`), k);
   assert.match(r.instructions, /præcis .*json|kun .*json/i);
   assert.match(r.instructions, /gæt/i);
-  assert.match(r.instructions, /Google Fonts/);
+  assert.match(r.instructions, /systemskrifttyper/);
   assert.match(r.instructions, /ingen scripts|uden scripts/i);
   assert.match(r.input, /Pitch til Tom/);
   assert.match(r.input, /Jonas Holm/);

@@ -148,7 +148,7 @@ test('forbered asks Hermes (taenker tier) and stores the preparation, linked tas
   assert.equal(vis.status, 200);
   assert.equal(vis.headers.get('content-type'), 'text/html; charset=utf-8');
   assert.equal(vis.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal(vis.headers.get('content-security-policy'), "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'");
+  assert.equal(vis.headers.get('content-security-policy'), "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'");
   assert.equal(vis.headers.get('content-disposition'), null, 'inline, not an attachment');
   assert.equal(await vis.text(), SLIDES);
 

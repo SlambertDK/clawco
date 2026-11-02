@@ -121,8 +121,7 @@ export function shell(o: ShellOpts): Markup {
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/icon-180.png">
 <title>${venterIalt > 0 ? `(${venterIalt}) ` : ''}${titel}</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preload" href="/fonts/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body data-room="${o.roomId}" data-titel="${titel}"${o.live ? html` data-live="1"` : ''}${o.stemme ? html` data-stemme="${o.stemme}"` : ''}${o.person ? html` data-person="${o.person.id}" data-rolle="${o.person.rolle}"` : ''}${Object.entries(o.bodyData ?? {}).filter(([k]) => /^[a-z][a-z0-9-]*$/.test(k)).map(([k, v]) => html` data-${k}="${v}"`)}>

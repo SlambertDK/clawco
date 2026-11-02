@@ -49,7 +49,7 @@ const FORBEREDELSE_SKEMA = `\`\`\`json
 }
 \`\`\``;
 
-const HTML_REGLER = `Dokumenter og præsentationer er ÉN selvstændig HTML-fil: kun inline CSS i <style>, INGEN scripts (hverken <script>, onclick eller andre event-attributter), ingen eksterne ressourcer undtagen Google Fonts (<link> til fonts.googleapis.com) og billeder som data:-URL. Mørk baggrund (Henrik bruger altid mørk tilstand) med lys tekst. Slides er lodrette sektioner i fuld bredde oven på hinanden (<section>, én pr. slide), ikke et slideshow med knapper.`;
+const HTML_REGLER = `Dokumenter og præsentationer er ÉN selvstændig HTML-fil: kun inline CSS i <style>, INGEN scripts (hverken <script>, onclick eller andre event-attributter), ingen eksterne ressourcer (ingen skrifttyper fra nettet: brug systemskrifttyper som system-ui) og billeder som data:-URL. Mørk baggrund (Henrik bruger altid mørk tilstand) med lys tekst. Slides er lodrette sektioner i fuld bredde oven på hinanden (<section>, én pr. slide), ikke et slideshow med knapper.`;
 
 const PERSONER = 'Slå selv mennesker op i Henriks kartotek over personer og i hans vault, før du skriver om dem. Omtal mennesker med navn og relation til Henrik, og aldrig en e-mailadresse som navn.';
 

@@ -691,6 +691,8 @@ export function createApp(deps: AppDeps) {
 
   // KC-0018: no-cache = always revalidate, so a deploy reaches the browser and the home-screen app.
   app.use('/*', async (c, next) => { c.header('Cache-Control', 'no-cache'); await next(); });
+  // KC-0229: the font files never change under their name (the name says family, subset and weight), so a year, immutable.
+  app.use('/fonts/*', async (c, next) => { await next(); if (c.res.status === 200) c.header('Cache-Control', 'public, max-age=31536000, immutable'); });
   if (deps.publicDir) app.use('/*', serveStatic({ root: deps.publicDir }));
 
   // KC-0121: the manifest is rendered from code (its name is PRODUKT).
@@ -1439,8 +1441,8 @@ export function createApp(deps: AppDeps) {
     return c.body(f.content, 200, { 'content-type': f.contentType, 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.filename)}` });
   });
 
-  // Hermes' presentations are untrusted HTML: served inline for <iframe sandbox>, with a CSP that allows inline styles, fonts and images only.
-  const VIS_CSP = "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
+  // Hermes' presentations are untrusted HTML: served inline for <iframe sandbox>, with a CSP that allows inline styles, data: fonts and images only (KC-0229: no font host).
+  const VIS_CSP = "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
   app.get('/rum/:id/vis/:name', async (c) => {
     const name = c.req.param('name');
     const mod = getRoomModule(c.req.param('id'));

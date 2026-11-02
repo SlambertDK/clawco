@@ -21,7 +21,8 @@ test('shell is a full dark html document with the three columns and the design f
   assert.match(out, /<nav aria-label="Rum"/);
   assert.match(out, /<main/);
   assert.match(out, /<aside aria-label="Spørg Hermes"/);
-  assert.match(out, /fonts\.googleapis\.com/);
+  assert.match(out, /rel="preload" href="\/fonts\/inter-latin-wght-normal\.woff2" as="font" type="font\/woff2" crossorigin/);
+  assert.ok(!/fonts\.g/.test(out), "KC-0229: no font host");
   assert.match(out, /\/app\.css/);
   assert.match(out, /\/app\.js/);
 });
