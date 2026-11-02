@@ -58,6 +58,12 @@
 <h2 data-i="dk.backup.h">Backup</h2>
 <p data-i="dk.backup.p">A backup is a copy of the data volume:</p>
 <pre><code>docker run --rm -v clawco_clawco-data:/data -v "$PWD":/ud busybox tar czf /ud/clawco-data.tgz -C /data .</code></pre>
+<h2 data-i="dk.update.h">Update</h2>
+<p data-i="dk.update.p">If you built the image from a copy of the source, update the copy first, then rebuild. Your data lives in the volume and is not touched.</p>
+<pre><code>GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build</code></pre>
+<p class="muted" data-i="dk.update.p2">Never add -v to docker compose down: that flag deletes the volume.</p>
+<p data-i="dk.version.p">To see which version runs, ask the health address. The value sha is the version:</p>
+<pre><code>curl -fsS http://127.0.0.1:8750/health</code></pre>
 <h2 data-i="dk.agent.h">The agent</h2>
 <p data-i="dk.agent.p">The container starts without a model key; Start asks for one. To use your own Hermes, set its address before you start:</p>
 <pre><code>KC_HERMES_URL=http://host.docker.internal:8642 docker compose up -d</code></pre>
@@ -69,6 +75,7 @@
 <pre><code>docker compose --profile tailscale up -d</code></pre>
 <p data-i="dk.ts.p2">Funnel stays off. This profile has been checked against Tailscale's documentation but has not yet been run against a real tailnet.</p>
 <p class="small"><a href="https://tailscale.com/" rel="noopener noreferrer" data-i="dk.ts.link">About Tailscale</a></p>
+<p class="muted" data-i="docs.checked">Last checked against the code: 2026-11-02.</p>
 </div>
 </article>
 </main>

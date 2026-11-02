@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title data-i="sec.meta.title">What Clawco promises about security</title>
-<meta name="description" content="What Clawco refuses to do, how it is reached, where your data lives, and what this website does and does not do." data-i-attr="content:sec.meta.description">
+<meta name="description" content="What Clawco refuses to do, how it is enforced, what leaves your machine and what is collected, with the tests and the threat model behind it." data-i-attr="content:sec.meta.description">
 <link rel="canonical" href="https://clawco.work/docs/security">
 <link rel="alternate" hreflang="en" href="https://clawco.work/docs/security">
 <link rel="alternate" hreflang="da" href="https://clawco.work/docs/security?lang=da">
@@ -15,7 +15,7 @@
 <meta property="og:site_name" content="Clawco">
 <meta property="og:url" content="https://clawco.work/docs/security">
 <meta property="og:title" content="What Clawco promises about security" data-i-attr="content:sec.meta.title">
-<meta property="og:description" content="What Clawco refuses to do, how it is reached, where your data lives, and what this website does and does not do." data-i-attr="content:sec.meta.description">
+<meta property="og:description" content="What Clawco refuses to do, how it is enforced, what leaves your machine and what is collected, with the tests and the threat model behind it." data-i-attr="content:sec.meta.description">
 <meta property="og:image" content="https://clawco.work/billeder/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -41,18 +41,60 @@
 <div class="wrap narrow">
 <h1 data-i="sec.h1">Security promise</h1>
 <h2 data-i="sec.three.h">In three sentences</h2>
-<p class="lead" data-i="sec.three.p">Clawco never pays. It never messages another person and never deletes anything without your own tap on yes, and a voice command cannot give that yes. Everything it does is written to a log, with the way to undo it when there is one.</p>
-<!-- TODO(KC-0165): the final security text and the references to the tests behind each promise replace the paragraph below. -->
+<p class="lead" data-i="sec.three.p">Clawco's limits live in the code, not in a prompt: whatever a model says, Clawco will not pay, and will not write to other people or delete anything without your yes. What your sources give the agent (mail, invitations, messages, notes, feeds) is marked as data and never as an instruction, and a new rule always needs a tap from a person. A Clawco you install yourself keeps what it knows about you in your user folder and your notes folder on your own machine: export it as a zip, delete it with Slet alt or by removing the folders, and Clawco collects nothing about how you use it.</p>
 <h2 data-i="sec.how.h">How it is enforced</h2>
 <p data-i="sec.how.p">Every action passes one decision step before anything runs. The kind of action comes from the app, never from the model, so what a model writes can add a refusal but cannot lift one.</p>
+<p data-i="sec.how.p2">A voice command cannot give a yes: writing to other people and deleting need a tap on a button on the screen, once, for that one thing. Paying and copying across zones are refused every time.</p>
+<p data-i="sec.how.p3">Every decision, including every refusal, is written to an audit log. What Clawco does through a button is written to the room's log, with the way to undo it when there is one. A stop button halts every running and queued agent run and keeps Clawco paused until the owner starts it again.</p>
+<h2 data-i="sec.lim.h">The refusals</h2>
+<ul>
+<li data-graense="betal" data-i="sec.lim.betal">Paying: refused every time.</li>
+<li data-graense="send-til-andre" data-i="sec.lim.send-til-andre">Writing to other people: only with your tap on a button on the screen.</li>
+<li data-graense="slet" data-i="sec.lim.slet">Deleting: only with your tap on a button on the screen.</li>
+<li data-graense="kopier-paa-tvaers" data-i="sec.lim.kopier-paa-tvaers">Copying across zones: refused every time.</li>
+</ul>
+<p class="small"><a href="/docs/trust-ladder" data-i="sec.lim.link">The trust ladder</a></p>
+<h2 data-i="sec.stops.h">Where the promise stops</h2>
+<ul>
+<li data-i="sec.stops.1">The agent's own tools. If you use Hermes, its tools (a terminal, the web) are set by Hermes, not by Clawco. Clawco watches each run and stops it when a tool reaches for sending or deleting, but it cannot stop a tool before it starts. The built-in direct model agent has no tools.</li>
+<li data-i="sec.stops.2">Marking is a convention. A model can ignore that text is marked as data, and a fooled model can change what is written on a card. It cannot lift a limit, make a rule or press a button.</li>
+<li data-i="sec.stops.3">Your model provider sees what is sent to it. A model on your own machine keeps that step on your machine. Voice always goes through ElevenLabs.</li>
+<li data-i="sec.stops.4">A stolen laptop or a stolen device on your tailnet is a stolen account. There are no passwords on a tailnet install, and the data folder is not encrypted at rest.</li>
+</ul>
+<h2 data-i="sec.threat.h">The threat model</h2>
+<p data-i="sec.threat.p1">The rule behind it: no connection may hold all three of private data, text an outsider wrote and a way to talk to the outside, unless a control cuts one of them. Every connector has a row that says which one it cuts, and a test fails when a connector has no row.</p>
+<p data-i="sec.threat.p2">The full document names the actors it assumes (a hostile sender, a hostile web page, a household member, a guest, a compromised model provider, a stolen device) and lists the risks that remain.</p>
+<p class="small"><a href="https://github.com/SlambertDK/clawco/blob/main/docs/superpowers/specs/2026-10-31-trusselsmodel.md" rel="noopener noreferrer" data-i="sec.threat.link">The threat model</a></p>
 <h2 data-i="sec.reach.h">How it is reached</h2>
 <p data-i="sec.reach.p">By default Clawco listens on 127.0.0.1, the machine it runs on. You can add your own tailnet. Requests that arrive through Tailscale Funnel are refused.</p>
 <h2 data-i="sec.data.h">Where your data lives</h2>
 <p data-i="sec.data.p1">A Clawco you install yourself keeps your data in your user folder, on your machine.</p>
 <p data-i="sec.data.p2">When the agent works, the text it needs goes to the model you chose. A model on your own machine keeps that step on your machine.</p>
+<h2 data-i="sec.leaves.h">What leaves your machine</h2>
+<p data-i="sec.leaves.p">These are all the outside addresses that appear in Clawco's code, and why. A test keeps this list equal to the code.</p>
+<ul>
+<li data-host="api.anthropic.com api.openai.com openrouter.ai" data-i="sec.leaves.model">Your model provider, when Clawco calls it directly: it receives the text the agent works on. With a model on your own machine this does not happen.</li>
+<li data-host="accounts.google.com mail.google.com oauth2.googleapis.com www.googleapis.com" data-i="sec.leaves.google">Google, only if you connect Google Calendar or Gmail: sign-in, then reading your calendar or your mail envelopes.</li>
+<li data-host="api.elevenlabs.io" data-i="sec.leaves.voice">ElevenLabs, only if you switch voice on: audio and the spoken overview go there through your Clawco, and the key never reaches the browser.</li>
+<li data-host="cdn.jsdelivr.net" data-i="sec.leaves.cdn">The voice library, loaded by your browser from this address, only on pages where voice conversation is on.</li>
+<li data-host="fonts.googleapis.com fonts.gstatic.com" data-i="sec.leaves.fonts">Google Fonts: your browser asks for the two typefaces every Clawco page uses, so Google sees that request. If it is blocked, the page uses system fonts.</li>
+<li data-i="sec.leaves.own">Your mail server and the news feeds you added: Clawco connects to the addresses you gave it, and to none other.</li>
+</ul>
+<h2 data-i="sec.collect.h">What is collected</h2>
+<p data-i="sec.collect.p1">No usage statistics. This version of Clawco has no analytics and no code that reports how you use it to Clawco or to anyone else.</p>
+<p data-i="sec.collect.p2">The one thing that can report is a technical error report. It is off unless the person running the install sets KC_FEJLRAPPORT_DSN, and it holds technical fields only: error type, file and line, version, route, status code and duration, never the content of your mail, notes or messages.</p>
+<h2 data-i="sec.tests.h">The tests behind the promise</h2>
+<ul>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/graenser/afgoer.test.ts" rel="noopener noreferrer"><code>test/graenser/afgoer.test.ts</code></a> <span data-i="sec.tests.afgoer">the decision step: each refusal and the yes</span></li>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/graenser/tegn.test.ts" rel="noopener noreferrer"><code>test/graenser/tegn.test.ts</code></a> <span data-i="sec.tests.tegn">the one-time tap that stands for a yes</span></li>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/graenser/opsyn.test.ts" rel="noopener noreferrer"><code>test/graenser/opsyn.test.ts</code></a> <span data-i="sec.tests.opsyn">watching the agent's own tools</span></li>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/graenser/redaktion.test.ts" rel="noopener noreferrer"><code>test/graenser/redaktion.test.ts</code></a> <span data-i="sec.tests.redaktion">secrets masked in what is sent and shown</span></li>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/graenser/trusselsmodel.test.ts" rel="noopener noreferrer"><code>test/graenser/trusselsmodel.test.ts</code></a> <span data-i="sec.tests.trusselsmodel">a connector without a threat-model row fails</span></li>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/tillid/trin.test.ts" rel="noopener noreferrer"><code>test/tillid/trin.test.ts</code></a> <span data-i="sec.tests.trin">the trust ladder and its limits</span></li>
+</ul>
 <h2 data-i="sec.site.h">This website</h2>
 <p data-i="sec.site.p">It sets no cookies, makes no requests to other servers and counts no visits. Fonts and scripts come from the site itself. The language toggle stores one thing, your language choice, in your own browser.</p>
-<p class="muted" data-i="sec.more">The full security text, with the tests behind each promise, is still being written.</p>
+<p class="muted" data-i="docs.checked">Last checked against the code: 2026-11-02.</p>
 </div>
 </article>
 </main>
@@ -67,7 +109,6 @@
 <a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
 </nav>
 <p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
-<!-- TODO(KC-0166): add the link to the source repository here once the licence decision is made. No link until then. -->
 </div>
 </footer>
 </body>

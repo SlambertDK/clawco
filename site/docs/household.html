@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i="hh.meta.title">Household: members, roles, requests and shared things</title>
+<meta name="description" content="How a household works in Clawco: who can be in it, what each role may do, requests between members, shared things and the go-between for people with no login of their own." data-i-attr="content:hh.meta.description">
+<link rel="canonical" href="https://clawco.work/docs/household">
+<link rel="alternate" hreflang="en" href="https://clawco.work/docs/household">
+<link rel="alternate" hreflang="da" href="https://clawco.work/docs/household?lang=da">
+<link rel="alternate" hreflang="x-default" href="https://clawco.work/docs/household">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121614">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Clawco">
+<meta property="og:url" content="https://clawco.work/docs/household">
+<meta property="og:title" content="Household: members, roles, requests and shared things" data-i-attr="content:hh.meta.title">
+<meta property="og:description" content="How a household works in Clawco: who can be in it, what each role may do, requests between members, shared things and the go-between for people with no login of their own." data-i-attr="content:hh.meta.description">
+<meta property="og:image" content="https://clawco.work/billeder/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/strings.js" defer></script>
+<script src="/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i="c.skip">Skip to content</a>
+<header class="top">
+<div class="wrap bar">
+<a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Clawco</a>
+<nav aria-label="Main" data-i-attr="aria-label:c.nav.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a class="hide-sm" href="/docs/security" data-i="c.nav.security">Security</a>
+</nav>
+<button type="button" class="lang" data-lang-toggle aria-label="Switch language to Danish" data-i="c.lang" data-i-attr="aria-label:c.lang.label">Dansk</button>
+</div>
+</header>
+<main id="main">
+<article class="page">
+<div class="wrap narrow">
+<h1 data-i="hh.h1">Household</h1>
+<p class="lead" data-i="hh.lead">A household is the people who share one Clawco. Each person keeps their own Nu, their own notes and their own private and work data. The household shares one week and a few things.</p>
+<p class="small"><span data-i="hh.room.label">The room:</span> <code data-rum="husstand">Husstanden</code></p>
+<p data-i="hh.room.p">It opens when two or more people are in the household, or when a shared thing or a request exists. For one person alone it is not there.</p>
+<h2 data-i="hh.who.h">Who is in it</h2>
+<p data-i="hh.who.p1">A member is a person on your own Tailscale network, with a login, a name and a role. The owner adds a person from the invite page, which opens when the owner asks the chat to invite someone.</p>
+<p data-max="6" data-i="hh.max.p">A household holds up to 6 people.</p>
+<p data-i="hh.who.own">An own entry: Clawco shows the owner the steps for sharing the machine with that person in Tailscale's admin, one at a time. Clawco never changes Tailscale for the owner and makes no account or password of its own. The person is activated on their first visit.</p>
+<p data-i="hh.who.phone">Phone only: a person with no entry of their own is reached through the go-between, described below.</p>
+<h2 data-i="hh.ts.h">Tailscale</h2>
+<p data-tailscale-checked="2026-11-02" data-i="hh.ts.p">Tailscale's free Personal plan allows up to 6 users and unlimited devices, and is meant for non-commercial use. Checked on 2026-11-02 on Tailscale's plans page.</p>
+<p class="small"><a href="https://tailscale.com/pricing" rel="noopener noreferrer" data-i="hh.ts.link">Tailscale's plans</a></p>
+<h2 data-i="hh.roles.h">Roles</h2>
+<ul class="paths">
+<li data-rolle="ejer"><code>ejer</code> <span data-i="hh.role.ejer">Reads and acts, changes the settings and the household, stops everything and starts it again.</span></li>
+<li data-rolle="medlem"><code>medlem</code> <span data-i="hh.role.medlem">Reads and acts, sees the shared week and the shared things, and can stop everything.</span></li>
+<li data-rolle="barn"><code>barn</code> <span data-i="hh.role.barn">The same as a member.</span></li>
+<li data-rolle="gaest"><code>gæst</code> <span data-i="hh.role.gaest">Reads only, and sees what is addressed to them.</span></li>
+</ul>
+<p data-i="hh.roles.p">The server checks the role on every action. A button that is hidden is not the protection.</p>
+<h2 data-i="hh.zones.h">Zones</h2>
+<p data-i="hh.zones.p">Everything Clawco knows sits in one of three zones. No role ever sees another person's private or work data. A calendar is read into the shared week only when it is in the household zone.</p>
+<ul class="paths">
+<li data-zone="privat"><code>privat</code> <span data-i="hh.zone.privat">Your own, private.</span></li>
+<li data-zone="arbejde"><code>arbejde</code> <span data-i="hh.zone.arbejde">Your own, for work.</span></li>
+<li data-zone="husstand"><code>husstand</code> <span data-i="hh.zone.husstand">Shared by the household.</span></li>
+</ul>
+<h2><code data-blok="forespoergsel">Forespørgsel</code> <span data-i="hh.req.h">a request between two members</span></h2>
+<p data-i="hh.req.p">One member asks another for something, for example to take a child on Thursday. Both see its state. Only a person's tap moves it on; the agent may at most suggest an answer.</p>
+<ul class="paths">
+<li data-tilstand="spurgt"><code>spurgt</code> <span data-i="hh.st.spurgt">asked</span></li>
+<li data-tilstand="accepteret"><code>accepteret</code> <span data-i="hh.st.accepteret">accepted</span></li>
+<li data-tilstand="afvist"><code>afvist</code> <span data-i="hh.st.afvist">declined</span></li>
+<li data-tilstand="alternativ"><code>alternativ</code> <span data-i="hh.st.alternativ">another time or answer proposed</span></li>
+<li data-tilstand="udloebet"><code>udloebet</code> <span data-i="hh.st.udloebet">expired without an answer</span></li>
+</ul>
+<h2><code data-blok="ressource">Ressource</code> <span data-i="hh.res.h">a shared thing with owners and a calendar</span></h2>
+<p data-i="hh.res.p">An owner books it with one tap; anyone else asks an owner. When two bookings overlap, it becomes one decision for the two who booked, never a decision the agent makes.</p>
+<ul class="paths">
+<li data-ressource="bil"><code>bil</code> <span data-i="hh.rs.bil">a car</span></li>
+<li data-ressource="rum"><code>rum</code> <span data-i="hh.rs.rum">a room</span></li>
+<li data-ressource="ting"><code>ting</code> <span data-i="hh.rs.ting">a thing</span></li>
+<li data-ressource="person"><code>person</code> <span data-i="hh.rs.person">a person</span></li>
+</ul>
+<h2 data-i="hh.sat.h">The weekend check</h2>
+<p data-i="hh.sat.p">On Tuesdays Clawco looks at the coming weekend. When two adults are busy at the same time and something has to be covered, both get the same neutral card. A pick only becomes a request to the other person; nothing is decided for them.</p>
+<h2 data-i="hh.go.h">The go-between</h2>
+<p data-i="hh.go.p1">A person with no entry of their own is reached on a channel your Hermes already speaks: Telegram, WhatsApp or Signal. A request goes out as a message only when the owner taps send, and the text sent is the text shown. Nothing is sent before their first yes except the invitation, and nothing after they say stop.</p>
+<p data-i="hh.go.p2">Their reply counts only when it is exactly yes, no or a time, from their own number in a direct chat. Anything else is shown as text and never acts. They install nothing.</p>
+<p data-i="hh.go.p3">The go-between needs Hermes with a messaging gateway on the same machine. It is tested against a scripted channel.</p>
+<h2 data-i="hh.tests.h">Where this is held</h2>
+<ul>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/hushold/rettigheder.test.ts" rel="noopener noreferrer"><code>test/hushold/rettigheder.test.ts</code></a> <span data-i="hh.tests.rettigheder">what each role may see and do</span></li>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/hushold/foresp.test.ts" rel="noopener noreferrer"><code>test/hushold/foresp.test.ts</code></a> <span data-i="hh.tests.foresp">the states of a request</span></li>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/hushold/ressource.test.ts" rel="noopener noreferrer"><code>test/hushold/ressource.test.ts</code></a> <span data-i="hh.tests.ressource">shared things and clashes</span></li>
+<li><a href="https://github.com/SlambertDK/clawco/blob/main/test/hushold/kanal-fake.test.ts" rel="noopener noreferrer"><code>test/hushold/kanal-fake.test.ts</code></a> <span data-i="hh.tests.kanal">the go-between, against a scripted channel</span></li>
+</ul>
+<p class="muted" data-i="docs.checked">Last checked against the code: 2026-11-02.</p>
+</div>
+</article>
+</main>
+<footer class="foot">
+<div class="wrap">
+<nav aria-label="Footer" data-i-attr="aria-label:c.foot.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a href="/docs/security" data-i="c.nav.security">Security</a>
+<a href="/hjaelp" data-i="c.nav.help">Help</a>
+<a href="/legal" data-href-da="/juridisk" data-i="c.nav.legal">Legal</a>
+<a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
+</nav>
+<p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
+</div>
+</footer>
+</body>
+</html>

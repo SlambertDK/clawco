@@ -31,6 +31,18 @@ Changing a text: copy the current files to `docs/legal/arkiv/<fil>.<sprog>.<old 
 the same `version` from `docs/legal/vilkaar.da.md` and `privatlivspolitik.da.md`, so every account is asked to accept
 again; restart Sky after the deploy (it reads the versions at start).
 
+## The documentation pages (KC-0165)
+
+`docs/*.html` and `install.html`: install (Mac/Linux, Docker, backup and restore, laptop mode), `sources`, `trust-ladder`,
+`household` and `security`. Invariant: a page documents only what is built and verified; an unbuilt feature is absent, not
+"coming soon" (Sky's invitations by mail, a Danish source pack, per-platform guides and comparison pages are absent for that reason).
+`test/docs.test.ts` derives every name from the code (rooms from `src/rooms/registry.ts`, blocks from `src/shell/katalog.ts`, connectors
+as `main()` composes them, trust levels and limits from `src/tillid/trin.ts`, roles, zones, npm scripts) and compares the commands with
+`install.sh --help`/`--dry-run` and `scripts/arkiv.mjs`; names are marked in the HTML (`data-rum`, `data-blok`, `data-kilde`, `data-trin`,
+`data-graense`, `data-rolle`, `data-host`). The data-flow list on the security page must equal the outside hosts written in `src/`.
+Every documentation page ends with `docs.checked`, the date it was last checked against the code: when you change what a page
+describes, re-read the page and move the date (one key, so every page moves together only when all were re-read).
+
 ## The help pages and security.txt (KC-0201)
 
 `/hjaelp` (the index), `/hjaelp/<article>` (eight articles) and `/hjaelp/security-report` are plain files here, English in the HTML and

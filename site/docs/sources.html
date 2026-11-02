@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i="src.meta.title">Sources: what Clawco reads and may do</title>
+<meta name="description" content="Every source Clawco can connect: what it reads, what it may do with it, where the data goes and which room shows it. Read-only unless the entry says more." data-i-attr="content:src.meta.description">
+<link rel="canonical" href="https://clawco.work/docs/sources">
+<link rel="alternate" hreflang="en" href="https://clawco.work/docs/sources">
+<link rel="alternate" hreflang="da" href="https://clawco.work/docs/sources?lang=da">
+<link rel="alternate" hreflang="x-default" href="https://clawco.work/docs/sources">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121614">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Clawco">
+<meta property="og:url" content="https://clawco.work/docs/sources">
+<meta property="og:title" content="Sources: what Clawco reads and may do" data-i-attr="content:src.meta.title">
+<meta property="og:description" content="Every source Clawco can connect: what it reads, what it may do with it, where the data goes and which room shows it. Read-only unless the entry says more." data-i-attr="content:src.meta.description">
+<meta property="og:image" content="https://clawco.work/billeder/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/strings.js" defer></script>
+<script src="/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i="c.skip">Skip to content</a>
+<header class="top">
+<div class="wrap bar">
+<a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Clawco</a>
+<nav aria-label="Main" data-i-attr="aria-label:c.nav.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a class="hide-sm" href="/docs/security" data-i="c.nav.security">Security</a>
+</nav>
+<button type="button" class="lang" data-lang-toggle aria-label="Switch language to Danish" data-i="c.lang" data-i-attr="aria-label:c.lang.label">Dansk</button>
+</div>
+</header>
+<main id="main">
+<article class="page">
+<div class="wrap narrow">
+<h1 data-i="src.h1">Sources</h1>
+<p class="lead" data-i="src.lead">A source is a connection Clawco reads from. Each one is read-only unless its entry says what else it may do, and none of them can pay, write to another person or delete.</p>
+<h2 data-i="src.all.h">What every source shares</h2>
+<ul>
+<li data-i="src.all.1">What a source gives the agent is marked as untrusted text before a model sees it: data, never an instruction.</li>
+<li data-i="src.all.2">A source's password or sign-in is stored in your user folder, in a file only you can read, and is left out of the export. Connecting and disconnecting a source are each written to the log.</li>
+</ul>
+<p><a href="/docs/security" data-i="src.all.link">Where the data goes after it is read: the security promise</a></p>
+<article data-kilde="mail-imap" data-slags="mail" data-auth="apikey" data-zone="privat" data-verbs="flyt:sorter,kladde:forbered">
+<h2 data-i="src.mail-imap.h">Mail from an IMAP account</h2>
+<ul>
+<li data-i="src.mail-imap.reads">Reads: sender, subject, date and read status of your newest mails. Never the text of a mail.</li>
+<li data-i="src.mail-imap.may">May: move a mail to another folder in the same account, never to Trash or Junk (a sort, level 1), and save a reply as a draft in your drafts folder (a preparation, level 3). It never sends, deletes or makes a folder.</li>
+<li data-i="src.mail-imap.goes">Goes to: straight between Clawco and your mail provider. The app password you make at your provider is stored in your user folder. The connection is always verified, except Proton Mail Bridge on this machine, which Clawco pins by its fingerprint the first time.</li>
+</ul>
+<p class="small"><span data-i="src.shown">Shown in:</span> <code data-rum="mail">Mail</code></p>
+</article>
+<article data-kilde="mail-gmail" data-slags="mail" data-auth="oauth" data-zone="privat" data-verbs="">
+<h2 data-i="src.mail-gmail.h">Gmail with Google sign-in</h2>
+<ul>
+<li data-i="src.mail-gmail.reads">Reads: sender, subject and time of your newest mails. Never the text of a mail.</li>
+<li data-i="src.mail-gmail.may">May: nothing. It has no actions: it cannot send, move or delete.</li>
+<li data-i="src.mail-gmail.note">Google calls the permission full access to your Gmail, because it has no narrower one for mail over IMAP. Clawco's own code only reads; the permission itself would allow more.</li>
+<li data-i="src.mail-gmail.goes">Goes to: straight between Google and your Clawco, with no app password. You make your own small Google app once; the sign-in is stored in your user folder.</li>
+</ul>
+<p class="small"><span data-i="src.shown">Shown in:</span> <code data-rum="mail">Mail</code></p>
+</article>
+<article data-kilde="google-kalender" data-slags="kalender" data-auth="oauth" data-zone="privat" data-verbs="">
+<h2 data-i="src.google-kalender.h">Google Calendar</h2>
+<ul>
+<li data-i="src.google-kalender.reads">Reads: titles, descriptions, times and attendees of events in your calendars for the next seven days.</li>
+<li data-i="src.google-kalender.may">May: nothing. The permission is read-only, so Clawco cannot create, change or answer an event.</li>
+<li data-i="src.google-kalender.goes">Goes to: straight between Google and your Clawco, through your own small Google app. A calendar in your private or work zone is never read into the household week.</li>
+</ul>
+<p class="small"><span data-i="src.shown">Shown in:</span> <code data-rum="dagen">Dagen</code></p>
+</article>
+<article data-kilde="nyheder-rss" data-slags="nyheder" data-auth="local" data-zone="privat" data-verbs="">
+<h2 data-i="src.nyheder-rss.h">News feeds</h2>
+<ul>
+<li data-i="src.nyheder-rss.reads">Reads: headlines and short summaries from the feeds you paste or import from an OPML file. Clawco fetches them every morning. No feeds come with Clawco.</li>
+<li data-i="src.nyheder-rss.may">May: nothing. It only reads.</li>
+<li data-i="src.nyheder-rss.goes">Goes to: Clawco fetches the addresses you gave it, from your machine. It refuses an address with a password in it and link-local addresses; an address on your own network works only when you typed it yourself.</li>
+</ul>
+<p class="small"><span data-i="src.shown">Shown in:</span> <code data-rum="nyheder">Nyheder</code></p>
+</article>
+<article data-kilde="noter" data-slags="noter" data-auth="local" data-zone="privat" data-verbs="">
+<h2 data-i="src.noter.h">Notes folder</h2>
+<ul>
+<li data-i="src.noter.reads">Reads: the names and relations of the people in your people register, and the titles of your newest notes. Never the text of a note.</li>
+<li data-i="src.noter.may">May: make its own folders in the folder you pick (an inbox, a people folder and Clawco) when they are missing. It does not touch your notes. “Gem i Obsidian” in Skrive and “Gem til senere” in Nyheder save a note into the inbox folder; no agent is involved.</li>
+<li data-i="src.noter.goes">Goes to: nowhere. The notes are plain text files in a folder on this machine that you can open yourself.</li>
+</ul>
+<p class="small"><span data-i="src.shown">Shown in:</span> <code data-rum="skrive">Skrive</code> <code data-rum="nyheder">Nyheder</code></p>
+</article>
+<article data-kilde="beskeder" data-slags="beskeder" data-auth="bridge" data-zone="privat" data-verbs="">
+<h2 data-i="src.beskeder.h">Messages through Hermes</h2>
+<ul>
+<li data-i="src.beskeder.reads">Reads: messages that reach your Hermes on Telegram, WhatsApp or Signal, in the conversations you chose. Text is cut to 500 characters, attachments are read by name and type only, and phone numbers and handles are removed. Read messages are kept for 14 days.</li>
+<li data-i="src.beskeder.may">May: nothing. It only reads and never replies.</li>
+<li data-i="src.beskeder.goes">Goes to: a log file in your user folder, written by a small hook on the Hermes side. It needs Hermes with a messaging channel; without Hermes there is nothing to read.</li>
+</ul>
+<p class="small"><span data-i="src.shown">Shown in:</span> <code data-rum="hjem">Nu</code></p>
+</article>
+<p class="muted" data-i="docs.checked">Last checked against the code: 2026-11-02.</p>
+</div>
+</article>
+</main>
+<footer class="foot">
+<div class="wrap">
+<nav aria-label="Footer" data-i-attr="aria-label:c.foot.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a href="/docs/security" data-i="c.nav.security">Security</a>
+<a href="/hjaelp" data-i="c.nav.help">Help</a>
+<a href="/legal" data-href-da="/juridisk" data-i="c.nav.legal">Legal</a>
+<a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
+</nav>
+<p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
+</div>
+</footer>
+</body>
+</html>
