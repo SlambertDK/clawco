@@ -17,6 +17,7 @@ export const T = {
   aarlig: 'hvert år',
   landFelt: 'Hvor bor du?',
   startProeve: 'Start 14 dages gratis prøve',
+  videre: 'Videre til bekræftelse',
   tilBetaling: 'Gå til betaling',
   ingenMoms: 'Priserne er hele priser. Der er ingen moms oveni.',
   tilbage: 'Tilbage til din konto',

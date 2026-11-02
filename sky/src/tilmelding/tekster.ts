@@ -56,6 +56,7 @@ const da = {
   aarlig: 'hvert år',
   startProeve: (dage: number): string => `Start ${dage} dages gratis prøve`,
   tilBetaling: 'Gå til betaling',
+  videre: 'Videre til bekræftelse',
   ingenMoms: 'Priserne er hele priser. Der er ingen moms oveni.',
   afbrudt: 'Du afbrød betalingen. Dit valg er gemt herunder.',
 
@@ -140,6 +141,7 @@ const en: Tekster = {
   aarlig: 'every year',
   startProeve: (dage) => `Start the ${dage}-day free trial`,
   tilBetaling: 'Go to payment',
+  videre: 'Continue to confirmation',
   ingenMoms: 'Prices are final. No VAT is added.',
   afbrudt: 'You cancelled the payment. Your choice is kept below.',
 

@@ -4,12 +4,6 @@
 sky/test/abonnement/opsaet.test.ts:stripe-access-token:188
 sky/test/abonnement/opsaet.test.ts:stripe-access-token:189
 sky/test/abonnement/opsaet.test.ts:stripe-access-token:264
-sky/test/abonnement/stripe-klient.test.ts:stripe-access-token:9
-sky/test/abonnement/stripe-klient.test.ts:stripe-access-token:10
-sky/test/abonnement/stripe-klient.test.ts:stripe-access-token:30
-sky/test/abonnement/stripe-klient.test.ts:stripe-access-token:50
-sky/test/abonnement/stripe-klient.test.ts:stripe-access-token:51
-sky/test/abonnement/stripe-klient.test.ts:generic-api-key:25
 sky/test/deploy.test.ts:stripe-access-token:193
 sky/test/deploy.test.ts:generic-api-key:151
 test/helpers/certifikater/anden.key:private-key:1

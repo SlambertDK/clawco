@@ -6,6 +6,7 @@
 // also a standard sk_test_ key) and every Clawco object carries metadata.clawco = "ja".
 
 import type Stripe from 'stripe';
+import { FORTRYDELSES_TEKST } from './forbrugerret.ts';
 
 export type Tilstand = 'test' | 'live';
 export type Interval = 'month' | 'year';
@@ -121,6 +122,9 @@ export interface BetalingsKlient {
   listAbonnementer(kunde: string): Promise<AbonnementSnapshot[]>;
   /** Cancels now (the account was deleted). Nothing is deleted in Stripe. */
   opsigAbonnement(id: string): Promise<void>;
+  /** KC-0209 "Opsig": the subscription ends when the paid period does (cancel_at_period_end); access stays until then.
+   *  Never refunds anything: money back is a task for the owner, never code (AGENTS §9). */
+  opsigVedPeriodeslut(id: string): Promise<void>;
   opretPortal(kunde: string, returUrl: string): Promise<{ url: string }>;
   /** KC-0206: every invoice of the customer, newest first (for Hent alt). */
   listFakturaer(kunde: string): Promise<Faktura[]>;
@@ -140,9 +144,9 @@ export function tilstandFraNoegle(noegle: string | undefined): Tilstand {
 export type BetalingsConfig = {
   noegle: string | null;
   webhookHemmelighed: string | null;
-  /** KC-0174 owns the terms; the withdrawal-right wording has no source yet, so it stays null and
-   *  live Checkout refuses (checkout.ts). */
-  juridisk: { vilkaarUrl: string | null; privatlivUrl: string | null; fortrydelsesTekst: string | null };
+  /** The terms and privacy URLs come from the environment (unset = live Checkout refuses, checkout.ts); the
+   *  withdrawal sentence is the one text of the consumer-rights flow (KC-0209, forbrugerret.ts). */
+  juridisk: { vilkaarUrl: string | null; privatlivUrl: string | null; fortrydelsesTekst: Record<'da' | 'en', string> | null };
 };
 
 /** Billing's keys, read once at start. All optional (unset = billing answers 503); a set but
@@ -161,7 +165,7 @@ export function laesBetaling(env: Record<string, string | undefined>): Betalings
     if (!ok) throw new Error(`${k} er ugyldig: skal være en https-adresse`);
     return u;
   };
-  return { noegle, webhookHemmelighed, juridisk: { vilkaarUrl: url('SKY_VILKAAR_URL'), privatlivUrl: url('SKY_PRIVATLIV_URL'), fortrydelsesTekst: null } };
+  return { noegle, webhookHemmelighed, juridisk: { vilkaarUrl: url('SKY_VILKAAR_URL'), privatlivUrl: url('SKY_PRIVATLIV_URL'), fortrydelsesTekst: FORTRYDELSES_TEKST } };
 }
 
 /** Masks every Stripe secret (sk_/rk_ keys, webhook secrets) in free text, e.g. an SDK error. */

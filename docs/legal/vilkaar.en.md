@@ -78,13 +78,13 @@ You can try for 14 days without a card. When the 14 days are over, your subscrip
 
 The subscription renews automatically for the same period, at the same price, until you cancel. We do not yet send a reminder before a renewal. Your account page shows the date of the next payment.
 
-You can cancel whenever you like. The cancel button in your account is not built yet; until it is, you write to kontakt@clawco.work, and an email is just as valid. The subscription runs to the end of the period you have paid for. You get no refund for a period already begun, unless the law or these terms give you the right.
+You can cancel whenever you like, with the "Cancel subscription" button on your account page. You do not need to call or write to anyone, and you confirm only once. You get a confirmation on screen and by email. You can also write to kontakt@clawco.work, and an email is just as valid. The subscription runs to the end of the period you have paid for. You get no refund for a period already begun, unless the law or these terms give you the right.
 
 If a payment fails, Stripe may try to charge again under the rules we have set up there. Your account page shows that the payment is missing and has a button to fix the card. In the beta we do not stop or delete your Clawco automatically because a payment is missing. We write to you before we do anything to it, and you have at least 30 days from that message to pay or take out your data.
 
 ## 10. Right of withdrawal
 
-If you are a consumer, you have a 14-day right of withdrawal from the day you buy a paid subscription (Danish Consumer Contracts Act sections 18 and 19). Write to kontakt@clawco.work to withdraw. An email saying that you withdraw is enough; you do not need a particular form.
+If you are a consumer, you have a 14-day right of withdrawal from the day you buy a paid subscription (Danish Consumer Contracts Act sections 18 and 19). You withdraw with the "Withdraw from the agreement" button on your account page. You confirm once. We then register your withdrawal and the time, cancel the subscription at once and send you a receipt by email. We refund within 14 days. You can also write to kontakt@clawco.work; an email saying that you withdraw is enough, and you do not need a particular form.
 
 You can ask us to start right away. When you buy, you therefore confirm:
 

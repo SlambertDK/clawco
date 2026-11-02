@@ -8,7 +8,7 @@ import { CLAWCO_MAERKE, kontoIdFra } from './stripe-klient.ts';
 import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPris, NytProdukt, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
 
 export type FalskKald = {
-  metode: 'opretProdukt' | 'opdaterProdukt' | 'opretPris' | 'arkiverPris' | 'opretKunde' | 'opretCheckout' | 'udloebCheckout' | 'opsigAbonnement' | 'opretPortal';
+  metode: 'opretProdukt' | 'opdaterProdukt' | 'opretPris' | 'arkiverPris' | 'opretKunde' | 'opretCheckout' | 'udloebCheckout' | 'opsigAbonnement' | 'opsigVedPeriodeslut' | 'opretPortal';
   args: unknown;
   idempotensNoegle?: string;
 };
@@ -35,6 +35,9 @@ export class FalskBetalingsKlient implements BetalingsKlient {
   private abonnementer = new Map<string, AbonnementSnapshot>();
   private fakturaer: (Faktura & { kunde: string })[] = [];
   private readonly checkoutUrl: (id: string) => string;
+  /** Development and smoke tests: what Stripe would send as a webhook after a change it made itself (a cancellation).
+   *  Set by server.ts in SKY_DEV so the real handler hears about it, the way production does; null in unit tests. */
+  haendelsesSink: ((type: string, kunde: string) => Promise<void>) | null = null;
 
   constructor(tilstand: Tilstand, start: { produkter?: StripeProdukt[]; priser?: StripePris[]; checkoutUrl?: (id: string) => string } = {}) {
     this.tilstand = tilstand;
@@ -239,6 +242,16 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     const a = this.abonnementer.get(id);
     if (!a) throw new Error(`intet abonnement ${id}`);
     a.status = 'canceled';
+    await this.haendelsesSink?.('customer.subscription.deleted', a.kunde);
+  }
+
+  async opsigVedPeriodeslut(id: string): Promise<void> {
+    this.tjekFejl('opsigVedPeriodeslut');
+    this.kald.push({ metode: 'opsigVedPeriodeslut', args: { id } });
+    const a = this.abonnementer.get(id);
+    if (!a) throw new Error(`intet abonnement ${id}`);
+    a.opsigVedPeriodeslut = true;
+    await this.haendelsesSink?.('customer.subscription.updated', a.kunde);
   }
 
   /** Test helper: the customer is deleted in Stripe; its subscriptions are canceled. */

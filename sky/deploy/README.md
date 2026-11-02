@@ -172,6 +172,20 @@ previous image on that same disk (scratch `clawco-u-…`, removed after).
 A destructive data change in the tenant ships in two releases and needs Henrik's explicit yes (AGENTS §0 r1): the
 compatibility check refuses a release the previous one cannot run after.
 
+## Refunds after "Fortryd aftale" (KC-0209)
+
+A customer who withdraws inside the 14 days leaves a **refund task** (table `abonnement.refusion_opgave`) and one journal line
+`sky abonnement: REFUSIONSOPGAVE …` (`journalctl -u sky`). No code in Sky refunds anything (AGENTS §9; `sky/test/abonnement/opsigelse-saum.test.ts`
+fails if a refund call ever appears): the owner refunds the amount in the Stripe dashboard by hand, then marks the task done.
+
+```bash
+node --env-file=/srv/sky/.env sky/scripts/refusioner.ts                 # the open tasks: number, account, amount, due date
+node --env-file=/srv/sky/.env sky/scripts/refusioner.ts udfoert <nr>    # after refunding it in Stripe
+```
+
+The receipt, cancellation and withdrawal mails go through the same Post seam as the login link; the renewal reminder
+(`abonnement/paamindelse.ts`) is built but nothing sends it yet (no scheduler sends mail; a follow-up).
+
 ## Local run (development)
 
 ```bash

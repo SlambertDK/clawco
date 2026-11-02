@@ -73,11 +73,15 @@ for (const sprog of ['da', 'en'] as const) {
 test('plan: the plans given (from config/priser.json in production), the account country rides along, Checkout returns into the flow', () => {
   const e = EKSEMPLER['plan']!;
   const { document } = parseHTML(tilmeldingSide(e.faelles, e.side));
-  const f = document.querySelector('form[action="/api/abonnement/checkout"]');
+  // KC-0209: the plan step leads to the statement (a plain GET: nothing is bought here); Checkout is its button.
+  const f = document.querySelector('form[action="/konto/abonnement/bekraeft"]');
   assert.ok(f);
+  assert.equal(f.getAttribute('method'), 'get');
   assert.equal(f.querySelector('input[name=retur]')?.getAttribute('value'), 'tilmelding');
   assert.equal(f.querySelector('input[name=land]')?.getAttribute('value'), 'DK');
-  assert.ok(f.querySelector('input[name=csrf]'));
+  assert.ok(!f.querySelector('input[name=csrf]'));
+  assert.equal(document.querySelector('form[action="/api/abonnement/checkout"]'), null);
+  assert.match(f.querySelector('button')?.textContent ?? '', /Videre til bekræftelse/);
   const tekst = document.body.textContent ?? '';
   assert.match(tekst, /Sky Solo/);
   assert.match(tekst, /Sky Husstand/);

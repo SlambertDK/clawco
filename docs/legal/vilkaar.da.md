@@ -76,13 +76,13 @@ Du kan prøve i 14 dage uden kort. Når de 14 dage er gået, sættes dit abonnem
 
 Abonnementet fornyes automatisk for samme periode, til samme pris, indtil du siger det op. Vi sender endnu ingen påmindelse før en fornyelse. Din kontoside viser datoen for næste betaling.
 
-Du kan sige op, når du vil. Knappen til at sige op i din konto er ikke bygget endnu; indtil den er, skriver du til kontakt@clawco.work, og en mail er lige så gyldig. Abonnementet løber til udgangen af den periode, du har betalt for. Du får ikke penge tilbage for en påbegyndt periode, medmindre loven eller disse vilkår giver ret til det.
+Du kan sige op, når du vil, med knappen "Opsig abonnement" på din kontoside. Du skal ikke ringe eller skrive til nogen, og du bekræfter kun én gang. Du får en bekræftelse på skærmen og på mail. Du kan også skrive til kontakt@clawco.work, og en mail er lige så gyldig. Abonnementet løber til udgangen af den periode, du har betalt for. Du får ikke penge tilbage for en påbegyndt periode, medmindre loven eller disse vilkår giver ret til det.
 
 Hvis en betaling fejler, kan Stripe prøve at trække igen efter de regler, vi har sat op der. Din kontoside viser, at betalingen mangler, og har en knap til at rette kortet. I beta stopper eller sletter vi ikke din Clawco automatisk, fordi en betaling mangler. Vi skriver til dig, før vi gør noget ved den, og du har mindst 30 dage fra den besked til at betale eller hente dine data.
 
 ## 10. Fortrydelsesret
 
-Hvis du er forbruger, har du 14 dages fortrydelsesret fra den dag, du køber et betalt abonnement (Forbrugeraftaleloven §§ 18 og 19). Skriv til kontakt@clawco.work for at fortryde. Det er nok med en mail, hvor du skriver, at du fortryder; du behøver ikke en bestemt blanket.
+Hvis du er forbruger, har du 14 dages fortrydelsesret fra den dag, du køber et betalt abonnement (Forbrugeraftaleloven §§ 18 og 19). Du fortryder med knappen "Fortryd aftale" på din kontoside. Du bekræfter én gang. Så registrerer vi din fortrydelse og tidspunktet, opsiger abonnementet med det samme og sender dig en kvittering på mail. Vi tilbagebetaler inden for 14 dage. Du kan også skrive til kontakt@clawco.work; det er nok med en mail, hvor du skriver, at du fortryder, og du behøver ikke en bestemt blanket.
 
 Du kan bede os om at starte straks. Når du køber, bekræfter du derfor:
 

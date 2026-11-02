@@ -217,6 +217,10 @@ export class StripeBetalingsKlient implements BetalingsKlient {
     await this.stripe.subscriptions.cancel(abonnementId);
   }
 
+  async opsigVedPeriodeslut(abonnementId: string): Promise<void> {
+    await this.stripe.subscriptions.update(abonnementId, { cancel_at_period_end: true });
+  }
+
   async opretPortal(kunde: string, returUrl: string): Promise<{ url: string }> {
     const p = await this.stripe.billingPortal.sessions.create({ customer: kunde, return_url: returUrl });
     return { url: p.url };

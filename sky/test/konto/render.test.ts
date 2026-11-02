@@ -120,3 +120,12 @@ test('KC-0206: every account example renders, escaped, with its own content', ()
   assert.match(renderEksempel(EKSEMPLER['slet-ejer']!), /href="\/konto\/hent-alt"[^>]*>Hent alt først/);
   assert.match(renderEksempel(EKSEMPLER['slettet']!), /30 dage/);
 });
+
+test('KC-0209: the account page lists the subscription actions it is handed ("Opsig abonnement", "Fortryd aftale") as plain links, and none when there are none', () => {
+  const med = kontoSide({ email: 'a@example.test', csrf: 'c', passkeyAntal: 1, sessioner: [], nuvaerendeId: 0, abonnement: { plan: 'Sky Solo', tekst: 'Aktivt', handlinger: [{ href: '/konto/abonnement/opsig', tekst: 'Opsig abonnement' }, { href: '/konto/abonnement/fortryd', tekst: 'Fortryd aftale' }] } });
+  assert.match(med, /<a href="\/konto\/abonnement\/opsig">Opsig abonnement<\/a>/);
+  assert.match(med, /<a href="\/konto\/abonnement\/fortryd">Fortryd aftale<\/a>/);
+  const uden = kontoSide({ email: 'a@example.test', csrf: 'c', passkeyAntal: 1, sessioner: [], nuvaerendeId: 0, abonnement: { plan: 'Sky Solo', tekst: 'Aktivt' } });
+  assert.doesNotMatch(uden, /Opsig abonnement|Fortryd aftale/);
+  ren(kontoSide({ email: OND, csrf: 'c', passkeyAntal: 1, sessioner: [], nuvaerendeId: 0, abonnement: { plan: OND, tekst: OND, handlinger: [{ href: '/x', tekst: OND }] } }));
+});

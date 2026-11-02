@@ -36,6 +36,9 @@ export type WebhookDeps = {
   /** Refused signatures since start (the only trace a bad request leaves). */
   taeller: { afvist: number };
   verificer?: (raw: Uint8Array, signatur: string, hemmelighed: string) => StripeHaendelse;
+  /** KC-0209: runs after an event was handled and committed, for the account it touched (the purchase receipt). A failure
+   *  is logged and never fails the webhook: the entitlement is already written. */
+  efter?: (kontoId: number) => Promise<void>;
 };
 
 export type WebhookSvar = { status: 200 | 400 | 500 | 503; svar: string };
@@ -75,8 +78,10 @@ export async function modtagWebhook(d: WebhookDeps, raw: Uint8Array, signatur: s
   const klient = d.klient;
   const stripeKunde = h.kunde;
   const nu = d.nu();
+  const berort: { kontoId: number | null } = { kontoId: null };
+  let svar: WebhookSvar;
   try {
-    return await d.db.transaction(async (tx): Promise<WebhookSvar> => {
+    svar = await d.db.transaction(async (tx): Promise<WebhookSvar> => {
       const ny = await tx.query('INSERT INTO abonnement.stripe_haendelser (id, type, modtaget) VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING RETURNING id', [h.id, h.type, nu.toISOString()]);
       if (ny.length === 0) return { status: 200, svar: 'dublet' };
       const kontoId = await kontoFor(tx, klient, stripeKunde);
@@ -86,6 +91,7 @@ export async function modtagWebhook(d: WebhookDeps, raw: Uint8Array, signatur: s
         return { status: 200, svar: 'ukendt kunde' };
       }
       const r = await synkKunde(tx, klient, d.priser, { stripeKunde, kontoId, grund: h.type, haendelseId: h.id, nu });
+      berort.kontoId = kontoId;
       console.log(`sky abonnement: ${h.type} ${kort(h.id)} → konto ${kontoId}: ${r.aendret ? `${r.fra?.status ?? 'ingen'}/${r.fra?.plan ?? 'ingen'} → ${r.til.status}/${r.til.plan}` : 'uændret'}`);
       return { status: 200, svar: r.aendret ? 'opdateret' : 'uændret' };
     });
@@ -93,4 +99,10 @@ export async function modtagWebhook(d: WebhookDeps, raw: Uint8Array, signatur: s
     console.error(`sky abonnement: ${h.type} ${kort(h.id)} fejlede, intet gemt (Stripe prøver igen): ${skjulNoegler((err as Error).message)}`);
     return { status: 500, svar: 'fejl' };
   }
+  if (berort.kontoId !== null && d.efter) {
+    try { await d.efter(berort.kontoId); } catch (err) {
+      console.error(`sky abonnement: efterbehandling af ${h.type} ${kort(h.id)} for konto ${berort.kontoId} fejlede: ${skjulNoegler((err as Error).message)}`);
+    }
+  }
+  return svar;
 }

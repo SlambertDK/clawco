@@ -28,7 +28,7 @@ Dit indhold i instansen er en særlig sag, se afsnit 3.
 
 **Brugsmønstre.** Vi indsamler ingen brugsstatistik. Kommer der en dag anonyme tal om, hvordan produktet bruges, sker det kun, hvis du selv slår det til, og du kan slå det fra igen når som helst.
 
-**Mails fra os.** Vi sender de mails, du har brug for: login-link og en bekræftelse, når du sletter din konto. Skal vi fortælle dig om en vigtig ændring, skriver vi også til dig. Vi sender ingen påmindelser om prøveperiode eller fornyelse endnu. Nyhedsbreve og tilbud sender vi kun, hvis du har sagt ja.
+**Mails fra os.** Vi sender de mails, du har brug for: login-link, en kvittering, når du køber, en bekræftelse, når du siger op eller fortryder, og en bekræftelse, når du sletter din konto. Skal vi fortælle dig om en vigtig ændring, skriver vi også til dig. Vi sender ingen påmindelser om prøveperiode eller fornyelse endnu. Nyhedsbreve og tilbud sender vi kun, hvis du har sagt ja.
 
 ## 3. Dit indhold i din instans
 

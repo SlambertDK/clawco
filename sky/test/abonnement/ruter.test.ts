@@ -3,51 +3,14 @@
 // abonnement/); here a cookie names the account and the CSRF token is "csrf-<id>".
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Context } from 'hono';
-import { getCookie } from 'hono/cookie';
 import { stativ, startProeve, haendelse, fangLog, HEMMELIGHED, EMAIL, PUBLIC, type Stativ } from './stativ.ts';
+import { app } from './appstativ.ts';
+import { abonnementRuter } from '../../src/abonnement/ruter.ts';
 import { antal } from '../konto/hjaelp.ts';
-import { abonnementRuter, type AbonnementDeps, type Indlogget } from '../../src/abonnement/ruter.ts';
 import { hentKundeRaekke } from '../../src/abonnement/kunde.ts';
 import { hentRettigheder, saetGave } from '../../src/abonnement/synk.ts';
 import { FalskBetalingsKlient } from '../../src/abonnement/falsk.ts';
 import { anvend, planlaeg } from '../../src/abonnement/opsaet.ts';
-
-type Rolle = { rolle: 'ejer' | 'medlem'; antal: number } | null;
-
-function app(s: Stativ, over: Partial<AbonnementDeps> & { rolle?: Rolle } = {}) {
-  const hvem = async (c: Context): Promise<Indlogget | null> => {
-    const id = Number(getCookie(c, 'konto') ?? '');
-    return id === s.kontoId ? { kontoId: id, email: EMAIL, sprog: 'da', csrf: `csrf-${id}` } : null;
-  };
-  const d: AbonnementDeps = {
-    db: s.db, klient: s.klient, priser: s.priser, publicUrl: PUBLIC, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: null },
-    webhookHemmelighed: HEMMELIGHED, nu: s.u.nu, taeller: { afvist: 0 },
-    adgang: {
-      login: hvem,
-      beskyttet: async (c, csrf) => {
-        if (c.req.header('origin') !== PUBLIC) return null;
-        const l = await hvem(c);
-        return l && csrf === l.csrf ? l : null;
-      },
-    },
-    husstand: async () => (over.rolle === undefined ? null : over.rolle),
-    tilPlan: async () => true,
-    ...over,
-  };
-  const a = abonnementRuter(d);
-  const hent = (sti: string, init: RequestInit = {}) => a.request(`${PUBLIC}${sti}`, init);
-  return {
-    d,
-    side: (sti: string, logget = true) => hent(sti, { headers: logget ? { cookie: `konto=${s.kontoId}` } : {} }),
-    vaelg: (felter: Record<string, string>, opts: { origin?: string; csrf?: string } = {}) => hent('/api/abonnement/checkout', {
-      method: 'POST',
-      headers: { cookie: `konto=${s.kontoId}`, origin: opts.origin ?? PUBLIC, 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ csrf: opts.csrf ?? `csrf-${s.kontoId}`, ...felter }),
-    }),
-    webhook: (raw: Uint8Array, signatur: string) => hent('/api/abonnement/webhook', { method: 'POST', headers: { 'stripe-signature': signatur, 'content-type': 'application/json' }, body: raw }),
-  };
-}
 
 const SOLO = { plan: 'sky-solo', interval: 'maaned', land: 'DK' };
 const sessioner = (s: Stativ) => s.klient.kald.filter((k) => k.metode === 'opretCheckout');
@@ -65,10 +28,10 @@ test('the plan page needs a login and shows both plans from the config, the inte
   assert.match(t, /79 kr\. om måneden · 790 kr\. om året/);
   assert.match(t, /1\.290 kr\. om året/);
   assert.match(t, /Op til 6 personer/);
-  assert.match(t, /action="\/api\/abonnement\/checkout"/);
-  assert.match(t, /name="csrf" value="csrf-\d+"/);
+  assert.match(t, /<meta name="csrf" content="csrf-\d+">/);
   assert.match(t, /<option value="DK" selected>Danmark<\/option>/);
-  assert.match(t, /Start 14 dages gratis prøve/);
+  assert.match(t, /Videre til bekræftelse/);
+  assert.match(t, /action="\/konto\/abonnement\/bekraeft"/);
   assert.match(t, /Du skal ikke taste et kort/);
   assert.match(t, /<meta name="color-scheme" content="dark">/);
   assert.match(r.headers.get('content-security-policy') ?? '', /form-action 'self' https:\/\/checkout\.stripe\.com https:\/\/billing\.stripe\.com/);
@@ -145,8 +108,8 @@ test('a trial is given once per account: a cancelled trial (or the stored flag) 
   const t = await stativ();
   await t.db.query('UPDATE abonnement.kunde SET proeve_brugt = true');
   const side = await (await app(t).side('/konto/abonnement')).text();
-  assert.match(side, /Gå til betaling/);
   assert.match(side, /haft en gratis prøve før/);
+  assert.match(await (await app(t).side('/konto/abonnement/bekraeft?plan=sky-solo&interval=maaned&land=DK')).text(), /Betal 79 kr\. og start nu/);
   await app(t).vaelg(SOLO);
   assert.equal((sessioner(t)[0]!.args as { subscription_data: { trial_period_days?: number } }).subscription_data.trial_period_days, undefined);
 });

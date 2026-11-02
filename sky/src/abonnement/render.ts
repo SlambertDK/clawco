@@ -7,6 +7,7 @@ import type { IntervalNavn } from './opsaet.ts';
 import type { Rettighed } from './rettigheder.ts';
 import { LANDE } from './lande.ts';
 import { T } from './tekster.ts';
+import type { Handling } from './handlinger.ts';
 
 const csrfFelt = (csrf: string): Markup => html`<input type="hidden" name="csrf" value="${csrf}">`;
 const tilbage = (): Markup => html`<p><a href="/konto">${T.tilbage}</a></p>`;
@@ -27,13 +28,12 @@ export function planSide(a: { csrf: string; priser: Priser; valg: Valg; proeve: 
 <p>${a.proeve ? T.planIntro : T.planIntroUdenProeve}</p>
 ${a.afbrudt ? html`<p class="besked">${T.afbrudt}</p>` : ''}
 ${a.fejl ? html`<p class="status">${a.fejl}</p>` : ''}
-<form method="post" action="/api/abonnement/checkout">
-${csrfFelt(a.csrf)}
+<form method="get" action="/konto/abonnement/bekraeft">
 <fieldset><legend>${T.planTitel}</legend>${planValg}</fieldset>
 <fieldset><legend>${T.intervalTitel}</legend>${intervalValg}</fieldset>
 <label for="land">${T.landFelt}</label>
 <select id="land" name="land" required>${lande}</select>
-<button type="submit" class="primaer">${a.proeve ? T.startProeve : T.tilBetaling}</button>
+<button type="submit" class="primaer">${T.videre}</button>
 </form>
 <p><small>${T.ingenMoms}</small></p>
 ${tilbage()}`, { csrf: a.csrf });
@@ -52,13 +52,13 @@ export function statusLinje(r: Rettighed): string {
 }
 
 /** The account page's subscription summary (konto renders it; abonnement owns the words). */
-export function kontoResume(r: Rettighed, priser: Priser): { plan: string; tekst: string } {
+export function kontoResume(r: Rettighed, priser: Priser, handlinger: Handling[] = []): { plan: string; tekst: string; handlinger: Handling[] } {
   const navn = priser.planer[r.plan]?.navn;
-  if (!navn) return { plan: T.status.ingen, tekst: T.kontoResumeIngen };
-  return { plan: r.kilde === 'gave' ? `${navn} · ${T.gave}` : navn, tekst: [statusLinje(r), r.opsiges ? T.opsiges(r.opsiges) : null].filter(Boolean).join(' · ') };
+  if (!navn) return { plan: T.status.ingen, tekst: T.kontoResumeIngen, handlinger };
+  return { plan: r.kilde === 'gave' ? `${navn} · ${T.gave}` : navn, tekst: [statusLinje(r), r.opsiges ? T.opsiges(r.opsiges) : null].filter(Boolean).join(' · '), handlinger };
 }
 
-export function statusSide(a: { csrf: string; rettighed: Rettighed; priser: Priser; overGraense: { antal: number; max: number; plan: string; forslag: string | null } | null; portal: boolean }): string {
+export function statusSide(a: { csrf: string; rettighed: Rettighed; priser: Priser; overGraense: { antal: number; max: number; plan: string; forslag: string | null } | null; portal: boolean; handlinger?: Handling[] }): string {
   const r = a.rettighed;
   const { plan, tekst } = kontoResume(r, a.priser);
   const o = a.overGraense;
@@ -69,6 +69,7 @@ export function statusSide(a: { csrf: string; rettighed: Rettighed; priser: Pris
 </section>
 ${o ? html`<div class="kort"><p>${T.overGraense(o.antal, o.max, o.plan, o.forslag)}</p></div>` : ''}
 ${a.portal ? html`<form method="post" action="/api/abonnement/portal">${csrfFelt(a.csrf)}<button type="submit">${T.portalKnap}</button></form>` : ''}
+${a.handlinger?.length ? html`<section><ul class="liste">${a.handlinger.map((h) => html`<li><a href="${h.href}">${h.tekst}</a></li>`)}</ul></section>` : ''}
 ${tilbage()}`, { csrf: a.csrf });
 }
 

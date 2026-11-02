@@ -1,0 +1,13 @@
+Kvittering for din fortrydelse
+
+Hej
+
+Vi har registreret, at du har fortrudt aftalen om Clawco. Her er din kvittering.
+
+Sælger: {{saelger}}
+Aftale: {{produkt}}
+Fortrydelsen blev registreret: {{tidspunkt}}
+Abonnementet er opsagt med det samme.
+{{tilbage}}
+
+Clawco

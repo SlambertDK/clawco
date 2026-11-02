@@ -77,7 +77,10 @@ test('smoke: a stranger signs up, starts a trial and lands in the Start room of 
   // Step 2: the plan, preselected; Checkout (the dev stand-in for Stripe's page).
   const plan = await (await b.hent(ok.headers.get('location')!)).text();
   assert.match(plan, /value="sky-husstand" checked/);
-  const co = await b.form('/api/abonnement/checkout', { csrf: csrf(plan), plan: 'sky-husstand', interval: 'aar', land: felt(plan, 'land'), retur: 'tilmelding' });
+  // KC-0209: the plan step leads to the statement; its two boxes are what the button on it needs.
+  const bekraeft = await (await b.hent(`/konto/abonnement/bekraeft?plan=sky-husstand&interval=aar&land=${felt(plan, 'land')}&retur=tilmelding`)).text();
+  assert.match(bekraeft, /Bekræft din gratis prøve/);
+  const co = await b.form('/api/abonnement/checkout', { csrf: csrf(bekraeft), plan: 'sky-husstand', interval: 'aar', land: felt(plan, 'land'), retur: 'tilmelding', vilkaar: felt(bekraeft, 'vilkaar'), straks: 'ja' });
   assert.equal(co.status, 303);
   const stripe = new URL(co.headers.get('location')!);
   assert.match(stripe.pathname, /^\/dev\/stripe\/checkout\/cs_/);

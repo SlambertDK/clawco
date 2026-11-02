@@ -30,7 +30,7 @@ Your content in the instance is a special case, see section 3.
 
 **Usage patterns.** We collect no usage statistics. If anonymous figures about how the product is used ever come, it will only happen if you switch it on yourself, and you can switch it off again at any time.
 
-**Emails from us.** We send the emails you need: sign-in links and a confirmation when you delete your account. If we need to tell you about an important change, we write to you as well. We do not yet send reminders about the trial or renewal. We send newsletters and offers only if you have said yes.
+**Emails from us.** We send the emails you need: sign-in links, a receipt when you buy, a confirmation when you cancel or withdraw, and a confirmation when you delete your account. If we need to tell you about an important change, we write to you as well. We do not yet send reminders about the trial or renewal. We send newsletters and offers only if you have said yes.
 
 ## 3. Your content in your instance
 

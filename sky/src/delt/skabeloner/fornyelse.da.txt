@@ -1,0 +1,16 @@
+Dit abonnement fornyes snart
+
+Hej
+
+Dit årlige abonnement på Clawco fornyes automatisk {{dato}}.
+
+Sælger: {{saelger}}
+Abonnement: {{produkt}}
+Pris: {{pris}}
+Beløbet trækkes {{dato}}, hvis du ikke siger op inden da.
+
+Vil du ikke forny, kan du sige op på din kontoside, til det er sket. Abonnementet løber så til udgangen af perioden.
+
+{{link}}
+
+Clawco

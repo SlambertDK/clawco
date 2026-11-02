@@ -1,0 +1,14 @@
+Dit abonnement er opsagt
+
+Hej
+
+Du har opsagt dit abonnement på Clawco. Her er bekræftelsen.
+
+Sælger: {{saelger}}
+Abonnement: {{produkt}}
+Det slutter: {{slutter}}
+Du har adgang til din Clawco, til det slutter, og der trækkes ikke flere penge.
+
+{{link}}
+
+Clawco

@@ -11,8 +11,9 @@ import { erLand } from './lande.ts';
 import { VILKAAR } from './tekster.ts';
 import { CLAWCO_MAERKE } from './stripe-klient.ts';
 
-/** KC-0174 owns the public terms URLs and the withdrawal-right wording; this is only the slot. */
-export type Juridisk = { vilkaarUrl: string | null; privatlivUrl: string | null; fortrydelsesTekst: string | null };
+/** KC-0174 owns the public terms URLs; the withdrawal sentence (KC-0209) comes from forbrugerret.ts, one per language.
+ *  Live payment is refused while any of the three is missing. */
+export type Juridisk = { vilkaarUrl: string | null; privatlivUrl: string | null; fortrydelsesTekst: Record<'da' | 'en', string> | null };
 
 export type CheckoutInput = {
   kontoId: number;
@@ -46,7 +47,7 @@ export function byggCheckout(a: CheckoutInput, priser: Priser): Stripe.Checkout.
   if (a.tilstand === 'live' && !juraKlar) throw new Error('live-betaling afvist: vilkår, privatlivspolitik og fortrydelsestekst mangler (KC-0174)');
 
   const besked = vilkaarUrl !== null && privatlivUrl !== null
-    ? [VILKAAR[a.sprog](vilkaarUrl, privatlivUrl), fortrydelsesTekst].filter(Boolean).join(' ')
+    ? [VILKAAR[a.sprog](vilkaarUrl, privatlivUrl), fortrydelsesTekst?.[a.sprog]].filter(Boolean).join(' ')
     : VILKAAR.udkast[a.sprog];
   const metadata = { [CLAWCO_MAERKE.noegle]: CLAWCO_MAERKE.vaerdi, konto_id: String(a.kontoId), plan: a.plan, interval: a.interval, land: a.land };
   // The sign-up flow keeps the country on the account, so its way back carries only the plan choice.

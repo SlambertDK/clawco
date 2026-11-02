@@ -33,7 +33,7 @@ export type KontoDeps = {
   afvikler: TenantAfvikler;
   haendelser: Haendelser;
   /** Billing's one-line summary for /konto (KC-0191), wired in server.ts; konto never imports abonnement/. */
-  abonnement?: (kontoId: number) => Promise<{ plan: string; tekst: string }>;
+  abonnement?: (kontoId: number) => Promise<{ plan: string; tekst: string; handlinger?: { href: string; tekst: string }[] }>;
   /** Where the account's Clawco is (KC-0182), wired in server.ts from the fleet; konto never imports fleet/. */
   clawco?: (kontoId: number) => Promise<ClawcoVisning>;
   /** KC-0201: the facts "Få hjælp" puts in the mail (plan and state, versions, placement), wired in server.ts from billing and the

@@ -141,13 +141,12 @@ ${csrfFelt(f.csrf)}
       return { titel: t.planTitel, skript: false, krop: html`<h1>${t.planTitel}</h1>
 <p>${proeve ? t.planIntro(a.proeveDage) : t.planIntroUdenProeve}</p>
 ${a.afbrudt ? html`<p class="besked">${t.afbrudt}</p>` : ''}
-<form method="post" action="/api/abonnement/checkout">
-${csrfFelt(f.csrf)}
+<form method="get" action="/konto/abonnement/bekraeft">
 <input type="hidden" name="land" value="${a.land}">
 <input type="hidden" name="retur" value="tilmelding">
 <fieldset><legend>${t.planTitel}</legend>${planValg}</fieldset>
 <fieldset><legend>${t.intervalFelt}</legend>${intervalValg}</fieldset>
-<button type="submit" class="primaer">${proeve ? t.startProeve(a.proeveDage) : t.tilBetaling}</button>
+<button type="submit" class="primaer">${t.videre}</button>
 </form>
 <p><small>${t.ingenMoms}</small></p>` };
     }

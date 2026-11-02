@@ -8,7 +8,7 @@ import { LANDE } from '../../src/abonnement/lande.ts';
 import { laesPriser } from '../../src/abonnement/priser.ts';
 
 const priser = laesPriser();
-const JURA: Juridisk = { vilkaarUrl: 'https://clawco.example/vilkaar', privatlivUrl: 'https://clawco.example/privatliv', fortrydelsesTekst: 'Jeg giver afkald på fortrydelsesretten (udkast).' };
+const JURA: Juridisk = { vilkaarUrl: 'https://clawco.example/vilkaar', privatlivUrl: 'https://clawco.example/privatliv', fortrydelsesTekst: { da: 'Jeg giver afkald på fortrydelsesretten (udkast).', en: 'I waive the right of withdrawal (draft).' } };
 
 function input(over: Partial<CheckoutInput> = {}): CheckoutInput {
   return {
@@ -102,4 +102,19 @@ test('KC-0198: retur "tilmelding" returns into the sign-up flow (success with th
   assert.deepEqual(Object.fromEntries(cancel.searchParams), { plan: 'sky-husstand', interval: 'aar', afbrudt: '1' });
   // Without retur (or with konto) nothing changes for the subscription page.
   assert.equal(byggCheckout(input({ retur: 'konto' }), priser).success_url, 'https://sky.example.test/api/abonnement/tilbage?session={CHECKOUT_SESSION_ID}');
+});
+
+test('KC-0209: the live-payment refusal lifts only because the withdrawal text now exists; without the terms and privacy URLs it still refuses', async () => {
+  const { laesBetaling } = await import('../../src/abonnement/stripe-klient.ts');
+  const fraConfig = laesBetaling({});
+  assert.equal(fraConfig.juridisk.vilkaarUrl, null);
+  assert.throws(() => byggCheckout(input({ tilstand: 'live', juridisk: fraConfig.juridisk }), priser), /live-betaling afvist/);
+  const medUrl = laesBetaling({ SKY_VILKAAR_URL: 'https://clawco.example/vilkaar', SKY_PRIVATLIV_URL: 'https://clawco.example/privatliv' });
+  const p = byggCheckout(input({ tilstand: 'live', juridisk: medUrl.juridisk }), priser);
+  const besked = (p.custom_text?.terms_of_service_acceptance as { message?: string } | undefined)?.message ?? '';
+  assert.match(besked, /Du har 14 dages fortrydelsesret/);
+  assert.match(besked, /betaler for det leverede/);
+  const en = byggCheckout(input({ tilstand: 'live', sprog: 'en', juridisk: medUrl.juridisk }), priser);
+  assert.match((en.custom_text?.terms_of_service_acceptance as { message?: string } | undefined)?.message ?? '', /14-day right of withdrawal/);
+  assert.throws(() => byggCheckout(input({ tilstand: 'live', juridisk: { ...medUrl.juridisk, fortrydelsesTekst: null } }), priser), /live-betaling afvist/);
 });

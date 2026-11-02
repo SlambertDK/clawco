@@ -1,0 +1,22 @@
+Din kvittering fra Clawco
+
+Hej
+
+Tak for din bestilling. Her er din kvittering.
+
+Sælger: {{saelger}}
+Du har købt: {{produkt}}
+Pris: {{pris}}
+{{betaling}}
+
+Sådan siger du op: åbn din kontoside og tryk "Opsig abonnement". Abonnementet løber til udgangen af den periode, du har betalt for.
+
+{{link}}
+
+Sådan fortryder du: du har 14 dages fortrydelsesret, til og med {{fortrydfrist}}. Åbn din kontoside og tryk "Fortryd aftale".
+
+Dine vilkår: du accepterede vilkårene i version {{vilkaarversion}}. Du kan læse dem her:
+
+{{vilkaarlink}}
+
+Clawco

@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import { esc } from '../html.ts';
 
-export const SKABELONER = ['maillink', 'invitation', 'konto-slettet'] as const;
+export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse'] as const;
 export type Skabelon = (typeof SKABELONER)[number];
 export const SPROG = ['da', 'en'] as const;
 export type Sprog = (typeof SPROG)[number];
@@ -16,6 +16,12 @@ export type SkabelonData = {
   maillink: { link: string; minutter: string };
   invitation: { link: string; inviterer: string; husstand: string; dage: string };
   'konto-slettet': { dage: string };
+  // KC-0209: the consumer-rights mails. Every value is one line of text the caller built from the one price
+  // source and the one seller source; `link` is the account page, `vilkaarlink` the accepted terms.
+  kvittering: { saelger: string; produkt: string; pris: string; betaling: string; fortrydfrist: string; vilkaarversion: string; vilkaarlink: string; link: string };
+  fortrydelse: { saelger: string; produkt: string; tidspunkt: string; tilbage: string };
+  opsigelse: { saelger: string; produkt: string; slutter: string; link: string };
+  fornyelse: { saelger: string; produkt: string; pris: string; dato: string; link: string };
 };
 
 export type Mail = { emne: string; tekst: string; html: string };
@@ -23,14 +29,20 @@ export type Mail = { emne: string; tekst: string; html: string };
 /** A template could not be filled (missing or unsafe data). The message names the field, never its value. */
 export class SkabelonFejl extends Error {}
 
-type Felt = 'link' | 'navn' | 'tal';
+/** `linje`: one line of ordinary text, up to 300 characters (a price line, a date, the seller's identity). */
+type Felt = 'link' | 'navn' | 'tal' | 'linje';
 const FELTER: { [K in Skabelon]: Record<keyof SkabelonData[K], Felt> } = {
   maillink: { link: 'link', minutter: 'tal' },
   invitation: { link: 'link', inviterer: 'navn', husstand: 'navn', dage: 'tal' },
   'konto-slettet': { dage: 'tal' },
+  kvittering: { saelger: 'linje', produkt: 'navn', pris: 'linje', betaling: 'linje', fortrydfrist: 'linje', vilkaarversion: 'navn', vilkaarlink: 'link', link: 'link' },
+  fortrydelse: { saelger: 'linje', produkt: 'navn', tidspunkt: 'linje', tilbage: 'linje' },
+  opsigelse: { saelger: 'linje', produkt: 'navn', slutter: 'linje', link: 'link' },
+  fornyelse: { saelger: 'linje', produkt: 'navn', pris: 'linje', dato: 'linje', link: 'link' },
 };
 
 const MAKS_NAVN = 80;
+const MAKS_LINJE = 300;
 // C0/C1 controls, line/paragraph separators, and the bidi overrides/isolates that can disguise text.
 const FORBUDT = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202A-\u202E\u2066-\u2069]/;
 
@@ -65,6 +77,10 @@ function tjek(skabelon: Skabelon, data: Record<string, string>): Record<string, 
     else if (felt === 'tal') {
       if (!/^[1-9]\d{0,3}$/.test(v)) throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} skal være et tal`);
       ud[navn] = v;
+    } else if (felt === 'linje') {
+      const t = v.trim();
+      if (!t || t.length > MAKS_LINJE || FORBUDT.test(t)) throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} skal være én linje på 1-${MAKS_LINJE} tegn`);
+      ud[navn] = t;
     } else {
       const t = v.trim();
       if (!t || t.length > MAKS_NAVN || FORBUDT.test(t)) throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} skal være én linje på 1-${MAKS_NAVN} tegn`);
@@ -97,3 +113,7 @@ export function renderMail(b: { skabelon: Skabelon; sprog?: Sprog; data: Record<
 export const maillink = (data: SkabelonData['maillink'], sprog?: Sprog): Mail => renderMail({ skabelon: 'maillink', data, ...(sprog ? { sprog } : {}) });
 export const invitation = (data: SkabelonData['invitation'], sprog?: Sprog): Mail => renderMail({ skabelon: 'invitation', data, ...(sprog ? { sprog } : {}) });
 export const kontoSlettet = (sprog?: Sprog): Mail => renderMail({ skabelon: 'konto-slettet', data: {}, ...(sprog ? { sprog } : {}) });
+export const kvittering = (data: SkabelonData['kvittering'], sprog?: Sprog): Mail => renderMail({ skabelon: 'kvittering', data, ...(sprog ? { sprog } : {}) });
+export const fortrydelse = (data: SkabelonData['fortrydelse'], sprog?: Sprog): Mail => renderMail({ skabelon: 'fortrydelse', data, ...(sprog ? { sprog } : {}) });
+export const opsigelse = (data: SkabelonData['opsigelse'], sprog?: Sprog): Mail => renderMail({ skabelon: 'opsigelse', data, ...(sprog ? { sprog } : {}) });
+export const fornyelse = (data: SkabelonData['fornyelse'], sprog?: Sprog): Mail => renderMail({ skabelon: 'fornyelse', data, ...(sprog ? { sprog } : {}) });

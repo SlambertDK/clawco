@@ -5,9 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tilstandFraNoegle, skjulNoegler, NOEGLE_NAVN, WEBHOOK_NOEGLE_NAVN, laesBetaling } from '../../src/abonnement/stripe-klient.ts';
 import { FalskBetalingsKlient } from '../../src/abonnement/falsk.ts';
+import { FORTRYDELSES_TEKST } from '../../src/abonnement/forbrugerret.ts';
 
-const SENTINEL_TEST = 'rk_test_SENTINELhemmelig0123456789';
-const SENTINEL_LIVE = 'rk_live_SENTINELhemmelig0123456789';
+const SENTINEL_TEST = 'rk_test_SENTINELhemmelig0123456789'; // gitleaks:allow (a fake key in a test)
+const SENTINEL_LIVE = 'rk_live_SENTINELhemmelig0123456789'; // gitleaks:allow (a fake key in a test)
 
 function afviserUdenVaerdi(noegle: string | undefined, moenster: RegExp): void {
   assert.throws(() => tilstandFraNoegle(noegle), (err: unknown) => {
@@ -21,13 +22,13 @@ function afviserUdenVaerdi(noegle: string | undefined, moenster: RegExp): void {
 }
 
 test('billing config (KC-0191/KC-0192): all optional, validated when set, errors name the key and never the value', () => {
-  assert.deepEqual(laesBetaling({}), { noegle: null, webhookHemmelighed: null, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: null } });
-  const c = laesBetaling({ SKY_STRIPE_SECRET_KEY: SENTINEL_TEST, SKY_STRIPE_WEBHOOK_SECRET: 'whsec_SENTINEL123', SKY_VILKAAR_URL: 'https://clawco.example/vilkaar', SKY_PRIVATLIV_URL: 'https://clawco.example/privatliv' });
+  assert.deepEqual(laesBetaling({}), { noegle: null, webhookHemmelighed: null, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: FORTRYDELSES_TEKST } });
+  const c = laesBetaling({ SKY_STRIPE_SECRET_KEY: SENTINEL_TEST, SKY_STRIPE_WEBHOOK_SECRET: 'whsec_SENTINEL123', SKY_VILKAAR_URL: 'https://clawco.example/vilkaar', SKY_PRIVATLIV_URL: 'https://clawco.example/privatliv' }); // gitleaks:allow (a fake key in a test)
   assert.equal(c.noegle, SENTINEL_TEST);
   assert.equal(c.webhookHemmelighed, 'whsec_SENTINEL123');
-  assert.deepEqual(c.juridisk, { vilkaarUrl: 'https://clawco.example/vilkaar', privatlivUrl: 'https://clawco.example/privatliv', fortrydelsesTekst: null });
+  assert.deepEqual(c.juridisk, { vilkaarUrl: 'https://clawco.example/vilkaar', privatlivUrl: 'https://clawco.example/privatliv', fortrydelsesTekst: FORTRYDELSES_TEKST });
   for (const [env, navn] of [
-    [{ SKY_STRIPE_SECRET_KEY: 'sk_live_SENTINELhemmelig' }, NOEGLE_NAVN],
+    [{ SKY_STRIPE_SECRET_KEY: 'sk_live_SENTINELhemmelig' }, NOEGLE_NAVN], // gitleaks:allow (a fake key in a test)
     [{ SKY_STRIPE_WEBHOOK_SECRET: 'SENTINELhemmelig' }, WEBHOOK_NOEGLE_NAVN],
     [{ SKY_VILKAAR_URL: 'http://clawco.example/SENTINEL' }, 'SKY_VILKAAR_URL'],
     [{ SKY_PRIVATLIV_URL: 'ikke en url SENTINEL' }, 'SKY_PRIVATLIV_URL'],
@@ -47,8 +48,8 @@ test('a restricted test key means test mode, a restricted live key means live mo
 });
 
 test('test mode may use a standard secret key (sk_test_); a live secret key (sk_live_) is refused: live needs rk_live_', () => {
-  assert.equal(tilstandFraNoegle('sk_test_SENTINELhemmelig0123456789'), 'test');
-  afviserUdenVaerdi('sk_live_SENTINELhemmelig0123456789', /begrænset/);
+  assert.equal(tilstandFraNoegle('sk_test_SENTINELhemmelig0123456789'), 'test'); // gitleaks:allow (a fake key in a test)
+  afviserUdenVaerdi('sk_live_SENTINELhemmelig0123456789', /begrænset/); // gitleaks:allow (a fake key in a test)
 });
 
 test('a missing, blank or malformed key is refused and names the key, never its value', () => {

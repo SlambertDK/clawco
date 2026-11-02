@@ -1,0 +1,14 @@
+Your subscription is cancelled
+
+Hello
+
+You have cancelled your Clawco subscription. Here is the confirmation.
+
+Seller: {{saelger}}
+Subscription: {{produkt}}
+It ends: {{slutter}}
+You keep access to your Clawco until it ends, and nothing more is charged.
+
+{{link}}
+
+Clawco

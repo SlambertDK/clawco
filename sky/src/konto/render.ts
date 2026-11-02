@@ -59,7 +59,7 @@ export type ClawcoVisning = { url: string } | { venter: true } | null;
 /** KC-0201: "Få hjælp" on the account page: the mailto (built by hjaelp.ts) and where its text can be read first. */
 export type HjaelpLink = { mailto: string };
 
-export function kontoSide(a: { email: string; csrf: string; passkeyAntal: number; sessioner: SessionVisning[]; nuvaerendeId: number; abonnement?: { plan: string; tekst: string }; clawco?: ClawcoVisning; hjaelp?: HjaelpLink }): string {
+export function kontoSide(a: { email: string; csrf: string; passkeyAntal: number; sessioner: SessionVisning[]; nuvaerendeId: number; abonnement?: { plan: string; tekst: string; handlinger?: { href: string; tekst: string }[] }; clawco?: ClawcoVisning; hjaelp?: HjaelpLink }): string {
   const sessioner = a.sessioner.map((s) => html`<li><span>${s.enhed || '?'} <small>· ${s.metode === 'passkey' ? T.metodePasskey : T.metodeLink} · ${T.sidstSet} ${tid(s.sidstSet)}</small></span>${s.id === a.nuvaerendeId
     ? html`<small>${T.denneEnhed}</small>`
     : html`<form method="post" action="/konto/sessioner/${s.id}/afslut" class="inline">${csrfFelt(a.csrf)}<button type="submit" class="lille">${T.logUdHer}</button></form>`}</li>`);
@@ -71,6 +71,7 @@ ${a.abonnement ? html`<section>
 <h2>${T.abonnementTitel}</h2>
 <p>${a.abonnement.plan} <small>· ${a.abonnement.tekst}</small></p>
 <p><a href="/konto/abonnement">${T.abonnementLink}</a></p>
+${a.abonnement.handlinger?.length ? html`<ul class="liste">${a.abonnement.handlinger.map((h) => html`<li><a href="${h.href}">${h.tekst}</a></li>`)}</ul>` : ''}
 </section>` : ''}
 <section>
 <h2>${T.passkeysTitel}</h2>

@@ -30,7 +30,9 @@ import { koerMedInput, noegleRunFlag } from './hemmeligheder/levering.ts';
 import { destruktionsLoekke } from './hemmeligheder/dagligt.ts';
 import { laesOmkostninger } from './delt/omkostninger.ts';
 import { abonnementRuter, webhookDeps, type AbonnementDeps } from './abonnement/ruter.ts';
-import { devStripeRuter } from './abonnement/dev.ts';
+import { devStripeRuter, devHaendelser } from './abonnement/dev.ts';
+import { kontoHandlinger } from './abonnement/handlinger.ts';
+import { laesSaelgere } from './delt/saelger.ts';
 import { laesBetaling, type BetalingsKlient } from './abonnement/stripe-klient.ts';
 import { StripeBetalingsKlient } from './abonnement/stripe-sdk.ts';
 import { FalskBetalingsKlient } from './abonnement/falsk.ts';
@@ -48,7 +50,7 @@ import { abonnementEksport } from './abonnement/eksport.ts';
 import { hentKonto } from './konto/konto.ts';
 import { loginUrl, tenantOrigin } from './gateway/login-vej.ts';
 import { tilmeldingRuter, type TilmeldingDeps } from './tilmelding/ruter.ts';
-import { laesSamtykke, profilErKlar, samtykkeGyldigt } from './tilmelding/samtykke.ts';
+import { JURIDISK_MAPPE, laesSamtykke, profilErKlar, samtykkeGyldigt } from './tilmelding/samtykke.ts';
 import { stopPaaSignal } from './delt/stop.ts';
 import { gemProfil, hentProfil, noterTilmeldingstid } from './konto/profil.ts';
 import { LANDE } from './abonnement/lande.ts';
@@ -316,6 +318,7 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
   // The account's language from sign-up (KC-0198) goes to Stripe (Checkout's locale); Danish until chosen.
   const somIndlogget = async (l: Awaited<ReturnType<typeof adgang.login>>) => (l && l.konto.email ? { kontoId: l.konto.id, email: l.konto.email, sprog: (await hentProfil(db, l.konto.id))?.sprog ?? 'da', csrf: l.session.csrf } : null);
   const samtykke = laesSamtykke();
+  const saelgere = laesSaelgere(JURIDISK_MAPPE);
   // KC-0204: the gateway lets an account into its Clawco only on the current texts (read once at start).
   const samtykkeOk = async (kontoId: number): Promise<boolean> => samtykkeGyldigt(await hentProfil(db, kontoId), samtykke);
   const abonnement: AbonnementDeps = {
@@ -326,8 +329,20 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
       return t ? { rolle: t.rolle, antal: t.medlemmer.length + 1 } : null;
     },
     tilPlan: async (kontoId) => config.tilmelding === 'open' && profilErKlar(await hentProfil(db, kontoId), samtykke),
+    // KC-0209: mail (receipts, cancellation, withdrawal), the seller read from the terms (a Sky that cannot name its seller
+    // does not start), the terms version a purchase records (the same record KC-0204 keeps) and the account's address.
+    post: konto.post,
+    saelger: (sprog) => saelgere[sprog],
+    vilkaar: { version: samtykke.vilkaar.version, url: (sprog) => `https://${config.basedomain}${sprog === 'en' ? '/en' : ''}${samtykke.vilkaar.sti}` },
+    kontakt: async (kontoId) => {
+      const k = await hentKonto(db, kontoId);
+      return k?.email ? { email: k.email, sprog: (await hentProfil(db, kontoId))?.sprog ?? 'da' } : null;
+    },
   };
-  konto.abonnement = async (kontoId) => kontoResume(await hentRettigheder(db, kontoId, priser, new Date()), priser);
+  konto.abonnement = async (kontoId) => {
+    const r = await hentRettigheder(db, kontoId, priser, new Date());
+    return kontoResume(r, priser, await kontoHandlinger(db, kontoId, r, new Date()));
+  };
   // KC-0201: the facts "Få hjælp" puts in the mail. Billing's entitlement and the fleet's row, handed to konto as one seam
   // (konto never imports either); the account number and the last error code are added by konto itself.
   const sha = gitSha();
@@ -349,6 +364,8 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
   };
   opsigVedSletning(konto.haendelser, { db, klient });
   const dev = falsk ? { klient: falsk, priser, publicUrl: config.publicUrl, webhook: webhookDeps(abonnement) } : null;
+  // The fake Stripe tells the real webhook handler about its own cancellations, the way Stripe does.
+  if (falsk && dev) devHaendelser(falsk, dev.webhook);
   const loginVej: LoginVejDeps = {
     db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: gk.noegle, ruter,
     login: async (c) => { const l = await adgang.login(c); return l ? { kontoId: l.konto.id, sessionId: l.session.id } : null; },

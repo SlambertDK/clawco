@@ -1,0 +1,22 @@
+Your receipt from Clawco
+
+Hello
+
+Thank you for your order. Here is your receipt.
+
+Seller: {{saelger}}
+You bought: {{produkt}}
+Price: {{pris}}
+{{betaling}}
+
+How to cancel: open your account page and press "Cancel subscription". The subscription runs to the end of the period you have paid for.
+
+{{link}}
+
+How to withdraw: you have a 14-day right of withdrawal, up to and including {{fortrydfrist}}. Open your account page and press "Withdraw from the agreement".
+
+Your terms: you accepted the terms in version {{vilkaarversion}}. You can read them here:
+
+{{vilkaarlink}}
+
+Clawco

@@ -1,0 +1,13 @@
+Receipt for your withdrawal
+
+Hello
+
+We have registered that you withdrew from the agreement about Clawco. Here is your receipt.
+
+Seller: {{saelger}}
+Agreement: {{produkt}}
+The withdrawal was registered: {{tidspunkt}}
+The subscription is cancelled at once.
+{{tilbage}}
+
+Clawco

@@ -11,6 +11,17 @@ import { devCheckoutSide, beskedSide } from './render.ts';
 import { sikkerhedsHoveder } from './ruter.ts';
 import { T } from './tekster.ts';
 
+/** The fake Stripe's own changes (a cancellation from "Opsig" or "Fortryd aftale") arrive at the real webhook handler as
+ *  signed events, so the entitlement follows exactly as in production. Development and smoke tests only. */
+export function devHaendelser(klient: FalskBetalingsKlient, webhook: WebhookDeps): void {
+  let n = 0;
+  klient.haendelsesSink = async (type, kunde) => {
+    if (!webhook.hemmelighed) return;
+    const krop = JSON.stringify({ id: `evt_dev_s_${Date.now()}_${++n}`, object: 'event', type, data: { object: { id: `sub_dev_${n}`, object: 'subscription', customer: kunde } } });
+    await modtagWebhook(webhook, Buffer.from(krop), signerTestHaendelse(krop, webhook.hemmelighed));
+  };
+}
+
 export function devStripeRuter(d: { klient: FalskBetalingsKlient; priser: Priser; publicUrl: string; webhook: WebhookDeps }): Hono {
   const app = new Hono();
   app.use('/dev/stripe/*', sikkerhedsHoveder);

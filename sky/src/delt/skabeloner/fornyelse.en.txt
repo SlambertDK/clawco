@@ -1,0 +1,16 @@
+Your subscription renews soon
+
+Hello
+
+Your yearly Clawco subscription renews automatically on {{dato}}.
+
+Seller: {{saelger}}
+Subscription: {{produkt}}
+Price: {{pris}}
+The amount is charged on {{dato}} unless you cancel before then.
+
+If you do not want to renew, you can cancel on your account page until then. The subscription then runs to the end of the period.
+
+{{link}}
+
+Clawco

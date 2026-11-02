@@ -10,7 +10,14 @@ const DATA: Record<Skabelon, Record<string, string>> = {
   maillink: { link: LINK, minutter: '15' },
   invitation: { link: LINK, inviterer: 'Henrik', husstand: 'Familien Lambert', dage: '7' },
   'konto-slettet': { dage: '30' },
+  kvittering: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', pris: '79 kr. om måneden', betaling: 'Næste betaling 2. december 2026.', fortrydfrist: '16. november 2026', vilkaarversion: '0.1-udkast', vilkaarlink: 'https://clawco.example/vilkaar', link: LINK },
+  fortrydelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', tidspunkt: '5. november 2026 kl. 11.00', tilbage: 'Vi tilbagebetaler 65,83 kr. inden for 14 dage.' },
+  opsigelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', slutter: '2. december 2026', link: LINK },
+  fornyelse: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', pris: '790 kr. om året', dato: '2. november 2027', link: LINK },
 };
+
+/** Mails that carry no link of the generic kind (the account link): the deletion receipt and the withdrawal receipt. */
+const UDEN_LINK = new Set<Skabelon>(['konto-slettet', 'fortrydelse']);
 
 function antal(hoe: string, naal: string): number {
   return hoe.split(naal).length - 1;
@@ -36,6 +43,8 @@ for (const skabelon of SKABELONER) {
         // KC-0206: the receipt says when the backups are gone and that invoices are kept for bookkeeping.
         assert.match(m.tekst, sprog === 'da' ? /inden for 30 dage/ : /within 30 days/);
         assert.match(m.tekst, sprog === 'da' ? /bogføringsloven/ : /bookkeeping law/);
+      } else if (UDEN_LINK.has(skabelon)) {
+        assert.doesNotMatch(m.tekst + m.html, /https?:\/\//);
       } else {
         assert.equal(antal(m.tekst, LINK), 1, 'linket står præcis én gang i teksten');
         assert.equal(antal(m.html, `href="${esc(LINK)}"`), 1, 'linket står præcis én gang i HTML');
@@ -80,4 +89,37 @@ test('missing or unsafe data is refused, never sent half-filled', () => {
 test('a local http link is allowed for development only on localhost', () => {
   const m = renderMail({ skabelon: 'maillink', data: { link: 'http://localhost:8781/log-ind/link?t=x', minutter: '15' } });
   assert.match(m.tekst, /http:\/\/localhost:8781/);
+});
+
+// KC-0209: what the consumer-rights mails must say.
+test('the receipt names the seller, product, price, period, how to cancel, how to withdraw and the accepted terms version with its link', () => {
+  for (const sprog of SPROG as readonly Sprog[]) {
+    const m = renderMail({ skabelon: 'kvittering', sprog, data: DATA.kvittering });
+    for (const del of [m.tekst, m.html]) {
+      for (const v of ['Sælger Eksempel (personligt drevet)', 'Sky Solo', '79 kr. om måneden', 'Næste betaling 2. december 2026.', '16. november 2026', '0.1-udkast', 'https://clawco.example/vilkaar']) assert.ok(del.includes(v), `${sprog}: ${v}`);
+      assert.match(del, sprog === 'da' ? /Opsig abonnement/ : /Cancel subscription/);
+      assert.match(del, sprog === 'da' ? /Fortryd aftale/ : /Withdraw from the agreement/);
+      assert.match(del, sprog === 'da' ? /14 dages fortrydelsesret/ : /14-day right of withdrawal/);
+      assert.doesNotMatch(del, /moms|\bVAT\b/i, 'no VAT is shown anywhere while the seller is not VAT-registered (KC-0194, G6)');
+    }
+  }
+});
+
+test('the withdrawal receipt, the cancellation and the reminder carry the seller and the one thing they are about', () => {
+  for (const sprog of SPROG as readonly Sprog[]) {
+    const f = renderMail({ skabelon: 'fortrydelse', sprog, data: DATA.fortrydelse });
+    assert.ok(f.tekst.includes('Vi tilbagebetaler 65,83 kr. inden for 14 dage.') && f.tekst.includes('5. november 2026 kl. 11.00') && f.tekst.includes('Sælger Eksempel'));
+    const o = renderMail({ skabelon: 'opsigelse', sprog, data: DATA.opsigelse });
+    assert.ok(o.tekst.includes('2. december 2026') && o.tekst.includes('Sælger Eksempel'));
+    const n = renderMail({ skabelon: 'fornyelse', sprog, data: DATA.fornyelse });
+    assert.ok(n.tekst.includes('790 kr. om året') && n.tekst.includes('2. november 2027') && n.tekst.includes('Sælger Eksempel'));
+  }
+});
+
+test('the consumer-rights mails refuse a line with a newline or an over-long line', () => {
+  const nej = (skabelon: Skabelon, data: Record<string, string>) => assert.throws(() => renderMail({ skabelon, data }), /skabelon/i);
+  nej('kvittering', { ...DATA.kvittering, saelger: 'a\r\nBcc: x@example.test' });
+  nej('kvittering', { ...DATA.kvittering, pris: 'x'.repeat(301) });
+  nej('fortrydelse', { ...DATA.fortrydelse, tilbage: '' });
+  nej('opsigelse', { ...DATA.opsigelse, link: 'http://evil.example.test/x' });
 });

@@ -284,7 +284,7 @@ test('KC-0198: the account language chosen at sign-up reaches billing (Checkout 
     await app.request('https://konto.example.test/api/abonnement/checkout', {
       method: 'POST',
       headers: { cookie: `__Host-sky=${token}`, origin: 'https://konto.example.test', 'content-type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ csrf: session.csrf, plan: 'sky-solo', interval: 'maaned', land: 'SE' }),
+      body: new URLSearchParams({ csrf: session.csrf, plan: 'sky-solo', interval: 'maaned', land: 'SE', vilkaar: sam.vilkaar.version, straks: 'ja' }),
     });
     return (klient.kald.filter((k) => k.metode === 'opretCheckout').at(-1)?.args as { locale?: string } | undefined)?.locale;
   };
