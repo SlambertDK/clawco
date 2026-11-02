@@ -1,14 +1,12 @@
 ---
-version: 0.1-udkast
+version: 1.0
 dato: 2026-11-02
-status: laest
+status: udgivet
 sprog: en
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
+Version 1.0 · 2026-11-02
 
-Version 0.1-udkast · 2026-11-02
-
-> English translation of the Danish draft, written by Claude and read by the owner (Henrik Lambert) on 2026-11-02. Not legal advice. Not published. If the two versions differ, the Danish text applies.
+> English translation of the Danish text. If the two versions differ, the Danish text applies.
 
 # Data Processing Agreement for Clawco Sky
 
@@ -36,7 +34,7 @@ We do not process the content for our own purposes. We do not sell it and do not
 
 ## 4. Confidentiality
 
-Everyone at our company who could come near the content is bound by confidentiality. We do not read the content, and there is no support feature that gives us access to the customer's instance. Whoever runs the server has technical access to its disks, and in beta the disks are not yet encrypted at rest. That access is used only for operations.
+Everyone at our company who could come near the content is bound by confidentiality. We do not read the content. Support gets in only if the customer, as owner, turns on “Lad support se med” for 1, 4 or 24 hours; while it is on, one person from support sees what the customer sees but cannot change anything, and every look is logged. Whoever runs the server has technical access to its disks, and in beta the disks are not yet encrypted at rest. That access is used only for operations.
 
 ## 5. Security
 
@@ -103,7 +101,7 @@ For the customer: [name, date]. For Henrik Lambert (a private individual, no com
 - **Encryption:** all traffic uses TLS up to Cloudflare's edge and from there an encrypted tunnel to the server. Model keys are held in an encrypted file per customer, and each customer has its own data key. In beta the disks are not yet encrypted at rest.
 - **Network:** no instance has a public port. All access goes through our gateway, which checks sign-in at the entrance.
 - **Logging without content:** logs and error reports never contain email text, messages or prompts.
-- **Access control:** no staff access to content. Access to the server needs a personal SSH key. There is no support access to the customer's instance.
+- **Access control:** staff have no access to content, except when the customer has turned on “Lad support se med” (read-only, time-boxed and logged). Access to the server needs a personal SSH key.
 - **Backups:** built but not yet switched on in beta. When they are: every night, encrypted per customer, kept for at most 30 days in the EU.
 - **Policy layer:** the agent cannot pay, write to others or delete without the customer's yes.
 - **Contingency:** a written plan for breaches and recovery has not been written yet. Until it is, section 9 applies.

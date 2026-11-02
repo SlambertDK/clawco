@@ -1,18 +1,16 @@
 ---
-version: 0.1-udkast
+version: 1.0
 dato: 2026-11-02
-status: laest
+status: udgivet
 sprog: en
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
+Version 1.0 · 2026-11-02
 
-Version 0.1-udkast · 2026-11-02
-
-> English translation of the Danish draft, written by Claude and read by the owner (Henrik Lambert) on 2026-11-02. Not legal advice. Not published. If the two versions differ, the Danish text applies.
+> English translation of the Danish text. If the two versions differ, the Danish text applies.
 
 # Cookies on clawco.work and Clawco Sky
 
-Effective from: [date of publication]
+Effective from: 2026-11-02
 
 In short: clawco.work sets no cookies. When you sign in, we use only the cookies needed to keep you signed in. We do not track you. That is why the site has no cookie banner.
 

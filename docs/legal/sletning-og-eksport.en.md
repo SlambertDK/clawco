@@ -1,18 +1,16 @@
 ---
-version: 0.1-udkast
+version: 1.0
 dato: 2026-11-02
-status: laest
+status: udgivet
 sprog: en
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
+Version 1.0 · 2026-11-02
 
-Version 0.1-udkast · 2026-11-02
-
-> English translation of the Danish draft, written by Claude and read by the owner (Henrik Lambert) on 2026-11-02. Not legal advice. Not published. If the two versions differ, the Danish text applies.
+> English translation of the Danish text. If the two versions differ, the Danish text applies.
 
 # Deletion and Export in Clawco Sky
 
-Effective from: [date of publication]
+Effective from: 2026-11-02
 
 Your content is yours. You can take it with you, and you can delete it. You do not have to ask us for permission, and you do not have to write to us. This page says how, and what happens afterwards.
 

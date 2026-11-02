@@ -1,16 +1,14 @@
 ---
-version: 0.1-udkast
+version: 1.0
 dato: 2026-11-02
-status: laest
+status: udgivet
 sprog: da
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
-
-Version 0.1-udkast · 2026-11-02
+Version 1.0 · 2026-11-02
 
 # Privatlivspolitik for Clawco Sky
 
-Gælder fra: [dato for offentliggørelse]
+Gælder fra: 2026-11-02
 
 Her står, hvilke oplysninger vi behandler, hvorfor, hvem der kan se dem, og hvad du kan gøre. Politikken følger GDPR art. 13 og 14. Den gælder for Clawco Sky, ikke for Clawco, du kører selv.
 

@@ -1,18 +1,16 @@
 ---
-version: 0.1-udkast
+version: 1.0
 dato: 2026-11-02
-status: laest
+status: udgivet
 sprog: en
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
+Version 1.0 · 2026-11-02
 
-Version 0.1-udkast · 2026-11-02
-
-> English translation of the Danish draft, written by Claude and read by the owner (Henrik Lambert) on 2026-11-02. Not legal advice. Not published. If the two versions differ, the Danish text applies.
+> English translation of the Danish text. If the two versions differ, the Danish text applies.
 
 # Privacy Policy for Clawco Sky
 
-Effective from: [date of publication]
+Effective from: 2026-11-02
 
 This page says what information we process, why, who can see it, and what you can do. The policy follows GDPR Art. 13 and 14. It applies to Clawco Sky, not to a Clawco you run yourself.
 

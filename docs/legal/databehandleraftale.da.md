@@ -1,12 +1,10 @@
 ---
-version: 0.1-udkast
+version: 1.0
 dato: 2026-11-02
-status: laest
+status: udgivet
 sprog: da
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
-
-Version 0.1-udkast · 2026-11-02
+Version 1.0 · 2026-11-02
 
 # Databehandleraftale for Clawco Sky
 
@@ -34,7 +32,7 @@ Vi behandler ikke indholdet til egne formål. Vi sælger det ikke og bruger det 
 
 ## 4. Tavshedspligt
 
-Alle hos os, der kan komme i nærheden af indholdet, har tavshedspligt. Vi læser ikke indholdet, og der findes ingen supportfunktion, der giver os adgang til kundens instans. Den, der driver serveren, har teknisk adgang til dens diske, og i beta er diskene endnu ikke krypteret i hvile. Den adgang bruges kun til drift.
+Alle hos os, der kan komme i nærheden af indholdet, har tavshedspligt. Vi læser ikke indholdet. Support kommer kun ind, hvis kunden som ejer selv slår “Lad support se med” til i 1, 4 eller 24 timer; imens kan én fra support se det samme som kunden, men ikke ændre noget, og hvert kig logges. Den, der driver serveren, har teknisk adgang til dens diske, og i beta er diskene endnu ikke krypteret i hvile. Den adgang bruges kun til drift.
 
 ## 5. Sikkerhed
 
@@ -101,7 +99,7 @@ For kunden: [navn, dato]. For Henrik Lambert (personligt drevet, uden selskab): 
 - **Kryptering:** al trafik går over TLS frem til Cloudflares kant og derfra gennem en krypteret tunnel til serveren. Modelnøgler ligger i en krypteret fil per kunde, og hver kunde har sin egen datanøgle. Diskene er i beta endnu ikke krypteret i hvile.
 - **Netværk:** ingen instans har en offentlig port. Al adgang går gennem vores gateway, som tjekker login ved indgangen.
 - **Logning uden indhold:** logs og fejlrapporter indeholder aldrig mailtekster, beskeder eller prompts.
-- **Adgangsstyring:** ingen adgang til indhold for medarbejdere. Adgang til serveren kræver en personlig SSH-nøgle. Der findes ingen supportadgang til kundens instans.
+- **Adgangsstyring:** medarbejdere har ingen adgang til indhold, undtagen når kunden selv har slået “Lad support se med” til (skrivebeskyttet, tidsbegrænset og logget). Adgang til serveren kræver en personlig SSH-nøgle.
 - **Backup:** bygget, men endnu ikke slået til i beta. Når den er: hver nat, krypteret per kunde, gemt højst 30 dage i EU.
 - **Politiklag:** agenten kan ikke betale, skrive til andre eller slette uden kundens ja.
 - **Beredskab:** en skriftlig plan for brud og gendannelse er endnu ikke skrevet. Indtil den er, gælder pkt. 9.

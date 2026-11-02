@@ -1,16 +1,14 @@
 ---
-version: 0.1-udkast
+version: 1.0
 dato: 2026-11-02
-status: laest
+status: udgivet
 sprog: da
 ---
-> UDKAST / DRAFT — skrevet af Claude 2026-10-31, læst af ejeren (Henrik Lambert) 2026-11-02. Ikke juridisk rådgivning. Ikke offentliggjort.
-
-Version 0.1-udkast · 2026-11-02
+Version 1.0 · 2026-11-02
 
 # Vilkår for Clawco Sky
 
-Gælder fra: [dato for offentliggørelse]
+Gælder fra: 2026-11-02
 
 ## 1. Hvem vi er
 

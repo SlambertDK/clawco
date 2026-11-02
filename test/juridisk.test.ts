@@ -115,13 +115,14 @@ test('laesDokumenter: earlier versions are the archived files, newest first; non
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('the real files: all twelve have frontmatter, version 0.1-udkast status laest, and the pairs agree', () => {
+test('the real files: all twelve are published as version 1.0, pass the publication check, and the pairs agree', () => {
   const alle = laesDokumenter(DOCS);
   assert.equal(alle.length, 12);
   for (const d of alle) {
-    // The version accounts accepted at sign-up; 1.0 comes with publication, not before (no re-accept of an unchanged text).
-    assert.equal(d.meta.version, '0.1-udkast', d.fil);
-    assert.equal(d.meta.status, 'laest', `${d.fil}: read by the owner 2026-11-02, not yet published`);
+    // Published 2026-11-02 under the owner's standing decision (b); accounts that accepted 0.1-udkast re-accept 1.0.
+    assert.equal(d.meta.version, '1.0', d.fil);
+    assert.equal(d.meta.status, 'udgivet', d.fil);
+    assert.deepEqual(tjekUdgivelse(d.meta.status, readFileSync(path.join(DOCS, `${d.fil}.${d.sprog}.md`), 'utf8')), [], d.fil);
     assert.ok(d.titel.length > 3, `${d.fil} has an h1`);
   }
 });
@@ -171,7 +172,8 @@ test('byggJuridisk: a draft shows the red-bordered banner in its own language, v
 });
 
 test('byggJuridisk: a laest page (read by the owner) shows its own banner, version and date in the header, and is not indexed', () => {
-  const { ud } = byg(DOCS);
+  const dir = lavDocs((id, sprog) => ({ meta: { status: 'laest', version: '0.1-udkast', dato: '2026-11-02' }, tekst: `\n> UDKAST / DRAFT — læst af ejeren.\n\nVersion 0.1-udkast · 2026-11-02\n\n# ${id} ${sprog}\n\nTekst.\n` }));
+  const { ud } = byg(dir);
   try {
     const da = side(ud, 'vilkaar.html');
     assert.match(da.querySelector('.udkast.laest')?.textContent ?? '', /Udkast — læst af ejeren, ikke endeligt/);
@@ -187,7 +189,7 @@ test('byggJuridisk: a laest page (read by the owner) shows its own banner, versi
     // The file's own draft notice and "Version 0.1-udkast" line are replaced by the banner and the header: once, not twice.
     assert.equal((da.querySelector('main')?.textContent ?? '').split('0.1-udkast').length - 1, 1);
     assert.match(css(ud), /\.udkast\s*\{[^}]*border[^}]*var\(--graense\)/);
-  } finally { rmSync(ud, { recursive: true, force: true }); }
+  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(ud, { recursive: true, force: true }); }
 });
 const css = (ud: string) => readFileSync(path.join(ud, 'site.css'), 'utf8');
 
@@ -273,14 +275,15 @@ test('the real build: node scripts/site-byg.mjs writes the legal pages next to t
 });
 
 test('byggJuridisk: the overview pages carry the draft banner while any of their texts is a draft (KC-0164)', () => {
-  const { ud } = byg(DOCS);
+  const laest = lavDocs(() => ({ meta: { status: 'laest', version: '0.1-udkast' } }));
+  const { ud } = byg(laest);
   try {
     for (const [rel, tekst] of [['juridisk.html', 'Udkast — læst af ejeren, ikke endeligt'], ['legal.html', 'Draft — read by the owner, not final']] as const) {
       const b = side(ud, rel).querySelector('main .udkast[role="note"]');
       assert.ok(b, `${rel}: no banner`);
       assert.match(b.textContent ?? '', new RegExp(tekst));
     }
-  } finally { rmSync(ud, { recursive: true, force: true }); }
+  } finally { rmSync(laest, { recursive: true, force: true }); rmSync(ud, { recursive: true, force: true }); }
   // One draft among read texts: the overview says the louder of the two.
   const dir = lavDocs((id) => ({ meta: { status: id === 'cookies' ? 'udkast' : 'laest' } }));
   const b = byg(dir);
