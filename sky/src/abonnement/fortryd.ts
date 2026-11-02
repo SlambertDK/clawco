@@ -61,11 +61,11 @@ export async function fortryd(d: KoebDeps, a: { kontoId: number; email: string; 
     b = o.bestilling;
     const r = await registrerFortrydelse(d.db, {
       bestillingId: b.id, kontoId: a.kontoId, tidspunkt: nu, brugteDage: o.brugteDage, periodeDage: o.periodeDage, tilbageOere: o.tilbageOere,
-      forfald: new Date(nu.getTime() + FRIST_DAGE * DAG_MS), beloebOpgave: o.tilbageOere,
+      forfald: new Date(nu.getTime() + FRIST_DAGE * DAG_MS), beloebOpgave: o.tilbageOere, valuta: b.valuta,
     });
     f = await hentFortrydelse(d.db, b.id);
     // The one place the owner is told: the journal line and the open row. The refund is his, in Stripe, by hand.
-    if (r.ny && r.refusionId !== null) console.error(`sky abonnement: REFUSIONSOPGAVE ${r.refusionId}: konto ${a.kontoId} har fortrudt, ${beloeb(o.tilbageOere, 'da')} skal tilbagebetales i Stripe senest ${dato(new Date(nu.getTime() + FRIST_DAGE * DAG_MS), 'da')} og markeres udført`);
+    if (r.ny && r.refusionId !== null) console.error(`sky abonnement: REFUSIONSOPGAVE ${r.refusionId}: konto ${a.kontoId} har fortrudt, ${beloeb(o.tilbageOere, 'da', b.valuta)} skal tilbagebetales i Stripe senest ${dato(new Date(nu.getTime() + FRIST_DAGE * DAG_MS), 'da')} og markeres udført`);
     else if (r.ny) console.log(`sky abonnement: konto ${a.kontoId} har fortrudt en gratis prøve (intet betalt, ingen refusion)`);
   }
   if (!f || !b || !b.stripeAbonnement) return { art: 'intet' };
@@ -85,7 +85,7 @@ export async function fortryd(d: KoebDeps, a: { kontoId: number; email: string; 
       til: a.email, skabelon: 'fortrydelse', sprog: a.sprog,
       data: {
         saelger: d.saelger(a.sprog), produkt: produktNavn(d, b.plan), tidspunkt: tidspunkt(f.tidspunkt, a.sprog),
-        tilbage: f.tilbageOere > 0 ? t.fortrydMailTilbage(beloeb(f.tilbageOere, a.sprog)) : t.fortrydMailIntet,
+        tilbage: f.tilbageOere > 0 ? t.fortrydMailTilbage(beloeb(f.tilbageOere, a.sprog, b.valuta)) : t.fortrydMailIntet,
       },
     }, a.kontoId);
     if (!mail) await frigivFortrydKvittering(d.db, b.id);

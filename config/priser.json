@@ -1,7 +1,17 @@
 {
   "_note": "The one price source (KC-0190, AGENTS §0 r6). Amounts are integers in øre/cent. Approved by Henrik 2026-10-31 (KC-0169). EUR = DKK / 7.46, monthly rounded to the nearest 0.10 EUR, yearly to the nearest whole EUR. Change a price here, then run `npm run stripe:opsaet` (dry run) and `-- --anvend`.",
   "status": "godkendt",
-  "moms": { "aktiv": false },
+  "moms": {
+    "_note": "KC-0194, gate G6: Henrik is not VAT-registered, so aktiv is false: no VAT is charged or shown anywhere and Stripe Tax is off. varselOere: paid invoices over the trailing 12 months at which the owner gets the 'Momsregistrering nærmer sig' alert (the legal threshold is 50,000 kr). eurKurs: kroner per euro for that sum, the same rate the EUR prices were set with. Once CVR and VAT are registered, set aktiv to true and run `npm run stripe:opsaet` (prices become VAT-inclusive, Stripe Tax on Checkout).",
+    "aktiv": false,
+    "varselOere": 4000000,
+    "eurKurs": 7.46
+  },
+  "valuta": {
+    "_note": "KC-0194: the currency follows the billing country chosen at sign-up (never an IP lookup). Countries named here pay in that currency; every other country pays in 'ellers'.",
+    "lande": { "DK": "dkk" },
+    "ellers": "eur"
+  },
   "proeve": { "dage": 14, "kort": false },
   "fristVedFejl": 14,
   "paamindelseVedFejl": 7,

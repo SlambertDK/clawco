@@ -8,6 +8,7 @@ import type { Priser } from './priser.ts';
 import type { Tilstand } from './stripe-klient.ts';
 import type { IntervalNavn } from './opsaet.ts';
 import { erLand } from './lande.ts';
+import { valutaForLand } from './valuta.ts';
 import { VILKAAR } from './tekster.ts';
 import { CLAWCO_MAERKE } from './stripe-klient.ts';
 
@@ -21,12 +22,9 @@ export type CheckoutInput = {
   kunde: string;
   plan: string;
   interval: IntervalNavn;
-  /** ISO 3166 code from the account, never from IP geolocation. */
+  /** ISO 3166 code from the account, never from IP geolocation. The currency follows it (KC-0194, valuta.ts). */
   land: string;
   sprog: 'da' | 'en';
-  /** KC-0194 decides currency and tax; until then the caller passes 'dkk' and null. */
-  valuta: 'dkk' | 'eur';
-  skat: null;
   /** The active price under lookupKey(plan, interval). */
   prisId: string;
   /** False when the account has had a trial before (no trial farming). */
@@ -42,6 +40,8 @@ export function byggCheckout(a: CheckoutInput, priser: Priser): Stripe.Checkout.
   if (!Object.hasOwn(priser.planer, a.plan)) throw new Error(`ukendt plan: ${a.plan}`);
   if (a.interval !== 'maaned' && a.interval !== 'aar') throw new Error(`ukendt interval: ${String(a.interval)}`);
   if (!erLand(a.land)) throw new Error(`ukendt land: ${a.land}`);
+  // KC-0194: the currency is the account country's, never the caller's guess.
+  const valuta = valutaForLand(priser, a.land);
   const { vilkaarUrl, privatlivUrl, fortrydelsesTekst } = a.juridisk;
   const juraKlar = vilkaarUrl !== null && privatlivUrl !== null && fortrydelsesTekst !== null;
   if (a.tilstand === 'live' && !juraKlar) throw new Error('live-betaling afvist: vilkår, privatlivspolitik og fortrydelsestekst mangler (KC-0174)');
@@ -62,7 +62,12 @@ export function byggCheckout(a: CheckoutInput, priser: Priser): Stripe.Checkout.
     client_reference_id: String(a.kontoId),
     line_items: [{ price: a.prisId, quantity: 1 }],
     locale: a.sprog,
-    currency: a.valuta,
+    currency: valuta,
+    // KC-0194 (G6): Stripe Tax only once Henrik is VAT-registered and moms.aktiv is true. Then Checkout computes the
+    // tax from a required billing address (saved to the customer for renewals) and takes business VAT ids (reverse charge).
+    ...(priser.moms.aktiv
+      ? { automatic_tax: { enabled: true }, billing_address_collection: 'required', customer_update: { address: 'auto', name: 'auto' }, tax_id_collection: { enabled: true } } as const
+      : {}),
     // A card only when the config asks for one in the trial, or when there is no trial.
     payment_method_collection: proeve && !priser.proeve.kort ? 'if_required' : 'always',
     subscription_data: proeve

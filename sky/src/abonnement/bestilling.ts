@@ -6,6 +6,7 @@
 // the rows are kept after an account is deleted (konto/beholdt.ts).
 import type { Database } from '../db/pool.ts';
 import type { IntervalNavn } from './opsaet.ts';
+import type { Valuta } from './valuta.ts';
 import { fristSlut } from './forbrugerret.ts';
 
 export type Bestilling = {
@@ -15,6 +16,8 @@ export type Bestilling = {
   plan: string;
   interval: IntervalNavn;
   prisOere: number;
+  /** KC-0194: the currency of prisOere (the one the statement showed and Checkout charged). */
+  valuta: Valuta;
   proeve: boolean;
   vilkaarVersion: string;
   vilkaarSamtykkeVed: Date;
@@ -28,16 +31,16 @@ export type Bestilling = {
 };
 
 type Raekke = {
-  id: unknown; konto_id: unknown; checkout_session: string; plan: string; interval: IntervalNavn; pris_oere: number; proeve: boolean; vilkaar_version: string;
+  id: unknown; konto_id: unknown; checkout_session: string; plan: string; interval: IntervalNavn; pris_oere: number; valuta: string; proeve: boolean; vilkaar_version: string;
   vilkaar_samtykke_ved: Date | string; straks_start_samtykke_ved: Date | string; sprog: 'da' | 'en'; oprettet: Date | string;
   stripe_abonnement: string | null; startet: Date | string | null; kvittering_sendt: Date | string | null; paamindet_for: Date | string | null;
 };
-const KOLONNER = 'id, konto_id, checkout_session, plan, interval, pris_oere, proeve, vilkaar_version, vilkaar_samtykke_ved, straks_start_samtykke_ved, sprog, oprettet, stripe_abonnement, startet, kvittering_sendt, paamindet_for';
+const KOLONNER = 'id, konto_id, checkout_session, plan, interval, pris_oere, valuta, proeve, vilkaar_version, vilkaar_samtykke_ved, straks_start_samtykke_ved, sprog, oprettet, stripe_abonnement, startet, kvittering_sendt, paamindet_for';
 
 const d = (v: Date | string): Date => new Date(v);
 const dn = (v: Date | string | null): Date | null => (v === null ? null : new Date(v));
 const somBestilling = (r: Raekke): Bestilling => ({
-  id: Number(r.id), kontoId: Number(r.konto_id), checkoutSession: r.checkout_session, plan: r.plan, interval: r.interval, prisOere: Number(r.pris_oere), proeve: r.proeve,
+  id: Number(r.id), kontoId: Number(r.konto_id), checkoutSession: r.checkout_session, plan: r.plan, interval: r.interval, prisOere: Number(r.pris_oere), valuta: r.valuta === 'eur' ? 'eur' : 'dkk', proeve: r.proeve,
   vilkaarVersion: r.vilkaar_version, vilkaarSamtykkeVed: d(r.vilkaar_samtykke_ved), straksStartSamtykkeVed: d(r.straks_start_samtykke_ved), sprog: r.sprog, oprettet: d(r.oprettet),
   stripeAbonnement: r.stripe_abonnement, startet: dn(r.startet), kvitteringSendt: dn(r.kvittering_sendt), paamindetFor: dn(r.paamindet_for),
 });
@@ -46,13 +49,13 @@ const somBestilling = (r: Raekke): Bestilling => ({
  *  first consent time stands. Returns the order's id. */
 export async function opretBestilling(
   db: Database,
-  a: { kontoId: number; checkoutSession: string; plan: string; interval: IntervalNavn; prisOere: number; proeve: boolean; vilkaarVersion: string; sprog: 'da' | 'en'; nu: Date },
+  a: { kontoId: number; checkoutSession: string; plan: string; interval: IntervalNavn; prisOere: number; valuta: Valuta; proeve: boolean; vilkaarVersion: string; sprog: 'da' | 'en'; nu: Date },
 ): Promise<number> {
   const nu = a.nu.toISOString();
   await db.query(
-    `INSERT INTO abonnement.bestilling (konto_id, checkout_session, plan, interval, pris_oere, proeve, vilkaar_version, vilkaar_samtykke_ved, straks_start_samtykke_ved, sprog, oprettet)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8, $9, $8) ON CONFLICT (checkout_session) DO NOTHING`,
-    [a.kontoId, a.checkoutSession, a.plan, a.interval, a.prisOere, a.proeve, a.vilkaarVersion, nu, a.sprog],
+    `INSERT INTO abonnement.bestilling (konto_id, checkout_session, plan, interval, pris_oere, valuta, proeve, vilkaar_version, vilkaar_samtykke_ved, straks_start_samtykke_ved, sprog, oprettet)
+     VALUES ($1, $2, $3, $4, $5, $10, $6, $7, $8, $8, $9, $8) ON CONFLICT (checkout_session) DO NOTHING`,
+    [a.kontoId, a.checkoutSession, a.plan, a.interval, a.prisOere, a.proeve, a.vilkaarVersion, nu, a.sprog, a.valuta],
   );
   const [r] = await db.query<{ id: unknown }>('SELECT id FROM abonnement.bestilling WHERE checkout_session = $1', [a.checkoutSession]);
   return Number(r!.id);
@@ -106,7 +109,7 @@ export async function senesteFortrydelse(db: Database, kontoId: number): Promise
  *  task, in one transaction. The second press finds the first: `ny` false and the first time stands. */
 export async function registrerFortrydelse(
   db: Database,
-  a: { bestillingId: number; kontoId: number; tidspunkt: Date; brugteDage: number; periodeDage: number; tilbageOere: number; forfald: Date; beloebOpgave: number },
+  a: { bestillingId: number; kontoId: number; tidspunkt: Date; brugteDage: number; periodeDage: number; tilbageOere: number; forfald: Date; beloebOpgave: number; valuta: Valuta },
 ): Promise<{ ny: boolean; refusionId: number | null }> {
   return db.transaction(async (tx) => {
     const ny = await tx.query(
@@ -117,8 +120,8 @@ export async function registrerFortrydelse(
     if (ny.length === 0) return { ny: false, refusionId: null };
     if (a.beloebOpgave <= 0) return { ny: true, refusionId: null };
     const [o] = await tx.query<{ id: unknown }>(
-      'INSERT INTO abonnement.refusion_opgave (bestilling_id, konto_id, beloeb_oere, oprettet, forfald) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [a.bestillingId, a.kontoId, a.beloebOpgave, a.tidspunkt.toISOString(), a.forfald.toISOString()],
+      'INSERT INTO abonnement.refusion_opgave (bestilling_id, konto_id, beloeb_oere, valuta, oprettet, forfald) VALUES ($1, $2, $3, $6, $4, $5) RETURNING id',
+      [a.bestillingId, a.kontoId, a.beloebOpgave, a.tidspunkt.toISOString(), a.forfald.toISOString(), a.valuta],
     );
     return { ny: true, refusionId: Number(o!.id) };
   });
@@ -161,13 +164,13 @@ export async function senesteStartede(db: Database, kontoId: number): Promise<Be
 }
 
 // --- The owner's refund tasks ------------------------------------------------------------------------
-export type Refusion = { id: number; bestillingId: number; kontoId: number; beloebOere: number; valuta: string; oprettet: Date; forfald: Date };
+export type Refusion = { id: number; bestillingId: number; kontoId: number; beloebOere: number; valuta: Valuta; oprettet: Date; forfald: Date };
 
 /** The open refund tasks, oldest first: what the owner works through in Stripe by hand. */
 export async function aabneRefusioner(db: Database): Promise<Refusion[]> {
   const rk = await db.query<{ id: unknown; bestilling_id: unknown; konto_id: unknown; beloeb_oere: number; valuta: string; oprettet: Date | string; forfald: Date | string }>(
     "SELECT id, bestilling_id, konto_id, beloeb_oere, valuta, oprettet, forfald FROM abonnement.refusion_opgave WHERE status = 'aaben' ORDER BY forfald, id");
-  return rk.map((r) => ({ id: Number(r.id), bestillingId: Number(r.bestilling_id), kontoId: Number(r.konto_id), beloebOere: Number(r.beloeb_oere), valuta: r.valuta, oprettet: d(r.oprettet), forfald: d(r.forfald) }));
+  return rk.map((r) => ({ id: Number(r.id), bestillingId: Number(r.bestilling_id), kontoId: Number(r.konto_id), beloebOere: Number(r.beloeb_oere), valuta: r.valuta === 'eur' ? 'eur' : 'dkk', oprettet: d(r.oprettet), forfald: d(r.forfald) }));
 }
 
 /** The owner has refunded it in Stripe: mark it done. false when it was not open. */

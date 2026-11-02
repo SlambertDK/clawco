@@ -28,6 +28,7 @@ import { IMPORT_AKTIONER, IMPORT_LABEL, importAktion, importFortryd, importKvitt
 import type { ImportVisning } from './import/render.ts';
 import { visTailscaleKort } from './tailscalekort.ts';
 import { TsFejl } from '../../shell/tailscale.ts';
+import { STANDARD_SPROG, tekst } from '../../shell/tekster.ts';
 
 const RUM = 'start';
 /** How long worked-out suggestions are kept before the sources are asked again. */
@@ -167,7 +168,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
       ...(ctx.model ? { model: { syn: ctx.model, agent, ...(s.model ? { gemt: s.model } : {}), kanGemme: kan(p.rolle, 'aendre-indstillinger') } } : {}),
       ...(kilder ? { kilder } : {}),
     }),
-    hermesStatus: 'Klar',
+    hermesStatus: tekst().klar,
   };
 }
 
@@ -202,7 +203,9 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
         kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'velkommen-gem', fortryd: `lokal:${JSON.stringify({ forrige })}`,
         tekst: `Gemte profilen: ${profil.navn}, Hermes svarer på ${SPROG_NAVN[profil.sprog]}${deps.laptop?.() ? '' : `, ${profil.husstand === 'husstand' ? 'en husstand' : 'alene'}`}.`, // KC-0160: no household wording in laptop mode
       });
-      return faerdigt(deps, 'Gemt. Velkommen.');
+      // KC-0170: a new screen language reloads the page (no profile was shown in the standard language).
+      const svar = await faerdigt(deps, 'Gemt. Velkommen.');
+      return profil.sprog === (forrige?.sprog ?? STANDARD_SPROG) ? svar : { ...svar, genindlaes: true };
     }, { room: RUM, label: 'Start: gemmer profilen' });
   }
   if (name === 'forslag-afvis') {
@@ -400,10 +403,12 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
     forrige = gemt === null || gemt === undefined ? null : validerProfil(gemt);
   } catch { return null; }
   return deps.runs.local('fortryd', async () => {
+    const nu = await lager.laes().catch(() => null);
     if (forrige) await lager.skriv(forrige); else await lager.fjern();
     await deps.store.updateLog(RUM, logId, { fortrudt: deps.now().toISOString() });
     await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: deps.person.id, tekst: forrige ? `Satte profilen tilbage til ${forrige.navn}.` : 'Fjernede profilen igen.' });
-    return faerdigt(deps, 'Fortrudt.');
+    const svar = await faerdigt(deps, 'Fortrudt.');
+    return (nu?.sprog ?? STANDARD_SPROG) === (forrige?.sprog ?? STANDARD_SPROG) ? svar : { ...svar, genindlaes: true }; // KC-0170
   }, { room: RUM, label: 'Start: fortryder' });
 }
 

@@ -34,7 +34,7 @@ export async function sendPaamindelser(d: KoebDeps): Promise<{ sendt: number; fe
     if (!b || !k || !r.periodeSlutter) continue;
     const ok = await sendMail(d, {
       til: k.email, skabelon: 'fornyelse', sprog: k.sprog,
-      data: { saelger: d.saelger(k.sprog), produkt: produktNavn(d, b.plan), pris: prisTekst(b, k.sprog), dato: dato(r.periodeSlutter, k.sprog), link: kontoLink(d) },
+      data: { saelger: d.saelger(k.sprog), produkt: produktNavn(d, b.plan), pris: prisTekst(b, k.sprog, d.priser.moms.aktiv), dato: dato(r.periodeSlutter, k.sprog), link: kontoLink(d) },
     }, r.kontoId);
     if (!ok) { fejl++; continue; }
     await markerPaamindet(d.db, b.id, r.periodeSlutter);

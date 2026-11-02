@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="da">
+<head/>
+<body data-room="start" data-titel="Start · Clawco" data-person="rikke" data-rolle="medlem">
+
+<div class="frame">
+  <nav aria-label="Rum">
+    <div class="brand"><span class="dot"></span>Clawco</div>
+    <ul class="rooms"><li><a href="/rum/hjem" class=""><span>Nu</span></a></li><li><a href="/rum/start" aria-current="page" class=""><span>Start</span></a></li><li><a href="/rum/dagen" class=""><span>Dagen</span></a></li><li><a href="/rum/mail" class=""><span>Mail</span></a></li><li data-eget><a href="/rum/skrive" class=""><span>Skrive</span></a></li><li><a href="/rum/nyheder" class=""><span>Nyheder</span></a></li><li><a href="/rum/univers" class=""><span>Univers</span></a></li></ul>
+    <div class="nav-foot mono"><span class="dot dot-ok"></span>kira-home</div>
+  </nav>
+  <main>
+    <header class="top">
+      <span class="crumb"><span class="muted">Rum</span> · <strong>Start</strong></span>
+      <span class="hermes"><span class="dot dot-ok" id="hermes-dot"></span><span class="muted">Hermes:</span> <span id="hermes-status">Klar</span></span>
+      <span class="top-btns"><button type="button" class="btn btn-ghost koe-btn" id="koe-toggle" aria-controls="koe-panel" aria-expanded="false">Kø<span class="count" id="koe-count" hidden></span></button></span>
+    </header>
+    
+    <div class="koe-panel" id="koe-panel" hidden>
+      <div class="card-head"><h2 class="eyebrow">Hermes' kø</h2><span><button type="button" class="btn btn-ghost" id="notif-btn" hidden>Få besked på skærmen</button><button type="button" class="btn btn-ghost" id="koe-close">Luk</button></span></div>
+      <div class="nodstop"><button type="button" class="btn btn-nodstop" data-nodstop="stop">Stop alt</button><span class="row-note">Standser alt, Clawco er i gang med, og holder det på pause, til ejeren starter igen.</span></div>
+      <div id="koe-list" class="card-list"><p class="muted row">Intet i gang.</p></div>
+      <div class="revision"><div class="revision-head"><h3 class="eyebrow">Hvad Clawco har gjort</h3><button type="button" class="btn btn-ghost" data-revision-filter aria-pressed="false">Det Clawco sagde nej til</button></div><div class="revision-indhold" data-revision="liste"><p class="muted row">Henter …</p></div></div>
+      <div class="kilder-panel" data-kilder="panel" hidden></div>
+      
+      
+      
+      
+      <form id="indstillinger" class="indstillinger" onsubmit="return false">
+        <span class="eyebrow">Tænkeniveau</span>
+        <label class="field"><span class="row-note">Småting (chat, handlinger, kladder)</span><input name="lille" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="lille"></span></label>
+        <label class="field"><span class="row-note">Analyse og forslag (bygge rum, udkast, forslag)</span><input name="taenker" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="taenker"></span></label>
+        
+        <div class="actions"><button type="button" class="btn" id="indstillinger-gem">Gem</button><span class="row-note" id="indstillinger-status"></span></div>
+      </form>
+      
+      <div class="test-skift"><span class="eyebrow">Testtilstand</span><div class="actions"><button type="button" class="btn" id="test-knap">Testtilstand</button><span class="row-note" id="test-hint">Prøv alle funktioner med opdigtede data</span><span class="row-note" id="test-fejl" role="status"></span></div></div>
+    </div>
+    
+    <div class="room" id="room"></div>
+  </main>
+  <aside aria-label="Spørg Hermes" id="aside" data-blok="samtale">
+    <div class="aside-head"><h2>Spørg Hermes</h2><span class="aside-knapper"><button type="button" class="btn btn-ghost" id="cc-chat" title="Send det, du skriver, til Claude Code">Claude Code</button><button type="button" class="btn btn-ghost aside-close" id="chat-close" aria-label="Luk chatten">Luk</button></span><span class="kontekst-wrap" hidden id="kontekst-wrap"><span class="chip chip-accent" id="kontekst">Om: </span><button type="button" class="chip-x" id="kontekst-ryd" aria-label="Fjern markeringen">×</button></span></div>
+    <p class="row-note" id="kontekst-hint"><span class="kun-touch">Tryk</span><span class="kun-mus">Klik</span> på en kasse eller en linje i rummet, så handler chatten om den.</p>
+    <div class="chat" id="chat"></div>
+    <div class="forslag" id="chat-forslag" role="group" aria-label="Forslag"><button type="button" class="btn btn-forslag" data-forslag="Hvad skal jeg nu?">Hvad skal jeg nu?</button><button type="button" class="btn btn-forslag" data-forslag="Hvad giver det her trin?">Hvad giver det her trin?</button><button type="button" class="btn btn-forslag" data-forslag="Hvad kan jeg sige?">Hvad kan jeg sige?</button></div>
+    <details class="rum-liste" data-rum-liste>
+      <summary class="btn btn-ghost">Rum</summary>
+      <ul><li><a href="/rum/hjem">Nu</a></li><li><a href="/rum/start" aria-current="page">Start</a></li><li><a href="/rum/dagen">Dagen</a></li><li><a href="/rum/mail">Mail</a></li><li><a href="/rum/skrive">Skrive</a></li><li><a href="/rum/nyheder">Nyheder</a></li><li><a href="/rum/univers">Univers</a></li><li><a href="/rum/husstand">Husstanden</a></li></ul>
+    </details>
+    <form id="chat-form" data-room="start" autocomplete="off">
+      <input id="chat-input" name="besked" type="text" placeholder="Skriv til Hermes …" maxlength="2000" required>
+      
+      <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+  </aside>
+</div>
+<dialog id="genveje-dialog" class="cc-dialog genveje" aria-labelledby="genveje-titel">
+  <form method="dialog">
+    <h2 class="eyebrow" id="genveje-titel">Genveje</h2>
+    <dl class="genveje-liste">
+      <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Gå til rummet med det nummer i menuen</dd>
+      <dt><kbd>/</kbd></dt><dd>Skriv til Hermes</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Luk chatten eller et vindue</dd>
+      <dt><kbd>?</kbd></dt><dd>Vis genvejene</dd>
+    </dl>
+    <h3 class="eyebrow">I chatten kan du sige</h3>
+    <ul class="genveje-sige"><li>Tilbage til forsiden</li><li>Åbn opsætningen</li><li>Åbn dagen</li><li>Åbn mail</li><li>Jeg vil skrive</li><li>Jeg vil læse nyhederne</li><li>Åbn universerne</li><li>Hvad kan jeg sige?</li></ul>
+    <p class="row-note">Alt andet svarer Hermes på.</p>
+    <button class="btn" type="submit">Luk</button>
+  </form>
+</dialog>
+<dialog id="cc-dialog" class="cc-dialog" aria-labelledby="cc-dialog-titel">
+  <form id="cc-form" autocomplete="off">
+    <h2 class="eyebrow" id="cc-dialog-titel">Send til Claude Code</h2>
+    <fieldset class="cc-projekter"><legend class="row-note">Projekt</legend><label class="cc-projekt"><input type="radio" name="projekt" value="kontrolcenter" checked><span>Kontrolcenter</span></label><label class="cc-projekt"><input type="radio" name="projekt" value="shelfatlas"><span>ShelfAtlas</span></label></fieldset>
+    <label class="field"><span class="row-note">Hvad skal Claude Code gøre? Én sætning.</span><textarea name="saetning" rows="3" maxlength="500" required></textarea></label>
+    <p class="row-note" id="cc-grundlag" hidden></p>
+    <div class="actions"><button type="submit" class="btn btn-primary">Send</button><button type="button" class="btn btn-ghost" id="cc-annuller">Annuller</button></div>
+  </form>
+</dialog>
+<button type="button" id="chat-toggle" aria-controls="aside" aria-expanded="false">Spørg Hermes<span class="count" id="chat-toggle-count" hidden></span></button>
+
+
+<script src="/ark.js" defer></script>
+<script src="/frisk.js" defer></script>
+<script src="/forbindelse.js" defer></script>
+<script src="/fab.js" defer></script>
+<script src="/titel.js" defer></script>
+<script src="/koe.js" defer></script>
+<script src="/kilde.js" defer></script>
+<script src="/naeste.js" defer></script>
+<script src="/genveje.js" defer></script>
+<script src="/nu.js" defer></script>
+<script src="/foelg.js" defer></script>
+<script src="/fortryd.js" defer></script>
+<script src="/kladde.js" defer></script>
+<script src="/plads.js" defer></script>
+<script src="/esc.js" defer></script>
+<script src="/morph.js" defer></script>
+<script src="/app.js" defer></script>
+<script src="/sw-start.js" defer></script>
+</body>
+</html>

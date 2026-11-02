@@ -5,6 +5,7 @@
 import { html, type Markup } from '../delt/html.ts';
 import { side } from '../delt/side.ts';
 import type { IntervalNavn } from './opsaet.ts';
+import type { Valuta } from './valuta.ts';
 import { F } from './forbrugerret-tekster.ts';
 import { FELT, FRIST_DAGE, beloeb, dato, foerstePeriode, hverPeriode, prisLinjeAf, tidspunkt, type Sprog } from './forbrugerret.ts';
 
@@ -16,8 +17,11 @@ export type Bekraeft = {
   plan: { id: string; navn: string; medlemmer: number };
   interval: IntervalNavn;
   land: string;
-  /** In øre, from config/priser.json. */
+  /** In øre or cent, from config/priser.json, in the currency of the account's country (KC-0194). */
   prisOere: number;
+  valuta: Valuta;
+  /** KC-0194 (G6): config moms.aktiv; while false the page never mentions VAT. */
+  moms: boolean;
   proeve: boolean;
   proeveDage: number;
   vilkaar: { version: string; url: string };
@@ -27,16 +31,16 @@ export type Bekraeft = {
   fejl?: 'mangler' | 'aendret';
 };
 
-/** The statement before the pay button: what is bought, the price (no VAT), period, renewal, the right of withdrawal,
+/** The statement before the pay button: what is bought, the full price in the account's currency, period, renewal, the right of withdrawal,
  *  the two unticked boxes and a button that says what it does. */
 export function bekraeftSide(a: Bekraeft): string {
   const t = F[a.sprog];
-  const b = beloeb(a.prisOere, a.sprog);
+  const b = beloeb(a.prisOere, a.sprog, a.valuta);
   const knap = a.proeve ? t.knapProeve(a.proeveDage) : t.knapBetal(b);
   return side(a.proeve ? t.bekraeftTitelProeve : t.bekraeftTitel, html`<h1>${a.proeve ? t.bekraeftTitelProeve : t.bekraeftTitel}</h1>
 ${a.fejl ? html`<p class="status">${a.fejl === 'mangler' ? t.mangler : t.aendret}</p>` : ''}
 <section><h2>${t.ydelseTitel}</h2><p>${t.ydelse(a.plan.navn, t.medlemmer(a.plan.medlemmer))}</p></section>
-<section><h2>${t.prisTitel}</h2><p>${t.pris(prisLinjeAf(a.prisOere, a.interval, a.sprog))}</p></section>
+<section><h2>${t.prisTitel}</h2><p>${t.pris(prisLinjeAf(a.prisOere, a.interval, a.sprog, a.valuta), a.moms)}</p></section>
 <section><h2>${t.periodeTitel}</h2><p>${a.proeve ? t.periodeProeve(a.proeveDage) : t.periodeBetaling(b, foerstePeriode(a.interval, a.sprog))}</p></section>
 <section><h2>${t.fornyelseTitel}</h2><p>${t.fornyelse(b, hverPeriode(a.interval, a.sprog))}</p></section>
 <section><h2>${t.fortrydTitel}</h2><p>${t.fortryd(FRIST_DAGE)}</p><p><a href="${a.vilkaar.url}" target="_blank" rel="noopener">${t.vilkaarSe}</a></p></section>
@@ -90,6 +94,8 @@ export type FortrydVisning = {
   periodeDage: number;
   beholdOere: number;
   tilbageOere: number;
+  /** The currency the order was paid in (KC-0194). */
+  valuta: Valuta;
 };
 
 /** The "Fortryd aftale" confirmation: the last day, what is paid for the days used and what comes back, the promise
@@ -98,7 +104,7 @@ export function fortrydSide(a: FortrydVisning): string {
   const t = F[a.sprog];
   return side(t.fortrydSideTitel, html`<h1>${t.fortrydSideTitel}</h1>
 <p>${t.fortrydIntro(dato(a.frist, a.sprog))}</p>
-<p>${a.proeve ? t.fortrydProeve : t.fortrydBeloeb(beloeb(a.beholdOere, a.sprog), a.brugteDage, a.periodeDage, beloeb(a.tilbageOere, a.sprog))}</p>
+<p>${a.proeve ? t.fortrydProeve : t.fortrydBeloeb(beloeb(a.beholdOere, a.sprog, a.valuta), a.brugteDage, a.periodeDage, beloeb(a.tilbageOere, a.sprog, a.valuta))}</p>
 ${a.proeve ? '' : html`<p><strong>${t.fortrydTilbage}</strong></p>`}
 <form method="post" action="/api/abonnement/fortryd">${csrfFelt(a.csrf)}<button type="submit" class="fare">${t.fortrydKnap}</button></form>
 <p><a href="/konto">${t.fortrydBehold}</a></p>`, { csrf: a.csrf, sprog: a.sprog });

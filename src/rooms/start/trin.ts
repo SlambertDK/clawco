@@ -6,6 +6,7 @@
 // step reopens when that thing breaks.
 
 import type { Profil, StartState, TrinStatus } from './schema.ts';
+import { startTekst } from './tekster.ts';
 
 export const NIVEAUER = ['lille', 'taenker'] as const;
 export type Niveau = (typeof NIVEAUER)[number];
@@ -55,8 +56,8 @@ export function trinStatus(t: Trin, state: StartState | null, ctx: TrinKontekst)
 
 registrerTrin({
   id: 'velkommen',
-  titel: 'Velkommen',
-  tekst: 'Fortæl Clawco, hvad du hedder, hvilket sprog Hermes skal svare på, og om du er alene eller en husstand.',
+  get titel() { return startTekst().trin['velkommen'].titel; },
+  get tekst() { return startTekst().trin['velkommen'].tekst; },
   krav: 'obligatorisk',
   erKlaret: (_s, ctx) => ctx.profil !== null,
 });
@@ -64,8 +65,8 @@ registrerTrin({
 // KC-0127: Klaret only while both tiers have a model and each passed its live test for the revision it has now.
 registrerTrin({
   id: 'model',
-  titel: 'Vælg din model',
-  tekst: 'Indsæt en nøgle fra din udbyder, eller brug en model på din egen maskine. Clawco prøver den straks, så du kan se, at den virker.',
+  get titel() { return startTekst().trin['model'].titel; },
+  get tekst() { return startTekst().trin['model'].tekst; },
   krav: 'obligatorisk',
   erKlaret: (_s, ctx) => Boolean(ctx.model && modelKlaret(ctx.model)),
 });
@@ -102,16 +103,16 @@ export function flereKilderKoe(s: StartState | null, ctx: TrinKontekst): KildeTr
 
 registrerTrin({
   id: 'foerste-kilde',
-  titel: 'Første kilde',
-  tekst: 'Vælg, om du vil starte med kalenderen eller mailen. Lige efter står der noget at se på i Nu.',
+  get titel() { return startTekst().trin['foerste-kilde'].titel; },
+  get tekst() { return startTekst().trin['foerste-kilde'].tekst; },
   krav: 'obligatorisk',
   erKlaret: harFoersteKilde,
 });
 
 registrerTrin({
   id: 'flere-kilder',
-  titel: 'Flere kilder',
-  tekst: 'Én kilde ad gangen, og kun hvis du vil. Hver ny kilde giver straks noget at se på.',
+  get titel() { return startTekst().trin['flere-kilder'].titel; },
+  get tekst() { return startTekst().trin['flere-kilder'].tekst; },
   krav: 'valgfri',
   // Klaret when nothing more is offered and a source beyond the first is connected; all skipped is not Klaret.
   erKlaret: (s, ctx) => harFoersteKilde(s, ctx) && flereKilderKoe(s, ctx).length === 0
@@ -124,8 +125,8 @@ registrerTrin({
 
 registrerTrin({
   id: 'import',
-  titel: 'Tag det med',
-  tekst: 'Fortæl Hermes det, de andre assistenter ved om dig: indsæt deres svar, eller læg en kontaktfil eller nogle noter ind. Intet bliver skrevet, før du har trykket Gem.',
+  get titel() { return startTekst().trin['import'].titel; },
+  get tekst() { return startTekst().trin['import'].tekst; },
   krav: 'valgfri',
   erKlaret: (s) => Boolean(s?.import?.gemt?.length),
 });
@@ -136,8 +137,8 @@ registrerTrin({
 
 registrerTrin({
   id: 'foerste-ret',
-  titel: 'Ret én ting',
-  tekst: 'Tryk Ret på et kort, der ikke passer, eller Ikke relevant på et, du ikke vil se. Så lærer Hermes dig at kende.',
+  get titel() { return startTekst().trin['foerste-ret'].titel; },
+  get tekst() { return startTekst().trin['foerste-ret'].tekst; },
   krav: 'obligatorisk',
   erKlaret: (s) => Boolean(s?.ret),
 });

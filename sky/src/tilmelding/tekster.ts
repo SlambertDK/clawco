@@ -2,8 +2,11 @@
 // all of it. English must have exactly Danish's keys (the type and a test hold that). No legal text here: the
 // consent lines only link to the routes where KC-0174's texts will live.
 
-const kr = (oere: number, sprog: 'da' | 'en'): string =>
-  new Intl.NumberFormat(sprog === 'da' ? 'da-DK' : 'en-GB', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2, minimumFractionDigits: 0 }).format(oere / 100);
+/** An amount in its own currency (KC-0194: kroner in Denmark, euro elsewhere); whole amounts without decimals. */
+const kr = (oere: number, sprog: 'da' | 'en', valuta: 'dkk' | 'eur'): string => {
+  const d = oere % 100 === 0 ? 0 : 2;
+  return new Intl.NumberFormat(sprog === 'da' ? 'da-DK' : 'en-GB', { style: 'currency', currency: valuta.toUpperCase(), maximumFractionDigits: d, minimumFractionDigits: d }).format(oere / 100);
+};
 
 const da = {
   trin: (n: number, af: number, navn: string): string => `Trin ${n} af ${af} · ${navn}`,
@@ -50,14 +53,16 @@ const da = {
   planIntro: (dage: number): string => `${dage} dage gratis, intet kort. Når prøven slutter, sættes din Clawco på pause, indtil du selv vælger at betale.`,
   planIntroUdenProeve: 'Du har haft en gratis prøve før, så abonnementet begynder, når du har betalt.',
   medlemmer: (n: number): string => (n === 1 ? 'Til 1 person' : `Op til ${n} personer`),
-  pris: (maaned: number, aar: number): string => `${kr(maaned, 'da')} om måneden · ${kr(aar, 'da')} om året`,
+  pris: (maaned: number, aar: number, valuta: 'dkk' | 'eur'): string => `${kr(maaned, 'da', valuta)} om måneden · ${kr(aar, 'da', valuta)} om året`,
   intervalFelt: 'Betal',
   maanedlig: 'hver måned',
   aarlig: 'hvert år',
   startProeve: (dage: number): string => `Start ${dage} dages gratis prøve`,
   tilBetaling: 'Gå til betaling',
   videre: 'Videre til bekræftelse',
-  ingenMoms: 'Priserne er hele priser. Der er ingen moms oveni.',
+  // KC-0194 (G6): no VAT is mentioned while moms.aktiv is false; the second line is for when it is true.
+  fuldPris: 'Prisen er den fulde pris.',
+  fuldPrisMoms: 'Prisen er den fulde pris, inkl. moms.',
   afbrudt: 'Du afbrød betalingen. Dit valg er gemt herunder.',
 
   betalingProeveTitel: 'Prøven er i gang',
@@ -135,14 +140,15 @@ const en: Tekster = {
   planIntro: (dage) => `${dage} days free, no card. When the trial ends, your Clawco is paused until you choose to pay.`,
   planIntroUdenProeve: 'You have had a free trial before, so the subscription starts once you have paid.',
   medlemmer: (n) => (n === 1 ? 'For 1 person' : `Up to ${n} people`),
-  pris: (maaned, aar) => `${kr(maaned, 'en')} per month · ${kr(aar, 'en')} per year`,
+  pris: (maaned, aar, valuta) => `${kr(maaned, 'en', valuta)} per month · ${kr(aar, 'en', valuta)} per year`,
   intervalFelt: 'Pay',
   maanedlig: 'every month',
   aarlig: 'every year',
   startProeve: (dage) => `Start the ${dage}-day free trial`,
   tilBetaling: 'Go to payment',
   videre: 'Continue to confirmation',
-  ingenMoms: 'Prices are final. No VAT is added.',
+  fuldPris: 'The price is the full price.',
+  fuldPrisMoms: 'The price is the full price, VAT included.',
   afbrudt: 'You cancelled the payment. Your choice is kept below.',
 
   betalingProeveTitel: 'Your trial has started',

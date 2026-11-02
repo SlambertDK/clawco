@@ -192,13 +192,14 @@ function fyld(html: string, tabel: Tabel): string {
 /** The page as one HTML string. Pure: the config, the key table and the template in, the page out. */
 export function renderPriser(o: { priser: Priser; tabel: Tabel; skabelon: string }): string {
   const p = o.priser;
-  // The "no VAT charged" line is the only VAT wording there is (G6). When KC-0194 turns VAT on, the words are written then.
-  if (p.moms.aktiv) throw new Error('pricing page: config/priser.json has VAT on, but the page only has the "no VAT charged" wording (KC-0194)');
+  // KC-0194 (G6): while Henrik is not VAT-registered the page never mentions VAT, it says the price is the full one;
+  // with moms.aktiv true the same line says VAT is included.
+  const prisNote = p.moms.aktiv ? 'pr.fullprice.vat' : 'pr.fullprice';
   const kort = [hjemmeKort(), ...Object.entries(p.planer).map(([id, pl]) => planKort(id, pl, p, o.tabel))].join('\n');
   const tilvalg = Object.entries(p.tilvalg).map(([id, t]) => tilvalgRaekke(id, t, o.tabel)).join('\n');
   const banner = p.status === 'udkast' ? `<p class="udkast" role="note"><strong data-i="pr.draft"></strong></p>` : '';
   const noindex = p.status === 'udkast' ? '<meta name="robots" content="noindex">' : '';
-  const slots: Record<string, string> = { BANNER: banner, NOINDEX: noindex, PLANS: kort, ADDON: tilvalg };
+  const slots: Record<string, string> = { BANNER: banner, NOINDEX: noindex, PLANS: kort, ADDON: tilvalg, PRISNOTE: `<p class="muted" data-i="${prisNote}"></p>` };
   let html = o.skabelon;
   for (const [navn, v] of Object.entries(slots)) {
     if (!html.includes(`{{${navn}}}`)) throw new Error(`site/priser.template.html has no {{${navn}}} slot`);

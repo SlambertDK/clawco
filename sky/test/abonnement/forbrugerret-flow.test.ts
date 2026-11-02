@@ -35,11 +35,11 @@ async function koeb(s: Stativ, o: { plan?: string; interval?: IntervalNavn; proe
   const proeve = o.proeve ?? false;
   const pris = await s.klient.prisForLookupKey(lookupKey(plan, interval));
   const params = byggCheckout({
-    kontoId: s.kontoId, kunde: s.kunde, plan, interval, land: 'DK', sprog: 'da', valuta: 'dkk', skat: null, prisId: pris!.id, proeve,
+    kontoId: s.kontoId, kunde: s.kunde, plan, interval, land: 'DK', sprog: 'da', prisId: pris!.id, proeve,
     publicUrl: PUBLIC, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: null }, tilstand: 'test',
   }, s.priser);
   const session = await s.klient.opretCheckout(params, `co-${Math.random()}`);
-  const b = await opretBestilling(s.db, { kontoId: s.kontoId, checkoutSession: session.id, plan, interval, prisOere: pris!.dkk, proeve, vilkaarVersion: '0.1-udkast', sprog: 'da', nu: s.u.nu() });
+  const b = await opretBestilling(s.db, { kontoId: s.kontoId, checkoutSession: session.id, plan, interval, prisOere: pris!.dkk, valuta: 'dkk', proeve, vilkaarVersion: '0.1-udkast', sprog: 'da', nu: s.u.nu() });
   s.klient.fuldfoerCheckout(session.id, s.u.nu());
   return { bestilling: b, abonnement: (await s.klient.hentCheckout(session.id))!.abonnement!.id, session: session.id };
 }
@@ -60,7 +60,7 @@ test('after a purchase the order is tied to its subscription and one receipt is 
   assert.equal(m?.til, EMAIL);
   assert.equal(m?.data['saelger'], SAELGER, 'the seller is what the seam read, not a literal');
   assert.equal(m?.data['produkt'], 'Sky Solo');
-  assert.equal(m?.data['pris'], '79 kr. om måneden. Det er hele prisen: der kommer ingen moms oveni.');
+  assert.equal(m?.data['pris'], '79 kr. om måneden. Det er den fulde pris.');
   assert.match(m!.data['betaling']!, /^79 kr\. betalt\. Næste betaling: /);
   assert.equal(m?.data['vilkaarversion'], '0.1-udkast');
   assert.equal(m?.data['vilkaarlink'], 'https://clawco.example.test/vilkaar');
@@ -86,7 +86,7 @@ test('the receipt follows the language the person chose', async () => {
   await efterKoeb(d, s.kontoId);
   const [m] = mailTil(d.post, 'kvittering');
   assert.equal(m?.sprog, 'en');
-  assert.equal(m?.data['pris'], 'DKK 79 per month. This is the whole price: no VAT is added on top.');
+  assert.equal(m?.data['pris'], 'DKK 79 per month. This is the full price.');
   assert.equal(m?.data['vilkaarlink'], 'https://clawco.example.test/en/vilkaar');
 });
 
@@ -95,9 +95,9 @@ test('a Checkout that never completed gets no receipt and no subscription link; 
   const post = falskPost();
   const d = deps(s, post);
   const pris = await s.klient.prisForLookupKey(lookupKey('sky-solo', 'maaned'));
-  const params = byggCheckout({ kontoId: s.kontoId, kunde: s.kunde, plan: 'sky-solo', interval: 'maaned', land: 'DK', sprog: 'da', valuta: 'dkk', skat: null, prisId: pris!.id, proeve: false, publicUrl: PUBLIC, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: null }, tilstand: 'test' }, s.priser);
+  const params = byggCheckout({ kontoId: s.kontoId, kunde: s.kunde, plan: 'sky-solo', interval: 'maaned', land: 'DK', sprog: 'da', prisId: pris!.id, proeve: false, publicUrl: PUBLIC, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: null }, tilstand: 'test' }, s.priser);
   const aaben = await s.klient.opretCheckout(params, 'co-aaben');
-  const ikkeFaerdig = await opretBestilling(s.db, { kontoId: s.kontoId, checkoutSession: aaben.id, plan: 'sky-solo', interval: 'maaned', prisOere: 7900, proeve: false, vilkaarVersion: '0.1-udkast', sprog: 'da', nu: s.u.nu() });
+  const ikkeFaerdig = await opretBestilling(s.db, { kontoId: s.kontoId, checkoutSession: aaben.id, plan: 'sky-solo', interval: 'maaned', prisOere: 7900, valuta: 'dkk' as const, proeve: false, vilkaarVersion: '0.1-udkast', sprog: 'da', nu: s.u.nu() });
   await efterKoeb(d, s.kontoId);
   assert.equal(post.udbakke.length, 0);
   assert.equal((await hentBestilling(s.db, ikkeFaerdig))?.stripeAbonnement, null);
@@ -309,7 +309,7 @@ test('the renewal reminder goes to an active annual plan inside 14 days, once pe
   assert.equal(r.sendt, 1);
   const [m] = mailTil(d.post, 'fornyelse');
   assert.equal(m?.til, EMAIL);
-  assert.equal(m?.data['pris'], '790 kr. om året. Det er hele prisen: der kommer ingen moms oveni.');
+  assert.equal(m?.data['pris'], '790 kr. om året. Det er den fulde pris.');
   assert.equal(m?.data['saelger'], SAELGER);
   assert.match(m!.data['dato']!, /31\. oktober 2027/);
   assert.equal((await sendPaamindelser(d)).sendt, 0, 'one reminder per period');

@@ -13,7 +13,7 @@ export async function refusioner(db: Database, args: string[], nu: Date): Promis
     if (aabne.length === 0) return { linjer: ['Ingen åbne refusionsopgaver.'], kode: 0 };
     return {
       linjer: ['opgave  konto      beløb         frist',
-        ...aabne.map((o) => `${o.id}  konto ${o.kontoId}  ${beloeb(o.beloebOere, 'da')}  senest ${dato(o.forfald, 'da')}`)],
+        ...aabne.map((o) => `${o.id}  konto ${o.kontoId}  ${beloeb(o.beloebOere, 'da', o.valuta)}  senest ${dato(o.forfald, 'da')}`)],
       kode: 0,
     };
   }

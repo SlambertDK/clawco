@@ -18,7 +18,8 @@ test('every scenario of the ticket is either in the table or waiting on the tick
   assert.equal(new Set(iTabel).size, iTabel.length, 'a scenario id twice in the table');
   for (const id of ALLE_IDER) assert.ok(iTabel.includes(id) !== Object.hasOwn(UDESTAAENDE, id), `${id} must be in exactly one place`);
   for (const id of [...iTabel, ...Object.keys(UDESTAAENDE)]) assert.ok((ALLE_IDER as readonly string[]).includes(id), `${id} is not one of the ticket's scenarios`);
-  assert.deepEqual(iTabel, ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7']);
+  assert.deepEqual(iTabel, ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']);
+  assert.deepEqual(UDESTAAENDE, {});
 });
 
 test('both layers run the same list: the fake run and the Stripe run\'s plan name exactly the table\'s scenarios', async () => {
@@ -34,6 +35,20 @@ test('a scenario that cannot reach its expected state fails with the step, the e
   const forkert: Scenarie = { ...s1, skridt: [s1.skridt[0]!, { ...s1.skridt[1]!, forvent: { ...s1.skridt[1]!.forvent, status: 'aktiv', skrivebeskyttet: false } }] };
   await assert.rejects(koerScenarie(falskVerden(), forkert), (e: Error) => {
     assert.match(e.message, /^S1 trin 2: 14 dage frem: forventet aktiv\/sky-solo max 1, \+1 i udbakken, fik pause\/sky-solo max 1 skrivebeskyttet, \+1 i udbakken/);
+    return true;
+  });
+});
+
+test('KC-0194 S8: a German customer is billed in euro at the config\'s euro amount, and a Danish one in kroner; the runner fails on the wrong currency', async () => {
+  const s8 = SCENARIER.find((s) => s.id === 'S8')!;
+  assert.equal(s8.land, 'DE');
+  assert.equal(s8.skridt.at(-1)?.forvent.faktura?.valuta, 'eur');
+  const s2 = SCENARIER.find((s) => s.id === 'S2')!;
+  assert.equal(s2.land ?? 'DK', 'DK');
+  assert.equal(s2.skridt.at(-1)?.forvent.faktura?.valuta, 'dkk');
+  // The same steps for a Danish customer cannot pass as a euro invoice.
+  await assert.rejects(koerScenarie(falskVerden(), { ...s8, land: 'DK' }), (e: Error) => {
+    assert.match(e.message, /^S8 trin 3: .*faktura.*eur.*dkk/);
     return true;
   });
 });

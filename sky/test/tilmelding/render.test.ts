@@ -85,7 +85,7 @@ test('plan: the plans given (from config/priser.json in production), the account
   const tekst = document.body.textContent ?? '';
   assert.match(tekst, /Sky Solo/);
   assert.match(tekst, /Sky Husstand/);
-  assert.ok(tekst.includes(TEKSTER.da.pris(1000, 10000)), tekst);
+  assert.ok(tekst.includes(TEKSTER.da.pris(1000, 10000, 'dkk')), tekst);
   assert.match(tekst, /14 dage gratis, intet kort/);
 });
 

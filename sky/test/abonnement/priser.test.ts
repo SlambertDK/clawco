@@ -20,7 +20,8 @@ function afviser(muter: (r: Record<string, any>) => void, sti: string): void {
 test('the real price file is approved and carries the prices Henrik said yes to', () => {
   const p = laesPriser();
   assert.equal(p.status, 'godkendt');
-  assert.deepEqual(p.moms, { aktiv: false });
+  assert.deepEqual(p.moms, { aktiv: false, varselOere: 4_000_000, eurKurs: 7.46 });
+  assert.deepEqual(p.valuta, { lande: { DK: 'dkk' }, ellers: 'eur' });
   assert.deepEqual(p.proeve, { dage: 14, kort: false });
   assert.equal(p.fristVedFejl, 14);
   assert.equal(p.paamindelseVedFejl, 7);
@@ -75,8 +76,22 @@ test('plan ids are lower-case slugs and there is at least one plan', () => {
   afviser((r) => { r.planer = {}; }, 'planer');
 });
 
-test('VAT on is refused until KC-0194 builds tax behaviour', () => {
-  afviser((r) => { r.moms.aktiv = true; }, 'moms.aktiv');
+test('KC-0194 (G6): VAT is a config switch: true is accepted (Stripe Tax on without a rebuild), anything else is refused', () => {
+  const r = raa();
+  r.moms.aktiv = true;
+  assert.equal(validerPriser(r).moms.aktiv, true);
+  afviser((x) => { x.moms.aktiv = 'ja'; }, 'moms.aktiv');
+  afviser((x) => { delete x.moms.varselOere; }, 'moms.varselOere');
+  afviser((x) => { x.moms.varselOere = 0; }, 'moms.varselOere');
+  afviser((x) => { x.moms.eurKurs = 0; }, 'moms.eurKurs');
+  afviser((x) => { x.moms.eurKurs = '7,46'; }, 'moms.eurKurs');
+});
+
+test('KC-0194: the currency table names ISO country codes and the two currencies only', () => {
+  afviser((r) => { delete r.valuta; }, 'valuta');
+  afviser((r) => { r.valuta.lande.dk = 'dkk'; }, 'valuta.lande.dk');
+  afviser((r) => { r.valuta.lande.SE = 'sek'; }, 'valuta.lande.SE');
+  afviser((r) => { r.valuta.ellers = 'usd'; }, 'valuta.ellers');
 });
 
 test('trial, grace period and add-ons are checked', () => {

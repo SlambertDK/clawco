@@ -8,9 +8,9 @@ import { refusioner } from '../../scripts/refusioner.ts';
 
 async function opgave(s: Awaited<ReturnType<typeof stativ>>, session: string, beloeb: number): Promise<void> {
   const nu = new Date('2026-11-05T10:00:00.000Z');
-  const id = await opretBestilling(s.db, { kontoId: s.kontoId, checkoutSession: session, plan: 'sky-solo', interval: 'maaned', prisOere: 7900, proeve: false, vilkaarVersion: '0.1-udkast', sprog: 'da', nu });
+  const id = await opretBestilling(s.db, { kontoId: s.kontoId, checkoutSession: session, plan: 'sky-solo', interval: 'maaned', prisOere: 7900, valuta: 'dkk' as const, proeve: false, vilkaarVersion: '0.1-udkast', sprog: 'da', nu });
   await knytBestilling(s.db, id, `sub_${session}`, nu);
-  await registrerFortrydelse(s.db, { bestillingId: id, kontoId: s.kontoId, tidspunkt: nu, brugteDage: 4, periodeDage: 30, tilbageOere: beloeb, forfald: new Date('2026-11-19T10:00:00.000Z'), beloebOpgave: beloeb });
+  await registrerFortrydelse(s.db, { bestillingId: id, kontoId: s.kontoId, tidspunkt: nu, brugteDage: 4, periodeDage: 30, tilbageOere: beloeb, forfald: new Date('2026-11-19T10:00:00.000Z'), beloebOpgave: beloeb, valuta: 'dkk' });
 }
 
 test('the list shows each open task with account number, amount and the day it is due; nothing open says so', async () => {

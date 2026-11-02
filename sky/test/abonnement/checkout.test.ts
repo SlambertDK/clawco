@@ -12,7 +12,7 @@ const JURA: Juridisk = { vilkaarUrl: 'https://clawco.example/vilkaar', privatliv
 
 function input(over: Partial<CheckoutInput> = {}): CheckoutInput {
   return {
-    kontoId: 7, kunde: 'cus_1', plan: 'sky-solo', interval: 'maaned', land: 'DK', sprog: 'da', valuta: 'dkk', skat: null,
+    kontoId: 7, kunde: 'cus_1', plan: 'sky-solo', interval: 'maaned', land: 'DK', sprog: 'da',
     prisId: 'price_1', proeve: true, publicUrl: 'https://sky.example.test', juridisk: JURA, tilstand: 'test', ...over,
   };
 }
@@ -29,7 +29,8 @@ test('every plan × interval × country × language gives a subscription session
           assert.equal(p.client_reference_id, '7', navn);
           assert.deepEqual(p.line_items, [{ price: `price_${plan}_${interval}`, quantity: 1 }], navn);
           assert.equal(p.locale, sprog, navn);
-          assert.equal(p.currency, 'dkk', navn);
+          // KC-0194: kroner in Denmark, euro elsewhere, from the account's country.
+          assert.equal(p.currency, land === 'DK' ? 'dkk' : 'eur', navn);
           assert.equal(p.payment_method_collection, 'if_required', navn);
           assert.equal(p.subscription_data?.trial_period_days, priser.proeve.dage, navn);
           assert.equal(priser.proeve.dage, 14);
@@ -38,7 +39,8 @@ test('every plan × interval × country × language gives a subscription session
           assert.deepEqual(p.metadata, md, navn);
           assert.deepEqual(p.subscription_data?.metadata, md, navn);
           assert.equal(p.consent_collection?.terms_of_service, 'required', navn);
-          assert.ok(!('automatic_tax' in p), `${navn}: ingen moms før KC-0194`);
+          // KC-0194 (G6): moms.aktiv is false, so Stripe Tax is off and no tax field reaches Stripe.
+          for (const felt of ['automatic_tax', 'billing_address_collection', 'customer_update', 'tax_id_collection']) assert.ok(!(felt in p), `${navn}: ${felt} while VAT is off`);
           assert.equal(p.success_url, 'https://sky.example.test/api/abonnement/tilbage?session={CHECKOUT_SESSION_ID}', navn);
           const cancel = new URL(p.cancel_url!);
           assert.equal(cancel.pathname, '/konto/abonnement', navn);
@@ -66,6 +68,29 @@ test('an account that has had a trial gets none: no trial days, no pause rule, c
   assert.equal(p.subscription_data?.trial_settings, undefined);
   assert.equal(p.payment_method_collection, 'always');
   assert.deepEqual(p.subscription_data?.metadata, { clawco: 'ja', konto_id: '7', plan: 'sky-solo', interval: 'maaned', land: 'DK' });
+});
+
+test('KC-0194: a DKK customer never gets a EUR session and the reverse, over every country on the list', () => {
+  for (const l of LANDE) {
+    const p = byggCheckout(input({ land: l.kode }), priser);
+    assert.equal(p.currency, l.kode === 'DK' ? 'dkk' : 'eur', l.kode);
+  }
+});
+
+test('KC-0194: a missing billing country is refused before anything else (fail closed)', () => {
+  for (const land of ['', ' ', undefined as unknown as string]) assert.throws(() => byggCheckout(input({ land }), priser), /land/, String(land));
+});
+
+test('KC-0194: with moms.aktiv true, Stripe Tax is on: automatic tax, a required billing address saved to the customer, tax ids for businesses', () => {
+  const medMoms = { ...priser, moms: { ...priser.moms, aktiv: true } };
+  for (const land of ['DK', 'DE']) {
+    const p = byggCheckout(input({ land }), medMoms);
+    assert.deepEqual(p.automatic_tax, { enabled: true }, land);
+    assert.equal(p.billing_address_collection, 'required', land);
+    assert.deepEqual(p.customer_update, { address: 'auto', name: 'auto' }, land);
+    assert.deepEqual(p.tax_id_collection, { enabled: true }, land);
+    assert.equal(p.currency, land === 'DK' ? 'dkk' : 'eur', land);
+  }
 });
 
 test('an unknown plan, interval or country is refused, never defaulted', () => {

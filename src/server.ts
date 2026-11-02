@@ -24,6 +24,7 @@ import { createSettings, modelRevision, type Settings } from './settings.ts';
 import { TIER_KINDS, CHAT_KINDS } from './runs.ts';
 import { ROOMS } from './rooms/registry.ts';
 import { shell } from './shell/layout.ts';
+import { medSprog, STANDARD_SPROG, tekst } from './shell/tekster.ts';
 import { html, type Markup } from './shell/html.ts';
 import { renderIkkeFundet, ikkeFundetOverskrift, type IkkeFundetSlags } from './shell/ikkefundet.ts';
 import { tenantFejlrapport, type Fejlrapport } from './shell/fejlrapport.ts';
@@ -623,14 +624,15 @@ export function createApp(deps: AppDeps) {
     c.set('husstand', husstand?.personer ?? []);
     c.set('stoette', stoetteNu === 'ulaeselig' ? null : stoetteNu);
     if (stoetteNu && stoetteNu !== 'ulaeselig') await noterStoetteUdloeb(stoetteNu);
-    await hvemNu.run(hvem, async () => {
+    // KC-0170: the screen's language for everything this request renders — the profile's (Start step 1), else the standard.
+    await medSprog(profil?.laesNu()?.sprog ?? STANDARD_SPROG, () => hvemNu.run(hvem, async () => {
       // KC-0154: her first request through this path activates a member the owner pre-created (once; never a static file).
       // KC-0188: support only looks; its visit activates nobody.
       if (hvem.rolle !== 'stoette' && (husstand?.personer.length ?? 0) > 1 && !/\.[a-z0-9]+$/i.test(c.req.path)) {
         try { await vedBesoeg(d); } catch (err) { console.error('husstand: indgangen kunne ikke markeres:', err); }
       }
       await next();
-    });
+    }));
   });
   function afvis(c: Context<Env>, status: 401 | 403 | 503, hvorfor: string): Response {
     if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: hvorfor }, status);
@@ -941,7 +943,7 @@ export function createApp(deps: AppDeps) {
   }
   async function videnSide(c: Context<Env>, main: Markup, titel: string, status: 200 | 400 = 200): Promise<Response> {
     const { venter: v, univers, synlige: syn } = await navData();
-    return c.html(String(shell({ ...hvem(c), roomId: HJEM, hermesStatus: 'Klar', venter: v, main, chat: await deps.store.readChat(HJEM), stemme: stemmeNiveau, univers, synlige: syn, titel })), status);
+    return c.html(String(shell({ ...hvem(c), roomId: HJEM, hermesStatus: tekst().klar, venter: v, main, chat: await deps.store.readChat(HJEM), stemme: stemmeNiveau, univers, synlige: syn, titel })), status);
   }
   const erForm = (c: Context<Env>): boolean => /^(application\/x-www-form-urlencoded|multipart\/form-data)/i.test(c.req.header('content-type') ?? '');
   async function formFelt(c: Context<Env>, navn: string): Promise<string> {
@@ -1339,7 +1341,7 @@ export function createApp(deps: AppDeps) {
     // Only Hjem's own entries can be undone from Hjem; the other rooms' lines are shown plain.
     const hermes = [...logs.flat(), ...egne.slice(0, 8)].sort((a, b) => b.tid.localeCompare(a.tid)).slice(0, 10)
       .map((e) => ({ ...(e.graense ? { graense: e.graense } : {}), ...(egneIds.has(e.id) ? { tid: e.tid, tekst: e.tekst, id: e.id, ...(e.handlingId ? { handlingId: e.handlingId } : {}), ...(e.fortryd ? { fortryd: e.fortryd } : {}), ...(e.fortrudt ? { fortrudt: e.fortrudt } : {}) } : { tid: e.tid, tekst: e.tekst }) }));
-    const hermesStatus = (await getRoomModule(DAGEN)?.view(d))?.hermesStatus ?? 'Klar';
+    const hermesStatus = (await getRoomModule(DAGEN)?.view(d))?.hermesStatus ?? tekst().klar;
     // KC-0088: the earliest next appointment any room offers (today only Dagen does).
     const naeste = (await Promise.all(ROOM_MODULES.map((m) => m.naeste?.(d) ?? null))).filter((n) => n !== null).sort((a, b) => a.start.localeCompare(b.start))[0];
     // A written row whose card is gone keeps its Fortryd in "Skrevet i regnskab" (a card only put away, KC-0096, is not gone).
@@ -1426,7 +1428,7 @@ export function createApp(deps: AppDeps) {
     if (c.req.header('sec-fetch-dest') === 'iframe') return c.text('Findes ikke', 404);
     const { venter: v, univers, synlige: syn } = await navData(HJEM);
     const main = renderIkkeFundet(slags);
-    return c.html(String(shell({ ...hvem(c), roomId: HJEM, hermesStatus: 'Klar', venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: ikkeFundetOverskrift(slags) })), 404);
+    return c.html(String(shell({ ...hvem(c), roomId: HJEM, hermesStatus: tekst().klar, venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: ikkeFundetOverskrift(slags) })), 404);
   }
   app.notFound((c) => {
     const p = new URL(c.req.url).pathname;
@@ -1460,11 +1462,11 @@ export function createApp(deps: AppDeps) {
     const moede = state?.moeder.find((m) => m.id === c.req.param('moedeId'));
     if (!info || !state || !moede) {
       const main = html`<header class="room-head"><div><a class="muted" href="/rum/dagen">Til Dagen</a><h1>Mødet findes ikke</h1><p class="muted">Det er enten flyttet, slettet eller aldrig oprettet. Gå til Dagen for at se, hvad der er i kalenderen.</p></div></header>`;
-      return c.html(String(shell({ ...hvem(c), roomId: 'hjem', hermesStatus: 'Klar', venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: 'Mødet findes ikke' })), 404);
+      return c.html(String(shell({ ...hvem(c), roomId: 'hjem', hermesStatus: tekst().klar, venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: 'Mødet findes ikke' })), 404);
     }
     const rum = universRum(slugNavn);
     return c.html(String(shell({
-      ...hvem(c), roomId: rum, hermesStatus: state.hermesStatus ?? 'Klar', venter: v, main: renderMoedeVisning(info, moede, synligUnivers(state, d.person), now()), chat: await deps.store.readChat(rum),
+      ...hvem(c), roomId: rum, hermesStatus: state.hermesStatus ?? tekst().klar, venter: v, main: renderMoedeVisning(info, moede, synligUnivers(state, d.person), now()), chat: await deps.store.readChat(rum),
       stemme: stemmeNiveau, univers, synlige: syn, titel: moede.titel, kontekst: `Mødet: ${moede.titel}`.slice(0, 200),
       bodyData: { situation: 'moede', 'moede-slut': moede.slut, 'moede-id': moede.id },
     })));
@@ -1493,7 +1495,7 @@ export function createApp(deps: AppDeps) {
       const { main, hermesStatus } = await hjemView({ synlige: syn, venter: v });
       return c.html(String(shell({ ...hvem(c), roomId: room.id, hermesStatus, venter: v, main, chat: await deps.store.readChat(HJEM), stemme: stemmeNiveau, live: true, univers, synlige: syn, bodyData: { situation: (await situationNu()).situation } })));
     }
-    return c.html(String(shell({ ...hvem(c), roomId: room.id, hermesStatus: 'Klar', venter: v, main: renderPlaceholder(room), chat: [], stemme: stemmeNiveau, univers, synlige: syn })));
+    return c.html(String(shell({ ...hvem(c), roomId: room.id, hermesStatus: tekst().klar, venter: v, main: renderPlaceholder(room), chat: [], stemme: stemmeNiveau, univers, synlige: syn })));
   });
 
   /** KC-0064: a room run starting or ending changes its I gang band, and Hjem's (which shows every room's). */

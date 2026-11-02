@@ -27,6 +27,9 @@ export type TilmeldingDeps = {
   lande: readonly string[];
   /** The plans from config/priser.json, as shown. */
   planer: readonly PlanVisning[];
+  /** KC-0194: billing's country → currency rule (kroner in Denmark, euro elsewhere), and config moms.aktiv. */
+  valuta(land: string): 'dkk' | 'eur';
+  moms: boolean;
   proeveDage: number;
   adgang: { login(c: Context): Promise<Indlogget | null>; beskyttet(c: Context, csrf: unknown): Promise<Indlogget | null> };
   profil: {
@@ -131,7 +134,12 @@ export function tilmeldingRuter(d: TilmeldingDeps): Hono {
       case 'profil': side = { visning: v, lande: d.lande, land: profil?.land ?? null, valgtSprog: profil?.sprog ?? null, samtykke: d.samtykke, mangler: ekstra.mangler ?? false, behold: valg(q) }; break;
       case 'samtykke': side = { visning: v, samtykke: d.samtykke, mangler: ekstra.mangler ?? false }; break;
       case 'invitation': side = { visning: v, svar: ekstra.svar ?? null }; break;
-      case 'plan': side = { visning: v, planer: d.planer, proeveDage: d.proeveDage, valg: valg(q), land: profil?.land ?? '', proeve: await d.harProeve(l.kontoId), afbrudt: q['afbrudt'] === '1' }; break;
+      case 'plan': {
+        // The plan step comes after the profile, so the country is known; the statement page re-derives the currency from it.
+        const land = profil?.land ?? '';
+        side = { visning: v, planer: d.planer, proeveDage: d.proeveDage, valg: valg(q), land, valuta: land ? d.valuta(land) : 'dkk', moms: d.moms, proeve: await d.harProeve(l.kontoId), afbrudt: q['afbrudt'] === '1' };
+        break;
+      }
       case 'betaling': side = { visning: v, proeve: ekstra.betaling?.proeve ?? false, session: c.req.query('session') ?? '' }; break;
       case 'aabn': side = { visning: v, aabnUrl: d.aabnUrl(tenant!.slug) }; break;
       case 'klargoering': side = { visning: v }; break;

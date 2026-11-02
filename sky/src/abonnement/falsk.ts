@@ -9,7 +9,7 @@
 // subscription is read with its price's current lookup key, as Stripe expands it.
 import type Stripe from 'stripe';
 import { CLAWCO_MAERKE, kontoIdFra } from './stripe-klient.ts';
-import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, Metadata, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
+import type { AbonnementSnapshot, BetaltFaktura, SkatIndstillinger, BetalingsKlient, CheckoutSession, Faktura, Metadata, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
 
 export type FalskKald = {
   metode: 'opretProdukt' | 'opdaterProdukt' | 'opretPris' | 'arkiverPris' | 'opretKunde' | 'opretCheckout' | 'udloebCheckout' | 'opsigAbonnement' | 'opsigVedPeriodeslut' | 'opretPortal' | 'opretPortalKonfiguration' | 'opdaterPortalKonfiguration' | 'vedhaeftBetalingsmiddel' | 'skiftPris' | 'betalAabne';
@@ -36,6 +36,11 @@ export class FalskBetalingsKlient implements BetalingsKlient {
   readonly kald: FalskKald[] = [];
   /** What kontoMangler answers; null = the key may not read account settings. */
   konto: string[] | null = [];
+  /** KC-0194: what skatIndstillinger answers (null = the key may not read Stripe Tax), and how often it was read. */
+  private skat: SkatIndstillinger | null = { aktiv: false, mangler: ['head_office'] };
+  skatLaest = 0;
+  /** The latest moment spolFrem reached (when betalAabne pays an invoice). */
+  private sidst: Date | null = null;
   private produkter = new Map<string, StripeProdukt>();
   private priser = new Map<string, StripePris>();
   private idempotens = new Map<string, { anmodning: string; svar: unknown }>();
@@ -44,7 +49,9 @@ export class FalskBetalingsKlient implements BetalingsKlient {
   private kunder = new Map<string, FalskKunde>();
   private sessioner = new Map<string, FalskSession>();
   private abonnementer = new Map<string, AbonnementSnapshot>();
-  private fakturaer: (Faktura & { kunde: string })[] = [];
+  private fakturaer: (Faktura & { kunde: string; betalt?: Date })[] = [];
+  /** KC-0194: the currency each subscription bills in (Checkout's `currency`), so its invoices carry it. */
+  private abonnementsValuta = new Map<string, 'dkk' | 'eur'>();
   /** KC-0195: Portal configurations, Clawco's and (via tilfoejPortalKonfiguration) the shared account's others. */
   private portaler = new Map<string, { aktiv: boolean; metadata: Metadata; params: Stripe.BillingPortal.ConfigurationCreateParams | null }>();
   private log: FalskHaendelse[] = [];
@@ -113,7 +120,7 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     this.kald.push({ metode: 'opretProdukt', args: structuredClone(p), idempotensNoegle });
     return this.gentag(idempotensNoegle, p, () => {
       if (this.produkter.has(p.id)) throw new Error(`produktet ${p.id} findes allerede`);
-      const ny: StripeProdukt = { id: p.id, navn: p.navn, aktiv: true, metadata: { ...p.metadata } };
+      const ny: StripeProdukt = { id: p.id, navn: p.navn, aktiv: true, metadata: { ...p.metadata }, skatKode: p.skatKode };
       this.produkter.set(ny.id, ny);
       return structuredClone(ny);
     });
@@ -127,6 +134,7 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     if (aendring.navn !== undefined) p.navn = aendring.navn;
     if (aendring.aktiv !== undefined) p.aktiv = aendring.aktiv;
     if (aendring.metadata !== undefined) p.metadata = { ...p.metadata, ...aendring.metadata };
+    if (aendring.skatKode !== undefined) p.skatKode = aendring.skatKode;
     return structuredClone(p);
   }
 
@@ -140,7 +148,7 @@ export class FalskBetalingsKlient implements BetalingsKlient {
         if (!p.transferLookupKey) throw new Error(`lookup_key ${p.lookupKey} er allerede brugt af en anden pris`);
         holder.lookupKey = null;
       }
-      const ny: StripePris = { id: `price_falsk_${this.naesteId++}`, produkt: p.produkt, aktiv: true, lookupKey: p.lookupKey, dkk: p.dkk, eur: p.eur, interval: p.interval, metadata: { ...p.metadata } };
+      const ny: StripePris = { id: `price_falsk_${this.naesteId++}`, produkt: p.produkt, aktiv: true, lookupKey: p.lookupKey, dkk: p.dkk, eur: p.eur, interval: p.interval, metadata: { ...p.metadata }, momsInkl: p.momsInkl };
       this.priser.set(ny.id, ny);
       return structuredClone(ny);
     });
@@ -152,6 +160,23 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     const p = this.priser.get(id);
     if (!p) throw new Error(`ingen pris ${id}`);
     p.aktiv = false;
+  }
+
+  /** KC-0194 test helper: what Stripe Tax's settings say. */
+  saetSkat(s: SkatIndstillinger | null): void {
+    this.skat = s === null ? null : structuredClone(s);
+  }
+
+  async skatIndstillinger(): Promise<SkatIndstillinger | null> {
+    this.tjekFejl('skatIndstillinger');
+    this.skatLaest++;
+    return this.skat === null ? null : structuredClone(this.skat);
+  }
+
+  async listBetalteFakturaer(siden: Date): Promise<BetaltFaktura[]> {
+    this.tjekFejl('listBetalteFakturaer');
+    return this.fakturaer.filter((f) => f.status === 'paid' && (f.betalt ?? f.oprettet).getTime() >= siden.getTime())
+      .map((f) => ({ beloeb: f.beloeb, valuta: f.valuta, betalt: new Date(f.betalt ?? f.oprettet) }));
   }
 
   async kontoMangler(): Promise<string[] | null> {
@@ -240,6 +265,7 @@ export class FalskBetalingsKlient implements BetalingsKlient {
       opsigVedPeriodeslut: false, opsigesVed: null, forfaldenSiden: null, prisPlan: pris?.metadata['clawco_plan'] ?? null, metadata: { ...(p.subscription_data?.metadata as Record<string, string> | undefined) },
     };
     this.abonnementer.set(ab.id, ab);
+    this.abonnementsValuta.set(ab.id, p.currency === 'eur' ? 'eur' : 'dkk');
     this.slutAdfaerd.set(ab.id, p.subscription_data?.trial_settings?.end_behavior?.missing_payment_method ?? 'create_invoice');
     s.status = 'complete';
     s.abonnement = structuredClone(ab);
@@ -328,6 +354,7 @@ export class FalskBetalingsKlient implements BetalingsKlient {
   /** Test helper: time reaches `til` (for one customer, like a test clock, or all). Every boundary on the way is
    *  played in time order: a trial ends, a period renews (a charge), a cancellation at period end takes effect. */
   spolFrem(til: Date, kunde?: string): void {
+    this.sidst = new Date(til);
     for (;;) {
       let naeste: { a: AbonnementSnapshot; ved: Date } | null = null;
       for (const a of this.abonnementer.values()) {
@@ -369,7 +396,9 @@ export class FalskBetalingsKlient implements BetalingsKlient {
     a.periodeSlut = periode;
     const faktura = `in_falsk_${this.naesteId++}`;
     const ok = betaler === true;
-    this.fakturaer.push({ id: faktura, nummer: null, oprettet: new Date(ved), beloeb: pris?.dkk ?? 0, valuta: 'dkk', status: ok ? 'paid' : 'open', url: null, kunde: a.kunde });
+    // KC-0194: billed in the subscription's currency, at the price's amount in it; no tax while VAT is off (no automatic_tax).
+    const valuta = this.abonnementsValuta.get(a.id) ?? 'dkk';
+    this.fakturaer.push({ id: faktura, nummer: null, oprettet: new Date(ved), beloeb: (valuta === 'eur' ? pris?.eur : pris?.dkk) ?? 0, valuta, status: ok ? 'paid' : 'open', url: null, kunde: a.kunde, moms: 0, ...(ok ? { betalt: new Date(ved) } : {}) });
     if (ok) {
       a.status = 'active';
       a.forfaldenSiden = null;
@@ -391,7 +420,7 @@ export class FalskBetalingsKlient implements BetalingsKlient {
       for (const f of aabne) this.udsend('invoice.payment_failed', kunde, { id: f.id, object: 'invoice' });
       return;
     }
-    for (const f of aabne) { f.status = 'paid'; this.udsend('invoice.paid', kunde, { id: f.id, object: 'invoice' }); }
+    for (const f of aabne) { f.status = 'paid'; f.betalt = this.sidst ?? f.oprettet; this.udsend('invoice.paid', kunde, { id: f.id, object: 'invoice' }); }
     for (const a of this.abonnementer.values()) {
       if (a.kunde !== kunde || (a.status !== 'past_due' && a.status !== 'unpaid')) continue;
       a.status = 'active';
@@ -410,13 +439,13 @@ export class FalskBetalingsKlient implements BetalingsKlient {
   }
 
   /** Test helper (KC-0206): Stripe issued an invoice to `kunde`. */
-  tilfoejFaktura(f: Faktura & { kunde: string }): void {
+  tilfoejFaktura(f: Faktura & { kunde: string; betalt?: Date }): void {
     this.fakturaer.push(structuredClone(f));
   }
 
   async listFakturaer(kunde: string): Promise<Faktura[]> {
     this.tjekFejl('listFakturaer');
-    return this.fakturaer.filter((f) => f.kunde === kunde).map(({ kunde: _k, ...f }) => structuredClone(f)).sort((a, b) => b.oprettet.getTime() - a.oprettet.getTime());
+    return this.fakturaer.filter((f) => f.kunde === kunde).map(({ kunde: _k, betalt: _b, ...f }) => structuredClone(f)).sort((a, b) => b.oprettet.getTime() - a.oprettet.getTime());
   }
 
   async opretPortal(a: NyPortalSession): Promise<{ url: string }> {

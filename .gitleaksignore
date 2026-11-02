@@ -1,9 +1,6 @@
 # KC-0228: gitleaks findings checked by hand and known to be invented test fixtures (Stripe-shaped sentinels,
 # fake OAuth/tunnel tokens, self-signed CN=127.0.0.1 keys for the fake IMAP server). A moved line fails the scan
 # again, on purpose: look at it before adding it here.
-sky/test/abonnement/opsaet.test.ts:stripe-access-token:188
-sky/test/abonnement/opsaet.test.ts:stripe-access-token:189
-sky/test/abonnement/opsaet.test.ts:stripe-access-token:264
 sky/test/deploy.test.ts:stripe-access-token:193
 sky/test/deploy.test.ts:generic-api-key:151
 test/helpers/certifikater/anden.key:private-key:1

@@ -27,13 +27,13 @@ async function betalt(s: Stativ, a: ReturnType<typeof app>, felter: Record<strin
 }
 
 // --- The statement ----------------------------------------------------------------------------------
-test('the statement shows service, price without VAT, period, renewal, the 14 days, a link to the terms, and two unticked boxes', async () => {
+test('the statement shows service, the full price (no VAT line, G6), period, renewal, the 14 days, a link to the terms, and two unticked boxes', async () => {
   const s = await stativ();
   const r = await app(s).side(BEKRAEFT);
   assert.equal(r.status, 200);
   const t = await r.text();
   assert.match(t, /Clawco Sky, Sky Solo\. Til 1 person\./);
-  assert.match(t, /79 kr\. om måneden\. Det er hele prisen: der kommer ingen moms oveni\./);
+  assert.match(t, /79 kr\. om måneden\. Det er den fulde pris\./);
   assert.match(t, /Prøven varer 14 dage\. Du taster intet kort, og der trækkes ingen penge\./);
   assert.match(t, /fornyes automatisk hver måned til samme pris \(79 kr\.\)/);
   assert.match(t, /Du har 14 dages fortrydelsesret fra den dag, du køber\. Du fortryder med knappen &quot;Fortryd aftale&quot; på din kontoside\./);
@@ -47,7 +47,7 @@ test('the statement shows service, price without VAT, period, renewal, the 14 da
   assert.match(t, /Jeg beder udtrykkeligt om, at tjenesten starter med det samme\. Jeg ved, at jeg mister fortrydelsesretten, når tjenesten er leveret fuldt ud, og at jeg betaler for det, der er leveret indtil da, hvis jeg fortryder efter start\./);
   assert.match(t, /Forbrugeraftaleloven § 18, stk\. 2, nr\. 2 og § 25/);
   assert.match(t, /<button type="submit" class="primaer">Start 14 dages gratis prøve<\/button>/);
-  assert.doesNotMatch(t, /\bmoms\b(?! oveni)/, 'VAT is mentioned only to say none is added');
+  assert.doesNotMatch(t, /moms|\bVAT\b/i, 'no VAT is mentioned while moms.aktiv is false (KC-0194, G6)');
   assert.equal(r.headers.get('cache-control'), 'no-store');
 });
 
@@ -59,7 +59,7 @@ test('the button says what it does: the amount to pay for a paid start, per inte
   assert.match(maaned, /Du betaler 79 kr\. nu for den første måned, og abonnementet starter med det samme\./);
   const aar = await (await app(s).side('/konto/abonnement/bekraeft?plan=sky-husstand&interval=aar&land=DK')).text();
   assert.match(aar, />Betal 1\.290 kr\. og start nu<\/button>/);
-  assert.match(aar, /1\.290 kr\. om året\. Det er hele prisen/);
+  assert.match(aar, /1\.290 kr\. om året\. Det er den fulde pris/);
   assert.match(aar, /fornyes automatisk hvert år til samme pris \(1\.290 kr\.\)/);
 });
 
@@ -67,7 +67,7 @@ test('the statement follows the account language', async () => {
   const s = await stativ();
   const t = await (await app(s, { sprog: 'en' }).side(BEKRAEFT)).text();
   assert.match(t, /<html lang="en">/);
-  assert.match(t, /DKK 79 per month\. This is the whole price: no VAT is added on top\./);
+  assert.match(t, /DKK 79 per month\. This is the full price\./);
   assert.match(t, /I have read and accept the <a [^>]*>terms<\/a> \(version 0\.1-udkast\)/);
   assert.match(t, /I expressly ask that the service starts immediately\./);
   assert.match(t, /Start the 14-day free trial/);
@@ -150,11 +150,49 @@ test('what the page said is what happens: a changed price or trial since the pag
 
 test('Stripe holding another amount than the price file is refused: the person is never charged what was not shown', async () => {
   const s = await stativ();
-  await s.klient.opretPris({ produkt: 'clawco-sky-solo', navn: 'x', lookupKey: 'clawco-sky-solo-maaned', dkk: 9900, eur: 1300, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: true }, 'afvigende');
+  await s.klient.opretPris({ produkt: 'clawco-sky-solo', navn: 'x', lookupKey: 'clawco-sky-solo-maaned', dkk: 9900, eur: 1300, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: true, momsInkl: false }, 'afvigende');
   const r = await app(s).vaelg(SOLO);
   assert.equal(r.status, 503);
   assert.equal(sessioner(s).length, 0);
   assert.equal((await ordrer(s))[0]?.n, 0);
+});
+
+// --- KC-0194: currency by country ----------------------------------------------------------------------
+test('KC-0194: a German account sees euro on the statement, Checkout charges euro, and the order keeps the euro amount it showed', async () => {
+  const s = await stativ();
+  await s.db.query('UPDATE abonnement.kunde SET proeve_brugt = true');
+  const a = app(s, { sprog: 'en' });
+  const t = await (await a.side('/konto/abonnement/bekraeft?plan=sky-solo&interval=maaned&land=DE')).text();
+  assert.match(t, /€10\.60 per month\. This is the full price\./);
+  assert.match(t, />Pay €10\.60 and start now<\/button>/);
+  assert.doesNotMatch(t, /DKK|kr\./, 'a EUR customer is never shown a DKK amount');
+  assert.doesNotMatch(t, /moms|\bVAT\b/i);
+  assert.ok(t.includes('name="pris" value="1060"'));
+  const r = await a.vaelg({ plan: 'sky-solo', interval: 'maaned', land: 'DE', pris: '1060', proeve: '0' });
+  assert.equal(r.status, 303);
+  const [kald] = sessioner(s);
+  assert.equal((kald?.args as { currency?: string }).currency, 'eur');
+  const session = new URL(r.headers.get('location')!).pathname.split('/').at(-1)!;
+  const [rk] = await s.db.query<{ id: unknown }>('SELECT id FROM abonnement.bestilling WHERE checkout_session = $1', [session]);
+  const b = await hentBestilling(s.db, Number(rk!.id));
+  assert.deepEqual([b?.prisOere, b?.valuta], [1060, 'eur']);
+});
+
+test('KC-0194: a Danish account is never sent a EUR session (and its order is in kroner)', async () => {
+  const s = await stativ();
+  const r = await app(s).vaelg(SOLO);
+  assert.equal(r.status, 303);
+  assert.equal((sessioner(s)[0]?.args as { currency?: string }).currency, 'dkk');
+  const [rk] = await s.db.query<{ valuta: string; pris_oere: number }>('SELECT valuta, pris_oere FROM abonnement.bestilling');
+  assert.deepEqual([rk?.valuta, rk?.pris_oere], ['dkk', 7900]);
+});
+
+test('KC-0194: Stripe holding another EUR amount than the price file refuses a EUR Checkout, even when the DKK amount matches', async () => {
+  const s = await stativ();
+  await s.klient.opretPris({ produkt: 'clawco-sky-solo', navn: 'x', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1300, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: true, momsInkl: false }, 'afvigende-eur');
+  const r = await app(s).vaelg({ plan: 'sky-solo', interval: 'maaned', land: 'DE' });
+  assert.equal(r.status, 503);
+  assert.equal(sessioner(s).length, 0);
 });
 
 // --- Receipt after the webhook ---------------------------------------------------------------------

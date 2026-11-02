@@ -163,14 +163,23 @@ test('the Included model is greyed "coming later" while its config status is sen
   assert.ok(Array.from(rq.querySelectorAll('.amt')).some((e) => e.getAttribute('data-minor') === '5900'));
 });
 
-test('VAT: the page says no VAT is charged (G6), and a config with VAT on is refused until KC-0194 writes the words', () => {
+test('KC-0194 (G6): with VAT off the page says the price is the full price and no text it uses mentions VAT, in either language', () => {
   const d = dok(side(config()));
-  assert.ok(d.querySelector('[data-i="pr.vat"]'), 'the "no VAT charged" line');
-  assert.match(TABEL.en['pr.vat']!, /No VAT is charged/);
-  assert.match(TABEL.da['pr.vat']!, /ikke moms/);
-  assert.ok(!/inkl\.|incl(uding|\.) VAT|incl\.? moms/i.test(Object.entries(TABEL.en).filter(([k]) => k.startsWith('pr.')).map(([, v]) => v).join(' ')), 'never "incl. VAT" while no VAT is charged');
-  const p = config();
-  assert.throws(() => renderPriser({ priser: { ...p, moms: { aktiv: true } } as unknown as Priser, tabel: TABEL, skabelon: SKABELON }), /KC-0194/);
+  assert.ok(d.querySelector('[data-i="pr.fullprice"]'), 'the full-price line');
+  assert.equal(d.querySelector('[data-i="pr.fullprice.vat"]'), null);
+  assert.equal(TABEL.en['pr.fullprice'], 'The price is the full price.');
+  assert.equal(TABEL.da['pr.fullprice'], 'Prisen er den fulde pris.');
+  const noegler = new Set(Array.from(d.querySelectorAll('[data-i]')).map((e) => e.getAttribute('data-i')!));
+  for (const k of noegler) for (const sprog of ['en', 'da'] as const) assert.doesNotMatch(TABEL[sprog][k] ?? '', /moms|\bVAT\b/i, `${sprog} ${k}`);
+  assert.doesNotMatch(flad(d.body.textContent ?? ''), /moms|\bVAT\b/i);
+});
+
+test('KC-0194: with moms.aktiv true the same page says the price includes VAT (a config switch, no rebuild of the template)', () => {
+  const d = dok(side(config((r) => { r.moms.aktiv = true; })));
+  assert.ok(d.querySelector('[data-i="pr.fullprice.vat"]'));
+  assert.equal(d.querySelector('[data-i="pr.fullprice"]'), null);
+  assert.match(TABEL.en['pr.fullprice.vat']!, /VAT included/);
+  assert.match(TABEL.da['pr.fullprice.vat']!, /inkl\. moms/);
 });
 
 test('G5 as code: udkast shows the banner in both languages and keeps the page out of search; godkendt shows neither', () => {
@@ -202,7 +211,7 @@ test('a plan that the config knows but the page has no words for stops the build
 
 test('both language tables are complete: every key the page uses exists in English and Danish, and the English HTML equals the table', () => {
   const brugt = new Set<string>();
-  for (const aendr of [(r: any) => { r.status = 'udkast'; }, (r: any) => { r.proeve.dage = 0; }, (r: any) => { r.status = 'godkendt'; r.proeve.kort = true; r.tilvalg['inkluderet-model'].status = 'aktiv'; }]) {
+  for (const aendr of [(r: any) => { r.status = 'udkast'; }, (r: any) => { r.proeve.dage = 0; }, (r: any) => { r.status = 'godkendt'; r.proeve.kort = true; r.tilvalg['inkluderet-model'].status = 'aktiv'; }, (r: any) => { r.moms.aktiv = true; }]) {
     const d = dok(side(config(aendr)));
     for (const el of Array.from(d.querySelectorAll('[data-i]'))) {
       const k = el.getAttribute('data-i')!;

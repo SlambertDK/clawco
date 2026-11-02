@@ -7,6 +7,7 @@ import type { IntervalNavn } from './opsaet.ts';
 import type { Rettighed } from './rettigheder.ts';
 import type { Faktura } from './stripe-klient.ts';
 import { LANDE } from './lande.ts';
+import { valutaForLand } from './valuta.ts';
 import { T } from './tekster.ts';
 import type { Handling } from './handlinger.ts';
 
@@ -18,12 +19,14 @@ export type Valg = { plan: string | null; interval: IntervalNavn | null; land: s
 export function planSide(a: { csrf: string; priser: Priser; valg: Valg; proeve: boolean; afbrudt: boolean; fejl?: string }): string {
   const planer = Object.entries(a.priser.planer);
   const valgtPlan = a.valg.plan ?? planer[0]?.[0];
+  const land = a.valg.land ?? 'DK';
+  // KC-0194: the amounts of the chosen country's currency; the statement page shows the exact one before paying.
+  const valuta = valutaForLand(a.priser, land);
   const planValg = planer.map(([id, p]) => html`<label class="valg"><input type="radio" name="plan" value="${id}"${id === valgtPlan ? html` checked` : ''} required>
-<span><strong>${p.navn}</strong><br><small>${T.medlemmer(p.medlemmer)} · ${T.pris(p.maanedlig.dkk, p.aarlig.dkk)}</small></span></label>`);
+<span><strong>${p.navn}</strong><br><small>${T.medlemmer(p.medlemmer)} · ${T.pris(p.maanedlig[valuta], p.aarlig[valuta], valuta)}</small></span></label>`);
   const interval = a.valg.interval ?? 'maaned';
   const intervalValg = ([['maaned', T.maanedlig], ['aar', T.aarlig]] as const).map(([id, tekst]) =>
     html`<label class="valg"><input type="radio" name="interval" value="${id}"${id === interval ? html` checked` : ''} required><span>${tekst}</span></label>`);
-  const land = a.valg.land ?? 'DK';
   const lande = LANDE.map((l) => html`<option value="${l.kode}"${l.kode === land ? html` selected` : ''}>${l.navn}</option>`);
   return side(T.planTitel, html`<h1>${T.planTitel}</h1>
 <p>${a.proeve ? T.planIntro : T.planIntroUdenProeve}</p>
@@ -36,7 +39,7 @@ ${a.fejl ? html`<p class="status">${a.fejl}</p>` : ''}
 <select id="land" name="land" required>${lande}</select>
 <button type="submit" class="primaer">${T.videre}</button>
 </form>
-<p><small>${T.ingenMoms}</small></p>
+<p><small>${a.priser.moms.aktiv ? T.fuldPrisMoms : T.fuldPris} ${T.valutaNote}</small></p>
 ${tilbage()}`, { csrf: a.csrf });
 }
 

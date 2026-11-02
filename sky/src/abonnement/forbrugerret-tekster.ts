@@ -1,7 +1,7 @@
 // Every string of the consumer-rights flow (KC-0209), Danish and English: the statement before the pay button,
 // the two checkboxes, "Opsig", "Fortryd aftale" and the Stripe terms line. Plain text only: render.ts escapes
 // all of it. English has exactly Danish's keys (the type holds that). The words follow docs/legal/vilkaar.*.md
-// sections 7-10 (price without VAT, renewal, cancellation, the 14 days, the immediate start): change a promise
+// sections 7-10 (the full price, renewal, cancellation, the 14 days, the immediate start): change a promise
 // there and here together. Amounts, dates and names arrive as already formatted text from forbrugerret.ts.
 
 const da = {
@@ -13,7 +13,8 @@ const da = {
   medlemmer: (n: number): string => (n === 1 ? 'Til 1 person' : `Op til ${n} personer`),
   ydelse: (plan: string, medlemmer: string): string => `Clawco Sky, ${plan}. ${medlemmer}.`,
   prisTitel: 'Pris',
-  pris: (linje: string): string => `${linje}. Det er hele prisen: der kommer ingen moms oveni.`,
+  // KC-0194 (G6): while Henrik is not VAT-registered no VAT is mentioned at all; the line says the price is the full one.
+  pris: (linje: string, moms: boolean): string => (moms ? `${linje} inkl. moms. Det er den fulde pris.` : `${linje}. Det er den fulde pris.`),
   periodeTitel: 'Betaling og periode',
   periodeProeve: (dage: number): string => `Prøven varer ${dage} dage. Du taster intet kort, og der trækkes ingen penge. Når prøven er slut, sættes din Clawco på pause, indtil du selv vælger at betale. Der trækkes aldrig noget uden dit ja.`,
   periodeBetaling: (beloeb: string, foerste: string): string => `Du betaler ${beloeb} nu for ${foerste}, og abonnementet starter med det samme.`,
@@ -89,7 +90,7 @@ const en: ForbrugerTekster = {
   medlemmer: (n) => (n === 1 ? 'For 1 person' : `Up to ${n} people`),
   ydelse: (plan, medlemmer) => `Clawco Sky, ${plan}. ${medlemmer}.`,
   prisTitel: 'Price',
-  pris: (linje) => `${linje}. This is the whole price: no VAT is added on top.`,
+  pris: (linje, moms) => (moms ? `${linje} incl. VAT. This is the full price.` : `${linje}. This is the full price.`),
   periodeTitel: 'Payment and period',
   periodeProeve: (dage) => `The trial lasts ${dage} days. You enter no card and nothing is charged. When the trial ends, your Clawco is paused until you choose to pay. Nothing is ever charged without your yes.`,
   periodeBetaling: (beloeb, foerste) => `You pay ${beloeb} now for ${foerste}, and the subscription starts at once.`,

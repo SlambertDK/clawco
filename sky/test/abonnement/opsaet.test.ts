@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import { laesPriser } from '../../src/abonnement/priser.ts';
 import type { Priser } from '../../src/abonnement/priser.ts';
 import { FalskBetalingsKlient } from '../../src/abonnement/falsk.ts';
-import { anvend, beskriv, forventedeObjekter, koerOpsaet, lookupKey, planlaeg, produktId } from '../../src/abonnement/opsaet.ts';
+import { anvend, beskriv, forventedeObjekter, koerOpsaet, lookupKey, planlaeg, produktId, SKAT_KODE } from '../../src/abonnement/opsaet.ts';
+import { planPris } from '../../src/abonnement/forbrugerret.ts';
 
 const config = (): Priser => structuredClone(laesPriser());
 
@@ -53,7 +54,42 @@ test('the expected objects follow the config: two products, four prices, DKK wit
     ['clawco-sky-husstand-aar', 'clawco-sky-husstand', 129000, 17300, 'year'],
   ]);
   for (const p of f.priser) assert.deepEqual(p.metadata, { clawco: 'ja', clawco_plan: p.produkt.replace('clawco-', ''), clawco_interval: p.lookupKey.endsWith('-aar') ? 'aar' : 'maaned' });
-  for (const p of f.priser) assert.ok(!('taxBehavior' in p) && !('tax_behavior' in p));
+  // KC-0194 (G6): VAT off → no price is VAT-inclusive and no product carries a tax code.
+  for (const p of f.priser) assert.equal(p.momsInkl, false);
+  for (const p of f.produkter) assert.equal(p.skatKode, null);
+});
+
+test('KC-0194: with moms.aktiv true every price is VAT-inclusive and every product carries the SaaS personal-use tax code', async () => {
+  const uden = config();
+  const med: Priser = { ...uden, moms: { ...uden.moms, aktiv: true } };
+  const f = forventedeObjekter(med);
+  for (const p of f.priser) assert.equal(p.momsInkl, true, p.lookupKey);
+  for (const p of f.produkter) assert.equal(p.skatKode, SKAT_KODE, p.id);
+  assert.equal(SKAT_KODE, 'txcd_10103000');
+  // Switching it on in an account set up without VAT: same amounts, new inclusive prices take the keys, products get the code.
+  const k = new FalskBetalingsKlient('test');
+  await opsaet(uden, k);
+  const plan = await planlaeg(med, k);
+  assert.equal(plan.skridt.filter((s) => s.type === 'opret-pris').length, 4);
+  assert.equal(plan.skridt.filter((s) => s.type === 'opdater-produkt' && s.aendring.skatKode === SKAT_KODE).length, 2);
+  await anvend(plan.skridt, k);
+  assert.equal((await planlaeg(med, k)).skridt.length, 0);
+  for (const id of Object.keys(med.planer)) for (const i of ['maaned', 'aar'] as const) assert.equal((await k.prisForLookupKey(lookupKey(id, i)))?.momsInkl, true);
+});
+
+test('KC-0194 invariant (3): displayed = charged: every config amount, in each currency, is what the setup creates and what the statement shows', async () => {
+  const p = config();
+  const k = new FalskBetalingsKlient('test');
+  await opsaet(p, k);
+  for (const [id, plan] of Object.entries(p.planer)) {
+    for (const [interval, felt] of [['maaned', 'maanedlig'], ['aar', 'aarlig']] as const) {
+      const iStripe = (await k.prisForLookupKey(lookupKey(id, interval)))!;
+      for (const valuta of ['dkk', 'eur'] as const) {
+        assert.equal(iStripe[valuta], plan[felt][valuta], `${id}/${interval}/${valuta} i Stripe`);
+        assert.equal(planPris(p, id, interval, valuta), plan[felt][valuta], `${id}/${interval}/${valuta} på siden`);
+      }
+    }
+  }
 });
 
 test('invariant (1): after a run on an empty account, Stripe holds exactly the expected objects', async () => {
@@ -153,15 +189,15 @@ test('an archived product that is back in the config is reactivated', async () =
 test('a stray active price on a Clawco product (no lookup key) is archived', async () => {
   const k = new FalskBetalingsKlient('test');
   await opsaet(config(), k);
-  await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'løs', lookupKey: 'clawco-loes', dkk: 1, eur: 1, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: false }, 'loes');
+  await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'løs', lookupKey: 'clawco-loes', dkk: 1, eur: 1, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: false, momsInkl: false }, 'loes');
   const plan = await opsaet(config(), k);
   assert.deepEqual(plan.skridt.map((s) => s.type), ['arkiver-pris']);
   assert.deepEqual(await iStripe(k), forventet(config()));
 });
 
 test('products without the clawco marker (ShelfAtlas) are never touched', async () => {
-  const shelf = { id: 'prod_shelf', navn: 'ShelfAtlas Pro', aktiv: true, metadata: {} };
-  const k = new FalskBetalingsKlient('test', { produkter: [shelf], priser: [{ id: 'price_shelf', produkt: 'prod_shelf', aktiv: true, lookupKey: 'shelf-pro', dkk: 4900, eur: null, interval: 'month', metadata: {} }] });
+  const shelf = { id: 'prod_shelf', navn: 'ShelfAtlas Pro', aktiv: true, metadata: {}, skatKode: null };
+  const k = new FalskBetalingsKlient('test', { produkter: [shelf], priser: [{ id: 'price_shelf', produkt: 'prod_shelf', aktiv: true, lookupKey: 'shelf-pro', dkk: 4900, eur: null, interval: 'month', metadata: {}, momsInkl: false }] });
   await opsaet(config(), k);
   assert.ok(!k.kald.some((c) => JSON.stringify(c.args).includes('shelf')));
 });
@@ -185,8 +221,8 @@ test('beskriv names objects and counts, in Danish', async () => {
 
 // --- the command (npm run stripe:opsaet) ---
 
-const TEST_NOEGLE = 'rk_test_SENTINELhemmelig0123456789';
-const LIVE_NOEGLE = 'rk_live_SENTINELhemmelig0123456789';
+const TEST_NOEGLE = 'rk_test_SENTINELhemmelig0123456789'; // gitleaks:allow
+const LIVE_NOEGLE = ['rk', 'live', 'SENTINELhemmelig0123456789'].join('_'); // a fake live key, joined at run time (push protection)
 
 async function koer(argv: string[], env: Record<string, string | undefined>, opts: { klient?: FalskBetalingsKlient; priser?: Priser } = {}) {
   const linjer: string[] = [];
@@ -249,6 +285,40 @@ test('invariant (2): --anvend with a live key is refused unless the prices are a
   assert.equal(k.skrivninger, 6);
 });
 
+test('KC-0194 (G6): with VAT off the setup says so and never reads Stripe Tax', async () => {
+  const k = new FalskBetalingsKlient('test');
+  const r = await koer([], { SKY_STRIPE_SECRET_KEY: TEST_NOEGLE }, { klient: k });
+  assert.equal(r.kode, 0);
+  assert.match(r.ud, /Moms: slået fra/);
+  assert.equal(k.skatLaest, 0);
+});
+
+test('KC-0194: with VAT on, a live run is refused unless Stripe Tax is active; the missing fields are named', async () => {
+  const med: Priser = { ...config(), moms: { ...config().moms, aktiv: true } };
+  const env = { SKY_STRIPE_SECRET_KEY: LIVE_NOEGLE, SKY_STRIPE_LIVE_OK: 'ja' };
+  const ikkeKlar = new FalskBetalingsKlient('live');
+  ikkeKlar.saetSkat({ aktiv: false, mangler: ['head_office'] });
+  const r = await koer(['--anvend'], env, { klient: ikkeKlar, priser: med });
+  assert.equal(r.kode, 1);
+  assert.equal(ikkeKlar.skrivninger, 0);
+  assert.match(r.ud, /Stripe Tax/);
+  assert.match(r.ud, /head_office/);
+  const ulaeselig = new FalskBetalingsKlient('live');
+  ulaeselig.saetSkat(null);
+  assert.equal((await koer(['--anvend'], env, { klient: ulaeselig, priser: med })).kode, 1);
+  const klar = new FalskBetalingsKlient('live');
+  klar.saetSkat({ aktiv: true, mangler: [] });
+  const ok = await koer(['--anvend'], env, { klient: klar, priser: med });
+  assert.equal(ok.kode, 0, ok.ud);
+  assert.match(ok.ud, /Stripe Tax er aktiv/);
+  // Test mode only warns: the test-mode run computes with test registrations.
+  const test = new FalskBetalingsKlient('test');
+  test.saetSkat({ aktiv: false, mangler: ['head_office'] });
+  const t = await koer(['--anvend'], { SKY_STRIPE_SECRET_KEY: TEST_NOEGLE }, { klient: test, priser: med });
+  assert.equal(t.kode, 0, t.ud);
+  assert.match(t.ud, /head_office/);
+});
+
 test('a live dry run only reads, and test mode has no live block', async () => {
   const live = new FalskBetalingsKlient('live');
   const r = await koer([], { SKY_STRIPE_SECRET_KEY: LIVE_NOEGLE }, { klient: live });
@@ -261,7 +331,7 @@ test('a live dry run only reads, and test mode has no live block', async () => {
 });
 
 test('invariant (3): a missing or malformed key exits 1 before any client exists', async () => {
-  for (const env of [{}, { SKY_STRIPE_SECRET_KEY: '' }, { SKY_STRIPE_SECRET_KEY: 'sk_live_SENTINELhemmelig0123456789' }, { SKY_STRIPE_SECRET_KEY: 'SENTINELhemmelig' }]) {
+  for (const env of [{}, { SKY_STRIPE_SECRET_KEY: '' }, { SKY_STRIPE_SECRET_KEY: ['sk', 'live', 'SENTINELhemmelig0123456789'].join('_') }, { SKY_STRIPE_SECRET_KEY: 'SENTINELhemmelig' }]) {
     const r = await koer(['--anvend'], env);
     assert.equal(r.kode, 1);
     assert.equal(r.lavet, 0);

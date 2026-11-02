@@ -110,9 +110,9 @@ test('KC-0206 proof: delete an owner, run 31 days, and a full inventory finds no
     await synkKunde(db, klient, priser, { stripeKunde: s.kunde, kontoId, grund: 'test', haendelseId: null, nu: nu() });
     klient.tilfoejFaktura({ id: 'in_1', kunde: s.kunde, nummer: 'A-1', oprettet: nu(), beloeb: 7900, valuta: 'dkk', status: 'paid', url: null });
     // KC-0209: an order with its two consents, and a withdrawal with the owner's refund task. These rows are kept (konto/beholdt.ts).
-    const bestilling = await opretBestilling(db, { kontoId, checkoutSession: 'cs_inventar', plan: 'sky-solo', interval: 'maaned', prisOere: 7900, proeve: false, vilkaarVersion: '2026-10', sprog: 'da', nu: nu() });
+    const bestilling = await opretBestilling(db, { kontoId, checkoutSession: 'cs_inventar', plan: 'sky-solo', interval: 'maaned', prisOere: 7900, valuta: 'dkk', proeve: false, vilkaarVersion: '2026-10', sprog: 'da', nu: nu() });
     await knytBestilling(db, bestilling, 'sub_inventar', nu());
-    await registrerFortrydelse(db, { bestillingId: bestilling, kontoId, tidspunkt: nu(), brugteDage: 3, periodeDage: 30, tilbageOere: 7110, forfald: new Date(t + 14 * DAG), beloebOpgave: 7110 });
+    await registrerFortrydelse(db, { bestillingId: bestilling, kontoId, tidspunkt: nu(), brugteDage: 3, periodeDage: 30, tilbageOere: 7110, forfald: new Date(t + 14 * DAG), beloebOpgave: 7110, valuta: 'dkk' });
 
     // The tenant: container + volume with content, its data key, the route, a one-time gateway code.
     const flaade = falskFlaade();

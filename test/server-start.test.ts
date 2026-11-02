@@ -115,7 +115,7 @@ test('velkommen-gem saves the profile atomically, the step turns Klaret, Hermes 
     assert.deepEqual((await readdir(s.dir)).filter((f) => f.startsWith('profil.json.tmp')), []);
     const h = await side(s, '/rum/start');
     assert.match(h, /data-trin="velkommen" data-trin-status="klaret"/);
-    assert.match(h, /Du hedder Alma/);
+    assert.match(h, /Your name is Alma/); // KC-0170: English chosen, so the screen is English
     const [linje] = await s.store.readLog('start');
     assert.equal(linje?.handlingId, 'velkommen-gem');
     assert.ok(linje?.fortryd?.startsWith('lokal:'));

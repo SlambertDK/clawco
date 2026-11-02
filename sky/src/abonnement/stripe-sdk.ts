@@ -4,16 +4,17 @@
 // test account only (parked until he pastes the key).
 import Stripe from 'stripe';
 import { CLAWCO_MAERKE, kontoIdFra, tilstandFraNoegle } from './stripe-klient.ts';
-import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeHaendelse, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
+import type { AbonnementSnapshot, BetaltFaktura, SkatIndstillinger, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeHaendelse, StripeKunde, StripePris, StripeProdukt, Tilstand } from './stripe-klient.ts';
 
 export function tilPrisParams(p: NyPris): Stripe.PriceCreateParams {
-  // No tax_behavior while moms.aktiv is false (D17, KC-0194).
+  // KC-0194 (G6): no tax_behavior while moms.aktiv is false; once on, both currencies are VAT-inclusive.
   return {
     product: p.produkt,
     nickname: p.navn,
     currency: 'dkk',
     unit_amount: p.dkk,
-    currency_options: { eur: { unit_amount: p.eur } },
+    ...(p.momsInkl ? { tax_behavior: 'inclusive' as const } : {}),
+    currency_options: { eur: { unit_amount: p.eur, ...(p.momsInkl ? { tax_behavior: 'inclusive' as const } : {}) } },
     recurring: { interval: p.interval },
     lookup_key: p.lookupKey,
     transfer_lookup_key: p.transferLookupKey,
@@ -36,11 +37,12 @@ export function fraStripePris(x: Stripe.Price): StripePris {
     eur: x.currency_options?.['eur']?.unit_amount ?? null,
     interval,
     metadata: { ...x.metadata },
+    momsInkl: x.tax_behavior === 'inclusive' && (x.currency_options?.['eur'] === undefined || x.currency_options['eur'].tax_behavior === 'inclusive'),
   };
 }
 
 export function fraStripeProdukt(x: Stripe.Product): StripeProdukt {
-  return { id: x.id, navn: x.name, aktiv: x.active, metadata: { ...x.metadata } };
+  return { id: x.id, navn: x.name, aktiv: x.active, metadata: { ...x.metadata }, skatKode: id(x.tax_code) };
 }
 
 /** Public business details the setup cannot set (Henrik's legal entity, D17), named when unset. */
@@ -77,7 +79,14 @@ export function fraStripeAbonnement(s: Stripe.Subscription): AbonnementSnapshot 
 
 /** KC-0206: the invoice fields Hent alt shows. */
 export function fraStripeFaktura(f: Stripe.Invoice): Faktura {
-  return { id: f.id ?? '', nummer: f.number ?? null, oprettet: new Date(f.created * 1000), beloeb: f.total, valuta: f.currency, status: f.status ?? null, url: f.hosted_invoice_url ?? null };
+  const moms = (f.total_taxes ?? []).reduce((sum, t) => sum + t.amount, 0);
+  return { id: f.id ?? '', nummer: f.number ?? null, oprettet: new Date(f.created * 1000), beloeb: f.total, valuta: f.currency, status: f.status ?? null, url: f.hosted_invoice_url ?? null, moms };
+}
+
+/** KC-0194: a paid invoice for the revenue watch: amount paid, currency and when; null when it has no paid time. */
+export function fraBetaltFaktura(f: Stripe.Invoice): BetaltFaktura | null {
+  const betalt = dato(f.status_transitions?.paid_at);
+  return f.status === 'paid' && betalt ? { beloeb: f.amount_paid, valuta: f.currency, betalt } : null;
 }
 
 /** KC-0195: a Portal configuration as the setup compares it. */
@@ -141,7 +150,7 @@ export class StripeBetalingsKlient implements BetalingsKlient {
   }
 
   async opretProdukt(p: NytProdukt, idempotensNoegle: string): Promise<StripeProdukt> {
-    return fraStripeProdukt(await this.stripe.products.create({ id: p.id, name: p.navn, metadata: p.metadata }, { idempotencyKey: idempotensNoegle }));
+    return fraStripeProdukt(await this.stripe.products.create({ id: p.id, name: p.navn, metadata: p.metadata, ...(p.skatKode ? { tax_code: p.skatKode } : {}) }, { idempotencyKey: idempotensNoegle }));
   }
 
   async opdaterProdukt(id: string, a: ProduktAendring): Promise<StripeProdukt> {
@@ -149,6 +158,7 @@ export class StripeBetalingsKlient implements BetalingsKlient {
     if (a.navn !== undefined) params.name = a.navn;
     if (a.aktiv !== undefined) params.active = a.aktiv;
     if (a.metadata !== undefined) params.metadata = a.metadata;
+    if (a.skatKode !== undefined) params.tax_code = a.skatKode;
     return fraStripeProdukt(await this.stripe.products.update(id, params));
   }
 
@@ -252,5 +262,27 @@ export class StripeBetalingsKlient implements BetalingsKlient {
     const ud: Faktura[] = [];
     for await (const f of this.stripe.invoices.list({ customer: kunde, limit: 100 })) ud.push(fraStripeFaktura(f));
     return ud;
+  }
+
+  async listBetalteFakturaer(siden: Date): Promise<BetaltFaktura[]> {
+    const ud: BetaltFaktura[] = [];
+    // Listed by creation (the API's filter); an invoice is paid after it is created, so a month's margin finds every
+    // invoice paid since `siden`, and the paid time decides.
+    const fra = Math.floor(siden.getTime() / 1000) - 31 * 86_400;
+    for await (const f of this.stripe.invoices.list({ status: 'paid', created: { gte: fra }, limit: 100 })) {
+      const b = fraBetaltFaktura(f);
+      if (b && b.betalt.getTime() >= siden.getTime()) ud.push(b);
+    }
+    return ud;
+  }
+
+  async skatIndstillinger(): Promise<SkatIndstillinger | null> {
+    try {
+      const s = await this.stripe.tax.settings.retrieve();
+      return { aktiv: s.status === 'active', mangler: s.status_details.pending?.missing_fields ?? [] };
+    } catch (e) {
+      if (e instanceof Stripe.errors.StripePermissionError) return null;
+      throw e;
+    }
   }
 }

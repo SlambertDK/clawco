@@ -32,6 +32,8 @@ import { destruktionsLoekke } from './hemmeligheder/dagligt.ts';
 import { laesOmkostninger } from './delt/omkostninger.ts';
 import { abonnementRuter, koebDeps, webhookDeps, type AbonnementDeps } from './abonnement/ruter.ts';
 import { fristLoekke } from './abonnement/frist-job.ts';
+import { valutaForLand } from './abonnement/valuta.ts';
+import { omsaetningsVagt } from './abonnement/omsaetning.ts';
 import { velkomstLoekke, type VelkomstDeps } from './abonnement/velkomst-job.ts';
 import type { KoebDeps } from './abonnement/kvittering.ts';
 import { nytAfmeldLink, vilHaveTips } from './konto/mailvalg.ts';
@@ -216,8 +218,10 @@ export function tilmeldingDeps(o: { config: SkyConfig; db: Database; adgang: Ret
     publicUrl: config.publicUrl, sideUrl: `https://${config.basedomain}`, tilstand: config.tilmelding, dev: config.dev,
     samtykke: laesSamtykke(),
     lande: LANDE.map((l) => l.kode),
-    // DKK until KC-0194 decides currency per country (Checkout is DKK too).
-    planer: Object.entries(ab.priser.planer).map(([id, p]) => ({ id, navn: p.navn, medlemmer: p.medlemmer, maaned: p.maanedlig.dkk, aar: p.aarlig.dkk })),
+    planer: Object.entries(ab.priser.planer).map(([id, p]) => ({ id, navn: p.navn, medlemmer: p.medlemmer, maaned: p.maanedlig, aar: p.aarlig })),
+    // KC-0194: billing's rule, so the plan step shows the currency Checkout will charge in.
+    valuta: (land) => valutaForLand(ab.priser, land),
+    moms: ab.priser.moms.aktiv,
     proeveDage: ab.priser.proeve.dage,
     adgang: { login: async (c) => somLogin(await o.adgang.login(c)), beskyttet: async (c, csrf) => somLogin(await o.adgang.beskyttet(c, csrf)) },
     profil: { hent: (id) => hentProfil(db, id), gem: (id, p) => gemProfil(db, id, p), noterTid: (id, klar) => noterTilmeldingstid(db, id, klar) },
@@ -567,7 +571,15 @@ export async function main(): Promise<void> {
   // KC-0187: the alert rules every 5 min on the signals Sky has (backups, drills, rollouts), by mail to SKY_ALARM_TIL.
   const til = alarmModtager(process.env);
   const regler = alarmer({ post: f.konto.post, til, rapport: fejl.rapport });
-  const alarm = alarmLoekke({ signaler: (nu) => alarmSignaler(db, nu), alarm: regler, rapport: fejl.rapport, interval: 5 * 60_000 });
+  // KC-0194 (G6): the revenue watch rides the same rules (moms-graense): paid invoices over 12 months, read from Stripe at most every 6 h.
+  const omsaetning = omsaetningsVagt({ klient: f.abonnement.klient, priser: f.abonnement.priser });
+  const alarm = alarmLoekke({
+    signaler: async (nu) => {
+      const o = await omsaetning(nu);
+      return { ...(await alarmSignaler(db, nu)), ...(o ? { omsaetning: o } : {}) };
+    },
+    alarm: regler, rapport: fejl.rapport, interval: 5 * 60_000,
+  });
   // KC-0196: the grace stages' mails (day 7 needs no event; day 0 also goes out from the webhook). A pass now, then every 15 min.
   const fristJob = fristLoekke(koebDeps(f.abonnement), { interval: 15 * 60_000 });
   // KC-0200: the welcome mails (welcome when the Clawco is klar, tips on day 3, trial ending on day 12). Every 5 min.

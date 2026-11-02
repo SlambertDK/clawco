@@ -73,24 +73,24 @@ test('the fake records every write with its idempotency key and counts writes on
   const k = new FalskBetalingsKlient('test');
   await k.listProdukter();
   assert.equal(k.skrivninger, 0);
-  await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' } }, 'idem-1');
+  await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' }, skatKode: null }, 'idem-1');
   assert.equal(k.skrivninger, 1);
   assert.deepEqual(k.kald.map((c) => [c.metode, c.idempotensNoegle]), [['opretProdukt', 'idem-1']]);
   assert.deepEqual((await k.listProdukter()).map((p) => p.id), ['clawco-x']);
 });
 
 test('the fake only lists products marked metadata.clawco (the account is shared with ShelfAtlas)', async () => {
-  const k = new FalskBetalingsKlient('test', { produkter: [{ id: 'prod_shelf', navn: 'ShelfAtlas', aktiv: true, metadata: {} }] });
+  const k = new FalskBetalingsKlient('test', { produkter: [{ id: 'prod_shelf', navn: 'ShelfAtlas', aktiv: true, metadata: {}, skatKode: null }] });
   assert.deepEqual(await k.listProdukter(), []);
 });
 
 test('the fake enforces unique lookup keys like Stripe, and transferLookupKey moves one', async () => {
   const k = new FalskBetalingsKlient('test');
-  await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' } }, 'p');
-  const pris = { produkt: 'clawco-x', navn: 'X', lookupKey: 'clawco-x-maaned', dkk: 100, eur: 10, interval: 'month' as const, metadata: { clawco: 'ja' }, transferLookupKey: false };
+  await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' }, skatKode: null }, 'p');
+  const pris = { produkt: 'clawco-x', navn: 'X', lookupKey: 'clawco-x-maaned', dkk: 100, eur: 10, interval: 'month' as const, metadata: { clawco: 'ja' }, transferLookupKey: false, momsInkl: false };
   const a = await k.opretPris(pris, 'a');
   await assert.rejects(k.opretPris({ ...pris, dkk: 200 }, 'b'), /lookup_key/);
-  const c = await k.opretPris({ ...pris, dkk: 200, transferLookupKey: true }, 'c');
+  const c = await k.opretPris({ ...pris, dkk: 200, transferLookupKey: true, momsInkl: false }, 'c');
   const aktive = await k.listPriser('clawco-x');
   assert.equal(aktive.find((p) => p.id === a.id)?.lookupKey, null);
   assert.equal(aktive.find((p) => p.id === c.id)?.lookupKey, 'clawco-x-maaned');
@@ -100,17 +100,17 @@ test('the fake enforces unique lookup keys like Stripe, and transferLookupKey mo
 
 test('the fake replays an idempotency key like Stripe: same request → same object, other request → error', async () => {
   const k = new FalskBetalingsKlient('test');
-  const a = await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' } }, 'samme');
-  const b = await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' } }, 'samme');
+  const a = await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' }, skatKode: null }, 'samme');
+  const b = await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' }, skatKode: null }, 'samme');
   assert.deepEqual(a, b);
-  await assert.rejects(k.opretProdukt({ id: 'clawco-y', navn: 'Y', metadata: { clawco: 'ja' } }, 'samme'), /idempotens/);
+  await assert.rejects(k.opretProdukt({ id: 'clawco-y', navn: 'Y', metadata: { clawco: 'ja' }, skatKode: null }, 'samme'), /idempotens/);
 });
 
 test('the fake can be told to fail the next call of a method', async () => {
   const k = new FalskBetalingsKlient('test');
   k.fejlNaeste('opretProdukt', 'netværksfejl');
-  await assert.rejects(k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' } }, 'p'), /netværksfejl/);
-  await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' } }, 'p');
+  await assert.rejects(k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' }, skatKode: null }, 'p'), /netværksfejl/);
+  await k.opretProdukt({ id: 'clawco-x', navn: 'X', metadata: { clawco: 'ja' }, skatKode: null }, 'p');
   assert.equal((await k.listProdukter()).length, 1);
 });
 
@@ -120,8 +120,8 @@ const NU = new Date('2026-10-31T10:00:00.000Z');
 
 async function medPris(): Promise<{ k: FalskBetalingsKlient; prisId: string }> {
   const k = new FalskBetalingsKlient('test');
-  await k.opretProdukt({ id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', metadata: { clawco: 'ja' } }, 'p');
-  const p = await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: false }, 'pr');
+  await k.opretProdukt({ id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', metadata: { clawco: 'ja' }, skatKode: null }, 'p');
+  const p = await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: false, momsInkl: false }, 'pr');
   return { k, prisId: p.id };
 }
 
@@ -200,8 +200,8 @@ test('the fake cancels a subscription, deletes a customer (its subscriptions can
 
 async function proeveMedFalsk(): Promise<{ k: FalskBetalingsKlient; kunde: string; start: Date }> {
   const k = new FalskBetalingsKlient('test');
-  await k.opretProdukt({ id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', metadata: { clawco: 'ja' } }, 'p');
-  const pris = await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja', clawco_plan: 'sky-solo' }, transferLookupKey: false }, 'pr');
+  await k.opretProdukt({ id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', metadata: { clawco: 'ja' }, skatKode: null }, 'p');
+  const pris = await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja', clawco_plan: 'sky-solo' }, transferLookupKey: false, momsInkl: false }, 'pr');
   const kunde = (await k.opretKunde({ kontoId: 7, email: 'kunde@example.com', sprog: 'da' }, 'k')).id;
   const start = new Date('2026-10-31T10:00:00.000Z');
   const s = await k.opretCheckout({ mode: 'subscription', customer: kunde, line_items: [{ price: pris.id, quantity: 1 }], subscription_data: { trial_period_days: 14, trial_settings: { end_behavior: { missing_payment_method: 'pause' } } } }, 'c');
@@ -243,7 +243,7 @@ test('KC-0193: only Stripe\'s published test payment method ids are accepted; a 
 
 test('KC-0193: a subscription is read with its price\'s current lookup key and plan, as Stripe expands it', async () => {
   const { k, kunde } = await proeveMedFalsk();
-  await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 8900, eur: 1190, interval: 'month', metadata: { clawco: 'ja', clawco_plan: 'sky-solo' }, transferLookupKey: true }, 'ny');
+  await k.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 8900, eur: 1190, interval: 'month', metadata: { clawco: 'ja', clawco_plan: 'sky-solo' }, transferLookupKey: true, momsInkl: false }, 'ny');
   const a = (await k.listAbonnementer(kunde))[0]!;
   assert.equal(a.lookupKey, null);
   assert.equal(a.prisPlan, 'sky-solo');

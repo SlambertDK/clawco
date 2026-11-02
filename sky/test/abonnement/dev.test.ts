@@ -13,7 +13,7 @@ test('the dev Checkout page shows the plan; its button completes the session, a 
   const s = await stativ();
   const pris = await s.klient.prisForLookupKey(lookupKey('sky-husstand', 'aar'));
   const params = byggCheckout({
-    kontoId: s.kontoId, kunde: s.kunde, plan: 'sky-husstand', interval: 'aar', land: 'DK', sprog: 'da', valuta: 'dkk', skat: null, prisId: pris!.id, proeve: true,
+    kontoId: s.kontoId, kunde: s.kunde, plan: 'sky-husstand', interval: 'aar', land: 'DK', sprog: 'da', prisId: pris!.id, proeve: true,
     publicUrl: PUBLIC, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: null }, tilstand: 'test',
   }, s.priser);
   const session = await s.klient.opretCheckout(params, 'dev');

@@ -5,11 +5,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import Stripe from 'stripe';
 import type { BetalingsKlient, NyPris } from '../../src/abonnement/stripe-klient.ts';
-import { StripeBetalingsKlient, fraStripePris, fraStripeProdukt, kontoHuller, tilPrisParams, fraStripeAbonnement, fraStripeCheckout, fraStripePortalKonfiguration, verificerWebhook } from '../../src/abonnement/stripe-sdk.ts';
+import { StripeBetalingsKlient, fraStripePris, fraStripeProdukt, kontoHuller, tilPrisParams, fraStripeAbonnement, fraStripeCheckout, fraStripePortalKonfiguration, fraStripeFaktura, verificerWebhook } from '../../src/abonnement/stripe-sdk.ts';
 
 const nyPris: NyPris = {
   produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060,
-  interval: 'month', metadata: { clawco: 'ja', clawco_plan: 'sky-solo', clawco_interval: 'maaned' }, transferLookupKey: true,
+  interval: 'month', metadata: { clawco: 'ja', clawco_plan: 'sky-solo', clawco_interval: 'maaned' }, transferLookupKey: true, momsInkl: false,
 };
 
 test('the SDK client is a BetalingsKlient and takes its mode from the key, without network', () => {
@@ -34,6 +34,10 @@ test('a price becomes DKK with EUR in currency_options, recurring, lookup key wi
     metadata: { clawco: 'ja', clawco_plan: 'sky-solo', clawco_interval: 'maaned' },
   });
   assert.ok(!('tax_behavior' in p));
+  // KC-0194: once VAT is on, both currencies are VAT-inclusive (the amount shown is the amount charged).
+  const med = tilPrisParams({ ...nyPris, momsInkl: true });
+  assert.equal(med.tax_behavior, 'inclusive');
+  assert.deepEqual(med.currency_options, { eur: { unit_amount: 1060, tax_behavior: 'inclusive' } });
 });
 
 function pris(over: Record<string, unknown>): Stripe.Price {
@@ -45,9 +49,13 @@ function pris(over: Record<string, unknown>): Stripe.Price {
 }
 
 test('a Stripe price maps back to the seam shape', () => {
-  assert.deepEqual(fraStripePris(pris({})), { id: 'price_1', produkt: 'clawco-sky-solo', aktiv: true, lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja' } });
+  assert.deepEqual(fraStripePris(pris({})), { id: 'price_1', produkt: 'clawco-sky-solo', aktiv: true, lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja' }, momsInkl: false });
   assert.equal(fraStripePris(pris({ product: { id: 'clawco-x' } })).produkt, 'clawco-x');
   assert.equal(fraStripePris(pris({ currency_options: undefined })).eur, null);
+  // KC-0194: VAT-inclusive only when the price and its EUR option both say so.
+  assert.equal(fraStripePris(pris({ tax_behavior: 'inclusive', currency_options: { eur: { unit_amount: 1060, tax_behavior: 'inclusive' } } })).momsInkl, true);
+  assert.equal(fraStripePris(pris({ tax_behavior: 'inclusive', currency_options: { eur: { unit_amount: 1060, tax_behavior: 'unspecified' } } })).momsInkl, false);
+  assert.equal(fraStripePris(pris({ tax_behavior: 'unspecified' })).momsInkl, false);
 });
 
 test('a price that cannot be ours (other currency, other interval, no amount) never matches an expected price', () => {
@@ -58,7 +66,16 @@ test('a price that cannot be ours (other currency, other interval, no amount) ne
 
 test('a Stripe product maps back to the seam shape', () => {
   const p = { id: 'clawco-sky-solo', object: 'product', name: 'Clawco Sky Solo', active: false, metadata: { clawco: 'ja' } } as unknown as Stripe.Product;
-  assert.deepEqual(fraStripeProdukt(p), { id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', aktiv: false, metadata: { clawco: 'ja' } });
+  assert.deepEqual(fraStripeProdukt(p), { id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', aktiv: false, metadata: { clawco: 'ja' }, skatKode: null });
+  assert.equal(fraStripeProdukt({ ...p, tax_code: 'txcd_10103000' } as Stripe.Product).skatKode, 'txcd_10103000');
+  assert.equal(fraStripeProdukt({ ...p, tax_code: { id: 'txcd_10103000' } } as unknown as Stripe.Product).skatKode, 'txcd_10103000');
+});
+
+test('KC-0194: a paid invoice\'s VAT is the sum of its tax lines (0 while VAT is off)', () => {
+  const f = (over: Record<string, unknown>) => fraStripeFaktura({ id: 'in_1', number: 'A-1', created: 1_793_000_000, total: 1060, currency: 'eur', status: 'paid', hosted_invoice_url: null, total_taxes: [], ...over } as unknown as Stripe.Invoice);
+  assert.equal(f({}).moms, 0);
+  assert.equal(f({ total_taxes: null }).moms, 0);
+  assert.equal(f({ total_taxes: [{ amount: 212 }, { amount: 3 }] }).moms, 215);
 });
 
 test('unset account settings are named, set ones are not', () => {
@@ -134,7 +151,7 @@ test('verificerWebhook accepts a correctly signed body and names the customer; w
 test('KC-0206: an invoice becomes number, date, amount, currency, status and its own page, for Hent alt', async () => {
   const { fraStripeFaktura } = await import('../../src/abonnement/stripe-sdk.ts');
   const f = fraStripeFaktura({ id: 'in_1', number: 'ABC-0001', created: 1_793_000_000, total: 7900, currency: 'dkk', status: 'paid', hosted_invoice_url: 'https://invoice.stripe.com/i/x' } as Stripe.Invoice);
-  assert.deepEqual(f, { id: 'in_1', nummer: 'ABC-0001', oprettet: new Date(1_793_000_000 * 1000), beloeb: 7900, valuta: 'dkk', status: 'paid', url: 'https://invoice.stripe.com/i/x' });
+  assert.deepEqual(f, { id: 'in_1', nummer: 'ABC-0001', oprettet: new Date(1_793_000_000 * 1000), beloeb: 7900, valuta: 'dkk', status: 'paid', url: 'https://invoice.stripe.com/i/x', moms: 0 });
   const kladde = fraStripeFaktura({ id: 'in_2', number: null, created: 1, total: 0, currency: 'eur', status: 'draft', hosted_invoice_url: null } as Stripe.Invoice);
   assert.equal(kladde.nummer, null);
   assert.equal(kladde.url, null);

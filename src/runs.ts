@@ -17,11 +17,14 @@ import { redigeres } from './graenser/redaktion.ts';
 export type RunEvent =
   | { type: 'status'; text: string }
   | { type: 'delta'; text: string }
-  | { type: 'done'; html?: string; text?: string; venter?: Record<string, number>; hermesStatus?: string; url?: string }
+  | { type: 'done'; html?: string; text?: string; venter?: Record<string, number>; hermesStatus?: string; url?: string; genindlaes?: true }
   | { type: 'error'; text: string };
 
-/** `url`: where the browser should go once the run is done (a new or archived univers). */
-export type DoneResult = { html?: string; text?: string; venter?: Record<string, number>; hermesStatus?: string; url?: string };
+/**
+ * `url`: where the browser should go once the run is done (a new or archived univers). `genindlaes` (KC-0170): the
+ * whole page changes (the screen's language), so the browser reloads instead of swapping the room.
+ */
+export type DoneResult = { html?: string; text?: string; venter?: Record<string, number>; hermesStatus?: string; url?: string; genindlaes?: true };
 
 export type RunRecord = {
   id: string;
@@ -57,7 +60,8 @@ Kalenderen er fælles for familien: en aftale tilhører den, der har oprettet de
 /** KC-0126: the profile from Start's step 1, said to Hermes on every run — how to address the user and which language to answer in. */
 export function omProfil(p: Profil | null): string {
   if (!p) return '';
-  const sprog = p.sprog === 'en' ? 'Answer in English.' : 'Svar på dansk.';
+  // KC-0170: the instructions above are Danish and say "Sprog: dansk"; the user's choice wins over that line.
+  const sprog = p.sprog === 'en' ? 'Answer in English, even though these instructions are in Danish and say "Sprog: dansk".' : 'Svar på dansk.';
   return `Brugeren hedder ${p.navn}; tiltal brugeren sådan. ${sprog} Brugeren bor ${p.husstand === 'husstand' ? 'i en husstand med andre' : 'alene'}.`;
 }
 

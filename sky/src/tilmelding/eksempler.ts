@@ -10,8 +10,8 @@ export const PUBLIC = 'https://konto.eksempel.test';
 const faelles: Faelles = { sprog: 'da', csrf: 'eksempel-csrf', tilstand: 'open' };
 // Fictional plans and countries (the real ones come from config/priser.json and billing's list, via server.ts).
 const planer = [
-  { id: 'sky-solo', navn: 'Sky Solo', medlemmer: 1, maaned: 1000, aar: 10000 },
-  { id: 'sky-husstand', navn: 'Sky Husstand', medlemmer: 6, maaned: 2000, aar: 20000 },
+  { id: 'sky-solo', navn: 'Sky Solo', medlemmer: 1, maaned: { dkk: 1000, eur: 130 }, aar: { dkk: 10000, eur: 1300 } },
+  { id: 'sky-husstand', navn: 'Sky Husstand', medlemmer: 6, maaned: { dkk: 2000, eur: 270 }, aar: { dkk: 20000, eur: 2700 } },
 ] as const;
 const lande = ['DK', 'SE', 'DE', 'NL'] as const;
 const samtykke = laesSamtykke();
@@ -26,8 +26,8 @@ export const EKSEMPLER: Record<string, Eksempel> = {
   'samtykke-mangler': { faelles, side: { visning: { trin: 'samtykke' }, samtykke, mangler: true } },
   invitation: { faelles: { ...faelles, tilstand: 'invitation' }, side: { visning: { trin: 'invitation' }, svar: null } },
   'invitation-ikke-endnu': { faelles: { ...faelles, tilstand: 'invitation' }, side: { visning: { trin: 'invitation' }, svar: 'ikke-endnu' } },
-  plan: { faelles, side: { visning: { trin: 'plan' }, planer, proeveDage: 14, valg: { plan: null, interval: null }, land: 'DK', proeve: true, afbrudt: false } },
-  'plan-afbrudt': { faelles, side: { visning: { trin: 'plan' }, planer, proeveDage: 14, valg: { plan: 'sky-husstand', interval: 'aar' }, land: 'DK', proeve: true, afbrudt: true } },
+  plan: { faelles, side: { visning: { trin: 'plan' }, planer, proeveDage: 14, valg: { plan: null, interval: null }, land: 'DK', valuta: 'dkk', moms: false, proeve: true, afbrudt: false } },
+  'plan-afbrudt': { faelles, side: { visning: { trin: 'plan' }, planer, proeveDage: 14, valg: { plan: 'sky-husstand', interval: 'aar' }, land: 'DK', valuta: 'dkk', moms: false, proeve: true, afbrudt: true } },
   betaling: { faelles, side: { visning: { trin: 'betaling' }, proeve: true, session: 'cs_test_eksempel' } },
   ...Object.fromEntries(FASER.map((fase) => [`klargoering-${fase}`, { faelles, side: { visning: { trin: 'klargoering', fase, status: 'i-gang' } } }])),
   'klargoering-langsom': { faelles, side: { visning: { trin: 'klargoering', fase: 'startet', status: 'langsom' } } },

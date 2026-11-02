@@ -1,0 +1,179 @@
+// KC-0170: the screen's language. One table per language (shell + Start), Danish when no language is chosen, so
+// Henrik's installation renders byte for byte as before; English when the profile says so, with no Danish word left
+// on the surfaces this slice converted (the shell, the bands, Start's steps 1–2 and the step cards).
+
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { TEKSTER, medSprog, sprogNu, tekst, klientTekst } from '../../src/shell/tekster.ts';
+import { START_TEKSTER } from '../../src/rooms/start/tekster.ts';
+import { ROOMS } from '../../src/rooms/registry.ts';
+import { shell } from '../../src/shell/layout.ts';
+import { html } from '../../src/shell/html.ts';
+import { baand, igangGruppe, afvistLinje } from '../../src/shell/sprog.ts';
+import { renderStart } from '../../src/rooms/start/render.ts';
+import { alleTrin } from '../../src/rooms/start/trin.ts';
+import { FAMILIE } from '../../src/testtilstand/familie.ts';
+import * as golden from '../fixtures/sprog-golden.ts';
+
+const rod = path.dirname(fileURLToPath(import.meta.url));
+const fixtur = (navn: string): string => readFileSync(path.join(rod, '../fixtures/sprog', navn), 'utf8');
+
+/** Keys and value shapes of a text table, recursively (functions by arity). */
+function form(v: unknown): unknown {
+  if (typeof v === 'function') return `fn/${v.length}`;
+  if (typeof v === 'string') return 'tekst';
+  if (typeof v === 'object' && v !== null) return Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b)).map(([k, x]) => [k, form(x)]));
+  return typeof v;
+}
+const tomme = (v: Record<string, unknown>, sti = ''): string[] =>
+  Object.entries(v).flatMap(([k, x]) => (typeof x === 'string' && !x.trim() ? [sti + k] : typeof x === 'object' && x !== null ? tomme(x as Record<string, unknown>, `${sti}${k}.`) : []));
+
+test('English has exactly Danish\'s keys and shapes, in the shell and in Start; no string is empty', () => {
+  assert.deepEqual(form(TEKSTER.en), form(TEKSTER.da));
+  assert.deepEqual(form(START_TEKSTER.en), form(START_TEKSTER.da));
+  for (const t of [TEKSTER.da, TEKSTER.en, START_TEKSTER.da, START_TEKSTER.en]) assert.deepEqual(tomme(t as unknown as Record<string, unknown>), []);
+});
+
+test('every room has an English name; the Danish names are the registry\'s own', () => {
+  for (const r of ROOMS) {
+    assert.equal(TEKSTER.da.rum[r.id], r.navn);
+    assert.ok(TEKSTER.en.rum[r.id], r.id);
+  }
+});
+
+/** Strings that are the same in both languages on purpose (names, and words English borrows). */
+const ENS = new Set(['hermes', 'stop', 'send', 'rum.start', 'rum.mail', 'rolle.stoette', 'sprogValg.da']);
+function ensStrenge(a: Record<string, unknown>, b: Record<string, unknown>, sti = ''): string[] {
+  return Object.entries(a).flatMap(([k, x]) => {
+    const y = b[k];
+    if (typeof x === 'string') return x === y ? [sti + k] : [];
+    if (typeof x === 'object' && x !== null && typeof y === 'object' && y !== null) return ensStrenge(x as Record<string, unknown>, y as Record<string, unknown>, `${sti}${k}.`);
+    return [];
+  });
+}
+
+test('English is actually English: no Danish string copied over', () => {
+  const ens = [...ensStrenge(TEKSTER.da as unknown as Record<string, unknown>, TEKSTER.en as unknown as Record<string, unknown>), ...ensStrenge(START_TEKSTER.da as unknown as Record<string, unknown>, START_TEKSTER.en as unknown as Record<string, unknown>)];
+  assert.deepEqual(ens.filter((k) => !ENS.has(k)), []);
+});
+
+test('no language set is Danish (an installation without a profile); medSprog sets it for one render', () => {
+  assert.equal(sprogNu(), 'da');
+  assert.equal(tekst(), TEKSTER.da);
+  assert.equal(medSprog('en', () => sprogNu()), 'en');
+  assert.equal(medSprog('en', () => tekst().kraeverDig), 'Needs you');
+  assert.equal(sprogNu(), 'da');
+});
+
+test('Henrik\'s installation: with no language chosen the shell, the bands and Start render byte for byte as before', () => {
+  const sager: [string, () => string][] = [
+    ['shell-fuld.html', golden.SHELL_FULD], ['shell-minimal.html', golden.SHELL_MINIMAL], ['shell-stoette-fra.html', golden.SHELL_STOETTE_FRA], ['baand.html', golden.BAAND],
+    ...Object.entries(golden.START).map(([k, f]): [string, () => string] => [`start-${k}.html`, f]),
+  ];
+  const filer = readdirSync(path.join(rod, '../fixtures/sprog')).sort();
+  assert.deepEqual(sager.map(([f]) => f).sort(), filer, 'every golden has a case');
+  // One difference is allowed: an apostrophe that was literal markup ("Hermes' kø") now comes through the escaper as
+  // &#39;, which the browser shows as the same character.
+  const samme = (s: string): string => s.replaceAll('&#39;', "'");
+  for (const [fil, lav] of sager) {
+    assert.equal(samme(lav()), fixtur(fil), fil);
+    assert.equal(samme(medSprog('da', lav)), fixtur(fil), `${fil} (da chosen)`);
+  }
+});
+
+// ---- English: no Danish on the converted surfaces -------------------------------------------------------------------
+
+/** What the user reads: text nodes and the attributes a screen reader or a tooltip shows. Scripts and styles are not read. */
+function laesbart(doc: string): string {
+  const uden = doc.replace(/<head>[\s\S]*<\/head>/, '').replace(/<script[\s\S]*?<\/script>/g, '').replace(/<!--[\s\S]*?-->/g, '');
+  const attrs = [...uden.matchAll(/\s(?:title|aria-label|placeholder|data-sig|data-element|data-status)="([^"]*)"/g)].map((m) => m[1]);
+  const tekst = uden.replace(/<[^>]+>/g, '\n');
+  return [tekst, ...attrs].join('\n').replace(/&[a-z#0-9]+;/g, ' ');
+}
+/** A Danish letter, or a Danish word that is no English word. Proper nouns pass (Hermes, Clawco, Claude Code). */
+const DANSK = /[æøåÆØÅ]|\b(?:og|ikke|eller|på|hvad|når|jeg|skal|kan|til|med|Intet|Gem|Luk|Fortryd|Klar|Kræver|ordnet|venter|Rum|Kø|Trin|Næste|Klaret|Valgfrit|Virker|Spring|Ikke)\b/;
+const danskeLinjer = (doc: string): string[] => laesbart(doc).split('\n').map((l) => l.trim()).filter((l) => l && DANSK.test(l));
+
+const ejer = { id: FAMILIE.medlem.id, login: null, navn: FAMILIE.medlem.navn, rolle: 'ejer' as const };
+const partner = { id: FAMILIE.partner.id, login: null, navn: FAMILIE.partner.navn, rolle: 'medlem' as const };
+
+test('English: the shell has no Danish word, and its <html lang> and client table say en', () => {
+  const doc = medSprog('en', () => String(shell({
+    roomId: 'dagen', hermesStatus: tekst().klar, venter: { dagen: 1, mail: 3 }, main: html`<p>Body</p>`, kontekst: 'The 10 o\'clock meeting',
+    chat: [{ id: 'c1', tid: '2026-10-26T06:00:00.000Z', fra: 'hermes', tekst: 'Good morning' }], stemme: 'samtale', live: true,
+    univers: [{ id: 'garden', navn: 'Garden' }], synlige: new Set(['hjem', 'dagen', 'mail', 'univers', 'husstand']),
+    person: ejer, husstand: [ejer, partner], pause: { pause: true, tid: '2026-10-26T08:00:00.000Z', person: FAMILIE.partner.id },
+    hjaelp: { href: 'https://konto.example.com/help' },
+    stoette: { adgang: { udloeber: '2026-10-26T12:00:00.000Z', grund: 'Mail is stuck' }, slaaTil: '/a', slaaFra: '/b' },
+  })));
+  assert.match(doc, /<html lang="en">/);
+  assert.match(doc, /window\.KC_TEKST=\{[^<]*"fortryd":"Undo"/);
+  assert.match(doc, /<span>Now<\/span>/);
+  assert.match(doc, /<span>Today<\/span>/);
+  assert.deepEqual(danskeLinjer(doc), []);
+  // The Danish chat phrases are read only by the Danish chat matcher: not offered in English.
+  assert.doesNotMatch(doc, /id="chat-forslag"/);
+});
+
+test('the Danish detector works: the same shell in Danish is full of Danish lines', () => {
+  const doc = String(shell({ roomId: 'hjem', hermesStatus: tekst().klar, venter: {}, main: html``, chat: [], stoette: { adgang: null, slaaTil: '/a', slaaFra: '/b' } }));
+  assert.ok(danskeLinjer(doc).length > 20, String(danskeLinjer(doc).length));
+});
+
+test('English: the shell without support grant and with voice off has no Danish word either', () => {
+  const doc = medSprog('en', () => String(shell({ roomId: 'hjem', hermesStatus: tekst().klar, venter: {}, main: html``, chat: [], stoette: { adgang: null, slaaTil: '/a', slaaFra: '/b' } })));
+  assert.deepEqual(danskeLinjer(doc), []);
+});
+
+test('English: the bands carry no Danish band names', () => {
+  const ud = medSprog('en', () => String(baand({
+    kraever: [{ titel: 'Answer', form: 'kort', elementer: [{ id: 'k:1', html: html`<article>One</article>` }] }],
+    igang: [igangGruppe([{ id: 'r1', label: 'Sorting mail', status: 'running' }, { id: 'r2', label: 'Building Today', status: 'queued' }])],
+    ordnet: [{ titel: 'Done', form: 'raekker', elementer: [{ id: 'o:1', html: html`<div>Two</div>` }] }],
+  })) + String(baand({ kraever: [], igang: [], ordnet: [] })) + String(afvistLinje('Pay the bill', 'Clawco never pays.')));
+  for (const ord of ['Kræver dig', 'I gang', 'ordnet', 'venter på dig', 'Hermes arbejder', 'I kø', 'Ikke tilbudt', 'Vis ']) assert.ok(!laesbart(ud).includes(ord), ord);
+  assert.match(ud, /Needs you/);
+  assert.match(ud, /1 waiting for you · 1 in progress · 1 done|1 waiting for you/);
+  assert.deepEqual(danskeLinjer(ud), []);
+});
+
+test('English: Start\'s step cards, step 1 and step 2 have no Danish word', () => {
+  const NU = new Date('2026-10-26T09:00:00.000Z');
+  const rev = { lille: 'r1', taenker: 'r2' };
+  const syn = { udbyder: 'ollama', modeller: { lille: 'qwen3:8b', taenker: 'qwen3:14b' }, test: { lille: { ok: false, tid: NU.toISOString(), ms: 400, rev: 'r1', fejl: 'forbindelse' }, taenker: { ok: true, tid: NU.toISOString(), ms: 1460, rev: 'r2' } }, rev };
+  const trin = (s: 'ikke-startet' | 'klaret') => alleTrin().map((t, i) => ({ trin: t, status: i === 0 ? s : 'ikke-startet' as const }));
+  const sider = medSprog('en', () => [
+    renderStart({ trin: trin('ikke-startet'), profil: null, standardNavn: '', forslag: [], kanGemme: true, now: NU, model: { syn: { modeller: {}, test: {}, rev }, agent: 'klar', kanGemme: true } }),
+    renderStart({ trin: trin('klaret'), profil: { navn: FAMILIE.medlem.navn, sprog: 'en', husstand: 'husstand' }, standardNavn: '', forslag: [{ kildeId: 'noter', navn: 'Notes', slags: 'noter', grund: 'You write a lot down.' }], kanGemme: true, now: NU,
+      model: { syn, agent: 'klar', kanGemme: true, gemt: { udbyder: 'ollama', url: 'http://127.0.0.1:11434' } },
+      log: [{ id: 'l1', tid: '2026-10-26T08:30:00.000Z', kilde: 'henrik', tekst: 'Saved the profile', fortryd: 'x' }], igang: [{ id: 'r1', label: 'Testing the model', status: 'running' }] }),
+    renderStart({ trin: trin('ikke-startet'), profil: null, standardNavn: '', forslag: [], kanGemme: true, now: NU, laptop: true, model: { syn, agent: 'mangler-noegle', kanGemme: true } }),
+    renderStart({ trin: trin('ikke-startet'), profil: null, standardNavn: '', forslag: [], kanGemme: false, now: NU, model: { syn, agent: 'utilgaengelig', kanGemme: false } }),
+    renderStart({ trin: trin('ikke-startet'), profil: null, standardNavn: '', forslag: [], kanGemme: true, now: NU, model: { syn: { ...syn, udbyder: 'anthropic' }, agent: 'klar', kanGemme: true, gemt: { udbyder: 'anthropic', kommando: 'hermes config set ANTHROPIC_API_KEY' } } }),
+  ].map(String));
+  // Steps 3–6 show only their title and sentence here (their own sub-cards are a follow-up: no kilder/import/foersteRet given).
+  const ud = sider.join('\n');
+  assert.deepEqual(danskeLinjer(ud), []);
+  assert.match(ud, /<h1>Start<\/h1>/);
+  assert.match(ud, /Welcome/);
+  assert.match(ud, /<option value="en"[^>]*>English<\/option>/);
+});
+
+test('the client table carries the room names and every client string, for the language being rendered', () => {
+  const da = JSON.parse(klientTekst().replace(/^<script>window\.KC_TEKST=/, '').replace(/<\/script>$/, '')) as Record<string, unknown>;
+  const en = JSON.parse(medSprog('en', klientTekst).replace(/^<script>window\.KC_TEKST=/, '').replace(/<\/script>$/, '')) as Record<string, unknown>;
+  assert.equal(da['fortryd'], 'Fortryd');
+  assert.equal(en['fortryd'], 'Undo');
+  assert.equal((en['rum'] as Record<string, string>)['hjem'], 'Now');
+  assert.deepEqual(Object.keys(en).sort(), Object.keys(da).sort());
+});
+
+test('public/app.js reads every key it uses from the client table', () => {
+  const js = readFileSync(path.join(rod, '../../public/app.js'), 'utf8');
+  const brugt = new Set([...js.matchAll(/\btk\('([a-zA-Z]+)'\)/g)].map((m) => m[1]!));
+  assert.ok(brugt.size >= 10, `app.js uses tk() (${brugt.size})`);
+  for (const k of brugt) assert.ok(k in TEKSTER.da.klient, k);
+});

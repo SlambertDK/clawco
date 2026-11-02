@@ -29,6 +29,9 @@
 
 (function () {
   'use strict';
+  // KC-0170: the page's strings in its language, written into <head> by the layout (src/shell/tekster.ts, klient).
+  var TEKST = window.KC_TEKST || {};
+  function tk(k) { return typeof TEKST[k] === 'string' ? TEKST[k] : k; }
   var body = document.body;
   var roomId = body.dataset.room;
   var roomEl = document.getElementById('room');
@@ -72,7 +75,7 @@
     var navn = box.getAttribute('data-fold-navn') || '';
     box.classList.toggle('is-aaben', aaben);
     b.setAttribute('aria-expanded', aaben ? 'true' : 'false');
-    b.textContent = (aaben ? 'Skjul ' : 'Vis ') + navn;
+    b.textContent = (aaben ? tk('skjul') : tk('vis')) + navn;
     if (aaben) aabneFolds[foldNoegle(box)] = true; else delete aabneFolds[foldNoegle(box)];
   }
   // KC-0127: Start's step 2 — a provider in the cloud asks for a key, a local one for its address.
@@ -175,7 +178,7 @@
     var s = document.createElement('span');
     s.textContent = tekst;
     var b = document.createElement('button');
-    b.type = 'button'; b.className = 'btn btn-ghost'; b.textContent = 'Fortryd';
+    b.type = 'button'; b.className = 'btn btn-ghost'; b.textContent = tk('fortryd');
     b.addEventListener('click', function () {
       t.remove();
       // The log's own button does the undo, so it runs exactly as if pressed there.
@@ -203,7 +206,7 @@
     nede = false; proeveNr = 0;
     if (proeveTimer) { clearTimeout(proeveTimer); proeveTimer = null; }
     if (baandEl) baandEl.hidden = true;
-    toast('Forbindelsen er tilbage', false);
+    toast(tk('forbindelseTilbage'), false);
     window.dispatchEvent(new Event('kc-forbindelse-tilbage'));
   }
   function proev() {
@@ -245,10 +248,10 @@
   }
   function setKontekst(text) {
     kontekst = text || '';
-    if (chipEl) chipEl.textContent = 'Om: ' + kontekst;
+    if (chipEl) chipEl.textContent = tk('om') + kontekst;
     if (chipWrap) chipWrap.hidden = !kontekst;
     if (chipHint) chipHint.hidden = !!kontekst;
-    if (input) input.placeholder = kontekst ? 'Skriv om: ' + kontekst : 'Skriv til Hermes …';
+    if (input) input.placeholder = kontekst ? tk('skrivOm') + kontekst : tk('skrivTil');
     if (toggleCount) { toggleCount.hidden = !kontekst; toggleCount.textContent = kontekst ? '1' : ''; }
     document.querySelectorAll('[data-element].is-selected').forEach(function (el) { el.classList.remove('is-selected'); });
     if (kontekst) {
@@ -298,7 +301,7 @@
     if (!el) return;
     busyEl = el;
     el.classList.add('is-busy');
-    el.setAttribute('data-busy', 'Hermes ' + (text || 'arbejder …'));
+    el.setAttribute('data-busy', 'Hermes ' + (text || tk('arbejder')));
   }
   function clearBusy() {
     if (busyEl) { busyEl.classList.remove('is-busy'); busyEl.removeAttribute('data-busy'); busyEl = null; }
@@ -377,11 +380,11 @@
     var forsoeg = 0;   // KC-0083: tries to pick the run up again after a dropped connection
     var forfra = false; // a reopened stream replays the run's events from the start
     busy++;
-    setStatus(opts.startText || 'arbejder …', 'busy');
+    setStatus(opts.startText || tk('arbejder'), 'busy');
     function slut(text) {
       busy--;
       if (chatEl) chatEl.querySelectorAll('.msg-status').forEach(function (m) { m.remove(); });
-      if (opts.chat) addMsg('hermes', 'Fejl: ' + text, 'msg-status'); else toast('Fejl: ' + text, true);
+      if (opts.chat) addMsg('hermes', tk('fejl') + text, 'msg-status'); else toast(tk('fejl') + text, true);
       setStatus('fejl: ' + text.slice(0, 60), 'bad');
       clearBusy();
       document.querySelectorAll('button[disabled]').forEach(function (b) { b.disabled = false; });
@@ -401,7 +404,7 @@
           document.querySelectorAll('button[disabled]').forEach(function (b) { b.disabled = false; });
           fetch('/api/rum/' + encodeURIComponent(roomId || 'hjem') + '/fragment').then(function (r) { return r.json(); }).then(function (d) { swapRoom(d.html); updateNav(d.venter); }).catch(function () { /* the live stream catches up */ });
           toast('Handlingen blev afbrudt undervejs. Rummet er hentet igen — tryk igen, hvis den mangler.', true);
-          setStatus('Klar', 'ok');
+          setStatus(tk('klar'), 'ok');
           if (opts.onDone) opts.onDone(null);
         }).catch(samlOp);
       }, om);
@@ -428,6 +431,8 @@
       es.addEventListener('done', function (e) {
         var d = JSON.parse(e.data);
         es.close(); busy--; lastDone = Date.now();
+        // KC-0170: the screen's language changed, so the whole page (nav, header, chat) renders anew.
+        if (d.genindlaes) { location.reload(); return; }
         if (chatEl) chatEl.querySelectorAll('.msg-status').forEach(function (m) { m.remove(); });
         if (opts.chat && d.text) {
           if (deltaEl) { deltaEl.textContent = d.text; var mm = deltaEl.closest('.msg'); if (mm && stemmeOn) { mm.setAttribute('data-sig', d.text); decorate(chatEl); } } else addMsg('hermes', d.text);
@@ -437,12 +442,12 @@
         }
         if (d.html) swapRoom(d.html); else clearBusy();
         updateNav(d.venter);
-        setStatus(d.hermesStatus || 'Klar', 'ok');
+        setStatus(d.hermesStatus || tk('klar'), 'ok');
         if (opts.onDone) opts.onDone(d);
       });
       es.addEventListener('error', function (e) {
         es.close();
-        var text = 'Hermes fejlede';
+        var text = tk('hermesFejlede');
         if (e.data) { try { text = JSON.parse(e.data).text || text; } catch (err) { /* keep the plain text */ } slut(text); return; }
         forbindelseTabt();
         samlOp();
@@ -468,7 +473,7 @@
         if (j.svar) { addMsg('hermes', j.svar); return; }
         follow(j.runId, opts);
       })
-      .catch(function (err) { toast('Fejl: ' + fejlTekst(err), true); setStatus('fejl', 'bad'); clearBusy(); document.querySelectorAll('button[disabled]').forEach(function (b) { b.disabled = false; }); });
+      .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); setStatus('fejl', 'bad'); clearBusy(); document.querySelectorAll('button[disabled]').forEach(function (b) { b.disabled = false; }); });
   }
 
   // KC-0052: the chat asked for a room ("jeg vil skrive"): go there; the rest of the sentence follows to its chat.
@@ -512,14 +517,14 @@
         laes.push(v.text().then(function (t) { par.push([k, t]); }));
       } else par.push([k, v]);
     });
-    if (forStor) { toast('Fejl: ' + forStor, true); return; }
+    if (forStor) { toast(tk('fejl') + forStor, true); return; }
     btn.disabled = true;
     setBusy(elementOf(btn), (btn.dataset.status || btn.textContent.trim()) + ' …');
     Promise.all(laes)
       .then(function () { return fetch('/api/kilder/' + encodeURIComponent(btn.dataset.kildeForbind) + '/forbind', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(window.KCKilde.krop(par)) }); })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
       .then(function (j) { location.assign(window.KCKilde.naeste(j, btn.dataset.efter || null, location.pathname)); })
-      .catch(function (err) { btn.disabled = false; clearBusy(); toast('Fejl: ' + fejlTekst(err), true); });
+      .catch(function (err) { btn.disabled = false; clearBusy(); toast(tk('fejl') + fejlTekst(err), true); });
   }
 
   // KC-0139: "Fjern forbindelsen" on a connection card takes two taps (it removes the access); then Nu is fetched again.
@@ -529,13 +534,13 @@
     fetch('/api/kilder/' + encodeURIComponent(btn.dataset.kildeFjern) + '/frakobl', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); }); })
       .then(refetchHjem)
-      .catch(function (err) { btn.disabled = false; btn.removeAttribute('data-bekraeft'); btn.textContent = 'Fjern forbindelsen'; toast('Fejl: ' + fejlTekst(err), true); });
+      .catch(function (err) { btn.disabled = false; btn.removeAttribute('data-bekraeft'); btn.textContent = 'Fjern forbindelsen'; toast(tk('fejl') + fejlTekst(err), true); });
   }
 
   function kortPost(btn, url, payload, busyText, okText) {
     var kort = btn.closest('[data-kort-id]') || btn.closest('[data-regnskab-id]') || btn.closest('.log-row');
     var foer = fortrydIder();
-    var udfoert = function () { tilbydFortryd(foer, busyText.charAt(0).toUpperCase() + busyText.slice(1) + ' — udført'); };
+    var udfoert = function () { tilbydFortryd(foer, busyText.charAt(0).toUpperCase() + busyText.slice(1) + tk('udfoert')); };
     btn.disabled = true;
     setBusy(kort, busyText + ' …');
     return fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload || {}) })
@@ -544,7 +549,7 @@
         if (j.runId) follow(j.runId, { startText: busyText + ' …', onDone: function (d) { refetchHjem().then(function () { if (d) udfoert(); }); } });
         else { if (okText) toast(okText, false); return refetchHjem().then(udfoert); }
       })
-      .catch(function (err) { toast('Fejl: ' + fejlTekst(err), true); clearBusy(); btn.disabled = false; });
+      .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); clearBusy(); btn.disabled = false; });
   }
   // KC-0144: Ja / Nej tak on "Skal jeg gøre det til en regel?". Ja fetches a one-time yes for exactly this proposal (a real tap
   // on the button, never a script of Hermes'); then the server writes the rule and Hjem shows the log line with its Fortryd.
@@ -558,7 +563,7 @@
         if (hvad === 'afvis') toast('Nej tak. Jeg foreslår det ikke igen de næste 30 dage.', false);
         return refetchHjem().then(function () { if (hvad === 'godkend') tilbydFortryd(foer, 'Det er nu en regel'); });
       })
-      .catch(function (err) { toast('Fejl: ' + fejlTekst(err), true); btn.disabled = false; });
+      .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); btn.disabled = false; });
   }
   // KC-0145: the Sunday sample. Rigtigt / Skulle have vist mig det on one line, and the stop question; the server records
   // each answer once, and Nu redraws (the card folds away when every line is answered).
@@ -567,7 +572,7 @@
     fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
       .then(function () { if (okText) toast(okText, false); return refetchHjem(); })
-      .catch(function (err) { toast('Fejl: ' + fejlTekst(err), true); btn.disabled = false; });
+      .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); btn.disabled = false; });
   }
   function kopier(text) {
     // The clipboard API needs permission/a secure page; the textarea fallback works without.
@@ -587,14 +592,14 @@
   }
   // One canonical copy + confirmation, shared by Kopiér and Del's laptop fallback (KC-0102).
   function kopierMedBesked(text, besked) {
-    return kopier(text).then(function () { toast(besked, false); }).catch(function (err) { toast('Kunne ikke kopiere: ' + fejlTekst(err), true); });
+    return kopier(text).then(function () { toast(besked, false); }).catch(function (err) { toast(tk('kunneIkkeKopiere') + fejlTekst(err), true); });
   }
   // KC-0102: Del opens the device's share sheet; without one (most laptops) the link is copied. Cancelling the sheet is silent.
   function del(titel, url) {
-    if (!navigator.share) return kopierMedBesked(url, 'Link kopieret');
+    if (!navigator.share) return kopierMedBesked(url, tk('linkKopieret'));
     return navigator.share({ title: titel, url: url }).catch(function (err) {
       if (err && err.name === 'AbortError') return;
-      return kopierMedBesked(url, 'Link kopieret');
+      return kopierMedBesked(url, tk('linkKopieret'));
     });
   }
   function kortHandling(btn) {
@@ -684,7 +689,7 @@
     if (!ccDialog || !ccForm) return;
     ccKilde = kilde;
     ccForm.elements.saetning.value = tekst || '';
-    if (ccGrundlag) { ccGrundlag.hidden = !titel; ccGrundlag.textContent = titel ? (kilde.kortId ? 'Kortet følger med: ' : 'Om: ') + titel : ''; }
+    if (ccGrundlag) { ccGrundlag.hidden = !titel; ccGrundlag.textContent = titel ? (kilde.kortId ? 'Kortet følger med: ' : tk('om')) + titel : ''; }
     // A card that names a project picks it; otherwise the last choice stays.
     var hay = (titel + ' ' + (mere || '')).toLowerCase();
     ccForm.querySelectorAll('input[name="projekt"]').forEach(function (r) {
@@ -723,7 +728,7 @@
         toast('Sendt til Claude Code. Den henter opgaven, næste gang den arbejder i projektet.', false);
         if (roomId === 'hjem') refetchHjem();
       })
-      .catch(function (err) { send.disabled = false; toast('Fejl: ' + fejlTekst(err), true); });
+      .catch(function (err) { send.disabled = false; toast(tk('fejl') + fejlTekst(err), true); });
   });
 
   // KC-0146: a rule's Slå fra / Slå til igen on /viden — the rules file changes only with a fresh human tap (KC-0123).
@@ -736,7 +741,7 @@
     medJa({}, { rum: 'viden', slags: 'regel', id: f.dataset.regelForm })
       .then(function (p) { return fetch(f.getAttribute('action'), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }); })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); location.assign('/viden'); }); })
-      .catch(function (err) { if (knap) knap.disabled = false; toast('Fejl: ' + fejlTekst(err), true); });
+      .catch(function (err) { if (knap) knap.disabled = false; toast(tk('fejl') + fejlTekst(err), true); });
   });
 
   // KC-0045: ... or in his own words.
@@ -760,7 +765,7 @@
           btn.disabled = true;
           setBusy(elementOf(btn), btn.textContent.trim() + ' …');
           var foerH = fortrydIder(), navnH = btn.textContent.trim();
-          start('/api/rum/' + roomId + '/handlinger/' + encodeURIComponent(btn.dataset.handling), {}, { ja: btn.hasAttribute('data-kraever-ja') ? { rum: roomId, slags: 'handling', id: btn.dataset.handling } : null, startText: navnH + ' …', onDone: function (d) { if (d) tilbydFortryd(foerH, navnH + ' — udført'); } });
+          start('/api/rum/' + roomId + '/handlinger/' + encodeURIComponent(btn.dataset.handling), {}, { ja: btn.hasAttribute('data-kraever-ja') ? { rum: roomId, slags: 'handling', id: btn.dataset.handling } : null, startText: navnH + ' …', onDone: function (d) { if (d) tilbydFortryd(foerH, navnH + tk('udfoert')); } });
           return;
         }
         if (btn.dataset.fortryd) {
@@ -811,7 +816,7 @@
           setBusy(elementOf(btn), (btn.dataset.status || btn.textContent.trim()) + ' …');
           // A new or archived univers names where to go next (so the nav shows it).
           var foerA = fortrydIder(), navnA = btn.textContent.trim();
-          start('/api/rum/' + roomId + '/aktion/' + encodeURIComponent(btn.dataset.aktion), arg, { ja: btn.hasAttribute('data-kraever-ja') ? { rum: roomId, slags: 'aktion', id: btn.dataset.aktion, body: arg } : null, startText: (btn.dataset.status || navnA) + ' …', onDone: function (d) { if (d && d.url && d.url !== location.pathname) { location.assign(d.url); return; } if (d) tilbydFortryd(foerA, navnA + ' — udført'); } });
+          start('/api/rum/' + roomId + '/aktion/' + encodeURIComponent(btn.dataset.aktion), arg, { ja: btn.hasAttribute('data-kraever-ja') ? { rum: roomId, slags: 'aktion', id: btn.dataset.aktion, body: arg } : null, startText: (btn.dataset.status || navnA) + ' …', onDone: function (d) { if (d && d.url && d.url !== location.pathname) { location.assign(d.url); return; } if (d) tilbydFortryd(foerA, navnA + tk('udfoert')); } });
           return;
         }
         if (btn.dataset.visAlle) {
@@ -930,7 +935,7 @@
       if (busy > 0 || Date.now() - lastDone < 1500) { refetchTimer = setTimeout(refetch, 1500); return; }
       fetch('/api/rum/' + roomId + '/fragment').then(function (r) { return r.json(); }).then(function (d) {
         if (typeof d.version === 'number') known = d.version;
-        swapRoom(d.html); updateNav(d.venter); setStatus(d.hermesStatus || 'Klar', 'ok');
+        swapRoom(d.html); updateNav(d.venter); setStatus(d.hermesStatus || tk('klar'), 'ok');
       }).catch(function () { /* next change will retry */ });
     }
     function hentSnart() { if (!refetchTimer) refetchTimer = setTimeout(refetch, busy > 0 || Date.now() - lastDone < 1500 ? 1500 : 0); }
@@ -972,12 +977,12 @@
   var koeList = document.getElementById('koe-list');
   var koeCount = document.getElementById('koe-count');
   var notifBtn = document.getElementById('notif-btn');
-  var ROOM_NAMES = { hjem: 'Nu', dagen: 'Dagen', mail: 'Mail', skrive: 'Skrive', nyheder: 'Nyheder', univers: 'Univers' };
+  var ROOM_NAMES = TEKST.rum || {};
   function fmtTime(ms) { return new Date(ms).toLocaleTimeString('da-DK', { hour: '2-digit', minute: '2-digit' }).replace(':', '.'); }
   function renderKoe(runsList, nuMs) {
     if (!koeList) return;
     koeList.textContent = '';
-    if (!runsList.length) { var p = document.createElement('p'); p.className = 'muted row'; p.textContent = 'Intet i gang.'; koeList.appendChild(p); return; }
+    if (!runsList.length) { var p = document.createElement('p'); p.className = 'muted row'; p.textContent = tk('intetIGang'); koeList.appendChild(p); return; }
     runsList.slice(0, 15).forEach(function (r) {
       var row = document.createElement('div'); row.className = 'koe-row';
       var time = document.createElement('span'); time.className = 'mono time'; time.textContent = fmtTime(r.finishedAt || r.startedAt);
@@ -985,12 +990,12 @@
       var title = document.createElement('span'); title.className = 'row-title'; title.textContent = r.label;
       main.appendChild(title);
       // A failed run's own text is an error message for developers; Henrik gets the plain fact.
-      var tekst = r.status === 'failed' ? 'Det lykkedes ikke. Prøv igen.' : r.text;
+      var tekst = r.status === 'failed' ? tk('lykkedesIkke') : r.text;
       if (tekst) { var note = document.createElement('span'); note.className = 'row-note'; note.textContent = tekst.slice(0, 140); main.appendChild(note); }
       var st = document.createElement('span'); st.className = 'koe-status ' + r.status;
       st.textContent = window.KCKoe.status(r, nuMs);
       row.appendChild(time); row.appendChild(main); row.appendChild(st);
-      if (r.room && r.room !== roomId) { var a = document.createElement('a'); a.href = '/rum/' + r.room; a.className = 'btn btn-ghost'; a.textContent = 'Åbn'; row.appendChild(a); }
+      if (r.room && r.room !== roomId) { var a = document.createElement('a'); a.href = '/rum/' + r.room; a.className = 'btn btn-ghost'; a.textContent = tk('aabn'); row.appendChild(a); }
       koeList.appendChild(row);
     });
   }
@@ -1064,7 +1069,7 @@
     var testHint = document.getElementById('test-hint');
     var testFejl = document.getElementById('test-fejl');
     var testTil = !!window.KC_TEST;
-    if (testTil) { testKnap.textContent = 'Sluk testtilstand'; if (testHint) testHint.hidden = true; }
+    if (testTil) { testKnap.textContent = tk('slukTest'); if (testHint) testHint.hidden = true; }
     testKnap.addEventListener('click', function () {
       testKnap.disabled = true;
       if (testFejl) testFejl.textContent = '';
@@ -1073,11 +1078,11 @@
           var d = null;
           try { d = JSON.parse(t); } catch (e) { /* plain text */ }
           if (r.ok && d && typeof d.url === 'string') { location.href = d.url; return; }
-          throw new Error((d && d.error) || t || 'Testtilstand fejlede');
+          throw new Error((d && d.error) || t || tk('testFejlede'));
         });
       }).catch(function (e) {
         testKnap.disabled = false;
-        if (testFejl) testFejl.textContent = e && e.message ? e.message : 'Testtilstand fejlede';
+        if (testFejl) testFejl.textContent = e && e.message ? e.message : tk('testFejlede');
       });
     });
   }
@@ -1093,7 +1098,7 @@
     ['lille', 'taenker'].forEach(function (felt) {
       var spot = indForm.querySelector('[data-model-navn="' + felt + '"]');
       // An empty field already says "Hermes' standard"; the line only names a model that was typed.
-      if (spot) { var v = indForm.elements[felt].value.trim(); spot.textContent = v ? 'Bruger: ' + window.KCKoe.modelNavn(v) : ''; spot.hidden = !v; }
+      if (spot) { var v = indForm.elements[felt].value.trim(); spot.textContent = v ? tk('bruger') + window.KCKoe.modelNavn(v) : ''; spot.hidden = !v; }
     });
   }
   function loadIndstillinger() {
@@ -1114,15 +1119,15 @@
       if (indForm.elements.voiceId) payload.stemme = { voiceId: indForm.elements.voiceId.value };
       fetch('/api/indstillinger', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) })
         .then(function (r) { return r.json(); })
-        .then(function (d) { indForm.elements.lille.value = d.modeller.lille || ''; indForm.elements.taenker.value = d.modeller.taenker || ''; visModelNavne(); if (indStatus) { indStatus.textContent = 'Gemt. Gælder, næste gang Hermes går i gang.'; setTimeout(function () { indStatus.textContent = ''; }, 4000); } })
-        .catch(function () { if (indStatus) indStatus.textContent = 'Kunne ikke gemme.'; });
+        .then(function (d) { indForm.elements.lille.value = d.modeller.lille || ''; indForm.elements.taenker.value = d.modeller.taenker || ''; visModelNavne(); if (indStatus) { indStatus.textContent = tk('gemtIndstillinger'); setTimeout(function () { indStatus.textContent = ''; }, 4000); } })
+        .catch(function () { if (indStatus) indStatus.textContent = tk('kunneIkkeGemme'); });
     });
   }
   function notify(label, text, room) {
     var t = document.createElement('div');
     t.className = 'toast';
     t.textContent = label + (text ? ': ' + text.slice(0, 120) : '');
-    if (room && room !== roomId) { var a = document.createElement('a'); a.href = '/rum/' + room; a.textContent = 'Åbn ' + (ROOM_NAMES[room] || room); t.appendChild(a); }
+    if (room && room !== roomId) { var a = document.createElement('a'); a.href = '/rum/' + room; a.textContent = tk('aabnRum') + (ROOM_NAMES[room] || room); t.appendChild(a); }
     body.appendChild(t);
     setTimeout(function () { t.remove(); }, 6000);
     if (window.Notification && Notification.permission === 'granted' && document.hidden) {
@@ -1135,7 +1140,7 @@
       var d = JSON.parse(e.data);
       if (d.room === roomId && busy > 0) return; // this page is already following it
       if (d.room === roomId && Date.now() - lastDone < 1500) return;
-      notify((d.status === 'failed' ? 'Fejl: ' : 'Klar: ') + d.label, d.text, d.room);
+      notify((d.status === 'failed' ? tk('fejl') : tk('klarPrefiks')) + d.label, d.text, d.room);
       loadKoe();
     });
     global.addEventListener('hello', function () { loadKoe(); });
@@ -1278,7 +1283,7 @@
         var type = (rec.mimeType || mime || 'audio/webm').split(';')[0];
         var blob = new Blob(recChunks, { type: type });
         rec = null;
-        if (blob.size < 1000) { setStatus('Klar', 'ok'); return; }
+        if (blob.size < 1000) { setStatus(tk('klar'), 'ok'); return; }
         sendRec(blob, type, btn);
       });
       rec.start(250);
@@ -1295,12 +1300,12 @@
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
       .then(function (j) {
         btn.classList.remove('is-transcribing');
-        setStatus('Klar', 'ok');
+        setStatus(tk('klar'), 'ok');
         var text = (j.tekst || '').trim();
         if (!text) { toast('Jeg hørte ikke noget.', false); return; }
         deliver(btn, text);
       })
-      .catch(function (err) { btn.classList.remove('is-transcribing'); setStatus('Klar', 'ok'); toast('Kunne ikke forstå optagelsen: ' + fejlTekst(err), true); });
+      .catch(function (err) { btn.classList.remove('is-transcribing'); setStatus(tk('klar'), 'ok'); toast('Kunne ikke forstå optagelsen: ' + fejlTekst(err), true); });
   }
   /** Where the words go: the chat sends them at once; a field gets them at the caret. */
   function deliver(btn, text) {
@@ -1511,7 +1516,7 @@
       })
       .catch(function (err) {
         if (hs !== h) return;
-        samLine('app', 'Fejl: ' + fejlTekst(err));
+        samLine('app', tk('fejl') + fejlTekst(err));
         hsListen(h);
       });
   }

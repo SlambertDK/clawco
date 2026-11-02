@@ -79,7 +79,8 @@ test('smoke: sign-up with the statement and both boxes, receipt, Opsig in at mos
   assert.match(plan, /action="\/konto\/abonnement\/bekraeft"/);
   const bekraeft = await (await b.foelg(`/konto/abonnement/bekraeft?plan=sky-solo&interval=maaned&land=${felt(plan, 'land')}&retur=tilmelding`)).text();
   assert.match(bekraeft, /Bekræft din gratis prøve/);
-  assert.match(bekraeft, /ingen moms oveni/);
+  assert.match(bekraeft, /Det er den fulde pris\./);
+  assert.doesNotMatch(bekraeft, /moms|\bVAT\b/i, 'no VAT is mentioned while moms.aktiv is false (KC-0194, G6)');
 
   // The statement's button without the boxes is refused; with both it goes on to Stripe's page.
   const uden = await b.tryk('/api/abonnement/checkout', { csrf: csrf(bekraeft), plan: 'sky-solo', interval: 'maaned', land: 'DK', retur: 'tilmelding' });
@@ -97,7 +98,7 @@ test('smoke: sign-up with the statement and both boxes, receipt, Opsig in at mos
   const kv = mailTil(f, 'kvittering');
   assert.equal(kv.length, 1);
   assert.equal(kv[0]?.til, 'koeber@example.test');
-  assert.match(kv[0]!.data['pris']!, /^79 kr\. om måneden\. Det er hele prisen: der kommer ingen moms oveni\.$/);
+  assert.match(kv[0]!.data['pris']!, /^79 kr\. om måneden\. Det er den fulde pris\.$/);
   assert.equal(kv[0]?.data['vilkaarversion'], laesSamtykke().vilkaar.version);
 
   // The account page offers both buttons, found in its own HTML.

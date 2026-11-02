@@ -17,7 +17,8 @@ export const NOEGLE_NAVN = 'SKY_STRIPE_SECRET_KEY';
 /** The marker on every Clawco product and price in the shared account. */
 export const CLAWCO_MAERKE = { noegle: 'clawco', vaerdi: 'ja' } as const;
 
-export type StripeProdukt = { id: string; navn: string; aktiv: boolean; metadata: Metadata };
+/** `skatKode`: the product's Stripe tax code (KC-0194; set only once VAT is on), null when it has none. */
+export type StripeProdukt = { id: string; navn: string; aktiv: boolean; metadata: Metadata; skatKode: string | null };
 export type StripePris = {
   id: string;
   produkt: string;
@@ -29,10 +30,12 @@ export type StripePris = {
   eur: number | null;
   interval: Interval;
   metadata: Metadata;
+  /** KC-0194: tax_behavior "inclusive" on the price and its EUR option (only once moms.aktiv is true). */
+  momsInkl: boolean;
 };
 
-export type NytProdukt = { id: string; navn: string; metadata: Metadata };
-export type ProduktAendring = { navn?: string; aktiv?: boolean; metadata?: Metadata };
+export type NytProdukt = { id: string; navn: string; metadata: Metadata; skatKode: string | null };
+export type ProduktAendring = { navn?: string; aktiv?: boolean; metadata?: Metadata; skatKode?: string };
 export type NyPris = {
   produkt: string;
   /** The price's nickname in the dashboard. */
@@ -44,6 +47,8 @@ export type NyPris = {
   metadata: Metadata;
   /** Move the lookup key from the price that holds it (a changed amount). */
   transferLookupKey: boolean;
+  /** KC-0194: VAT-inclusive (tax_behavior) in both currencies; false while moms.aktiv is false. */
+  momsInkl: boolean;
 };
 
 /** A subscription as Stripe holds it right now (KC-0192 re-reads it on every webhook). `status` is
@@ -85,7 +90,13 @@ export type CheckoutSession = {
 /** A verified webhook event, reduced to what the handler needs: the event says *which* customer
  *  changed, never what the new state is (that is re-read from Stripe). */
 /** KC-0206: one invoice as "Hent alt" lists it (amount in minor units). */
-export type Faktura = { id: string; nummer: string | null; oprettet: Date; beloeb: number; valuta: string; status: string | null; url: string | null };
+export type Faktura = { id: string; nummer: string | null; oprettet: Date; beloeb: number; valuta: string; status: string | null; url: string | null;
+  /** KC-0194: the invoice's VAT in minor units (the sum of its tax lines; 0 while VAT is off). */
+  moms?: number };
+/** KC-0194: a paid invoice anywhere in the account, for the revenue watch (amount paid in minor units). */
+export type BetaltFaktura = { beloeb: number; valuta: string; betalt: Date };
+/** KC-0194: Stripe Tax's own status (`aktiv` = it can calculate) and the fields it says are missing. */
+export type SkatIndstillinger = { aktiv: boolean; mangler: string[] };
 
 export type StripeHaendelse = { id: string; type: string; kunde: string | null };
 
@@ -141,6 +152,11 @@ export interface BetalingsKlient {
   opdaterPortalKonfiguration(id: string, params: Stripe.BillingPortal.ConfigurationUpdateParams): Promise<PortalKonfiguration>;
   /** KC-0206: every invoice of the customer, newest first (for Hent alt). */
   listFakturaer(kunde: string): Promise<Faktura[]>;
+  /** KC-0194: every invoice in the account paid at or after `siden`, any customer (the VAT threshold is the seller's,
+   *  and the account is Henrik's own, shared with ShelfAtlas). Amounts only, nothing about the customer. */
+  listBetalteFakturaer(siden: Date): Promise<BetaltFaktura[]>;
+  /** KC-0194: Stripe Tax's status; null when the key may not read it. */
+  skatIndstillinger(): Promise<SkatIndstillinger | null>;
 }
 
 /** Test or live, from the key prefix. Throws naming the key, never showing its value. */

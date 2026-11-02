@@ -27,16 +27,19 @@ test('both consents are needed, the terms one with exactly the current version, 
   assert.equal(samtykkerGivet({ [FELT.vilkaar]: 1, [FELT.straks]: true }, '1'), false);
 });
 
-test('the price text comes from config/priser.json, with no VAT added, in both languages', () => {
-  assert.equal(planPris(priser, 'sky-solo', 'maaned'), priser.planer['sky-solo']!.maanedlig.dkk);
-  assert.equal(planPris(priser, 'sky-husstand', 'aar'), priser.planer['sky-husstand']!.aarlig.dkk);
-  assert.equal(planPris(priser, 'findes-ikke', 'aar'), null);
-  assert.equal(prisLinje(priser, 'sky-solo', 'maaned', 'da'), '79 kr. om måneden');
-  assert.equal(prisLinje(priser, 'sky-solo', 'aar', 'da'), '790 kr. om året');
-  assert.equal(prisLinje(priser, 'sky-husstand', 'aar', 'en'), 'DKK 1,290 per year');
-  assert.equal(beloeb(6583, 'da'), '65,83 kr.');
-  assert.equal(beloeb(7900, 'en'), 'DKK 79');
-  for (const t of [prisLinje(priser, 'sky-solo', 'maaned', 'da'), prisLinje(priser, 'sky-solo', 'maaned', 'en')]) assert.doesNotMatch(t, /moms|vat/i);
+test('the price text comes from config/priser.json in the customer\'s currency, with no VAT mentioned, in both languages', () => {
+  assert.equal(planPris(priser, 'sky-solo', 'maaned', 'dkk'), priser.planer['sky-solo']!.maanedlig.dkk);
+  assert.equal(planPris(priser, 'sky-husstand', 'aar', 'dkk'), priser.planer['sky-husstand']!.aarlig.dkk);
+  assert.equal(planPris(priser, 'sky-solo', 'maaned', 'eur'), priser.planer['sky-solo']!.maanedlig.eur);
+  assert.equal(planPris(priser, 'findes-ikke', 'aar', 'dkk'), null);
+  assert.equal(prisLinje(priser, 'sky-solo', 'maaned', 'da', 'dkk'), '79 kr. om måneden');
+  assert.equal(prisLinje(priser, 'sky-solo', 'aar', 'da', 'dkk'), '790 kr. om året');
+  assert.equal(prisLinje(priser, 'sky-husstand', 'aar', 'en', 'dkk'), 'DKK 1,290 per year');
+  assert.equal(prisLinje(priser, 'sky-solo', 'maaned', 'en', 'eur'), '€10.60 per month');
+  assert.equal(prisLinje(priser, 'sky-solo', 'maaned', 'da', 'eur'), '10,60 € om måneden');
+  assert.equal(beloeb(6583, 'da', 'dkk'), '65,83 kr.');
+  assert.equal(beloeb(7900, 'en', 'dkk'), 'DKK 79');
+  for (const t of [prisLinje(priser, 'sky-solo', 'maaned', 'da', 'dkk'), prisLinje(priser, 'sky-solo', 'maaned', 'en', 'eur')]) assert.doesNotMatch(t, /moms|vat/i);
 });
 
 test('the 14 days run until midnight in Copenhagen after the 14th day from the one the agreement began', () => {

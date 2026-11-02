@@ -89,7 +89,7 @@ class SimuleretStripe implements TestureApi {
     const ur = [...this.ure.values()].find((u) => u.kunder.has(params.customer!))!;
     // The simulation creates it the way the fake does (a completed Checkout with the same parameters).
     const s = await this.falsk.opretCheckout({
-      mode: 'subscription', customer: params.customer!, line_items: params.items!.map((i) => ({ price: i.price!, quantity: i.quantity! })),
+      mode: 'subscription', customer: params.customer!, ...(params.currency ? { currency: params.currency } : {}), line_items: params.items!.map((i) => ({ price: i.price!, quantity: i.quantity! })),
       subscription_data: { trial_period_days: params.trial_period_days!, ...(params.trial_settings?.end_behavior?.missing_payment_method ? { trial_settings: { end_behavior: { missing_payment_method: params.trial_settings.end_behavior.missing_payment_method } } } : {}), metadata: params.metadata as Record<string, string> },
       success_url: 'https://sky.example.com/tilbage',
     }, n);
@@ -151,9 +151,9 @@ test('--dry-run prints the plan, every scenario and step, without a key and with
   const r = await koer(['--dry-run'], {}, () => { throw new Error('ingen netværk i en tør kørsel'); });
   assert.equal(r.kode, 0);
   for (const sc of SCENARIER) assert.ok(r.linjer.includes(`${sc.id} ${sc.navn}`), sc.id);
-  assert.match(r.tekst, /S8 kommer med KC-0194/);
-  assert.doesNotMatch(r.tekst, /S3 kommer med/);
-  assert.match(r.tekst, /S8 kommer med KC-0194/);
+  // KC-0194: S8 is in the table now, so no scenario is waiting on a ticket.
+  assert.doesNotMatch(r.tekst, /kommer med/);
+  assert.match(r.tekst, /S8 .*Tyskland/);
   assert.match(r.tekst, /clawco_tjek=k1/);
 });
 
@@ -172,8 +172,8 @@ test('the Stripe layer runs the whole table green against the simulation, with t
 test('everything the run creates carries clawco_tjek=<run id>, in its own catalogue: the account\'s products and lookup keys are never touched', async () => {
   const { falsk, api, lavStripe } = simulation();
   // The account already holds a real Clawco product (the owner's own test data): the run must leave it alone.
-  await falsk.opretProdukt({ id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', metadata: { clawco: 'ja', clawco_plan: 'sky-solo' } }, 'ejer');
-  await falsk.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: false }, 'ejer-pris');
+  await falsk.opretProdukt({ id: 'clawco-sky-solo', navn: 'Clawco Sky Solo', metadata: { clawco: 'ja', clawco_plan: 'sky-solo' }, skatKode: null }, 'ejer');
+  await falsk.opretPris({ produkt: 'clawco-sky-solo', navn: 'Sky Solo pr. måned', lookupKey: 'clawco-sky-solo-maaned', dkk: 7900, eur: 1060, interval: 'month', metadata: { clawco: 'ja' }, transferLookupKey: false, momsInkl: false }, 'ejer-pris');
   const foer = falsk.kald.length;
   assert.equal((await koer([], { [NOEGLE_NAVN]: TEST_NOEGLE }, lavStripe)).kode, 0);
 

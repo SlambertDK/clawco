@@ -21,6 +21,7 @@ import { beskedSide, ejerSide, planSide, statusSide, type Valg } from './render.
 import { T } from './tekster.ts';
 import { F } from './forbrugerret-tekster.ts';
 import { planPris, samtykkerGivet, type Sprog } from './forbrugerret.ts';
+import { valutaForLand } from './valuta.ts';
 import { bekraeftSide, besked, fortrudtAlleredeSide, fortrudtSide, fortrydIntetSide, fortrydSide, fortrydUdloebetSide, intetAtOpsigeSide, opsagtAlleredeSide, opsagtSide, opsigSide } from './forbrugerret-render.ts';
 import { efterKoeb, type Kontakt, type KoebDeps } from './kvittering.ts';
 import { opretBestilling } from './bestilling.ts';
@@ -183,9 +184,11 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
   function bekraeftHtml(l: Indlogget, v: { plan: string; interval: IntervalNavn; land: string }, retur: 'konto' | 'tilmelding', proeve: boolean, fejl?: 'mangler' | 'aendret'): string {
     const plan = d.priser.planer[v.plan]!;
     const q = new URLSearchParams(retur === 'tilmelding' ? { plan: v.plan, interval: v.interval } : { plan: v.plan, interval: v.interval, land: v.land });
+    // KC-0194: the amount in the currency of the account's country, the same one Checkout will charge in.
+    const valuta = valutaForLand(d.priser, v.land);
     return bekraeftSide({
       sprog: l.sprog, csrf: l.csrf, plan: { id: v.plan, navn: plan.navn, medlemmer: plan.medlemmer }, interval: v.interval, land: v.land,
-      prisOere: planPris(d.priser, v.plan, v.interval)!, proeve, proeveDage: d.priser.proeve.dage, vilkaar: { version: d.vilkaar.version, url: d.vilkaar.url(l.sprog) },
+      prisOere: planPris(d.priser, v.plan, v.interval, valuta)!, valuta, moms: d.priser.moms.aktiv, proeve, proeveDage: d.priser.proeve.dage, vilkaar: { version: d.vilkaar.version, url: d.vilkaar.url(l.sprog) },
       retur, tilbage: `${retur === 'tilmelding' ? '/tilmeld' : '/konto/abonnement'}?${q.toString()}`, ...(fejl ? { fejl } : {}),
     });
   }
@@ -220,7 +223,8 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
     }
     const { plan, interval, land } = v as { plan: string; interval: IntervalNavn; land: string };
     const retur = f['retur'] === 'tilmelding' ? 'tilmelding' : 'konto';
-    const prisOere = planPris(d.priser, plan, interval)!;
+    const valuta = valutaForLand(d.priser, land);
+    const prisOere = planPris(d.priser, plan, interval, valuta)!;
     // KC-0209: nothing happens without both boxes (the terms at their current version, and the immediate start with the
     // loss of the withdrawal right explained). Checked first, before anything is read from or written to Stripe.
     if (!samtykkerGivet(f, d.vilkaar.version)) {
@@ -238,9 +242,10 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
         console.error(`sky abonnement: ingen aktiv pris med lookup key ${lookupKey(plan, interval)} i Stripe — kør npm run stripe:opsaet`);
         return ikkeKlar(c);
       }
-      // The price Stripe will charge is the price the statement showed (both from the one price file); never charge what was not shown.
-      if (pris.dkk !== prisOere) {
-        console.error(`sky abonnement: Stripe-prisen ${lookupKey(plan, interval)} er ${pris.dkk} øre, men config/priser.json siger ${prisOere}: Checkout afvist — kør npm run stripe:opsaet`);
+      // The price Stripe will charge is the price the statement showed (both from the one price file), in the currency
+      // Checkout will use (KC-0194); never charge what was not shown.
+      if (pris[valuta] !== prisOere || pris.momsInkl !== d.priser.moms.aktiv) {
+        console.error(`sky abonnement: Stripe-prisen ${lookupKey(plan, interval)} er ${pris[valuta] ?? 'uden'} ${valuta}${pris.momsInkl ? ' inkl. moms' : ''}, men config/priser.json siger ${prisOere}${d.priser.moms.aktiv ? ' inkl. moms' : ''}: Checkout afvist — kør npm run stripe:opsaet`);
         return ikkeKlar(c);
       }
       const proeve = await harProeve(l.kontoId, alle);
@@ -253,7 +258,7 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
       let params;
       try {
         params = byggCheckout({
-          kontoId: l.kontoId, kunde: '', plan, interval, land, sprog: l.sprog, valuta: 'dkk', skat: null,
+          kontoId: l.kontoId, kunde: '', plan, interval, land, sprog: l.sprog,
           prisId: pris.id, proeve, publicUrl: d.publicUrl, juridisk: d.juridisk, tilstand: klient.tilstand,
           retur,
         }, d.priser);
@@ -271,7 +276,7 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
       }
       await saetAabenCheckout(d.db, l.kontoId, session.id);
       // The order: the price shown, the terms version and when both boxes were ticked (the session id makes a double click one order).
-      await opretBestilling(d.db, { kontoId: l.kontoId, checkoutSession: session.id, plan, interval, prisOere, proeve: proeveAktiv, vilkaarVersion: d.vilkaar.version, sprog: l.sprog, nu: nu() });
+      await opretBestilling(d.db, { kontoId: l.kontoId, checkoutSession: session.id, plan, interval, prisOere, valuta, proeve: proeveAktiv, vilkaarVersion: d.vilkaar.version, sprog: l.sprog, nu: nu() });
       if (!session.url) throw new Error(`Checkout Session ${session.id} har ingen url`);
       return c.redirect(session.url, 303);
     } catch (err) {
@@ -338,7 +343,7 @@ export function abonnementRuter(d: AbonnementDeps): Hono {
     if ('svar' in e) return e.svar;
     const o = await fortrydOversigt(koeb, e.l.kontoId);
     const sprog = e.l.sprog;
-    if (o.art === 'klar') return c.html(fortrydSide({ sprog, csrf: e.l.csrf, frist: o.frist, proeve: o.proeve, brugteDage: o.brugteDage, periodeDage: o.periodeDage, beholdOere: o.beholdOere, tilbageOere: o.tilbageOere }));
+    if (o.art === 'klar') return c.html(fortrydSide({ sprog, csrf: e.l.csrf, frist: o.frist, proeve: o.proeve, brugteDage: o.brugteDage, periodeDage: o.periodeDage, beholdOere: o.beholdOere, tilbageOere: o.tilbageOere, valuta: o.bestilling.valuta }));
     if (o.art === 'udloebet') return c.html(fortrydUdloebetSide(sprog, o.frist));
     if (o.art === 'allerede') return c.html(fortrudtAlleredeSide(sprog, o.tid));
     return c.html(fortrydIntetSide(sprog));

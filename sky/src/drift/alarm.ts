@@ -3,7 +3,7 @@
 // (de-duplicated in this process: a restart may send an alert that is still active once more). An alert's text carries
 // counts and tenant ids only — never a host name, an error text or anything a customer wrote.
 // Other tickets plug their signal in: KC-0189 fills `usunde`, KC-0182 `provisionering` and `ledigePladser`, the
-// certificate check `certifikater`. Signals that exist today are read by alarmSignaler (KC-0185 backups and drills,
+// certificate check `certifikater`, KC-0194 `omsaetning` (abonnement/omsaetning.ts, wired in server.ts). Signals that exist today are read by alarmSignaler (KC-0185 backups and drills,
 // KC-0186 rollouts).
 import type { Database } from '../db/pool.ts';
 import type { Post } from '../delt/post.ts';
@@ -11,7 +11,7 @@ import { medSikkerBesked, type Fejlrapport } from '../delt/fejlrapport-kerne.ts'
 import { kopiTilstand, proeverSiden } from './backup/tilstand.ts';
 import { udrulStatus } from './udrulning/udrul.ts';
 
-export const ALARM_REGLER = ['backup-gammel', 'gendannelse-fejlet', 'udrulning-fejlet', 'provisionering', 'faa-pladser', 'tenant-usund', 'certifikat'] as const;
+export const ALARM_REGLER = ['backup-gammel', 'gendannelse-fejlet', 'udrulning-fejlet', 'provisionering', 'faa-pladser', 'tenant-usund', 'certifikat', 'moms-graense'] as const;
 export type RegelId = (typeof ALARM_REGLER)[number];
 
 export const GRAENSER = {
@@ -40,6 +40,9 @@ export type Signaler = {
   usunde?: { slug: string; siden: Date }[];
   /** TLS certificates and when they expire (the name is never written into an alert). */
   certifikater?: { navn: string; udloeber: Date }[];
+  /** KC-0194 (G6): paid invoices over the trailing 12 months in øre, the warning threshold from config/priser.json
+   *  (moms.varselOere), and how many invoices were in a currency that could not be counted. */
+  omsaetning?: { oere: number; graenseOere: number; andreValutaer: number };
 };
 
 export type Alarm = { regel: RegelId; noegle: string; titel: string; tekst: string };
@@ -57,6 +60,7 @@ function idListe(ids: string[]): string {
 }
 
 const flertal = (n: number, en: string, flere: string): string => `${n} ${n === 1 ? en : flere}`;
+const kr = (oere: number): string => `${(oere / 100).toLocaleString('da-DK', { minimumFractionDigits: oere % 100 ? 2 : 0, maximumFractionDigits: 2 })} kr.`;
 
 /** Each rule: null when its signal is absent, else the alerts that hold now (one per rule, keyed by who is affected). */
 const VURDER: Record<RegelId, (s: Signaler, nu: Date) => Alarm[] | null> = {
@@ -107,6 +111,15 @@ const VURDER: Record<RegelId, (s: Signaler, nu: Date) => Alarm[] | null> = {
     if (!snart.length) return [];
     const dage = Math.max(0, Math.floor((Math.min(...snart.map((c) => c.udloeber.getTime())) - nu.getTime()) / (24 * TIME)));
     return [{ regel: 'certifikat', noegle: snart.map((c) => c.udloeber.toISOString()).sort().join(','), titel: 'Certifikat udløber snart', tekst: `${flertal(snart.length, 'certifikat', 'certifikater')} udløber inden for ${GRAENSER.certifikatDage} dage, det første om ${flertal(dage, 'dag', 'dage')}.` }];
+  },
+  // KC-0194 (G6): the owner sells without VAT registration; at the threshold he registers CVR and VAT and switches
+  // VAT on in the config. One key: the alert holds while the total stays at or above the threshold.
+  'moms-graense': (s) => {
+    if (!s.omsaetning) return null;
+    const o = s.omsaetning;
+    if (o.oere < o.graenseOere) return [];
+    const andre = o.andreValutaer > 0 ? ` ${flertal(o.andreValutaer, 'faktura i en anden valuta', 'fakturaer i andre valutaer')} er ikke talt med.` : '';
+    return [{ regel: 'moms-graense', noegle: 'graense', titel: 'Momsregistrering nærmer sig', tekst: `Betalte fakturaer de seneste 12 måneder er ${kr(o.oere)} (varslet kommer ved ${kr(o.graenseOere)}).${andre} Registrér CVR og moms, og sæt så moms.aktiv til true i config/priser.json, så Stripe Tax lægger moms på.` }];
   },
 };
 

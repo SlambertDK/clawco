@@ -131,3 +131,17 @@ test('KC-0131: rejsen gennemført — every step Klaret, Start out of the nav, D
   const k = (await (await v.app.request('/api/kilder')).json()) as { kilder: { id: string; forbundet: boolean }[] };
   assert.deepEqual(k.kilder.filter((x) => x.forbundet).map((x) => x.id).sort(), ['falsk-kalender', 'falsk-mail']);
 });
+
+// KC-0170: the screen in English — step 1 saved with English, so Start, the nav and the chat are English.
+test('Kold start: på engelsk — the profile chose English, the whole screen is English', async () => {
+  const v = await verden;
+  assert.deepEqual(await v.hop('kold-engelsk'), { url: '/rum/start' });
+  const h = await side('/rum/start');
+  assert.match(h, /<html lang="en">/);
+  assert.match(h, /data-trin="velkommen" data-trin-status="klaret"/);
+  assert.match(h, /Hermes answers in English/);
+  assert.match(h, /<span>Now<\/span>/);
+  assert.match(h, /Ask Hermes/);
+  await v.hop('kold-velkommen');
+  assert.match(await side('/rum/start'), /<html lang="da">/);
+});

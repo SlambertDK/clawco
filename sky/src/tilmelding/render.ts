@@ -9,8 +9,8 @@ import { FASER, visningsNoegle, type Visning } from './trin.ts';
 
 export type Sprog = 'da' | 'en';
 export type Interval = 'maaned' | 'aar';
-/** A plan as the plan step shows it; the server builds these from config/priser.json (amounts in øre, DKK). */
-export type PlanVisning = { id: string; navn: string; medlemmer: number; maaned: number; aar: number };
+/** A plan as the plan step shows it; the server builds these from config/priser.json (amounts in øre and cent). */
+export type PlanVisning = { id: string; navn: string; medlemmer: number; maaned: { dkk: number; eur: number }; aar: { dkk: number; eur: number } };
 
 /** What every screen needs: language, the session's CSRF token (null before login), and the mode. */
 export type Faelles = { sprog: Sprog; csrf: string | null; tilstand: 'invitation' | 'open'; /** false: a still picture (the dev gallery), no polling */ poll?: boolean;
@@ -23,7 +23,9 @@ export type SideInput =
   | { visning: { trin: 'profil' }; lande: readonly string[]; land: string | null; valgtSprog: Sprog | null; samtykke: Samtykke; mangler: boolean; behold: { plan: string | null; interval: Interval | null } }
   | { visning: { trin: 'samtykke' }; samtykke: Samtykke; mangler: boolean }
   | { visning: { trin: 'invitation' }; svar: 'ikke-endnu' | 'ukendt' | null }
-  | { visning: { trin: 'plan' }; planer: readonly PlanVisning[]; proeveDage: number; valg: { plan: string | null; interval: Interval | null }; land: string; proeve: boolean; afbrudt: boolean }
+  | { visning: { trin: 'plan' }; planer: readonly PlanVisning[]; proeveDage: number; valg: { plan: string | null; interval: Interval | null }; land: string;
+      /** KC-0194: the currency of the account's country, and whether prices include VAT (config moms.aktiv). */
+      valuta: 'dkk' | 'eur'; moms: boolean; proeve: boolean; afbrudt: boolean }
   | { visning: { trin: 'betaling' }; proeve: boolean; session: string }
   | { visning: Extract<Visning, { trin: 'klargoering' }> }
   | { visning: { trin: 'aabn' }; aabnUrl: string }
@@ -133,7 +135,7 @@ ${csrfFelt(f.csrf)}
       const a = s as Extract<SideInput, { visning: { trin: 'plan' } }>;
       const valgtPlan = a.planer.some((p) => p.id === a.valg.plan) ? a.valg.plan : a.planer[0]?.id;
       const planValg = a.planer.map((p) => html`<label class="valg"><input type="radio" name="plan" value="${p.id}"${p.id === valgtPlan ? html` checked` : ''} required>
-<span><strong>${p.navn}</strong><br><small>${t.medlemmer(p.medlemmer)} · ${t.pris(p.maaned, p.aar)}</small></span></label>`);
+<span><strong>${p.navn}</strong><br><small>${t.medlemmer(p.medlemmer)} · ${t.pris(p.maaned[a.valuta], p.aar[a.valuta], a.valuta)}</small></span></label>`);
       const proeve = a.proeve && a.proeveDage > 0;
       const interval = a.valg.interval ?? 'maaned';
       const intervalValg = ([['maaned', t.maanedlig], ['aar', t.aarlig]] as const).map(([id, tekst]) =>
@@ -148,7 +150,7 @@ ${a.afbrudt ? html`<p class="besked">${t.afbrudt}</p>` : ''}
 <fieldset><legend>${t.intervalFelt}</legend>${intervalValg}</fieldset>
 <button type="submit" class="primaer">${t.videre}</button>
 </form>
-<p><small>${t.ingenMoms}</small></p>` };
+<p><small>${a.moms ? t.fuldPrisMoms : t.fuldPris}</small></p>` };
     }
     case 'betaling': {
       const a = s as Extract<SideInput, { visning: { trin: 'betaling' } }>;

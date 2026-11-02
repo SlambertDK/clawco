@@ -38,7 +38,8 @@ function app(v: Verden, over: Partial<TilmeldingDeps> = {}) {
   const hvem = async (c: Context) => (Number(getCookie(c, 'konto') ?? '') === ID ? { kontoId: ID, csrf: `csrf-${ID}` } : null);
   const d: TilmeldingDeps = {
     publicUrl: PUBLIC, tilstand: 'open', dev: false, samtykke: S, lande: ['DK', 'SE', 'DE'],
-    planer: [{ id: 'sky-solo', navn: 'Sky Solo', medlemmer: 1, maaned: 7900, aar: 79000 }, { id: 'sky-husstand', navn: 'Sky Husstand', medlemmer: 6, maaned: 12900, aar: 129000 }],
+    planer: [{ id: 'sky-solo', navn: 'Sky Solo', medlemmer: 1, maaned: { dkk: 7900, eur: 1060 }, aar: { dkk: 79000, eur: 10600 } }, { id: 'sky-husstand', navn: 'Sky Husstand', medlemmer: 6, maaned: { dkk: 12900, eur: 1730 }, aar: { dkk: 129000, eur: 17300 } }],
+    valuta: (land) => (land === 'DK' ? 'dkk' : 'eur'), moms: false,
     proeveDage: 14,
     adgang: { login: hvem, beskyttet: async (c, csrf) => (c.req.header('origin') === PUBLIC && csrf === `csrf-${ID}` ? hvem(c) : null) },
     profil: {

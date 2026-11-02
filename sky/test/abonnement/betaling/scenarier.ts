@@ -49,20 +49,25 @@ export type Forventning = {
   /** KC-0196: the grace mails sent during this step (the runner runs the grace job after the step's events, as
    *  Sky's clock does). Absent = none. */
   mails?: FristMail[];
+  /** KC-0194: the customer's newest paid invoice is in this currency, at the plan's monthly amount in it from
+   *  config/priser.json, and carries VAT exactly when moms.aktiv is true (no tax line while VAT is off, G6). */
+  faktura?: { valuta: 'dkk' | 'eur' };
 };
 
 export type Skridt = Handling & { levering?: Levering; forvent: Forventning };
-export type Scenarie = { id: string; navn: string; skridt: Skridt[] };
+/** `land`: the account's billing country (KC-0198), which decides the currency (KC-0194); DK when absent. */
+export type Scenarie = { id: string; navn: string; land?: string; skridt: Skridt[] };
 
 const proeve = (plan = 'sky-solo'): Forventning => ({ status: 'proeve', plan, skrivebeskyttet: false, opsiges: false, udbakke: 0 });
 const aktiv = (plan = 'sky-solo'): Forventning => ({ status: 'aktiv', plan, skrivebeskyttet: false, opsiges: false, udbakke: 0 });
 const forfalden = (skrivebeskyttet = false): Forventning => ({ status: 'forfalden', plan: 'sky-solo', skrivebeskyttet, opsiges: false, udbakke: 0 });
 
-/** Start a Solo trial, attach the test card, let the trial end: the paid, active starting point of S4–S7. */
-const betaltSolo = (): Skridt[] => [
+/** Start a Solo trial, attach the test card, let the trial end: the paid, active starting point of S4–S7. The first
+ *  invoice is paid in the currency of the scenario's country (KC-0194). */
+const betaltSolo = (valuta: 'dkk' | 'eur' = 'dkk'): Skridt[] => [
   { goer: 'start', plan: 'sky-solo', forvent: { ...proeve(), udbakke: 1 } },
   { goer: 'kort', betalingsmiddel: 'pm_card_visa', forvent: proeve() },
-  { goer: 'frem', dage: 14, forvent: { ...aktiv(), udbakke: 1 } },
+  { goer: 'frem', dage: 14, forvent: { ...aktiv(), udbakke: 1, faktura: { valuta } } },
 ];
 
 export const SCENARIER: readonly Scenarie[] = [
@@ -139,13 +144,19 @@ export const SCENARIER: readonly Scenarie[] = [
       { goer: 'opsig', forvent: { ...aktiv(), opsiges: true, udbakke: 1, sammePris: true } },
     ],
   },
+  {
+    id: 'S8',
+    navn: 'kunde i Tyskland → betaler i euro til prisfilens europris; ingen momslinje, mens moms er slået fra (G6)',
+    // KC-0194: the currency follows the account's country (EUR outside Denmark). Henrik is not VAT-registered, so
+    // Stripe Tax is off and the invoice carries no tax line; with moms.aktiv true the same step expects one.
+    land: 'DE',
+    skridt: betaltSolo('eur'),
+  },
 ];
 
 /** The ticket's scenarios that are not in the table yet, and the ticket that adds each one (to the table, in
  *  both layers at once). A scenario is in exactly one of the two places; scenarier.test.ts checks it. */
-export const UDESTAAENDE: Readonly<Record<string, string>> = {
-  S8: 'KC-0194 (EUR-kunde får EUR-priser og en momslinje)',
-};
+export const UDESTAAENDE: Readonly<Record<string, string>> = {};
 
 /** The ticket's full list (KC-0193): S1–S8. */
 export const ALLE_IDER = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'] as const;

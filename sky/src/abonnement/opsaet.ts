@@ -20,8 +20,12 @@ const INTERVALLER = [
 export const produktId = (plan: string): string => `clawco-${plan}`;
 export const lookupKey = (plan: string, interval: IntervalNavn): string => `clawco-${plan}-${interval}`;
 
+/** KC-0194: Stripe's tax code for "Software as a service (SaaS) - personal use": Clawco Sky is hosted software sold to
+ *  households, used in the browser without a download. Set on the products only once moms.aktiv is true. */
+export const SKAT_KODE = 'txcd_10103000';
+
 export type ForventetProdukt = NytProdukt;
-export type ForventetPris = { produkt: string; navn: string; lookupKey: string; dkk: number; eur: number; interval: Interval; metadata: Metadata };
+export type ForventetPris = { produkt: string; navn: string; lookupKey: string; dkk: number; eur: number; interval: Interval; metadata: Metadata; momsInkl: boolean };
 
 export type Skridt =
   | { type: 'opret-produkt'; produkt: ForventetProdukt }
@@ -38,9 +42,9 @@ export function forventedeObjekter(p: Priser): { produkter: ForventetProdukt[]; 
   const produkter: ForventetProdukt[] = [];
   const priser: ForventetPris[] = [];
   for (const [id, plan] of Object.entries(p.planer)) {
-    produkter.push({ id: produktId(id), navn: `Clawco ${plan.navn}`, metadata: { ...maerke(), clawco_plan: id } });
+    produkter.push({ id: produktId(id), navn: `Clawco ${plan.navn}`, metadata: { ...maerke(), clawco_plan: id }, skatKode: p.moms.aktiv ? SKAT_KODE : null });
     for (const i of INTERVALLER) {
-      // No tax behaviour while moms.aktiv is false (D17); KC-0194 decides it.
+      // KC-0194 (G6): no tax behaviour while moms.aktiv is false; once on, every price is VAT-inclusive (79 kr is 79 kr).
       priser.push({
         produkt: produktId(id),
         navn: `${plan.navn} pr. ${i.tekst}`,
@@ -49,6 +53,7 @@ export function forventedeObjekter(p: Priser): { produkter: ForventetProdukt[]; 
         eur: plan[i.felt].eur,
         interval: i.stripe,
         metadata: { ...maerke(), clawco_plan: id, clawco_interval: i.navn },
+        momsInkl: p.moms.aktiv,
       });
     }
   }
@@ -60,7 +65,7 @@ function noegle(art: string, indhold: unknown): string {
 }
 
 const sammeMetadata = (a: Metadata, b: Metadata): boolean => Object.entries(b).every(([k, v]) => a[k] === v);
-const passer = (s: StripePris, f: ForventetPris): boolean => s.produkt === f.produkt && s.dkk === f.dkk && s.eur === f.eur && s.interval === f.interval;
+const passer = (s: StripePris, f: ForventetPris): boolean => s.produkt === f.produkt && s.dkk === f.dkk && s.eur === f.eur && s.interval === f.interval && s.momsInkl === f.momsInkl;
 
 export async function planlaeg(p: Priser, klient: BetalingsKlient): Promise<Opsaetning> {
   const forventet = forventedeObjekter(p);
@@ -80,6 +85,8 @@ export async function planlaeg(p: Priser, klient: BetalingsKlient): Promise<Opsa
     if (s.navn !== f.navn) aendring.navn = f.navn;
     if (!s.aktiv) aendring.aktiv = true;
     if (!sammeMetadata(s.metadata, f.metadata)) aendring.metadata = f.metadata;
+    // A tax code is only ever added (VAT on); with VAT off a code left from earlier does nothing and is left alone.
+    if (f.skatKode !== null && s.skatKode !== f.skatKode) aendring.skatKode = f.skatKode;
     if (Object.keys(aendring).length) skridt.push({ type: 'opdater-produkt', id: f.id, aendring });
     else uaendrede++;
   }
@@ -129,7 +136,7 @@ export function beskriv(skridt: Skridt[]): string[] {
       case 'opret-produkt': return `Opret produkt ${s.produkt.id} (${s.produkt.navn})`;
       case 'opdater-produkt': return `Opdatér produkt ${s.id}: ${Object.keys(s.aendring).join(', ')}`;
       case 'opret-pris': {
-        const ny = `${s.pris.lookupKey}: ${beloeb(s.pris.dkk, s.pris.eur)} pr. ${s.pris.interval === 'month' ? 'måned' : 'år'}`;
+        const ny = `${s.pris.lookupKey}: ${beloeb(s.pris.dkk, s.pris.eur)} pr. ${s.pris.interval === 'month' ? 'måned' : 'år'}${s.pris.momsInkl ? ' inkl. moms' : ''}`;
         return s.erstatter
           ? `Ny pris ${ny} (afløser ${beloeb(s.erstatter.dkk, s.erstatter.eur)}; eksisterende abonnenter beholder den gamle pris, til de skifter plan)`
           : `Opret pris ${ny}`;
@@ -149,7 +156,6 @@ export const IKKE_LAESBARE = [
   'Kunde-e-mails (kvitteringer og fakturaer slået til; "mislykket betaling" slået fra, KC-0196 sender vores egen)',
   'Smart Retries',
   'Annullér abonnement, når alle forsøg er mislykkedes',
-  'Momsregistrering (først med KC-0194)',
 ] as const;
 
 export type OpsaetKoersel = {
@@ -187,6 +193,16 @@ export async function koerOpsaet(k: OpsaetKoersel): Promise<number> {
     }
     const klient = k.lavKlient(noegle!);
     if (klient.tilstand !== tilstand) throw new Error(`klienten er i ${klient.tilstand}-tilstand, men nøglen er en ${tilstand}-nøgle`);
+
+    // KC-0194 (G6): VAT on means Stripe Tax computes it, which needs the head office and the VAT registrations set in
+    // the account (Henrik's, never set by this command). Live writes are refused until Stripe says it can calculate.
+    let skatLinje = '  Moms: slået fra (moms.aktiv=false): ingen moms opkræves eller vises, og Stripe Tax bruges ikke.';
+    if (priser.moms.aktiv) {
+      const skat = await klient.skatIndstillinger();
+      const hvad = skat === null ? 'nøglen kan ikke læse Stripe Tax' : skat.aktiv ? null : `Stripe Tax er ikke aktiv (mangler: ${skat.mangler.join(', ') || 'ukendt'})`;
+      if (hvad && anvendNu && tilstand === 'live') throw new Error(`moms er slået til, men ${hvad}: sæt hovedkontor og momsregistreringer i Stripe Tax først`);
+      skatLinje = hvad ? `  Moms: slået til, men ${hvad}. Sæt hovedkontor og momsregistreringer i Dashboard.` : '  Moms: slået til, og Stripe Tax er aktiv.';
+    }
 
     k.skriv(`Stripe-opsætning — ${tilstand}-tilstand, ${anvendNu ? 'anvender ændringer' : 'tør kørsel'}; prisfilen har status "${priser.status}"`);
     const plan = await planlaeg(priser, klient);
@@ -226,6 +242,7 @@ export async function koerOpsaet(k: OpsaetKoersel): Promise<number> {
     if (mangler === null) k.skriv('  Nøglen kan ikke læse kontoens firmaoplysninger — tjek dem i Dashboard.');
     else k.skriv(mangler.length ? `  Ikke udfyldt: ${mangler.join(', ')}` : '  Firmaoplysningerne er udfyldt.');
     k.skriv(`  Kan ikke læses via API'et, tjek i Dashboard: ${IKKE_LAESBARE.join('; ')}`);
+    k.skriv(skatLinje);
     return 0;
   } catch (e) {
     k.skriv(`Fejl: ${skjul(e instanceof Error ? e.message : String(e))}`);

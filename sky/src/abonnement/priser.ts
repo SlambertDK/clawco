@@ -7,13 +7,19 @@ import { fileURLToPath } from 'node:url';
 
 /** Integers in øre (dkk) and cent (eur). */
 export type Beloeb = { dkk: number; eur: number };
+/** The two currencies Clawco charges in (KC-0194). */
+export type Valuta = keyof Beloeb;
+export const VALUTAER: readonly Valuta[] = ['dkk', 'eur'];
 export type Plan = { navn: string; medlemmer: number; maanedlig: Beloeb; aarlig: Beloeb };
 export type Tilvalg = { navn: string; status: 'senere' | 'aktiv'; fraMaanedlig: Beloeb };
 export type Priser = {
   /** Gate G5: `udkast` until Henrik says yes; live Stripe is only written with `godkendt`. */
   status: 'udkast' | 'godkendt';
-  /** Off while Henrik is not VAT-registered (D17); KC-0194 turns it on. */
-  moms: { aktiv: boolean };
+  /** KC-0194 (G6): off while Henrik is not VAT-registered, so no VAT is charged or shown anywhere. `varselOere`: the
+   *  trailing-12-month paid total that raises the owner's alert; `eurKurs`: kroner per euro for that sum. */
+  moms: { aktiv: boolean; varselOere: number; eurKurs: number };
+  /** KC-0194: the billing country → currency table (countries not named pay in `ellers`). */
+  valuta: { lande: Record<string, Valuta>; ellers: Valuta };
   proeve: { dage: number; kort: boolean };
   /** Days from a failed payment to read-only (KC-0196). */
   fristVedFejl: number;
@@ -74,12 +80,27 @@ function ordbog<T>(v: unknown, sti: string, del: (v: unknown, sti: string) => T)
 }
 
 export function validerPriser(raw: unknown): Priser {
-  const r = objekt(raw, '', ['status', 'moms', 'proeve', 'fristVedFejl', 'paamindelseVedFejl', 'planer', 'tilvalg']);
+  const r = objekt(raw, '', ['status', 'moms', 'valuta', 'proeve', 'fristVedFejl', 'paamindelseVedFejl', 'planer', 'tilvalg']);
   const status = r['status'];
   if (status !== 'udkast' && status !== 'godkendt') throw fejl('status', 'skal være "udkast" eller "godkendt"');
 
-  const m = objekt(r['moms'], 'moms', ['aktiv']);
-  if (sandhed(m['aktiv'], 'moms.aktiv')) throw fejl('moms.aktiv', 'kan ikke være true endnu: moms bygges i KC-0194');
+  const m = objekt(r['moms'], 'moms', ['aktiv', 'varselOere', 'eurKurs']);
+  const kurs = m['eurKurs'];
+  if (typeof kurs !== 'number' || !Number.isFinite(kurs) || kurs <= 0) throw fejl('moms.eurKurs', 'skal være et positivt tal (kroner pr. euro)');
+  const moms = { aktiv: sandhed(m['aktiv'], 'moms.aktiv'), varselOere: heltal(m['varselOere'], 'moms.varselOere', 1), eurKurs: kurs };
+
+  const v = objekt(r['valuta'], 'valuta', ['lande', 'ellers']);
+  const valutaAf = (x: unknown, sti: string): Valuta => {
+    if (!VALUTAER.includes(x as Valuta)) throw fejl(sti, `skal være ${VALUTAER.map((k) => `"${k}"`).join(' eller ')}`);
+    return x as Valuta;
+  };
+  const lande: Record<string, Valuta> = {};
+  for (const [k, x] of Object.entries(objekt(v['lande'], 'valuta.lande', null))) {
+    if (k.startsWith('_')) continue;
+    if (!/^[A-Z]{2}$/.test(k)) throw fejl(`valuta.lande.${k}`, 'skal være en landekode med to store bogstaver (ISO 3166)');
+    lande[k] = valutaAf(x, `valuta.lande.${k}`);
+  }
+  const valuta = { lande, ellers: valutaAf(v['ellers'], 'valuta.ellers') };
 
   const pr = objekt(r['proeve'], 'proeve', ['dage', 'kort']);
   const proeve = { dage: heltal(pr['dage'], 'proeve.dage', 0), kort: sandhed(pr['kort'], 'proeve.kort') };
@@ -105,7 +126,7 @@ export function validerPriser(raw: unknown): Priser {
   const fristVedFejl = heltal(r['fristVedFejl'], 'fristVedFejl', 1);
   const paamindelseVedFejl = heltal(r['paamindelseVedFejl'], 'paamindelseVedFejl', 1);
   if (paamindelseVedFejl >= fristVedFejl) throw fejl('paamindelseVedFejl', 'skal komme før fristVedFejl');
-  return { status, moms: { aktiv: false }, proeve, fristVedFejl, paamindelseVedFejl, planer, tilvalg };
+  return { status, moms, valuta, proeve, fristVedFejl, paamindelseVedFejl, planer, tilvalg };
 }
 
 export function laesPriser(sti: string = PRISFIL): Priser {

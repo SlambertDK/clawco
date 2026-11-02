@@ -28,6 +28,9 @@ import type { ImportBunke } from '../../rooms/start/schema.ts';
 import { fenced } from './faelles.ts';
 import { erTailscaleMoment, KOLD_TAILSCALE } from './tailscale.ts'; // KC-0161
 
+/** KC-0170: the cold moment where step 1 chose English. */
+export const KOLD_ENGELSK = 'kold-engelsk';
+
 /** KC-0135: the cold moment where the Google calendar is connected (so the world's Google app is set up) and mail is not. */
 export const KOLD_GOOGLE = 'kold-google';
 
@@ -52,6 +55,8 @@ const KOLD_KILDER: readonly Moment[] = [
 export const KOLD_START: readonly Moment[] = [
   { id: 'kold', tid: '09:00', navn: 'Kold start', url: '/rum/start', replik: 'Hvor begynder jeg?' },
   { id: 'kold-velkommen', tid: '09:06', navn: 'Kold start: velkommen klaret', url: '/rum/start', replik: 'Hvad skal jeg nu?' },
+  // KC-0170: the same few minutes in, with English chosen in step 1: the whole screen is English.
+  { id: KOLD_ENGELSK, tid: '09:07', navn: 'Kold start: på engelsk', url: '/rum/start', replik: 'What do I do next?' },
   // KC-0127: step 2 failing (the scripted Hermes answers the live test with 401 here) and passing.
   { id: 'kold-model-fejl', tid: '09:10', navn: 'Kold start: nøglen afvist', url: '/rum/start', replik: 'Hvorfor virker den ikke?' },
   { id: 'kold-model', tid: '09:12', navn: 'Kold start: modellen virker', url: '/rum/start', replik: 'Virker den nu?' },
@@ -112,6 +117,10 @@ export function koldFroe(momentId: string, f: Fakta): Froe {
   const state: StartState = { startet: f.iso('09:00'), trin: { velkommen: { status: 'klaret', tid: gemt } }, afvist: {} };
   const base: Froe = { ...tom, profil: { navn: TEST_EJER.navn, sprog: 'da', husstand: 'husstand' }, kilder, rum: { start: { state, log: [velkommen] }, mail: { state: koldMailState(f) } } };
   if (momentId === 'kold-velkommen') return base;
+  if (momentId === KOLD_ENGELSK) {
+    const engelsk = { ...velkommen, tekst: `Gemte profilen: ${TEST_EJER.navn}, Hermes svarer på engelsk, en husstand.` }; // the room's log stays Danish (follow-up)
+    return { ...base, profil: { navn: TEST_EJER.navn, sprog: 'en', husstand: 'husstand' }, rum: { ...base.rum, start: { state, log: [engelsk] } } };
+  }
   // KC-0127: a key pasted for Anthropic (only its length is kept) and both tiers tested.
   const valgt = f.iso('09:08');
   const u = udbyderAf('anthropic')!;

@@ -8,7 +8,7 @@
 // archives the run's catalogue. Only TestureApi touches the network; tests inject a simulation of it.
 import Stripe from 'stripe';
 import { CLAWCO_MAERKE } from '../../../src/abonnement/stripe-klient.ts';
-import type { AbonnementSnapshot, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from '../../../src/abonnement/stripe-klient.ts';
+import type { AbonnementSnapshot, BetaltFaktura, SkatIndstillinger, BetalingsKlient, CheckoutSession, Faktura, NyKunde, NyPortalSession, NyPris, NytProdukt, PortalKonfiguration, ProduktAendring, StripeKunde, StripePris, StripeProdukt, Tilstand } from '../../../src/abonnement/stripe-klient.ts';
 import { laesPriser } from '../../../src/abonnement/priser.ts';
 import { anvend, planlaeg } from '../../../src/abonnement/opsaet.ts';
 import { DAG_MS, koerselsPriser, type RaaHaendelse, type Tidslinje, type Verden } from './koer.ts';
@@ -59,6 +59,8 @@ export function abonnementFraCheckout(p: Stripe.Checkout.SessionCreateParams, ko
   };
   if (p.currency) ud.currency = p.currency;
   if (sd.trial_settings) ud.trial_settings = sd.trial_settings;
+  // KC-0194: Stripe Tax travels with the parameters (on only when moms.aktiv is true).
+  if (p.automatic_tax) ud.automatic_tax = p.automatic_tax;
   return ud;
 }
 
@@ -103,6 +105,8 @@ export class KoerselsKlient implements BetalingsKlient {
   opretPortalKonfiguration(p: Stripe.BillingPortal.ConfigurationCreateParams, n: string): Promise<PortalKonfiguration> { return this.indre.opretPortalKonfiguration(p, this.noegle(n)); }
   opdaterPortalKonfiguration(id: string, p: Stripe.BillingPortal.ConfigurationUpdateParams): Promise<PortalKonfiguration> { return this.indre.opdaterPortalKonfiguration(id, p); }
   listFakturaer(kunde: string): Promise<Faktura[]> { return this.indre.listFakturaer(kunde); }
+  listBetalteFakturaer(siden: Date): Promise<BetaltFaktura[]> { return this.indre.listBetalteFakturaer(siden); }
+  skatIndstillinger(): Promise<SkatIndstillinger | null> { return this.indre.skatIndstillinger(); }
 }
 
 export type StripeVerdenValg = {

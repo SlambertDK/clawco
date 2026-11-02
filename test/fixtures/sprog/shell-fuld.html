@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="da">
+<head/>
+<body data-room="dagen" data-titel="Dagen · Clawco" data-live="1" data-stemme="samtale" data-person="henrik" data-rolle="ejer">
+<div class="stoette-baand" data-stoette="baand" role="status"><span class="stoette-tekst"><strong>Support kigger med til 13.00</strong><span class="row-note">Support kan se det samme som ejeren, men ikke ændre noget. Alt, hvad der bliver åbnet, står i loggen. Grund: Mailen hænger</span></span><form method="post" action="/api/stoette/fra"><button type="submit" class="btn btn-primary" data-stoette="slaa-fra">Slå fra</button></form></div>
+<div class="frame">
+  <nav aria-label="Rum">
+    <div class="brand"><span class="dot"></span>Clawco</div>
+    <ul class="rooms"><li><a href="/rum/hjem" class=""><span>Nu</span><span class="count">4</span></a></li><li hidden><a href="/rum/start" class=""><span>Start</span></a></li><li><a href="/rum/dagen" aria-current="page" class=""><span>Dagen</span><span class="count">1</span></a></li><li><a href="/rum/mail" class=""><span>Mail</span><span class="count">3</span></a></li><li hidden data-eget><a href="/rum/skrive" class=""><span>Skrive</span></a></li><li hidden><a href="/rum/nyheder" class=""><span>Nyheder</span></a></li><li><a href="/rum/univers" class=""><span>Univers</span></a><ul class="rooms-sub"><li><a href="/rum/husstand"><span>Husstanden</span></a></li><li data-eget><a href="/rum/univers-have"><span>Haven</span><span class="count">2</span></a></li></ul></li></ul>
+    <div class="nav-foot mono"><span class="dot dot-ok"></span>kira-home</div>
+  </nav>
+  <main>
+    <header class="top">
+      <span class="crumb"><span class="muted">Rum</span> · <strong>Dagen</strong></span>
+      <span class="hermes"><span class="dot dot-ok" id="hermes-dot"></span><span class="muted">Hermes:</span> <span id="hermes-status">Holder øje med kalenderen</span></span>
+      <span class="top-btns"><button type="button" class="btn btn-ghost samtale-btn" id="samtale-toggle" aria-controls="samtale-panel" aria-expanded="false" title="Tal med Hermes — hænderfrit, svaret læses op">Samtale</button><button type="button" class="btn btn-ghost koe-btn" id="koe-toggle" aria-controls="koe-panel" aria-expanded="false">Kø<span class="count" id="koe-count" hidden></span></button></span>
+    </header>
+    <div class="samtale-panel" id="samtale-panel" hidden>
+      <div class="card-head"><h2 class="eyebrow">Samtale</h2><span class="samtale-state"><span class="dot dot-ok" id="samtale-dot"></span><span id="samtale-status">klar</span></span><span><button type="button" class="btn btn-ghost" id="samtale-lyd" aria-pressed="false">Lyd fra</button><button type="button" class="btn" id="samtale-stop">Stop</button></span></div>
+      <div class="chat samtale-log" id="samtale-log"><p class="muted row">Tryk Samtale, så fortæller jeg hvad der venter, og du svarer med stemmen.</p></div>
+    </div>
+    <div class="koe-panel" id="koe-panel" hidden>
+      <div class="card-head"><h2 class="eyebrow">Hermes' kø</h2><span><button type="button" class="btn btn-ghost" id="notif-btn" hidden>Få besked på skærmen</button><button type="button" class="btn btn-ghost" id="koe-close">Luk</button></span></div>
+      
+      <div id="koe-list" class="card-list"><p class="muted row">Intet i gang.</p></div>
+      <div class="revision"><div class="revision-head"><h3 class="eyebrow">Hvad Clawco har gjort</h3><button type="button" class="btn btn-ghost" data-revision-filter aria-pressed="false">Det Clawco sagde nej til</button></div><div class="revision-indhold" data-revision="liste"><p class="muted row">Henter …</p></div></div>
+      <div class="kilder-panel" data-kilder="panel" hidden></div>
+      <div class="omkostninger-panel" data-omkostninger="panel" hidden></div>
+      <div class="viden-link"><a class="btn btn-ghost" href="/viden">Hvad Clawco ved om dig</a></div>
+      <div class="viden-link"><a class="btn btn-ghost" href="https://konto.example.com/hjaelp" data-hjaelp>Få hjælp</a></div>
+      <div class="stoette-kort" data-stoette="til"><span class="eyebrow">Lad support se med</span><p class="row-note">Support kigger med til 13.00. Du kan slå det fra i det røde bånd.</p></div>
+      <form id="indstillinger" class="indstillinger" onsubmit="return false">
+        <span class="eyebrow">Tænkeniveau</span>
+        <label class="field"><span class="row-note">Småting (chat, handlinger, kladder)</span><input name="lille" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="lille"></span></label>
+        <label class="field"><span class="row-note">Analyse og forslag (bygge rum, udkast, forslag)</span><input name="taenker" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="taenker"></span></label>
+        <span class="eyebrow">Hermes' stemme</span>
+        <label class="field"><span class="row-note">Stemme</span><input name="voiceId" type="text" placeholder="vælges automatisk" maxlength="80"><span class="row-note">Tom = jeg vælger selv en dansk stemme.</span></label>
+        <div class="actions"><button type="button" class="btn" id="indstillinger-gem">Gem</button><button type="button" class="btn btn-ghost" id="stemme-proev" data-sig="Hej Henrik. Sådan lyder jeg. Skal vi tage det, der venter?">Prøv stemmen</button><span class="row-note" id="indstillinger-status"></span></div>
+      </form>
+      <div class="husstand-liste"><span class="eyebrow">Husstanden</span><ul class="husstand"><li data-person="henrik" data-rolle="ejer">Henrik <span class="row-note">ejer</span></li><li data-person="rikke" data-rolle="medlem">Rikke <span class="row-note">medlem</span></li></ul></div>
+      <div class="test-skift"><span class="eyebrow">Testtilstand</span><div class="actions"><button type="button" class="btn" id="test-knap">Testtilstand</button><span class="row-note" id="test-hint">Prøv alle funktioner med opdigtede data</span><span class="row-note" id="test-fejl" role="status"></span></div></div>
+    </div>
+    <div class="pause-baand" data-nodstop="pause" role="status"><span class="pause-tekst"><strong>Clawco er sat på pause</strong><span class="row-note">Rikke stoppede alt kl. 09.00. Intet kører, og intet nyt starter. </span></span><button type="button" class="btn btn-primary" data-nodstop="genoptag">Start igen</button></div>
+    <div class="room" id="room"><p id="m">Indhold</p></div>
+  </main>
+  <aside aria-label="Spørg Hermes" id="aside" data-blok="samtale">
+    <div class="aside-head"><h2>Spørg Hermes</h2><span class="aside-knapper"><button type="button" class="btn btn-ghost" id="cc-chat" title="Send det, du skriver, til Claude Code">Claude Code</button><button type="button" class="btn btn-ghost aside-close" id="chat-close" aria-label="Luk chatten">Luk</button></span><span class="kontekst-wrap" id="kontekst-wrap"><span class="chip chip-accent" id="kontekst">Om: Mødet kl. 10</span><button type="button" class="chip-x" id="kontekst-ryd" aria-label="Fjern markeringen">×</button></span></div>
+    <p class="row-note" id="kontekst-hint"><span class="kun-touch">Tryk</span><span class="kun-mus">Klik</span> på en kasse eller en linje i rummet, så handler chatten om den.</p>
+    <div class="chat" id="chat"><div class="msg msg-hermes" data-sig="Godmorgen &lt;b&gt;"><span class="mono msg-time">07.00</span><span class="msg-text">Godmorgen &lt;b&gt;</span></div><div class="msg msg-henrik"><span class="mono msg-time">07.01</span><span class="msg-text">Tak</span></div></div>
+    <div class="forslag" id="chat-forslag" role="group" aria-label="Forslag"><button type="button" class="btn btn-forslag" data-forslag="Hvad er det vigtigste i dag?">Hvad er det vigtigste i dag?</button><button type="button" class="btn btn-forslag" data-forslag="Hvornår har jeg tid?">Hvornår har jeg tid?</button><button type="button" class="btn btn-forslag" data-forslag="Hvad kan jeg sige?">Hvad kan jeg sige?</button></div>
+    <details class="rum-liste" data-rum-liste>
+      <summary class="btn btn-ghost">Rum</summary>
+      <ul><li><a href="/rum/hjem">Nu</a></li><li><a href="/rum/dagen" aria-current="page">Dagen</a></li><li><a href="/rum/mail">Mail</a></li><li><a href="/rum/univers">Univers</a></li><li><a href="/rum/husstand">Husstanden</a></li></ul>
+    </details>
+    <form id="chat-form" data-room="dagen" autocomplete="off">
+      <input id="chat-input" name="besked" type="text" placeholder="Skriv om: Mødet kl. 10" maxlength="2000" required>
+      <button type="button" class="btn mic" id="chat-mic" data-mic="chat" aria-label="Tal til Hermes" title="Tal til Hermes (tryk, tal, tryk igen)"><span class="mic-icon" aria-hidden="true"></span></button>
+      <button type="submit" class="btn btn-primary">Send</button>
+    </form>
+  </aside>
+</div>
+<dialog id="genveje-dialog" class="cc-dialog genveje" aria-labelledby="genveje-titel">
+  <form method="dialog">
+    <h2 class="eyebrow" id="genveje-titel">Genveje</h2>
+    <dl class="genveje-liste">
+      <dt><kbd>1</kbd>–<kbd>9</kbd></dt><dd>Gå til rummet med det nummer i menuen</dd>
+      <dt><kbd>/</kbd></dt><dd>Skriv til Hermes</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Luk chatten eller et vindue</dd>
+      <dt><kbd>?</kbd></dt><dd>Vis genvejene</dd>
+    </dl>
+    <h3 class="eyebrow">I chatten kan du sige</h3>
+    <ul class="genveje-sige"><li>Tilbage til forsiden</li><li>Åbn opsætningen</li><li>Åbn dagen</li><li>Åbn mail</li><li>Jeg vil skrive</li><li>Jeg vil læse nyhederne</li><li>Åbn universerne</li><li>Åbn husstanden</li><li>Åbn Haven</li><li>Hvad kan jeg sige?</li></ul>
+    <p class="row-note">Alt andet svarer Hermes på.</p>
+    <button class="btn" type="submit">Luk</button>
+  </form>
+</dialog>
+<dialog id="cc-dialog" class="cc-dialog" aria-labelledby="cc-dialog-titel">
+  <form id="cc-form" autocomplete="off">
+    <h2 class="eyebrow" id="cc-dialog-titel">Send til Claude Code</h2>
+    <fieldset class="cc-projekter"><legend class="row-note">Projekt</legend><label class="cc-projekt"><input type="radio" name="projekt" value="kontrolcenter" checked><span>Kontrolcenter</span></label><label class="cc-projekt"><input type="radio" name="projekt" value="shelfatlas"><span>ShelfAtlas</span></label></fieldset>
+    <label class="field"><span class="row-note">Hvad skal Claude Code gøre? Én sætning.</span><textarea name="saetning" rows="3" maxlength="500" required></textarea></label>
+    <p class="row-note" id="cc-grundlag" hidden></p>
+    <div class="actions"><button type="submit" class="btn btn-primary">Send</button><button type="button" class="btn btn-ghost" id="cc-annuller">Annuller</button></div>
+  </form>
+</dialog>
+<button type="button" id="chat-toggle" aria-controls="aside" aria-expanded="false">Spørg Hermes<span class="count" id="chat-toggle-count" hidden></span></button>
+<script src="https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.32.0/dist/lib.iife.js" defer></script>
+<script src="/lyt.js" defer></script>
+<script src="/ark.js" defer></script>
+<script src="/frisk.js" defer></script>
+<script src="/forbindelse.js" defer></script>
+<script src="/fab.js" defer></script>
+<script src="/titel.js" defer></script>
+<script src="/koe.js" defer></script>
+<script src="/kilde.js" defer></script>
+<script src="/naeste.js" defer></script>
+<script src="/genveje.js" defer></script>
+<script src="/nu.js" defer></script>
+<script src="/foelg.js" defer></script>
+<script src="/fortryd.js" defer></script>
+<script src="/kladde.js" defer></script>
+<script src="/plads.js" defer></script>
+<script src="/esc.js" defer></script>
+<script src="/morph.js" defer></script>
+<script src="/app.js" defer></script>
+<script src="/sw-start.js" defer></script>
+</body>
+</html>

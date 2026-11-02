@@ -5,6 +5,7 @@
 import type { Priser } from './priser.ts';
 import type { IntervalNavn } from './opsaet.ts';
 import { F } from './forbrugerret-tekster.ts';
+import { formatBeloeb, type Valuta } from './valuta.ts';
 
 export type Sprog = 'da' | 'en';
 
@@ -22,30 +23,29 @@ export function samtykkerGivet(form: Record<string, unknown>, aktuelVersion: str
   return form[FELT.vilkaar] === aktuelVersion && form[FELT.straks] === 'ja';
 }
 
-/** An amount in øre as text: "790 kr." / "DKK 790". No VAT is added anywhere (KC-0194, G6). */
-export function beloeb(oere: number, sprog: Sprog): string {
-  if (sprog === 'da') return `${(oere / 100).toLocaleString('da-DK', { maximumFractionDigits: 2 })} kr.`;
-  return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'DKK', maximumFractionDigits: 2, minimumFractionDigits: 0 }).format(oere / 100).replace(/ /g, ' ');
+/** An amount in minor units (øre or cent) as text in its own currency: "79 kr." / "€10.60" (valuta.ts). */
+export function beloeb(oere: number, sprog: Sprog, valuta: Valuta): string {
+  return formatBeloeb(oere, valuta, sprog);
 }
 
-/** The price of a plan in øre from the one price file; null for a plan that is not in it. */
-export function planPris(priser: Priser, plan: string, interval: IntervalNavn): number | null {
+/** The price of a plan in the customer's currency (øre or cent) from the one price file; null for a plan that is not in it. */
+export function planPris(priser: Priser, plan: string, interval: IntervalNavn, valuta: Valuta): number | null {
   if (!Object.hasOwn(priser.planer, plan)) return null;
   const p = priser.planer[plan]!;
-  return (interval === 'aar' ? p.aarlig : p.maanedlig).dkk;
+  return (interval === 'aar' ? p.aarlig : p.maanedlig)[valuta];
 }
 
-/** "79 kr. om måneden" / "DKK 790 per year". */
-export function prisLinje(priser: Priser, plan: string, interval: IntervalNavn, sprog: Sprog): string {
-  const oere = planPris(priser, plan, interval);
+/** "79 kr. om måneden" / "€10.60 per month". */
+export function prisLinje(priser: Priser, plan: string, interval: IntervalNavn, sprog: Sprog, valuta: Valuta): string {
+  const oere = planPris(priser, plan, interval, valuta);
   if (oere === null) throw new Error(`ukendt plan: ${plan}`);
-  return prisLinjeAf(oere, interval, sprog);
+  return prisLinjeAf(oere, interval, sprog, valuta);
 }
 
-/** The same line for an amount already stored (an order keeps the price it showed, in øre). */
-export function prisLinjeAf(oere: number, interval: IntervalNavn, sprog: Sprog): string {
+/** The same line for an amount already stored (an order keeps the price it showed, with its currency). */
+export function prisLinjeAf(oere: number, interval: IntervalNavn, sprog: Sprog, valuta: Valuta): string {
   const periode = sprog === 'da' ? (interval === 'aar' ? 'om året' : 'om måneden') : (interval === 'aar' ? 'per year' : 'per month');
-  return `${beloeb(oere, sprog)} ${periode}`;
+  return `${beloeb(oere, sprog, valuta)} ${periode}`;
 }
 
 /** "måned" / "year": the period as one word for a sentence. */

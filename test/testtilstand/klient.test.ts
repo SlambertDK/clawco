@@ -69,10 +69,12 @@ test('testtilstand.css: the band is fixed, safe-area aware, and the page reserve
 });
 
 test('Kø panel: the "Testtilstand" switch is in the layout and wired in app.js', () => {
+  // KC-0170: the words live in the shell's text table; the layout and app.js name them by key.
   const layout = lad('src/shell/layout.ts');
-  assert.ok(layout.includes('id="test-knap"') && layout.includes('Prøv alle funktioner med opdigtede data'));
+  const tekster = lad('src/shell/tekster.ts');
+  assert.ok(layout.includes('id="test-knap"') && layout.includes('T.testHint') && tekster.includes("testHint: 'Prøv alle funktioner med opdigtede data'"));
   const app = lad('public/app.js');
-  assert.ok(app.includes('/test/taend') && app.includes('/test/sluk') && app.includes('Sluk testtilstand') && app.includes('KC_TEST'));
+  assert.ok(app.includes('/test/taend') && app.includes('/test/sluk') && app.includes("tk('slukTest')") && tekster.includes("slukTest: 'Sluk testtilstand'") && app.includes('KC_TEST'));
 });
 
 test('testtilstand.css: on a phone the title is just "Test" (full title and clock hidden), the picker gets the width', () => {

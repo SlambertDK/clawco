@@ -3,14 +3,14 @@
 // message is markdown (Stripe renders its links); the URLs in it come from the deps, never from a person.
 
 const dato = (iso: string): string => new Date(iso).toLocaleDateString('da-DK', { timeZone: 'Europe/Copenhagen', dateStyle: 'medium' });
-const kr = (oere: number): string => (oere / 100).toLocaleString('da-DK', { maximumFractionDigits: 2 });
+import { formatBeloeb, type Valuta } from './valuta.ts';
 
 export const T = {
   planTitel: 'Vælg din plan',
   planIntro: 'Prøv Clawco gratis i 14 dage. Du skal ikke taste et kort. Når prøven slutter, sættes din Clawco på pause, indtil du selv vælger at betale. Der bliver aldrig trukket penge uden dit ja.',
   planIntroUdenProeve: 'Du har haft en gratis prøve før, så abonnementet begynder med det samme, når du har betalt.',
   afbrudt: 'Du afbrød betalingen. Dit valg er gemt herunder.',
-  pris: (maaned: number, aar: number): string => `${kr(maaned)} kr. om måneden · ${kr(aar)} kr. om året`,
+  pris: (maaned: number, aar: number, valuta: Valuta): string => `${formatBeloeb(maaned, valuta, 'da')} om måneden · ${formatBeloeb(aar, valuta, 'da')} om året`,
   medlemmer: (n: number): string => (n === 1 ? 'Til 1 person' : `Op til ${n} personer`),
   intervalTitel: 'Betal',
   maanedlig: 'hver måned',
@@ -19,7 +19,10 @@ export const T = {
   startProeve: 'Start 14 dages gratis prøve',
   videre: 'Videre til bekræftelse',
   tilBetaling: 'Gå til betaling',
-  ingenMoms: 'Priserne er hele priser. Der er ingen moms oveni.',
+  // KC-0194 (G6): no VAT is mentioned while moms.aktiv is false; the second line is for when it is true.
+  fuldPris: 'Prisen er den fulde pris.',
+  fuldPrisMoms: 'Prisen er den fulde pris, inkl. moms.',
+  valutaNote: 'Bor du i Danmark, betaler du i kroner. Ellers betaler du i euro.',
   tilbage: 'Tilbage til din konto',
 
   abonnementTitel: 'Dit abonnement',

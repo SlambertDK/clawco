@@ -1,0 +1,59 @@
+
+  <header class="room-head">
+    <div><h1>Start</h1><p class="muted">Rejsen fra kold start: ét kort per trin. Svar på det øverste, så står det næste klar.</p></div>
+  </header>
+
+  <p class="taellelinje"><span class="tilstand-kraever">3 venter på dig</span> · <span>1 i gang</span> · <span>2 ordnet</span></p><div class="baand-indhold" data-baand="indhold"><div class="stack" data-trin-bunke><article class="card kort trin-kort" data-blok="kort" data-trin="model" data-trin-status="ikke-startet" data-element="Trin: Vælg din model">
+    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Vælg din model</span></div>
+    <p>Indsæt en nøgle fra din udbyder, eller brug en model på din egen maskine. Clawco prøver den straks, så du kan se, at den virker.</p>
+    <p class="row-note" data-model-noegle>Nøglen er givet til Hermes. Gemt (108 tegn).</p><div class="card-list"><div class="row" data-model-tier="lille" data-model-test="fejl" data-element="Model: Den hurtige">
+    <span class="row-main"><span class="row-title">Den hurtige: <span class="mono">claude-haiku-4-5</span></span><span class="row-note">Clawco har ingen nøgle til en sprogmodel endnu. Vælg en udbyder, og indsæt din nøgle i Start.</span></span>
+    <span class="vis-smaa"><span class="chip tilstand-kraever">Virker ikke</span><button type="button" class="btn btn-ghost" data-aktion="model-test" data-arg="{&quot;tier&quot;:&quot;lille&quot;}" data-status="prøver modellen">Test</button></span>
+  </div><div class="row" data-model-tier="taenker" data-model-test="ok" data-element="Model: Den grundige">
+    <span class="row-main"><span class="row-title">Den grundige: <span class="mono">claude-sonnet-4-5</span></span><span class="row-note">Virker · 1,5 s</span></span>
+    <span class="vis-smaa"><span class="chip tilstand-ordnet"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>Virker</span><button type="button" class="btn btn-ghost" data-aktion="model-test" data-arg="{&quot;tier&quot;:&quot;taenker&quot;}" data-status="prøver modellen">Test</button></span>
+  </div></div><form id="model-form" class="nyt-form" onsubmit="return false" autocomplete="off">
+    <label class="field"><span class="row-note">Udbyder</span><select name="udbyder" data-model-udbyder><option value="anthropic" data-placeholder="sk-ant-…" selected>Anthropic</option><option value="openai" data-placeholder="sk-…">OpenAI</option><option value="copilot" data-placeholder="github_pat_… eller ghu_…">GitHub Copilot</option><option value="openrouter" data-placeholder="sk-or-…">OpenRouter</option><option value="lmstudio" data-placeholder="http://127.0.0.1:1234" data-lokal>LM Studio på din egen maskine</option><option value="ollama" data-placeholder="http://127.0.0.1:11434" data-lokal>Ollama på din egen maskine</option></select></label>
+    <label class="field" data-model-felt="noegle"><span class="row-note">Nøgle fra udbyderen (tom = behold den gemte)</span><input name="noegle" type="password" autocomplete="off" spellcheck="false" placeholder="sk-ant-…"></label>
+    <label class="field" data-model-felt="url" hidden><span class="row-note">Adressen på din maskine (tom = standard)</span><input name="url" type="url" inputmode="url" spellcheck="false" value="" placeholder="http://127.0.0.1:1234"></label>
+    <label class="field"><span class="row-note">Den hurtige model</span><input name="lille" type="text" list="model-navne" spellcheck="false" maxlength="80" value="claude-haiku-4-5"></label><label class="field"><span class="row-note">Den grundige model</span><input name="taenker" type="text" list="model-navne" spellcheck="false" maxlength="80" value="claude-sonnet-4-5"></label>
+    <datalist id="model-navne"><option value="claude-haiku-4-5"></option><option value="claude-sonnet-4-5"></option></datalist>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="model-gem" data-form="model-form" data-status="gemmer og prøver modellen">Gem og test</button></div>
+  </form>
+  </article><article class="card kort trin-kort" data-blok="kort" data-trin="foerste-kilde" data-trin-status="ikke-startet" data-element="Trin: Første kilde">
+    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Første kilde</span></div>
+    <p>Vælg, om du vil starte med kalenderen eller mailen. Lige efter står der noget at se på i Nu.</p>
+    
+  </article><article class="card kort trin-kort" data-blok="kort" data-trin="flere-kilder" data-trin-status="ikke-startet" data-element="Trin: Flere kilder">
+    <div class="kort-head"><span class="chip tilstand-rolig">Valgfrit</span><span class="row-title">Flere kilder</span></div>
+    <p>Én kilde ad gangen, og kun hvis du vil. Hver ny kilde giver straks noget at se på.</p>
+    
+  </article><article class="card kort trin-kort" data-blok="kort" data-trin="import" data-trin-status="ikke-startet" data-element="Trin: Tag det med">
+    <div class="kort-head"><span class="chip tilstand-rolig">Valgfrit</span><span class="row-title">Tag det med</span></div>
+    <p>Fortæl Hermes det, de andre assistenter ved om dig: indsæt deres svar, eller læg en kontaktfil eller nogle noter ind. Intet bliver skrevet, før du har trykket Gem.</p>
+    
+  </article><article class="card kort trin-kort" data-blok="kort" data-trin="foerste-ret" data-trin-status="ikke-startet" data-element="Trin: Ret én ting">
+    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Ret én ting</span></div>
+    <p>Tryk Ret på et kort, der ikke passer, eller Ikke relevant på et, du ikke vil se. Så lærer Hermes dig at kende.</p>
+    
+  </article><article class="card kort trin-kort" data-blok="kort" data-trin="velkommen" data-trin-status="klaret" data-element="Trin: Velkommen">
+    <div class="kort-head"><span class="chip tilstand-ordnet"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>Klaret</span><span class="row-title">Velkommen</span></div>
+    
+    <p class="row-note">Du hedder Henrik · Hermes svarer på dansk · du er en husstand.</p><details class="vis-mere"><summary><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg><span>Ret profilen</span></summary><div class="vis-mere-indhold"><form id="velkommen-form" class="nyt-form" onsubmit="return false" autocomplete="off">
+    <label class="field"><span class="row-note">Hvad hedder du?</span><input name="navn" type="text" maxlength="60" required value="Henrik" placeholder="Fx Alma"></label>
+    <label class="field"><span class="row-note">Hvilket sprog skal Hermes svare på?</span><select name="sprog"><option value="da" selected>Dansk</option><option value="en">Engelsk</option></select></label>
+    <label class="field"><span class="row-note">Er du alene, eller er I en husstand?</span><select name="husstand"><option value="alene">Alene</option><option value="husstand" selected>En husstand</option></select></label>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="velkommen-gem" data-form="velkommen-form" data-status="gemmer">Gem ændringen</button></div>
+  </form></div></details>
+  </article></div><div class="card card-list gruppe" data-blok="bunke" data-gruppe="Værd at tilføje"><div class="card-head"><h3 class="eyebrow">Værd at tilføje</h3><span class="muted mono">1</span></div><div class="row" data-forslag-kilde="noter" data-element="Forslag: Noter">
+    <span class="row-main"><span class="row-title">Noter</span><span class="row-note">Du skriver meget ned.</span></span>
+    <span class="vis-smaa"><button type="button" class="btn btn-ghost spoerg" data-ask="Forslag: Noter"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></svg><span>Spørg</span></button><button type="button" class="btn btn-ghost" data-aktion="forslag-afvis" data-arg="{&quot;kildeId&quot;:&quot;noter&quot;}" data-status="lægger forslaget væk">Ikke nu</button></span>
+  </div></div></div><!--/baand--><section class="baand baand-igang" data-baand="igang"><h2 class="baand-titel">I gang</h2><div class="card card-list gruppe" data-blok="bunke" data-gruppe="Hermes arbejder"><div class="card-head"><h3 class="eyebrow">Hermes arbejder</h3><span class="muted mono">1</span></div><div data-id="run:r1" class="row igang-row" data-run="r1"><span class="chip tilstand-rolig">I gang</span><span class="row-main"><span class="row-title">Prøver modellen</span></span></div></div></section><!--/baand--><section class="baand baand-ordnet altid-foldet" data-blok="ordnet" data-baand="ordnet"><button type="button" class="btn btn-ghost kun-telefon fold-knap" data-fold aria-expanded="false">Vis ordnet (2)</button><div data-fold-id="baand-ordnet" class="foldbar" data-fold-navn="ordnet (2)"><div class="card card-list gruppe" data-gruppe="Det er gjort"><div class="card-head"><h3 class="eyebrow">Det er gjort</h3><span class="muted mono">2</span></div><div data-id="log:l1" class="row log-row" data-log="l1">
+    <span class="mono time">09.30</span>
+    <span class="row-main"><span class="row-title">Gemte profilen</span></span>
+    <button type="button" class="btn btn-ghost" data-fortryd="l1">Fortryd</button>
+  </div><div data-id="log:l2" class="row log-row log-undone" data-log="l2">
+    <span class="mono time">09.40</span>
+    <span class="row-main"><span class="row-title">Skiftede model</span><span class="row-note">Fortrudt kl. 09.45</span></span>
+    
+  </div></div></div><!--/fold--></section><!--/baand-->

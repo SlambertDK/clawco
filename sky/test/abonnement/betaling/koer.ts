@@ -75,7 +75,9 @@ export class ScenarieFejl extends Error {
   }
 }
 
-type Faktisk = { status: string; plan: string; medlemmerMax: number; skrivebeskyttet: boolean; opsiges: boolean; udbakke: number; over: boolean | null; sammePris: boolean; kunDubletter: boolean; mails: string[] };
+type Faktisk = { status: string; plan: string; medlemmerMax: number; skrivebeskyttet: boolean; opsiges: boolean; udbakke: number; over: boolean | null; sammePris: boolean; kunDubletter: boolean; mails: string[];
+  /** KC-0194: the newest paid invoice (currency, amount, VAT), when the step expects one. */
+  faktura: { valuta: string; beloeb: number; moms: number | null } | null };
 
 const vis = (f: Pick<Faktisk, 'status' | 'plan' | 'medlemmerMax' | 'skrivebeskyttet' | 'opsiges' | 'udbakke'>): string =>
   `${f.status}/${f.plan} max ${f.medlemmerMax}${f.skrivebeskyttet ? ' skrivebeskyttet' : ''}${f.opsiges ? ' opsiges' : ''}, +${f.udbakke} i udbakken`;
@@ -87,7 +89,8 @@ export async function koerScenarie(v: Verden, sc: Scenarie, skriv: (linje: strin
   const email = `betaling-tjek+${v.koersel}-${sc.id.toLowerCase()}@example.com`;
   const { konto } = await findEllerOpretKonto(db, email, t.nu());
   const kontoId = konto.id;
-  const kunde = (await sikrKunde(db, t.klient, { kontoId, email, sprog: 'da', land: 'DK', nu: t.nu() })).stripeKunde;
+  const land = sc.land ?? 'DK';
+  const kunde = (await sikrKunde(db, t.klient, { kontoId, email, sprog: 'da', land, nu: t.nu() })).stripeKunde;
   const hemmelighed = `whsec_tjek${randomBytes(16).toString('hex')}`;
   const webhook: WebhookDeps = { db, klient: t.klient, priser: v.priser, hemmelighed, nu: () => t.nu(), taeller: { afvist: 0 } };
   const koeb = {
@@ -116,7 +119,7 @@ export async function koerScenarie(v: Verden, sc: Scenarie, skriv: (linje: strin
         const pris = await t.klient.prisForLookupKey(lookupKey(v.plan(s.plan), 'maaned'));
         if (!pris) throw new ScenarieFejl(sc.id, trin, `ingen aktiv pris for ${s.plan}`);
         const params = byggCheckout({
-          kontoId, kunde, plan: v.plan(s.plan), interval: 'maaned', land: 'DK', sprog: 'da', valuta: 'dkk', skat: null, prisId: pris.id, proeve: true,
+          kontoId, kunde, plan: v.plan(s.plan), interval: 'maaned', land, sprog: 'da', prisId: pris.id, proeve: true,
           publicUrl: koeb.publicUrl, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: null }, tilstand: t.klient.tilstand,
         }, v.priser);
         abonnement = await t.start(params);
@@ -179,8 +182,9 @@ export async function koerScenarie(v: Verden, sc: Scenarie, skriv: (linje: strin
       sammePris: ab !== null && ab.prisId === startPris,
       kunDubletter: svar.includes('dublet') && svar.every((x) => x === 'dublet' || x === 'ignoreret'),
       mails: koeb.post.udbakke.slice(mailsFoer).map((b) => b.skabelon).filter((m) => (FRIST_MAILS as readonly string[]).includes(m)),
+      faktura: s.forvent.faktura ? await nyesteBetalte(t.klient, kunde) : null,
     };
-    const fejl = afvigelser(s.forvent, faktisk, v.plan, maxFor);
+    const fejl = afvigelser(s.forvent, faktisk, v.plan, maxFor, v.priser);
     const linje = `${sc.id} trin ${trin} ${beskrivHandling(s)}${s.levering && s.levering !== 'normal' ? ` [${s.levering}]` : ''}: ${runde.length} hændelser → ${vis(faktisk)}`;
     if (fejl.length) {
       const advarsler = log.filter((l) => l.includes('ADVARSEL'));
@@ -190,7 +194,13 @@ export async function koerScenarie(v: Verden, sc: Scenarie, skriv: (linje: strin
   }
 }
 
-function afvigelser(f: Forventning, a: Faktisk, plan: (id: string) => string, maxFor: (plan: string) => number): string[] {
+/** The customer's newest paid invoice, as Stripe (or the fake) lists it. */
+async function nyesteBetalte(klient: BetalingsKlient, kunde: string): Promise<Faktisk['faktura']> {
+  const f = (await klient.listFakturaer(kunde)).filter((x) => x.status === 'paid').sort((x, y) => y.oprettet.getTime() - x.oprettet.getTime())[0];
+  return f ? { valuta: f.valuta.toLowerCase(), beloeb: f.beloeb, moms: f.moms ?? null } : null;
+}
+
+function afvigelser(f: Forventning, a: Faktisk, plan: (id: string) => string, maxFor: (plan: string) => number, priser: Priser): string[] {
   const forventet = { status: f.status, plan: f.plan === 'ingen' ? 'ingen' : plan(f.plan), medlemmerMax: maxFor(f.plan), skrivebeskyttet: f.skrivebeskyttet, opsiges: f.opsiges, udbakke: f.udbakke };
   const ud: string[] = [];
   if (forventet.status !== a.status || forventet.plan !== a.plan || forventet.medlemmerMax !== a.medlemmerMax || forventet.skrivebeskyttet !== a.skrivebeskyttet || forventet.opsiges !== a.opsiges || forventet.udbakke !== a.udbakke) {
@@ -201,6 +211,17 @@ function afvigelser(f: Forventning, a: Faktisk, plan: (id: string) => string, ma
   if (f.kunDubletter && !a.kunDubletter) ud.push('forventet at hver levering var en dublet');
   const mails: FristMail[] = f.mails ?? [];
   if (mails.join() !== a.mails.join()) ud.push(`forventet fristmails [${mails.join(', ')}], fik [${a.mails.join(', ')}]`);
+  if (f.faktura) {
+    // KC-0194: displayed = charged, in the country's currency; VAT only when moms.aktiv (G6).
+    const beloeb = priser.planer[plan(f.plan)]?.maanedlig[f.faktura.valuta];
+    const fk = a.faktura;
+    if (!fk) ud.push(`forventet en betalt faktura i ${f.faktura.valuta}, fandt ingen`);
+    else {
+      if (fk.valuta !== f.faktura.valuta || fk.beloeb !== beloeb) ud.push(`forventet faktura ${beloeb} ${f.faktura.valuta}, fik ${fk.beloeb} ${fk.valuta}`);
+      if (fk.moms === null) ud.push('fakturaens moms kunne ikke læses');
+      else if (priser.moms.aktiv ? fk.moms <= 0 : fk.moms !== 0) ud.push(priser.moms.aktiv ? 'forventet en momslinje på fakturaen, fandt ingen' : `faktura med moms (${fk.moms}), mens moms er slået fra`);
+    }
+  }
   return ud;
 }
 

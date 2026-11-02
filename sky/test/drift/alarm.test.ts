@@ -42,7 +42,24 @@ const FYRER: Record<(typeof ALARM_REGLER)[number], { ja: Signaler; nej: Signaler
     ja: { certifikater: [{ navn: 'konto.example.com', udloeber: dage(13) }] },
     nej: { certifikater: [{ navn: 'konto.example.com', udloeber: dage(15) }] },
   },
+  // KC-0194: paid invoices over the trailing 12 months reach the warning threshold (exactly at it fires).
+  'moms-graense': {
+    ja: { omsaetning: { oere: 4_000_000, graenseOere: 4_000_000, andreValutaer: 0 } },
+    nej: { omsaetning: { oere: 3_999_999, graenseOere: 4_000_000, andreValutaer: 0 } },
+  },
 };
+
+test('KC-0194: the VAT alert says what to do: the 12-month total, the threshold, CVR and VAT registration, the config switch', async () => {
+  const { post, a } = opstil();
+  await a.vurder({ omsaetning: { oere: 4_123_456, graenseOere: 4_000_000, andreValutaer: 2 } }, NU);
+  const b = post.udbakke[0]!;
+  assert.equal(b.data['titel'], 'Momsregistrering nærmer sig');
+  assert.match(b.data['tekst']!, /41\.234,56 kr\./);
+  assert.match(b.data['tekst']!, /40\.000 kr\./);
+  assert.match(b.data['tekst']!, /CVR/);
+  assert.match(b.data['tekst']!, /moms\.aktiv/);
+  assert.match(b.data['tekst']!, /2 fakturaer i andre valutaer/);
+});
 
 function opstil(o: { til?: string | null } = {}) {
   const post = falskPost();

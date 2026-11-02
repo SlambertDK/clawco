@@ -47,17 +47,17 @@ export async function sendMail(d: Pick<KoebDeps, 'post'>, b: Besked, kontoId: nu
 }
 
 /** The one line that says what the person pays and for how long, from the price the order kept. */
-export const prisTekst = (b: Pick<Bestilling, 'prisOere' | 'interval'>, sprog: Sprog): string => F[sprog].pris(prisLinjeAf(b.prisOere, b.interval, sprog));
+export const prisTekst = (b: Pick<Bestilling, 'prisOere' | 'interval' | 'valuta'>, sprog: Sprog, moms: boolean): string => F[sprog].pris(prisLinjeAf(b.prisOere, b.interval, sprog, b.valuta), moms);
 
 function kvitteringBesked(d: KoebDeps, b: Bestilling, k: Kontakt, s: { proeveSlut: Date | null; periodeSlut: Date | null }): Besked {
   const t = F[k.sprog];
   const betaling = b.proeve
     ? t.kvitteringProeve(dato(s.proeveSlut ?? s.periodeSlut ?? d.nu(), k.sprog))
-    : t.kvitteringBetalt(beloeb(b.prisOere, k.sprog), s.periodeSlut ? dato(s.periodeSlut, k.sprog) : periodeOrd(b.interval, k.sprog));
+    : t.kvitteringBetalt(beloeb(b.prisOere, k.sprog, b.valuta), s.periodeSlut ? dato(s.periodeSlut, k.sprog) : periodeOrd(b.interval, k.sprog));
   return {
     til: k.email, skabelon: 'kvittering', sprog: k.sprog,
     data: {
-      saelger: d.saelger(k.sprog), produkt: produktNavn(d, b.plan), pris: prisTekst(b, k.sprog), betaling,
+      saelger: d.saelger(k.sprog), produkt: produktNavn(d, b.plan), pris: prisTekst(b, k.sprog, d.priser.moms.aktiv), betaling,
       fortrydfrist: dato(fristSidsteDag(b.startet ?? d.nu()), k.sprog), vilkaarversion: b.vilkaarVersion, vilkaarlink: d.vilkaar.url(k.sprog), link: kontoLink(d),
     },
   };

@@ -5,6 +5,7 @@
 import { html, esc, raw, Markup } from './html.ts';
 import { ikon, type Tone } from './visuel.ts';
 import { fold } from './fold.ts';
+import { tekst } from './tekster.ts';
 
 export type Tilstand = 'kraever' | 'handling' | 'ordnet' | 'graense' | 'rolig';
 
@@ -19,14 +20,14 @@ export function tilstandChip(t: Tilstand, tekst: string): Markup {
 }
 
 /** The one ask control: opens the chat with this element as context. */
-export function spoerg(element: string, label = 'Spørg'): Markup {
+export function spoerg(element: string, label = tekst().spoerg): Markup {
   return html`<button type="button" class="btn btn-ghost spoerg" data-ask="${element}">${ikon('message-circle')}<span>${label}</span></button>`;
 }
 
 /** The one share control (KC-0102): shown only for a news item that has a link; app.js opens the share sheet or copies the link. */
 export function delKnap(titel: string, url?: string): Markup {
   if (!url) return html``;
-  return html`<button type="button" class="btn btn-ghost del" data-del-titel="${titel}" data-del-url="${url}">Del</button>`;
+  return html`<button type="button" class="btn btn-ghost del" data-del-titel="${titel}" data-del-url="${url}">${tekst().del}</button>`;
 }
 
 export type Knap = Markup;
@@ -93,19 +94,21 @@ export function antal(b: Baand): Antal {
 
 /** "2 venter på dig · 1 i gang · 38 ordnet"; zero parts are left out, only the venter part is amber. */
 export function taellelinje(a: Antal): Markup {
+  const T = tekst();
   const venter = a.kraever > 0
-    ? html`<span class="tilstand-kraever">${a.kraever} venter på dig</span>`
-    : html`<span>Intet venter på dig</span>`;
-  const dele = [venter, ...(a.igang > 0 ? [html`<span>${a.igang} i gang</span>`] : []), ...(a.ordnet > 0 ? [html`<span>${a.ordnet} ordnet</span>`] : [])];
+    ? html`<span class="tilstand-kraever">${T.venterPaaDig(a.kraever)}</span>`
+    : html`<span>${T.intetVenter}</span>`;
+  const dele = [venter, ...(a.igang > 0 ? [html`<span>${T.nIGang(a.igang)}</span>`] : []), ...(a.ordnet > 0 ? [html`<span>${T.nOrdnet(a.ordnet)}</span>`] : [])];
   return html`<p class="taellelinje">${dele.flatMap((d, i) => (i === 0 ? [d] : [' · ', d]))}</p>`;
 }
 
 /** The I gang rows: runs that are with Hermes right now. */
 export function igangGruppe(igang: IgangRaekke[]): Gruppe {
+  const T = tekst();
   return {
-    titel: 'Hermes arbejder',
+    titel: T.hermesArbejder,
     form: 'raekker',
-    elementer: igang.map((r) => ({ id: `run:${r.id}`, html: html`<div class="row igang-row" data-run="${r.id}">${tilstandChip('rolig', r.status === 'queued' ? 'I kø' : 'I gang')}<span class="row-main"><span class="row-title">${r.label}</span></span></div>` })),
+    elementer: igang.map((r) => ({ id: `run:${r.id}`, html: html`<div class="row igang-row" data-run="${r.id}">${tilstandChip('rolig', r.status === 'queued' ? T.iKoe : T.iGang)}<span class="row-main"><span class="row-title">${r.label}</span></span></div>` })),
   };
 }
 
@@ -128,10 +131,11 @@ export function baand(b: Baand & { indhold?: Markup }): Markup {
   const i = b.igang.filter((g) => g.elementer.length > 0);
   const o = b.ordnet.filter((g) => g.elementer.length > 0);
   const n = antal(b);
-  return html`${taellelinje(n)}${k.length ? html`<section class="baand baand-kraever" data-baand="kraever"><h2 class="baand-titel">Kræver dig</h2>${k.map((g) => gruppe(g))}</section><!--/baand-->` : ''}${b.indhold ? html`<div class="baand-indhold" data-baand="indhold">${b.indhold}</div><!--/baand-->` : ''}${i.length ? html`<section class="baand baand-igang" data-baand="igang"><h2 class="baand-titel">I gang</h2>${i.map((g) => gruppe(g))}</section><!--/baand-->` : ''}${o.length ? html`<section class="baand baand-ordnet altid-foldet" data-blok="ordnet" data-baand="ordnet">${fold(`ordnet (${n.ordnet})`, html`${o.map((g) => gruppe(g, true))}`, 'baand-ordnet')}</section><!--/baand-->` : ''}`;
+  const T = tekst();
+  return html`${taellelinje(n)}${k.length ? html`<section class="baand baand-kraever" data-baand="kraever"><h2 class="baand-titel">${T.kraeverDig}</h2>${k.map((g) => gruppe(g))}</section><!--/baand-->` : ''}${b.indhold ? html`<div class="baand-indhold" data-baand="indhold">${b.indhold}</div><!--/baand-->` : ''}${i.length ? html`<section class="baand baand-igang" data-baand="igang"><h2 class="baand-titel">${T.iGang}</h2>${i.map((g) => gruppe(g))}</section><!--/baand-->` : ''}${o.length ? html`<section class="baand baand-ordnet altid-foldet" data-blok="ordnet" data-baand="ordnet">${fold(T.ordnetFold(n.ordnet), html`${o.map((g) => gruppe(g, true))}`, 'baand-ordnet')}</section><!--/baand-->` : ''}`;
 }
 
 /** KC-0122: in place of a button the policy layer would always refuse — what Hermes proposed and why Clawco will not. */
 export function afvistLinje(label: string, hvorfor: string): Markup {
-  return raw(`<p class="row-note graense-afvist" data-graense="afvist">Ikke tilbudt: ${esc(label)}. ${esc(hvorfor)}</p>`);
+  return raw(`<p class="row-note graense-afvist" data-graense="afvist">${esc(tekst().ikkeTilbudt)}${esc(label)}. ${esc(hvorfor)}</p>`);
 }

@@ -33,7 +33,7 @@ export async function stativ(): Promise<Stativ> {
 export async function startProeve(s: Stativ, plan = 'sky-solo'): Promise<string> {
   const pris = await s.klient.prisForLookupKey(lookupKey(plan, 'maaned'));
   const params = byggCheckout({
-    kontoId: s.kontoId, kunde: s.kunde, plan, interval: 'maaned', land: 'DK', sprog: 'da', valuta: 'dkk', skat: null, prisId: pris!.id, proeve: true,
+    kontoId: s.kontoId, kunde: s.kunde, plan, interval: 'maaned', land: 'DK', sprog: 'da', prisId: pris!.id, proeve: true,
     publicUrl: PUBLIC, juridisk: { vilkaarUrl: null, privatlivUrl: null, fortrydelsesTekst: null }, tilstand: 'test',
   }, s.priser);
   const session = await s.klient.opretCheckout(params, `co-${Math.random()}`);
