@@ -8,6 +8,7 @@
 // policy layer (KC-0122) turns `blandetZoner` into the "no cross-zone copy" rule.
 
 import type { Person } from './husstand.ts';
+import { kan } from './roller.ts';
 import type { LogEntry } from '../store/types.ts';
 
 export const DATAZONER = ['privat', 'arbejde', 'husstand'] as const;
@@ -46,11 +47,11 @@ export function zoneFra(raw: unknown, korsel: DataZone): DataZone {
 export const blandetZoner = (kilder: readonly DataZone[]): boolean => new Set(kilder).size > 1;
 
 /**
- * Whether `person` may see `el`. husstand: every non-guest. privat/arbejde: only its ejer; an element with no ejer
+ * Whether `person` may see `el`. husstand: every role with `se-husstand` (roller.ts: not a guest). privat/arbejde: only its ejer; an element with no ejer
  * recorded (written before households existed) belongs to the household's owner.
  */
 export function synligFor(person: Person, el: Zoneret): boolean {
   const zone = zoneAf(el);
-  if (zone === 'husstand') return person.rolle !== 'gaest';
+  if (zone === 'husstand') return kan(person.rolle, 'se-husstand');
   return el.ejer ? el.ejer === person.id : person.rolle === 'ejer';
 }

@@ -51,7 +51,7 @@ test('a row names the three legs, the cut leg and the controls — none is left 
 });
 
 test('the surfaces that are not connectors have their rows too', () => {
-  for (const flade of ['hermes-gateway', 'husstand-kanal', 'husstandsforespoergsler', 'import', 'stemme', 'agent-vaerktoejer', 'sky-gateway', 'direkte-agent', 'skrive-nyheder-vault']) assert.ok(harRaekke(flade), flade);
+  for (const flade of ['hermes-gateway', 'husstand-kanal', 'husstand-invitation', 'husstandsforespoergsler', 'import', 'stemme', 'agent-vaerktoejer', 'sky-gateway', 'direkte-agent', 'skrive-nyheder-vault']) assert.ok(harRaekke(flade), flade);
 });
 
 test('the document has its fixed sections: assets, actors, trust boundaries, residual risks, assumed items, review rule', () => {

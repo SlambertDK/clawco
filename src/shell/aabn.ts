@@ -80,3 +80,7 @@ export function hjaelpSvar(univers: readonly { id: string; navn: string }[], o: 
 /** KC-0146: the wish to see what Clawco knows ("hvad ved du om mig", "hvad har du gemt"): the chat opens /viden. Never Slet alt. */
 const VIDEN = /^(?:(?:hej|okay|ok|hermes) )*hvad (?:ved (?:du|clawco|hermes) om mig|har (?:du|clawco|hermes) gemt(?: om mig)?)$/u;
 export const erVidenBesked = (besked: string): boolean => VIDEN.test(ord(besked));
+
+/** KC-0154: the wish to invite someone ("inviter en", "jeg vil invitere min datter"): the chat opens the owner's invite page. */
+const INVITER = /^(?:(?:hej|okay|ok|hermes) )*(?:(?:jeg vil(?: gerne)?|kan jeg|hjælp mig med at|lad mig) )?(?:invitere|inviter|invitér)(?: [\p{L}\p{N} -]{1,60})?$/u;
+export const erInviterBesked = (besked: string): boolean => INVITER.test(ord(besked));

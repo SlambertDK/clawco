@@ -136,6 +136,11 @@ export type HusstandKilder = {
   /** The persons of the household (E1 identity, husstand.json); empty = single-user. */
   personer(): Promise<Person[]>;
   /**
+   * KC-0154: writes the household's persons (husstand.json, validated and atomic) — the owner's invite, role change and
+   * removal, inside the room's queue. Absent = the household cannot be changed from here.
+   */
+  gemPersoner?(personer: Person[]): Promise<void>;
+  /**
    * KC-0153: the go-between's inbound messages after a time (the channel client's read side only). Absent = no channel.
    * Sending is never reachable from here: only the human-tap route holds the client.
    */
@@ -184,8 +189,8 @@ export type RoomView = {
   hermesStatus: string;
   /** Page title when it is not the room's name (a univers shows its own name). */
   titel?: string;
-  /** HTTP status of the page; absent = 200 (a univers that does not exist is 404 with a plain main). */
-  status?: 404;
+  /** HTTP status of the page; absent = 200 (a univers that does not exist is 404 with a plain main; KC-0154: a page the role may not open is 403). */
+  status?: 403 | 404;
 };
 
 export interface RoomModule {

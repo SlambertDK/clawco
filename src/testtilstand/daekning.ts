@@ -19,6 +19,7 @@ import { BYGGET } from '../shell/katalog.ts';
 import { KILDE_TILSTANDE } from '../shell/kilder.ts';
 import { TILSTANDE as FORESP_TILSTANDE } from '../hushold/foresp.ts';
 import { SLAGS as RESSOURCE_SLAGS } from '../hushold/ressource.ts';
+import { INVITATIONER } from '../hushold/invitation.ts';
 import { OMKOSTNING_SAMLET } from '../shell/omkostninger.ts';
 import { alleTrin } from '../rooms/start/trin.ts';
 import { TRIN } from '../tillid/trin.ts';
@@ -155,6 +156,7 @@ export const DAEKNING: readonly Daekning[] = [
   ...afledt('opgave', STATUSSER, (s) => `data-cc-status="${s}"`),
   ...afledt('rolle', ROLLER, (r) => `data-rolle="${r}"`),
   ...afledt('husstand-rolle', ROLLER, (r) => `data-medlem-rolle="${r}"`), // KC-0148: Husstanden lists a member of every role
+  ...afledt('invitation', INVITATIONER, (s) => `data-invitation="${s}"`), // KC-0154: a pending invitation of each kind on the owner's Husstanden (indhold/husstand.ts)
   ...afledt('datazone', DATAZONER, (z) => `data-datazone="${z}"`),
   ...afledt('blok', BYGGET, (b) => `data-blok="${b}"`), // KC-0119: every built block on screen somewhere
   ...afledt('situation', SITUATION_IDER, (s) => `data-situation="${s}"`), // KC-0114: Nu (Hjem) and the meeting view carry it

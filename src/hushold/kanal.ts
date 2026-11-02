@@ -73,7 +73,7 @@ export function maaSende(f: Kanalforbindelse | undefined, slags: 'invitation' | 
 
 /** Hermes turns `MEDIA:<path>` into an attachment and `[[...]]` into delivery flags (spike §5): neither may reach it. */
 const FORBUDT = /MEDIA:|\[\[/i;
-const neutral = (t: string): string => t.replace(/MEDIA:/gi, 'MEDIA ').replace(/\[\[/g, '[ [');
+export const neutral = (t: string): string => t.replace(/MEDIA:/gi, 'MEDIA ').replace(/\[\[/g, '[ [');
 
 const DAG = new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', weekday: 'long', day: 'numeric', month: 'long' });
 const KL = new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -90,9 +90,12 @@ export function beskedTekst(f: Pick<Forespoergsel, 'titel' | 'tid'>, fraNavn: st
   return neutral([hoved, ...(naar ? [naar] : []), `${svar} Skriv stop, hvis du ikke vil have flere beskeder fra Clawco.`].join('\n'));
 }
 
-/** The id a Send button asks a yes for: the request, the kind and a hash of the exact text shown. A changed text is another id. */
-export function sendJaId(forespId: string, slags: SendSlags, tekst: string): string {
-  return `${forespId}:${slags}:${createHash('sha256').update(tekst).digest('hex').slice(0, 16)}`;
+/**
+ * The id a Send button asks a yes for: the request (or, for KC-0154's invitation, the member), the kind and a hash of
+ * the exact text shown. A changed text is another id.
+ */
+export function sendJaId(id: string, slags: SendSlags | 'invitation', tekst: string): string {
+  return `${id}:${slags}:${createHash('sha256').update(tekst).digest('hex').slice(0, 16)}`;
 }
 
 export type SendSlags = 'foresp' | 'paamindelse';

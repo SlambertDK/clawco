@@ -36,7 +36,8 @@ export const erFunnel = (h: Headers): boolean => h.has('tailscale-funnel-request
 
 const AFVIST_FUNNEL: AfvistAdgang = { afvist: 403, hvorfor: 'Clawco kan kun åbnes fra dit eget Tailscale-net, ikke fra internettet.' };
 const AFVIST_UKENDT: AfvistAdgang = { afvist: 401, hvorfor: 'Clawco ved ikke, hvem du er. Åbn siden over Tailscale fra din egen enhed.' };
-const AFVIST_FREMMED: AfvistAdgang = { afvist: 403, hvorfor: 'Du er ikke med i husstanden her. Bed ejeren om en invitation.' };
+/** KC-0154: a login the household does not know — a plain page with no data (the person may simply not be invited yet). */
+const AFVIST_FREMMED: AfvistAdgang = { afvist: 403, hvorfor: 'Du er ikke inviteret endnu. Bed ejeren af husstanden om en invitation.' };
 /** A household file that exists but cannot be read, or (konto) no household at all: nobody can be told apart. */
 export const HUSSTAND_ULAESELIG = 'Husstanden kunne ikke læses, så Clawco ved ikke, hvem du er. Ejeren skal rette husstand.json.';
 // Konto: the same wording as the tailnet refusals, without the Tailscale hint (Sky has none).
@@ -52,7 +53,8 @@ export function hvemKigger(a: Anmodning, husstand: Husstand | null): Person | Af
   if (erFunnel(a.headers)) return AFVIST_FUNNEL;
   const login = erLoopback(a.peer) ? (a.headers.get('tailscale-user-login') ?? '').trim().toLowerCase() : '';
   const personer = husstand?.personer ?? [];
-  if (personer.length === 0) return ENEBRUGER;
+  // KC-0154: the single user carries the login Serve vouched for, so his first invitation can name him as the owner.
+  if (personer.length === 0) return login ? { ...ENEBRUGER, login } : ENEBRUGER;
   const hit = medLogin(personer, login);
   if (hit) return hit;
   if (login) return AFVIST_FREMMED;

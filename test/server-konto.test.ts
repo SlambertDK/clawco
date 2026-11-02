@@ -88,11 +88,11 @@ test('a valid signature from another peer than the gateway is 401', async () => 
   assert.equal((await app.request('/rum/hjem', som('gyldig'))).status, 401, 'no peer at all');
 });
 
-test('a stranger with a valid signature is 403 "Du er ikke med i husstanden her"', async () => {
+test('a stranger with a valid signature is 403 "Du er ikke inviteret endnu"', async () => {
   const { app } = await lav('fremmed');
   const res = await app.request('/rum/hjem', som('ikke-i-husstanden'), FRA_GATEWAY);
   assert.equal(res.status, 403);
-  assert.match(await res.text(), /Du er ikke med i husstanden her/);
+  assert.match(await res.text(), /Du er ikke inviteret endnu/);
 });
 
 test('without husstand.json: 503, never the implicit owner', async () => {

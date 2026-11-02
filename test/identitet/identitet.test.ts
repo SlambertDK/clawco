@@ -68,7 +68,8 @@ test('login matching ignores case and surrounding space', () => {
 
 test('single-user: no household file → the implicit owner, header or not', () => {
   assert.deepEqual(hvemKigger({ headers: h({}), peer: undefined }, null), ENEBRUGER);
-  assert.deepEqual(hvemKigger({ headers: login('henrik@example.com'), peer: '127.0.0.1' }, null), ENEBRUGER);
+  assert.deepEqual(hvemKigger({ headers: login('henrik@example.com'), peer: '127.0.0.1' }, null), { ...ENEBRUGER, login: 'henrik@example.com' }, 'KC-0154: the single user, by the login Serve vouched for');
+  assert.deepEqual(hvemKigger({ headers: login('henrik@example.com'), peer: '100.64.0.5' }, null), ENEBRUGER, 'a header from another peer is no login');
   assert.deepEqual(hvemKigger({ headers: h({}), peer: '127.0.0.1' }, { personer: [] }), ENEBRUGER);
   assert.equal(ENEBRUGER.rolle, 'ejer');
 });

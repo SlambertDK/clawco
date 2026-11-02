@@ -70,6 +70,11 @@ import type { LogEntry } from '../store/types.ts';
 import { KANAL_NAVN, vurderSend, type KanalClient, type KanalStatus, type SendSlags } from './kanal.ts';
 import { afsenderAf, fortolk } from './svar.ts';
 import { MAX_KANAL_BESKEDER, MAX_KANAL_TEKST } from './schema.ts';
+import { AKTION_HANDLING, maaHandle, maaSe } from './rettigheder.ts';
+import { aktiverIndgang, fjernPerson, InvitationFejl, MAX_PERSONER, navnFra, nyPerson, nytMedlem, parseInvitation, skiftRolle, slug, vurderInvitation } from './invitation.ts';
+import { invitationSektion, renderInviter } from './invitation-render.ts';
+import { erRolle, ROLLE_NAVN } from '../identitet/roller.ts';
+import type { Person } from '../identitet/husstand.ts';
 
 /** The stored state; a file that does not validate reads as empty (and is said in the journal), never as a crash. */
 async function laesState(deps: RoomDeps): Promise<HusstandState> {
@@ -102,11 +107,19 @@ async function view(deps: RoomDeps): Promise<RoomView> {
   const h = await forPersonen(deps);
   if (!h) return { main: renderIkkeHer(), hermesStatus: 'Klar', titel: 'Husstanden findes ikke', status: 404 };
   const now = deps.now();
-  const person = deps.person.id;
+  const p = deps.person;
+  const person = p.id;
   const log = await deps.store.readLog(RUM, 200);
   const kanBooking = (e: LogEntry): boolean => bookingLinjeKanFortrydes(e, h.state.ressourcer, person);
-  const foresp = html`${konfliktSektion({ konflikter: h.state.konflikter, forespoergsler: h.state.forespoergsler, person, medlemmer: h.medlemmer, now })}${forespSektion({ forespoergsler: h.state.forespoergsler, person, medlemmer: h.medlemmer, now })}${ressourceSektion({ ressourcer: h.state.ressourcer, sammenfald: h.state.sammenfald, forespoergsler: h.state.forespoergsler, udkast: h.state.udkast, person, medlemmer: h.medlemmer, now })}${forespLog({ log, forespoergsler: h.state.forespoergsler, person, now, ekstraFortryd: kanBooking })}`;
-  return { main: renderHusstand({ medlemmer: h.medlemmer, person: deps.person, uge: await ugen(deps, h.medlemmer, h.state), now, forespoergsler: foresp }), hermesStatus: 'Klar' };
+  // KC-0154: what this person may see and do (rettigheder.ts); a guest gets her requests and nothing shared.
+  const faelles = maaSe(p, { slags: 'ressource' });
+  const kanSvare = maaHandle(p, { slags: 'svar' });
+  const foresp = html`${konfliktSektion({ konflikter: h.state.konflikter, forespoergsler: h.state.forespoergsler, person, medlemmer: h.medlemmer, now })}${forespSektion({ forespoergsler: h.state.forespoergsler, person, medlemmer: h.medlemmer, now, kanSpoerge: maaHandle(p, { slags: 'spoerg' }), kanSvare })}${faelles ? ressourceSektion({ ressourcer: h.state.ressourcer, sammenfald: h.state.sammenfald, forespoergsler: h.state.forespoergsler, udkast: h.state.udkast, person, medlemmer: h.medlemmer, now }) : ''}${forespLog({ log, forespoergsler: h.state.forespoergsler, person, now, ekstraFortryd: kanSvare ? kanBooking : () => false })}`;
+  const invitationer = maaSe(p, { slags: 'invitation' }) ? invitationSektion({ medlemmer: h.medlemmer, person: p, kanSende: Boolean(deps.husstand?.kanalSvar) }) : undefined;
+  return {
+    main: renderHusstand({ medlemmer: h.medlemmer, person: p, uge: faelles ? await ugen(deps, h.medlemmer, h.state) : [], now, forespoergsler: foresp, faelles, kanRette: maaHandle(p, { slags: 'skift-rolle' }), ...(invitationer ? { invitationer } : {}) }),
+    hermesStatus: 'Klar',
+  };
 }
 
 // ---------- KC-0149: the request ----------
@@ -329,7 +342,7 @@ export async function kanalSend(deps: RoomDeps, kanal: KanalClient, id: string, 
 type KanalHaendelse =
   | { slags: 'svar'; f: Forespoergsel; haendelse: Haendelse['slags']; af: PersonId; kanalNavn: string }
   | { slags: 'tekst'; f: Forespoergsel; af: PersonId; tekst: string; kanalNavn: string }
-  | { slags: 'stop' | 'aktiv'; af: PersonId; kanalNavn: string; til: PersonId[] };
+  | { slags: 'stop' | 'aktiv' | 'nej-tak'; af: PersonId; kanalNavn: string; til: PersonId[] };
 
 /**
  * Her replies on the channel (Path B), read by the room's clock. Deterministic (svar.ts): exactly ja / nej / kl from
@@ -371,6 +384,8 @@ async function laesKanalSvar(deps: RoomDeps): Promise<void> {
       }
       if (m.kanal.status === 'afventer-ja') {
         if (svar.slags === 'ja') { saetStatus('aktiv'); ud.push({ slags: 'aktiv', af: m.id, kanalNavn, til: ejer ? [ejer] : [] }); }
+        // KC-0154: her "nej" to the invitation changes nothing (she may still say ja later) and is told to the owner.
+        else if (svar.slags === 'nej') ud.push({ slags: 'nej-tak', af: m.id, kanalNavn, til: ejer ? [ejer] : [] });
         continue;
       }
       const sendtTil = s.forespoergsler.filter((f) => f.til === m.id && (f.kanal?.sendt.length ?? 0) > 0);
@@ -407,11 +422,164 @@ async function laesKanalSvar(deps: RoomDeps): Promise<void> {
     if (e.slags === 'svar') await logBegge(deps, e.f, (p) => `${trinTekst(e.f, e.haendelse, e.af, medlemmer)(p)} (på ${e.kanalNavn})`);
     else if (e.slags === 'tekst') await deps.store.appendLog(RUM, { kilde: 'system', tekst: `${navn} skrev på ${e.kanalNavn}: ${e.tekst}`.slice(0, 300), zone: 'privat', ejer: e.f.fra });
     else {
-      const tekst = e.slags === 'stop' ? `${navn} skrev stop på ${e.kanalNavn}. Clawco sender ikke flere beskeder til ${navn}.` : `${navn} sagde ja til beskeder fra Clawco på ${e.kanalNavn}.`;
+      const tekst = e.slags === 'stop' ? `${navn} skrev stop på ${e.kanalNavn}. Clawco sender ikke flere beskeder til ${navn}.`
+        : e.slags === 'nej-tak' ? `${navn} sagde nej tak til invitationen på ${e.kanalNavn}. Clawco sender ikke mere.`
+          : `${navn} sagde ja til beskeder fra Clawco på ${e.kanalNavn}.`;
       for (const p of e.til) await deps.store.appendLog(RUM, { kilde: 'system', tekst, zone: 'privat', ejer: p });
     }
   }
   if (haendelser.length) notify(deps);
+}
+
+// ---------- KC-0154: roles and invitations ----------
+
+/** An invitation step's refusal as the room's action error (the routes turn it into its status). */
+function somAktion<T>(fn: () => T): T {
+  try { return fn(); } catch (err) {
+    if (err instanceof InvitationFejl) throw new ActionError(err.message, err.status);
+    throw err;
+  }
+}
+
+/** The household's persons are written only here, inside the room's queue (husstand.json through the identity port). */
+function gemmer(deps: RoomDeps): (personer: Person[]) => Promise<void> {
+  const gem = deps.husstand?.gemPersoner;
+  if (!gem) throw new ActionError('Husstanden kan ikke ændres herfra.', 409);
+  return gem;
+}
+
+/**
+ * The owner invites (rettigheder.ts `inviter`): the person into husstand.json (a login, a name, a role — no account,
+ * password or token of ours) and her extras into the room's state (a waiting own entry, or a channel waiting for her
+ * ja). Nothing is sent. With no household yet (single user) the owner becomes its first person, by the login
+ * Tailscale vouched for on this request; without one the household is not written (he would lock himself out).
+ */
+async function inviter(deps: RoomDeps, body: Record<string, unknown>): Promise<RunRecord> {
+  const af = deps.person;
+  const ny = somAktion(() => parseInvitation(body));
+  const gem = gemmer(deps);
+  const now = deps.now();
+  const p = await iKoe(async () => {
+    let personer = await deps.husstand!.personer();
+    if (!personer.length) {
+      if (!af.login) throw new ActionError('Åbn Clawco over Tailscale fra din egen enhed først, så Clawco kan kende dig igen, når I er flere.', 409);
+      const navn = somAktion(() => navnFra(body['mitNavn'] ?? af.navn));
+      personer = [{ id: af.id, login: af.login, navn, rolle: 'ejer' }];
+    }
+    const p = somAktion(() => nyPerson(personer, ny));
+    const s = await laesState(deps);
+    await deps.store.writeState(RUM, { ...s, medlemmer: [...s.medlemmer.filter((m) => m.id !== p.id), nytMedlem(p, ny, now)] });
+    await gem([...personer, p]);
+    return p;
+  });
+  const hvordan = ny.slags === 'egen' ? 'med egen indgang' : `på ${KANAL_NAVN[ny.kanal]}`;
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du inviterede ${p.navn} som ${ROLLE_NAVN[p.rolle]} ${hvordan}.`.slice(0, 300), zone: 'privat', ejer: af.id });
+  notify(deps);
+  return deps.runs.local('inviter', async () => ({ ...(await faerdig(deps, `${p.navn} er inviteret.`)), url: '/rum/husstand' }));
+}
+
+/** The owner gives another person a role (stored on the person in husstand.json, KC-0148); a line to each of them. */
+async function rolle(deps: RoomDeps, body: Record<string, unknown>): Promise<RunRecord> {
+  const af = deps.person;
+  const id = str(body['id']);
+  const ny = body['rolle'];
+  if (!erRolle(ny)) throw new ActionError('Ukendt rolle.');
+  const gem = gemmer(deps);
+  const p = await iKoe(async () => {
+    const personer = await deps.husstand!.personer();
+    const efter = somAktion(() => skiftRolle(personer, af, id, ny));
+    await gem(efter);
+    const s = await laesState(deps);
+    if (s.medlemmer.some((m) => m.id === id)) await deps.store.writeState(RUM, { ...s, medlemmer: s.medlemmer.map((m) => (m.id === id ? { ...m, rolle: ny } : m)) });
+    return efter.find((x) => x.id === id)!;
+  });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `${p.navn} er nu ${ROLLE_NAVN[ny]}.`, zone: 'privat', ejer: af.id });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `${af.navn} gjorde dig til ${ROLLE_NAVN[ny]} i husstanden.`.slice(0, 300), zone: 'privat', ejer: p.id });
+  notify(deps);
+  return deps.runs.local('rolle', () => faerdig(deps, `${p.navn} er nu ${ROLLE_NAVN[ny]}.`));
+}
+
+/**
+ * The owner removes another person (verb slet: the red yes). Her entry ends with her line in husstand.json, and her
+ * channel with her extras (a message from her handle is then a stranger's, ignored). Shared history stays: requests
+ * and log lines are not touched; only her own booking drafts go.
+ */
+async function fjernMedlem(deps: RoomDeps, body: Record<string, unknown>): Promise<RunRecord> {
+  const af = deps.person;
+  const id = str(body['id']);
+  const gem = gemmer(deps);
+  const p = await iKoe(async () => {
+    const personer = await deps.husstand!.personer();
+    const efter = somAktion(() => fjernPerson(personer, af, id));
+    const s = await laesState(deps);
+    await deps.store.writeState(RUM, { ...s, medlemmer: s.medlemmer.filter((m) => m.id !== id), udkast: s.udkast.filter((u) => u.af !== id) });
+    await gem(efter);
+    return personer.find((x) => x.id === id)!;
+  });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du fjernede ${p.navn} fra husstanden. Hendes adgang og beskeder fra Clawco er stoppet; det, I har delt, står der stadig.`.slice(0, 300), zone: 'privat', ejer: af.id });
+  notify(deps);
+  return deps.runs.local('fjern-medlem', () => faerdig(deps, `${p.navn} er fjernet fra husstanden.`));
+}
+
+/** What the owner's red Send would send to member `id` now, and its yes id (invitation.ts vurderInvitation). Throws ActionError. */
+export async function invitationKlar(deps: RoomDeps, id: string): Promise<{ tekst: string; jaId: string }> {
+  const h = await forAktion(deps);
+  const v = vurderInvitation(h.medlemmer, id, deps.person);
+  if (!v.ok) throw new ActionError(v.hvorfor, v.status);
+  return { tekst: v.tekst, jaId: v.jaId };
+}
+
+/**
+ * The owner's tap sends the invitation (server.ts calls it only inside the policy layer, after a one-time yes for
+ * exactly this text — kanalSend's mechanism). In the store's queue: checked again, sent once, `inviteret` recorded, so
+ * a second tap finds it sent (409) and her replies are read from then on. A channel failure records nothing.
+ */
+export async function invitationSend(deps: RoomDeps, kanal: KanalClient, id: string, tekst: string): Promise<RunRecord> {
+  await forAktion(deps);
+  const v = await iKoe(async () => {
+    const s = await laesState(deps);
+    const v = vurderInvitation(medlemmerAf(await deps.husstand!.personer(), s.medlemmer), id, deps.person);
+    if (!v.ok) throw new ActionError(v.hvorfor, v.status);
+    if (v.tekst !== tekst) throw new ActionError('Beskeden er ændret siden du så den. Se den igen, før du sender.', 409);
+    await kanal.send(v.til, v.tekst);
+    const tid = deps.now().toISOString();
+    await deps.store.writeState(RUM, { ...s, medlemmer: s.medlemmer.map((m) => (m.id === id && m.kanal ? { ...m, kanal: { ...m.kanal, inviteret: tid } } : m)) });
+    return v;
+  });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du sendte invitationen til ${v.navn} på ${v.kanalNavn}.`.slice(0, 300), zone: 'privat', ejer: deps.person.id });
+  notify(deps);
+  return deps.runs.local('invitation-send', () => faerdig(deps, `Invitationen er sendt til ${v.navn} på ${v.kanalNavn}.`));
+}
+
+/**
+ * A person's request reached the app (the identity middleware calls this after resolving her): a waiting own entry
+ * becomes active, once, with a line to the owner. Nothing else changes, and nothing is sent.
+ */
+export async function vedBesoeg(deps: RoomDeps): Promise<void> {
+  const id = deps.person.id;
+  if ((await laesState(deps)).medlemmer.find((m) => m.id === id)?.indgang?.status !== 'venter') return;
+  const m = await iKoe(async () => {
+    const s = await laesState(deps);
+    const foer = s.medlemmer.find((x) => x.id === id);
+    const efter = foer ? aktiverIndgang(foer, deps.now()) : null;
+    if (!efter) return null; // another request got there first
+    await deps.store.writeState(RUM, { ...s, medlemmer: s.medlemmer.map((x) => (x.id === id ? efter : x)) });
+    return efter;
+  });
+  if (!m) return;
+  for (const p of (deps.husstand ? await deps.husstand.personer() : []).filter((x) => maaSe(x, { slags: 'invitation' }))) {
+    await deps.store.appendLog(RUM, { kilde: 'system', tekst: `${m.navn} er kommet ind i Clawco med sin egen indgang.`.slice(0, 300), zone: 'privat', ejer: p.id });
+  }
+  notify(deps);
+}
+
+/** The invite page (/rum/husstand/inviter): the owner's only, also before there is a household (that is how one starts). */
+export async function inviterView(deps: RoomDeps): Promise<RoomView> {
+  if (!maaHandle(deps.person, { slags: 'inviter' })) {
+    return { main: html`<header class="room-head"><div><a class="muted" href="/rum/hjem">Til Nu</a><h1>Kun ejeren kan invitere</h1><p class="muted">Bed ejeren af husstanden om at invitere den, du tænker på.</p></div></header>`, hermesStatus: 'Klar', titel: 'Kun ejeren kan invitere', status: 403 };
+  }
+  const personer = deps.husstand ? await deps.husstand.personer() : [];
+  return { main: renderInviter({ enebruger: personer.length === 0, plads: personer.length < MAX_PERSONER }), hermesStatus: 'Klar', titel: 'Inviter en til husstanden' };
 }
 
 // ---------- KC-0150: the resource ----------
@@ -723,8 +891,6 @@ async function bookingKort(deps: RoomDeps, h: { medlemmer: Medlem[] }, oensk: Bo
   }
 }
 
-const SLUG_TEGN: Record<string, string> = { æ: 'ae', ø: 'oe', å: 'aa' };
-const slug = (navn: string): string => navn.toLowerCase().replace(/[æøå]/g, (c) => SLUG_TEGN[c] ?? c).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 30).replace(/-+$/g, '') || 'bil';
 const MAX_RESSOURCER = 50;
 
 const SLAGS_ORD: Record<Slags, string> = { bil: 'en bil', rum: 'et rum', ting: 'en ting', person: 'en person' };
@@ -768,7 +934,7 @@ async function tilfoejRessource(deps: RoomDeps, h: { medlemmer: Medlem[] }, body
   const r = await endre<Ressource>(deps, (s) => {
     if (s.ressourcer.length >= MAX_RESSOURCER) throw new ActionError('Der er for mange ting i huset. Fjern nogle først.', 409);
     if (s.ressourcer.some((x) => x.navn.toLowerCase() === navn.toLowerCase())) throw new ActionError('Der er allerede en ting, der hedder det.', 409);
-    const grund = slug(navn);
+    const grund = slug(navn, 'bil');
     let id = grund;
     for (let i = 2; s.ressourcer.some((x) => x.id === id); i++) id = `${grund.slice(0, 36)}-${i}`;
     const ny: Ressource = { id, navn, slags, ejere, kalender: [] };
@@ -1052,13 +1218,17 @@ async function fortrydBil(deps: RoomDeps, linje: LogEntry, bilId: string): Promi
 
 async function startAction(deps: RoomDeps, name: string, body: Record<string, unknown>): Promise<RunRecord | null> {
   if (!(name in AKTION_VERBER)) return null;
+  // KC-0154: the role decides first (rettigheder.ts); the invite also works before there is a household to see.
+  const handling = AKTION_HANDLING[name];
+  if (!handling || !maaHandle(deps.person, { slags: handling })) throw new ActionError('Din rolle i husstanden må ikke det her.', 403);
+  if (name === 'inviter') return inviter(deps, body);
   const h = await forAktion(deps);
   const person = deps.person.id;
   const id = str(body['id']);
   switch (name) {
     case 'opret': {
       const til = h.medlemmer.find((m) => m.id === str(body['til']));
-      if (!til || til.id === person || til.rolle === 'gaest') throw new ActionError('Vælg en anden i husstanden.');
+      if (!til || til.id === person) throw new ActionError('Vælg en anden i husstanden.');
       const titel = str(body['titel']).replace(/[\u0000-\u001f\u007f]/g, ' ');
       if (!titel || titel.length > 200) throw new ActionError('Skriv, hvad du spørger om (højst 200 tegn).');
       return opretOgSpoerg(deps, h, { til: til.id, titel, tid: tidFra(body, deps.now()) });
@@ -1114,6 +1284,10 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
       return spoergAnden(deps, h, id, str(body['valg']));
     case 'konflikt-valg':
       return konfliktValg(deps, h, id, str(body['valg']));
+    case 'rolle':
+      return rolle(deps, body);
+    case 'fjern-medlem':
+      return fjernMedlem(deps, body);
     case 'spoerg-igen': {
       const f = await lukUdloebet(deps, id);
       if (f.tid && Date.parse(f.tid.start) <= deps.now().getTime()) throw new ActionError('Tidspunktet er gået. Spørg på ny med et nyt tidspunkt.', 409);
@@ -1134,6 +1308,8 @@ const AKTION_VERBER: Readonly<Record<string, Verb>> = {
   'ret-ressource': 'sorter', 'fjern-ressource': 'slet',
   // KC-0152: a pick on the weekend card is a request to the other adult.
   'konflikt-valg': 'send-til-andre',
+  // KC-0154: inviting and a role are the owner's records (nothing leaves the app); removing someone ends her access: the red yes.
+  inviter: 'bogfoer', rolle: 'bogfoer', 'fjern-medlem': 'slet',
 };
 
 /** Fortryd of a request's log line: the creation is withdrawn, an answer goes back to the state before it. Null = cannot. */
@@ -1169,7 +1345,8 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
 /** Kræver dig on Nu: what the person decides now, and an expired request of theirs nobody answered. */
 async function hjemVenter(deps: RoomDeps): Promise<{ roomId: string; tekst: string }[]> {
   const h = await forPersonen(deps);
-  if (!h) return [];
+  // KC-0154: Kræver dig is what the person can act on here; a guest answers on her channel.
+  if (!h || !maaHandle(deps.person, { slags: 'svar' })) return [];
   const p = deps.person.id;
   const now = deps.now();
   // KC-0150: an open clash is a decision for exactly its two parties.
@@ -1196,7 +1373,7 @@ async function hjemVenter(deps: RoomDeps): Promise<{ roomId: string; tekst: stri
 /** I gang on Nu: what the person asked and waits on the other for. */
 async function hjemIgang(deps: RoomDeps): Promise<{ roomId: string; tekst: string }[]> {
   const h = await forPersonen(deps);
-  if (!h) return [];
+  if (!h || !maaHandle(deps.person, { slags: 'spoerg' })) return [];
   const p = deps.person.id;
   return h.state.forespoergsler.flatMap((f) => {
     const b = beslutter(f);

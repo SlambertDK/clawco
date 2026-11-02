@@ -123,7 +123,7 @@ test('hostile text is escaped: title, alternative text, a name, Hermes\' recomme
   assert.match(h, /&lt;img src=x/);
 });
 
-test('the section: only the viewer\'s own requests, the new-request form offers the others (no guest, not oneself) with a red Spørg', () => {
+test('the section: only the viewer\'s own requests, the new-request form offers the others (a guest too, KC-0154; not oneself) with a red Spørg', () => {
   const egen = ny();
   const andres = nyForespoergsel({ id: 'f2', fra: 'maja', til: 'ella', titel: 'Hemmelig gave', tid: TID }, NU);
   const h = String(forespSektion({ forespoergsler: [egen, andres], person: 'henrik', medlemmer: MEDLEMMER, now: NU }));
@@ -132,7 +132,8 @@ test('the section: only the viewer\'s own requests, the new-request form offers 
   assert.match(h, /<form id="foresp-ny"/);
   assert.match(h, /<option value="maja">Maja<\/option>/);
   assert.match(h, /<option value="ella">Ella<\/option>/);
-  assert.doesNotMatch(h, /<option value="henrik"|<option value="farmor"/);
+  assert.match(h, /<option value="farmor">Farmor<\/option>/, 'a guest can be asked: requests addressed to her are what she sees');
+  assert.doesNotMatch(h, /<option value="henrik"/);
   assert.match(h, /class="btn btn-graense" data-aktion="opret" data-form="foresp-ny"[^>]*data-kraever-ja/);
   assert.equal(antal(h, PRIMAER), 0, 'the asker\'s view has no blue');
 });

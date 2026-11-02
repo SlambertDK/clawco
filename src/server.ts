@@ -66,7 +66,7 @@ import { forhaandsvisningId, renderForhaandsvisning } from './rooms/start/forhaa
 import { lavProfilLager } from './store/profil.ts';
 import { medTesttilstand, testDataDir } from './testtilstand/kontakt.ts';
 import { lavTestverden } from './testtilstand/verden.ts';
-import { rumFraBesked, erHjaelp, erVidenBesked, hjaelpSvar } from './shell/aabn.ts';
+import { rumFraBesked, erHjaelp, erInviterBesked, erVidenBesked, hjaelpSvar } from './shell/aabn.ts';
 import { laesAabnet, markerAabnet } from './store/aabnet.ts';
 import { afgoerForslag, extractForslagBlok, fjernRegel, regelFortryd, saetStatus, type Regelforslag } from './tillid/forslag.ts';
 import { maksTrinForForslag } from './tillid/trin.ts';
@@ -76,7 +76,8 @@ import { SENERE, synligeKort, type Senere } from './kurator/senere.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { erAfvist, HUSSTAND_ULAESELIG, INGEN, kunSigneret, peerAf, vaelgKigger, type Identitetsvalg, type Person } from './identitet/identitet.ts';
 import { kontoFraMiljoe } from './identitet/konto.ts';
-import { husstandSynlig, kanalSend, kanalSendKlar, weekendTjek } from './hushold/room.ts';
+import { husstandSynlig, invitationKlar, invitationSend, inviterView, kanalSend, kanalSendKlar, vedBesoeg, weekendTjek } from './hushold/room.ts';
+import { maaSe } from './hushold/rettigheder.ts';
 import { KanalFejl, lavFakeKanal, lavHermesKanal, type KanalClient } from './hushold/kanal.ts';
 import { laesLog as laesBeskedLog } from './kilder/beskeder/jsonl.ts';
 import { delerTitelRegel, type OptagetKalender } from './hushold/konflikt.ts';
@@ -85,7 +86,7 @@ import { synligFor, zoneAf } from './identitet/zoner.ts';
 import { agentGulv, type Verb } from './graenser/verber.ts';
 import { KORSEL as KORT_KORSEL } from './rooms/hjem/kort.ts';
 import { aktionId, gennem, GraenseAfvist, TEGN } from './graenser/port.ts';
-import { HusstandFejl, laesHusstand } from './identitet/husstand.ts';
+import { HusstandFejl, laesHusstand, skrivHusstand } from './identitet/husstand.ts';
 import { renderIngenAdgang } from './shell/adgang.ts';
 import { lavPause, NodstopNaegtet, PauseFejl, PAUSE_TEKST, startIgen, stopAlt } from './graenser/nodstop.ts';
 import { erNej, lavRevisionslog, type Revisionslinje } from './graenser/revisionslog.ts';
@@ -460,6 +461,8 @@ export function createApp(deps: AppDeps) {
   };
   d.husstand = {
     personer: personerIHusstand,
+    // KC-0154: the owner's invite, role change and removal (the room calls it inside its queue); validated and atomic.
+    gemPersoner: (personer) => skrivHusstand(deps.dataDir ?? './data', { personer }),
     async kalendere() {
       const ejer = (await personerIHusstand()).find((p) => p.rolle === 'ejer')?.id ?? null;
       const ud: KalenderLaesning[] = [];
@@ -535,13 +538,20 @@ export function createApp(deps: AppDeps) {
     }
     c.set('person', hvem);
     c.set('husstand', husstand?.personer ?? []);
-    await hvemNu.run(hvem, next);
+    await hvemNu.run(hvem, async () => {
+      // KC-0154: her first request through this path activates a member the owner pre-created (once; never a static file).
+      if ((husstand?.personer.length ?? 0) > 1 && !/\.[a-z0-9]+$/i.test(c.req.path)) {
+        try { await vedBesoeg(d); } catch (err) { console.error('husstand: indgangen kunne ikke markeres:', err); }
+      }
+      await next();
+    });
   });
   function afvis(c: Context<Env>, status: 401 | 403 | 503, hvorfor: string): Response {
     if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: hvorfor }, status);
     return c.html(renderIngenAdgang(hvorfor), status);
   }
-  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand>; hjaelp?: { href: string } } => ({ person: c.get('person'), husstand: c.get('husstand'), ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}), ...(deps.hjaelp ? { hjaelp: deps.hjaelp } : {}) });
+  // KC-0154: the shell names the household only to whom may see who is in it (rettigheder.ts; not a guest).
+  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand>; hjaelp?: { href: string } } => ({ person: c.get('person'), husstand: maaSe(c.get('person'), { slags: 'medlem' }) ? c.get('husstand') : [], ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}), ...(deps.hjaelp ? { hjaelp: deps.hjaelp } : {}) });
 
   // KC-0018: no-cache = always revalidate, so a deploy reaches the browser and the home-screen app.
   app.use('/*', async (c, next) => { c.header('Cache-Control', 'no-cache'); await next(); });
@@ -735,8 +745,9 @@ export function createApp(deps: AppDeps) {
     const videnRegel = rum === 'viden' && slags === 'regel';
     // KC-0144: Ja on a rule proposal in Nu (id = the proposal's id) is a tap too.
     const hjemForslag = rum === HJEM && slags === 'forslag';
-    // KC-0153: Send on a request in Husstanden (id = request:kind:hash of the text shown) is a tap too.
-    const kanalSend = rum === 'husstand' && slags === 'send';
+    // KC-0153: Send on a request in Husstanden (id = request:kind:hash of the text shown) is a tap too; KC-0154: so is
+    // Send on an invitation (id = member:invitation:hash of the first message shown).
+    const kanalSend = rum === 'husstand' && (slags === 'send' || slags === 'invitation');
     if (!videnRegel && !hjemForslag && !kanalSend &&((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
     const id = slags === 'aktion' ? aktionId(typeof b['id'] === 'string' ? b['id'] : '', typeof b['body'] === 'object' && b['body'] !== null ? b['body'] as Record<string, unknown> : {}) : typeof b['id'] === 'string' ? b['id'] : '';
     if (!id) return c.json({ error: 'Ukendt knap' }, 400);
@@ -1290,6 +1301,13 @@ export function createApp(deps: AppDeps) {
     })));
   });
 
+  // KC-0154: the owner's invite page; also before there is a household (the nav does not show Husstanden yet). Others: 403.
+  app.get('/rum/husstand/inviter', async (c) => {
+    const { venter: v, univers, synlige: syn } = await navData('husstand');
+    const view = await inviterView(d);
+    return c.html(String(shell({ ...hvem(c), roomId: 'husstand', hermesStatus: view.hermesStatus, venter: v, main: view.main, chat: await deps.store.readChat('husstand'), stemme: stemmeNiveau, univers, synlige: syn, ...(view.titel ? { titel: view.titel } : {}) })), view.status ?? 200);
+  });
+
   app.get('/rum/:id', async (c) => {
     const room = findRoom(c.req.param('id'));
     if (!room) return ikkeFundet(c, 'rum');
@@ -1470,6 +1488,26 @@ export function createApp(deps: AppDeps) {
     }
   });
 
+  // KC-0154: the invitation's Send — the same mechanism as a request's: the first message is the app's (invitation.ts),
+  // checked before the policy layer, which needs a one-time yes bound to this member and the hash of the text shown
+  // (verb send-til-andre: never by voice, never on its own); then sent once inside the store's queue.
+  app.post('/api/hushold/medlem/:id/inviter', async (c) => {
+    const kanal = deps.kanal;
+    if (!kanal) return c.json({ error: 'Clawco kan ikke sende beskeder herfra.' }, 503);
+    const b = await body(c);
+    const id = c.req.param('id');
+    try {
+      const klar = await invitationKlar(d, id);
+      const run = await gennem(d, { rum: 'husstand', id: klar.jaId, verb: 'send-til-andre', zoner: ['husstand'] }, 'invitation', { kanal: 'knap', ...(typeof b['ja'] === 'string' ? { ja: b['ja'] } : {}) },
+        () => invitationSend(d, kanal, id, klar.tekst));
+      return accepted(c, tag(run, 'husstand'));
+    } catch (err) {
+      if (err instanceof ActionError) return c.json({ error: err.message }, err.status);
+      if (err instanceof KanalFejl) return c.json({ error: err.message }, 502);
+      throw err;
+    }
+  });
+
   app.post('/api/rum/:id/chat', async (c) => {
     const id = c.req.param('id');
     const mod = getRoomModule(id);
@@ -1490,6 +1528,8 @@ export function createApp(deps: AppDeps) {
       }
       // KC-0146: "hvad ved du om mig" opens the page of what Clawco knows (the owner's; anyone else asks Hermes).
       if (erVidenBesked(besked) && c.get('person').rolle === 'ejer') return c.json({ aabn: '/viden' });
+      // KC-0154: "inviter …" opens the invite page for whom may invite (anyone else asks Hermes).
+      if (erInviterBesked(besked) && maaSe(c.get('person'), { slags: 'invitation' })) return c.json({ aabn: '/rum/husstand/inviter' });
       const hit = rumFraBesked(besked, univers, valg);
       if (hit && hit.id !== id) {
         await markerAabnet(deps.store, hit.id, now());

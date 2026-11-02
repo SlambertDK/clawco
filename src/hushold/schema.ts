@@ -11,6 +11,7 @@ import { erRolle, type Rolle } from '../identitet/roller.ts';
 import type { DataZone } from '../identitet/zoner.ts';
 import { TILSTANDE, type ForespForslag, type ForespKanal, type Forespoergsel, type Historik, type Tilstand } from './foresp.ts';
 import { erKanal, gyldigHandle, KANAL_STATUSSER, type Kanalforbindelse, type KanalStatus } from './kanal.ts';
+import { INDGANG_STATUSSER, type Indgang } from './invitation.ts';
 import type { BookingUdkast } from './bil.ts';
 import type { Blok, Konflikt, KonfliktValg } from './konflikt.ts';
 import { dobbeltBooket, MAX_VALG, SLAGS, type Booking, type Ressource, type Sammenfald, type Slags, type Valg } from './ressource.ts';
@@ -24,8 +25,11 @@ export type { Konflikt } from './konflikt.ts';
 export const RUM = 'husstand';
 export const KORSEL: DataZone = 'husstand';
 
-/** `kanal` (KC-0153): the channel the go-between reaches her on, and where her opt-in stands. */
-export type Medlem = { id: string; navn: string; rolle: Rolle; relation?: string; tailnetLogin?: string; telefon?: string; kanal?: Kanalforbindelse };
+/**
+ * `kanal` (KC-0153): the channel the go-between reaches her on, and where her opt-in stands. `indgang` (KC-0154): an
+ * own entry the owner pre-created, waiting for her first visit or active since it.
+ */
+export type Medlem = { id: string; navn: string; rolle: Rolle; relation?: string; tailnetLogin?: string; telefon?: string; kanal?: Kanalforbindelse; indgang?: Indgang };
 /**
  * `konflikter` (KC-0152): the Saturday cards; `konfliktTjek`: the Saturday the Tuesday check last looked at (it runs once per weekend).
  * `kanalSidst` (KC-0153): the time of the last channel message read (nothing is read before the go-between's first send).
@@ -86,7 +90,17 @@ export function parseMedlem(raw: unknown): Medlem {
     m.telefon = o['telefon'].trim();
   }
   if (o['kanal'] !== undefined && o['kanal'] !== null) m.kanal = parseKanalforbindelse(o['kanal'], m.id);
+  if (o['indgang'] !== undefined && o['indgang'] !== null) m.indgang = parseIndgang(o['indgang'], m.id);
   return m;
+}
+
+/** KC-0154: an own entry — waiting or active, when the owner made it and (active) when she first came in. */
+function parseIndgang(raw: unknown, hvem: string): Indgang {
+  const o = obj(raw, 'indgang');
+  if (typeof o['status'] !== 'string' || !(INDGANG_STATUSSER as readonly string[]).includes(o['status'])) throw new HusholdFejl(`medlem ${hvem}: ukendt indgang`);
+  const g: Indgang = { status: o['status'] as Indgang['status'], oprettet: tid(o['oprettet'], 'indgang') };
+  if (o['aktiveret'] !== undefined && o['aktiveret'] !== null) g.aktiveret = tid(o['aktiveret'], 'indgang');
+  return g;
 }
 
 /** KC-0153: a member's channel — a known channel, a valid handle for it (stored normalised), an opt-in state. */

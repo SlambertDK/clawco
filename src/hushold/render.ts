@@ -5,15 +5,19 @@
 // go-between (KC-0153) uses those, the screen does not.
 
 import { html, type Markup } from '../shell/html.ts';
-import { medId, spoerg } from '../shell/sprog.ts';
+import { handlinger, knap, medId, spoerg } from '../shell/sprog.ts';
 import { idagKbh } from '../shell/tid.ts';
-import { ROLLE_NAVN } from '../identitet/roller.ts';
+import { ROLLE_NAVN, ROLLER } from '../identitet/roller.ts';
 import type { Person } from '../identitet/husstand.ts';
 import type { Medlem } from './schema.ts';
 import type { FaellesDag, FaellesPost } from './uge.ts';
 
-/** `forespoergsler` (KC-0149): the person's own requests and the form to ask, drawn by foresp-render.ts; absent = none. */
-export type HusstandVisning = { medlemmer: readonly Medlem[]; person: Person; uge: readonly FaellesDag[]; now: Date; forespoergsler?: Markup };
+/**
+ * `forespoergsler` (KC-0149): the person's own requests and the form to ask, drawn by foresp-render.ts; absent = none.
+ * KC-0154 (rettigheder.ts decides, this only draws): `faelles` false = a guest, who gets her requests and nothing of
+ * the shared week or who is in it; `invitationer`: the owner's cards; `kanRette`: the owner's role and remove tools.
+ */
+export type HusstandVisning = { medlemmer: readonly Medlem[]; person: Person; uge: readonly FaellesDag[]; now: Date; forespoergsler?: Markup; faelles?: boolean; invitationer?: Markup; kanRette?: boolean };
 
 const TZ = 'Europe/Copenhagen';
 const DAGE = ['Søndag', 'Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag'];
@@ -51,9 +55,24 @@ function medlemRaekke(m: Medlem, v: HusstandVisning): Markup {
   const du = m.id === v.person.id;
   const note = [ROLLE_NAVN[m.rolle], m.relation ?? ''].filter(Boolean).join(' · ');
   return medId(`medlem:${m.id}`, html`<div class="row medlem" data-medlem="${m.id}" data-medlem-rolle="${m.rolle}" data-element="Husstanden: ${m.navn}">
-    <span class="row-main"><span class="row-title">${m.navn}${du ? html` <span class="chip chip-muted">Du</span>` : ''}</span><span class="row-note">${note}</span></span>
+    <span class="row-main"><span class="row-title">${m.navn}${du ? html` <span class="chip chip-muted">Du</span>` : ''}</span><span class="row-note">${note}</span>${v.kanRette && !du ? medlemRet(m) : ''}</span>
     <span class="actions">${spoerg(`Husstanden: ${m.navn}`)}</span>
   </div>`);
+}
+
+/** KC-0154, the owner's tools on another member's line: her role, and removing her (red: it ends her access). */
+function medlemRet(m: Medlem): Markup {
+  const form = `rolle-${m.id}`;
+  return html`<details class="medlem-ret" data-medlem-ret="${m.id}"><summary class="row-note">Ret</summary>
+    <form id="${form}" class="stack nyt-form" method="post" autocomplete="off">
+      <input type="hidden" name="id" value="${m.id}">
+      <label class="field"><span class="row-note">Rolle</span><select name="rolle">${ROLLER.map((r) => html`<option value="${r}"${r === m.rolle ? html` selected` : ''}>${ROLLE_NAVN[r]}</option>`)}</select></label>
+    </form>
+    ${handlinger(undefined, [
+      knap({ label: 'Gem rolle', attrs: { 'data-aktion': 'rolle', 'data-form': form, 'data-status': 'gemmer' } }),
+      knap({ label: 'Fjern fra husstanden', slags: 'graense', attrs: { 'data-aktion': 'fjern-medlem', 'data-arg': JSON.stringify({ id: m.id }), 'data-confirm': `Fjern ${m.navn} fra husstanden? Hun mister sin adgang, og Clawco sender ikke flere beskeder til hende. Det, I har delt, står der stadig.`, 'data-status': 'fjerner' } }),
+    ])}
+  </details>`;
 }
 
 function dagRaekke(d: FaellesDag, v: HusstandVisning): Markup {
@@ -73,10 +92,18 @@ function dagRaekke(d: FaellesDag, v: HusstandVisning): Markup {
 export function renderHusstand(v: HusstandVisning): Markup {
   const dage = v.uge.filter((d) => d.poster.length > 0);
   const antal = dage.reduce((n, d) => n + d.poster.length, 0);
+  if (v.faelles === false) {
+    return html`
+  <header class="room-head">
+    <div><h1>Husstanden</h1><p class="muted">Det, nogen i husstanden har spurgt dig om.</p></div>
+  </header>
+  ${v.forespoergsler ?? ''}`;
+  }
   return html`
   <header class="room-head">
     <div><h1>Husstanden</h1><p class="muted">Det, der gælder jer alle. Din egen Nu, dine noter og din arbejds- og privatzone ser de andre aldrig.</p></div>
   </header>
+  ${v.invitationer ?? ''}
   ${v.forespoergsler ?? ''}
   <section class="card card-list gruppe" data-blok="bunke" data-gruppe="Fælles uge" data-husstand-uge>
     <div class="card-head"><h2 class="eyebrow">Fælles uge</h2><span class="muted mono">${antal}</span></div>

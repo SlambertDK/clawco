@@ -80,6 +80,14 @@ test('KC-0146: "hvad ved du om mig" and "hvad har du gemt" open the page of what
     assert.equal(erVidenBesked(b), false, b);
 });
 
+test('KC-0154: "inviter …" opens the invite page; a question about invitations is for Hermes', async () => {
+  const { erInviterBesked } = await import('../../src/shell/aabn.ts');
+  for (const b of ['inviter', 'Inviter en', 'jeg vil invitere min datter', 'Hej Hermes, jeg vil gerne invitere Maja', 'invitér farmor'])
+    assert.equal(erInviterBesked(b), true, b);
+  for (const b of ['hvem har jeg inviteret?', 'kan du lave en invitation til festen', 'skriv en invitation til fødselsdagen', 'invitationen til mødet'])
+    assert.equal(erInviterBesked(b), false, b);
+});
+
 test('KC-0146: no chat phrase ever opens Slet alt', async () => {
   for (const b of ['slet alt', 'åbn slet alt', 'vis slet alt', 'jeg vil slette alt', 'slet alt hvad du ved om mig', 'åbn viden/slet-alt']) {
     const hit = rumFraBesked(b, UNIVERS, { husstand: true });

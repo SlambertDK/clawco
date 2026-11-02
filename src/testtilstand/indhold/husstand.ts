@@ -13,6 +13,7 @@ import type { BookingUdkast, HusstandState } from '../../hushold/schema.ts';
 import { loesSammenfald, nySammenfald, type Booking, type Ressource } from '../../hushold/ressource.ts';
 import { nytKonflikt, weekendKonflikter, type Blok, type Konflikt } from '../../hushold/konflikt.ts';
 import { lavFakeKanal } from '../../hushold/kanal.ts';
+import { FAMILIE } from '../familie.ts';
 
 export const TEST_EJER: Person = { id: 'henrik', login: 'henrik@test.invalid', navn: 'Henrik', rolle: 'ejer' };
 
@@ -96,7 +97,7 @@ export function husstandState(n: number, f: Fakta): HusstandState {
   const kat = nyForespoergsel({ id: 'f-kat', fra: 'maja', til: 'ella', titel: 'Kan du fodre katten i weekenden?' }, t('06:20'));
   const { ressourcer, sammenfald } = husstandRessourcer(sen, f, n);
   const k = kanalHusstand(handle, f);
-  return { medlemmer: k.medlemmer, ressourcer, forespoergsler: [hent, k.handle, tandlaege, rydde, vvs, pakke, kat], sammenfald: [sammenfald], udkast: bilUdkast(n, f), konflikter: weekendKort(n, f), kanalSidst: k.kanalSidst };
+  return { medlemmer: [...k.medlemmer, ...inviterede(f)], ressourcer, forespoergsler: [hent, k.handle, tandlaege, rydde, vvs, pakke, kat], sammenfald: [sammenfald], udkast: bilUdkast(n, f), konflikter: weekendKort(n, f), kanalSidst: k.kanalSidst };
 }
 
 // ---------- KC-0153: the go-between (kept apart from the stories above) ----------
@@ -119,6 +120,28 @@ function kanalHusstand(handle: Forespoergsel, f: Fakta): { medlemmer: HusstandSt
     handle: medKanal,
     kanalSidst: f.iso('06:52'),
   };
+}
+
+// ---------- KC-0154: two invitations waiting (kept apart from the stories above) ----------
+// Henrik invited two more this morning, one of each kind: Rikke with her own entry (he has not yet shared the machine
+// in Tailscale, so the card shows him the steps) and Nora on Signal only (the card shows the exact first message and
+// the red Send; the fake channel only records it). Both are persons in husstand.json, so Husstanden lists them; they
+// are not in TEST_HUSSTAND, whose four people (one per role) the family calendar and the weekend card are built on.
+
+/** A fictional Signal number (00 00 00 04). */
+export const NORA_SIGNAL = '+4500000004';
+
+export const TEST_INVITEREDE: Person[] = [
+  { id: FAMILIE.partner.id, login: `${FAMILIE.partner.id}@test.invalid`, navn: FAMILIE.partner.navn, rolle: 'medlem' },
+  { id: FAMILIE.barn.id, login: null, navn: FAMILIE.barn.navn, rolle: 'barn' },
+];
+
+function inviterede(f: Fakta): HusstandState['medlemmer'] {
+  const [rikke, nora] = TEST_INVITEREDE as [Person, Person];
+  return [
+    { id: rikke.id, navn: rikke.navn, rolle: rikke.rolle, indgang: { status: 'venter', oprettet: f.iso('06:10') } },
+    { id: nora.id, navn: nora.navn, rolle: nora.rolle, kanal: { kanal: 'signal', handle: NORA_SIGNAL, status: 'afventer-ja' } },
+  ];
 }
 
 /**

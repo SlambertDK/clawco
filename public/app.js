@@ -783,6 +783,13 @@
           start('/api/hushold/foresp/' + encodeURIComponent(btn.dataset.kanalSend) + '/send', slagsK === 'paamindelse' ? { slags: slagsK } : {}, { ja: { rum: 'husstand', slags: 'send', id: btn.dataset.kanalJa }, startText: 'sender …' });
           return;
         }
+        // KC-0154: Send on an invitation — the same: a one-time yes for exactly the first message on screen, then the send.
+        if (btn.dataset.invitationSend) {
+          btn.disabled = true;
+          setBusy(elementOf(btn), 'sender …');
+          start('/api/hushold/medlem/' + encodeURIComponent(btn.dataset.invitationSend) + '/inviter', {}, { ja: { rum: 'husstand', slags: 'invitation', id: btn.dataset.invitationJa }, startText: 'sender …' });
+          return;
+        }
         if (btn.dataset.aktion) {
           if (btn.dataset.confirm && !window.confirm(btn.dataset.confirm)) return;
           var arg = {};

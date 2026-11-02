@@ -14,8 +14,11 @@ import { datoLinje, klokke } from './render.ts';
 import type { Medlem } from './schema.ts';
 import { KANAL_NAVN, vurderSend, type SendSlags } from './kanal.ts';
 
-/** `alle` (KC-0153): every request of the household, for the go-between's one-open-request rule; absent = only this one. */
-export type ForespBlokVisning = { f: Forespoergsel; person: PersonId; medlemmer: readonly Medlem[]; now: Date; alle?: readonly Forespoergsel[] };
+/**
+ * `alle` (KC-0153): every request of the household, for the go-between's one-open-request rule; absent = only this one.
+ * `kanSvare` (KC-0154, rettigheder.ts): false = a guest, who reads the request and answers on her channel (no buttons).
+ */
+export type ForespBlokVisning = { f: Forespoergsel; person: PersonId; medlemmer: readonly Medlem[]; now: Date; alle?: readonly Forespoergsel[]; kanSvare?: boolean };
 
 const navnAf = (v: ForespBlokVisning, id: string): string => (id === v.person ? 'Du' : v.medlemmer.find((m) => m.id === id)?.navn ?? 'en i husstanden');
 const dagAf = (iso: string): string => idagKbh(new Date(iso));
@@ -125,13 +128,13 @@ export function forespBlok(v: ForespBlokVisning): Markup {
     ${tid ? html`<p class="row-note mono">${tidTekst(tid, now)}</p>` : ''}
     <p class="row-note foresp-anbefaling" data-foresp-anbefaling${paamindelse ? html` data-foresp-paamindelse` : ''}>${anbefaling(v)}</p>
     ${kanalBlok(v)}
-    ${knapper(v)}
+    ${v.kanSvare === false ? '' : knapper(v)}
   </article>`;
 }
 
-/** The form to ask someone: every other member who is not a guest. The Spørg button is red — it goes to another person. */
+/** The form to ask someone: every other member, a guest too (KC-0154: she sees what is addressed to her). The Spørg button is red — it goes to another person. */
 function nyForm(medlemmer: readonly Medlem[], person: PersonId): Markup {
-  const andre = medlemmer.filter((m) => m.id !== person && m.rolle !== 'gaest');
+  const andre = medlemmer.filter((m) => m.id !== person);
   if (!andre.length) return html``;
   return html`<section class="card foresp-ny" data-foresp-ny>
     <h2 class="eyebrow">Spørg en i husstanden</h2>
@@ -147,9 +150,9 @@ function nyForm(medlemmer: readonly Medlem[], person: PersonId): Markup {
 }
 
 /** The person's own requests (a third person sees none — only an accepted one, in the shared week), grouped, and the form. */
-export function forespSektion(v: { forespoergsler: readonly Forespoergsel[]; person: PersonId; medlemmer: readonly Medlem[]; now: Date }): Markup {
+export function forespSektion(v: { forespoergsler: readonly Forespoergsel[]; person: PersonId; medlemmer: readonly Medlem[]; now: Date; kanSpoerge?: boolean; kanSvare?: boolean }): Markup {
   const egne = v.forespoergsler.filter((f) => erPart(f, v.person));
-  const blok = (f: Forespoergsel): Markup => forespBlok({ f, person: v.person, medlemmer: v.medlemmer, now: v.now, alle: v.forespoergsler });
+  const blok = (f: Forespoergsel): Markup => forespBlok({ f, person: v.person, medlemmer: v.medlemmer, now: v.now, alle: v.forespoergsler, ...(v.kanSvare === false ? { kanSvare: false } : {}) });
   const kraever = egne.filter((f) => beslutter(f) === v.person || (f.fra === v.person && ubesvaret(f)));
   const venter = egne.filter((f) => !kraever.includes(f) && beslutter(f) !== null);
   const afgjort = egne.filter((f) => !kraever.includes(f) && beslutter(f) === null);
@@ -158,7 +161,7 @@ export function forespSektion(v: { forespoergsler: readonly Forespoergsel[]; per
     ${gruppe('Kræver dig', kraever)}
     ${gruppe('Venter på svar', venter)}
     ${gruppe('Aftalt og afgjort', afgjort)}
-    ${nyForm(v.medlemmer, v.person)}
+    ${v.kanSpoerge === false ? '' : nyForm(v.medlemmer, v.person)}
   </div>`;
 }
 

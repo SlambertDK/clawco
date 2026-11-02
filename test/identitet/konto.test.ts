@@ -62,7 +62,7 @@ test('every vector gets the verdict the fixture names (two keys configured: rota
       assert.ok(erAfvist(r), v.navn);
       assert.equal(r.afvist, v.forventet, v.navn);
       if (r.afvist === 401) assert.match(r.hvorfor, /Clawco ved ikke, hvem du er/, v.navn);
-      if (r.afvist === 403) assert.match(r.hvorfor, /Du er ikke med i husstanden her/, v.navn);
+      if (r.afvist === 403) assert.match(r.hvorfor, /Du er ikke inviteret endnu/, v.navn);
       assert.ok(r.log, `${v.navn}: the log line says which check failed`);
       assert.ok(!r.log.includes(v.header) && !r.hvorfor.includes(v.header.split('.')[3]!), `${v.navn}: no header value in body or log`);
     }
