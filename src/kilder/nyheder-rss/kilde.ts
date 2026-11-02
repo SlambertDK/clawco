@@ -1,0 +1,283 @@
+// KC-0137: the user's own news sources (spec §3 step 4). On the card "Nyhedskilder"
+// the user pastes one or more feed addresses (a web page is searched for its
+// feed) or uploads an OPML export from the old reader; opsaet() checks every
+// pasted address by fetching it and stores the list in kilder.json as the hidden
+// option `feeds` ({url, navn?, tilfoejet, lokal?}, at most 100). read() fetches
+// the feeds (conditional GET; ETag, Last-Modified and the parsed items per feed
+// live in <data dir>/nyheder-rss/) and answers exactly what the Nyheder room
+// consumes — RaaNyhed[] newest first, capped like MAX_NYHEDER, plus the status
+// with the names of the feeds that did not answer. Everything is untrusted: it
+// went through parse.ts (plain text, http(s) URLs) and the registry strips it again.
+//
+// Health: one failing feed is ok with its name in the note; all failing is nede,
+// but only for ten minutes — the registry never reads a source that is not
+// working, so a source that stayed nede would never recover.
+
+import { createHash } from 'node:crypto';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { KildeFejl, type Felt, type Helbred, type Kilde, type KildeKontekst, type KildeKort, type Nyhed } from '../types.ts';
+import { laesKonfig } from '../register.ts';
+import { AdresseFejl, normaliserAdresse, tjekAdresse } from './adresse.ts';
+import { HentFejl, lavHenter, type Henter } from './hent.ts';
+import { erHtml, findFeedLinks, ParseFejl, parseFeed, parseOpml } from './parse.ts';
+
+export const NYHEDER_RSS_ID = 'nyheder-rss';
+export const MAKS_FEEDS = 100;
+/** The room's cap (MAX_NYHEDER in src/rooms/nyheder/source.ts); test/kilder/nyheder-rss/kilde.test.ts holds them equal through trimNyheder. */
+const MAKS_NYHEDER = 80;
+const MAKS_PER_FEED = 30;
+const MAKS_PASTE = 20;
+const MAKS_URL = 400;
+const MAKS_OPML = 1_000_000;
+const NEDE_LEVETID_MS = 10 * 60_000;
+const MAPPE = 'nyheder-rss';
+
+type Feed = { url: string; navn?: string; tilfoejet: string; lokal?: true };
+type Tilstand = { ok?: { tid: number }; fejl?: { tid: number; tekst: string } };
+type Gemt = { etag?: string; sidstRettet?: string; titel: string; nyheder: Nyhed[] };
+
+const FELTER: Felt[] = [
+  { navn: 'adresser', etiket: 'Adressen på en nyhedskilde (RSS). Du kan indsætte flere, en på hver linje', type: 'tekst', flere: true, paakraevet: false, maks: MAKS_PASTE * (MAKS_URL + 2) },
+  { navn: 'opml', etiket: 'Eller en OPML-fil fra din gamle læser', type: 'fil', paakraevet: false, maks: MAKS_OPML },
+  { navn: 'feeds', etiket: 'Dine kilder', type: 'tekst', skjult: true, paakraevet: false, maks: 60_000 },
+];
+
+const INTRO = 'Indsæt adressen på en nyhedskilde, eller upload en OPML-fil fra din gamle læser, så står nyhederne i Nyheder, når de er relevante. '
+  + 'Clawco læser kun overskrifter og korte resuméer og henter dem hver morgen. Der følger ingen kilder med: du vælger selv. '
+  + 'Har du brugt en anden læser, finder du OPML-filen under eksport eller OPML i dens indstillinger.';
+
+const erObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+/** Names are shown in card text: never < or >. */
+const vis = (v: string): string => v.replace(/[<>]/g, '');
+const antalTekst = (n: number): string => `${n} ${n === 1 ? 'nyhedskilde' : 'nyhedskilder'}`;
+
+/** "A", "A og B", "A, B og C", "A, B, C og 2 andre". */
+function opremsning(navne: string[]): string {
+  const n = navne.map(vis);
+  if (n.length <= 3) return n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} og ${n.at(-1)}`;
+  const rest = n.length - 3;
+  return `${n.slice(0, 3).join(', ')} og ${rest} ${rest === 1 ? 'anden' : 'andre'}`;
+}
+
+function vaert(url: string): string {
+  try { return new URL(url).hostname.slice(0, 80); } catch { return url.slice(0, 80); }
+}
+const navnFor = (f: Feed): string => f.navn || vaert(f.url);
+
+/** The stored list, defensively: whatever kilder.json holds that is not a feed record is left out. */
+function laesFeeds(valg: Readonly<Record<string, string>>): Feed[] {
+  let raa: unknown;
+  try { raa = JSON.parse(valg['feeds'] ?? '[]'); } catch { return []; }
+  if (!Array.isArray(raa)) return [];
+  const ud: Feed[] = [];
+  for (const p of raa) {
+    if (!erObj(p) || typeof p['url'] !== 'string' || typeof p['tilfoejet'] !== 'string') continue;
+    ud.push({ url: p['url'], ...(typeof p['navn'] === 'string' && p['navn'] ? { navn: p['navn'] } : {}), tilfoejet: p['tilfoejet'], ...(p['lokal'] === true ? { lokal: true as const } : {}) });
+  }
+  return ud.slice(0, MAKS_FEEDS);
+}
+
+function version(): string {
+  try { return String((JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as { version?: unknown }).version ?? '0.1'); } catch { return '0.1'; }
+}
+
+/** Splits what was pasted: whitespace, commas and semicolons; and two addresses run together (a browser drops line breaks). */
+function adresserFra(tekst: string): string[] {
+  return tekst.split(/(?<=\w)(?=https?:\/\/)|[\s,;]+/i).map((x) => x.trim()).filter(Boolean);
+}
+
+export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: string } = {}): Kilde {
+  const hent = o.hent ?? lavHenter({ agent: `Clawco/${o.version ?? version()}` });
+  const tilstand = new Map<string, Tilstand>();
+  const hukommelse = new Map<string, Gemt>();
+  const cacheMappe = o.dataDir ? path.join(o.dataDir, MAPPE) : null;
+  const cacheFil = (url: string): string | null => (cacheMappe ? path.join(cacheMappe, `${createHash('sha256').update(url).digest('hex').slice(0, 32)}.json`) : null);
+
+  async function laesCache(url: string): Promise<Gemt | null> {
+    const m = hukommelse.get(url);
+    if (m) return m;
+    const fil = cacheFil(url);
+    if (!fil) return null;
+    try {
+      const raa = JSON.parse(await readFile(fil, 'utf8')) as unknown;
+      if (!erObj(raa) || !Array.isArray(raa['nyheder']) || typeof raa['titel'] !== 'string') return null;
+      const g: Gemt = { titel: raa['titel'], nyheder: raa['nyheder'] as Nyhed[], ...(typeof raa['etag'] === 'string' ? { etag: raa['etag'] } : {}), ...(typeof raa['sidstRettet'] === 'string' ? { sidstRettet: raa['sidstRettet'] } : {}) };
+      hukommelse.set(url, g);
+      return g;
+    } catch { return null; }
+  }
+  async function gemCache(url: string, g: Gemt): Promise<void> {
+    hukommelse.set(url, g);
+    const fil = cacheFil(url);
+    if (!fil || !cacheMappe) return;
+    try {
+      await mkdir(cacheMappe, { recursive: true });
+      const tmp = `${fil}.tmp-${process.pid}-${Date.now()}`;
+      await writeFile(tmp, JSON.stringify(g), 'utf8');
+      await rename(tmp, fil);
+    } catch { /* the cache is an optimisation; the next read fetches in full */ }
+  }
+
+  /** One feed, remembering the outcome. Never throws. */
+  async function hentFeed(f: Feed, nu: number): Promise<Nyhed[] | null> {
+    try {
+      const c = await laesCache(f.url);
+      const svar = await hent(f.url, { oprindelse: f.lokal ? 'bruger' : 'ekstern', ...(c?.etag ? { etag: c.etag } : {}), ...(c?.sidstRettet ? { sidstRettet: c.sidstRettet } : {}) });
+      let nyheder: Nyhed[];
+      if (svar.status === 'uaendret') {
+        if (!c) throw new HentFejl('net', 'Kilden kunne ikke læses.');
+        nyheder = c.nyheder;
+      } else {
+        const feed = parseFeed(svar.tekst, { adresse: svar.endeligAdresse, ...(f.navn ? { navn: f.navn } : {}) });
+        nyheder = feed.nyheder;
+        await gemCache(f.url, { titel: feed.titel, nyheder, ...(svar.etag ? { etag: svar.etag } : {}), ...(svar.sidstRettet ? { sidstRettet: svar.sidstRettet } : {}) });
+      }
+      tilstand.set(f.url, { ...tilstand.get(f.url), ok: { tid: nu } });
+      return nyheder;
+    } catch (err) {
+      const tekst = err instanceof HentFejl ? err.message : err instanceof ParseFejl ? 'Svaret er ikke en nyhedskilde.' : 'Kilden kunne ikke læses.';
+      tilstand.set(f.url, { ...tilstand.get(f.url), fejl: { tid: nu, tekst } });
+      return null;
+    }
+  }
+
+  const fejler = (f: Feed): Tilstand['fejl'] | undefined => {
+    const t = tilstand.get(f.url);
+    return t?.fejl && (!t.ok || t.fejl.tid >= t.ok.tid) ? t.fejl : undefined;
+  };
+
+  /** A pasted address: fetched to prove it is a feed (or to find one), named by its title. */
+  async function tilfoej(raa: string, nu: Date): Promise<Feed> {
+    let u: URL;
+    try { u = tjekAdresse(raa, { oprindelse: 'bruger' }); } catch (err) {
+      throw new KildeFejl(400, `${vis(raa.slice(0, 80))}: ${err instanceof AdresseFejl ? err.message : 'adressen kan ikke bruges.'}`);
+    }
+    if (u.href.length > MAKS_URL) throw new KildeFejl(400, `${vis(raa.slice(0, 80))}: adressen er for lang.`);
+    const fejl = (err: unknown): KildeFejl => new KildeFejl(400, `${vis(u.host)} kunne ikke bruges som nyhedskilde: ${err instanceof HentFejl || err instanceof ParseFejl ? err.message : 'den kunne ikke læses.'}`);
+    // Tried as a public address first; only an address the guard refuses as local is retried (and marked) as the user's own.
+    let lokal = false;
+    let svar;
+    try { svar = await hent(u.href, { oprindelse: 'ekstern' }); } catch (err) {
+      if (!(err instanceof HentFejl && err.kode === 'afvist')) throw fejl(err);
+      try { svar = await hent(u.href, { oprindelse: 'bruger' }); lokal = true; } catch (err2) { throw fejl(err2); }
+    }
+    if (svar.status !== 'ny') throw fejl(new HentFejl('net', 'Kilden svarede uden indhold.'));
+    const gem = async (url: string, tekst: string, adresse: string, v: { etag?: string; sidstRettet?: string }, erLokal: boolean): Promise<Feed> => {
+      const f = parseFeed(tekst, { adresse });
+      await gemCache(url, { titel: f.titel, nyheder: f.nyheder, ...(v.etag ? { etag: v.etag } : {}), ...(v.sidstRettet ? { sidstRettet: v.sidstRettet } : {}) });
+      return { url, navn: f.titel, tilfoejet: nu.toISOString(), ...(erLokal ? { lokal: true as const } : {}) };
+    };
+    if (!erHtml(svar.tekst)) {
+      try { return await gem(u.href, svar.tekst, svar.endeligAdresse, svar, lokal); } catch (err) { throw fejl(err); }
+    }
+    // A web page: its advertised feeds are content, so they are fetched as public addresses.
+    for (const l of findFeedLinks(svar.tekst, svar.endeligAdresse).slice(0, 3)) {
+      if (l.length > MAKS_URL) continue;
+      try {
+        const s = await hent(l, { oprindelse: 'ekstern' });
+        if (s.status === 'ny') return await gem(l, s.tekst, s.endeligAdresse, s, false);
+      } catch { /* the next link */ }
+    }
+    throw new KildeFejl(400, `${vis(u.host)}: siden har ingen nyhedskilde, Clawco kan finde. Find feedets egen adresse, og indsæt den.`);
+  }
+
+  return {
+    id: NYHEDER_RSS_ID, navn: 'Nyhedskilder', slags: 'nyheder', zone: 'privat', auth: 'local', tillid: 'uklar',
+
+    async read(ctx) {
+      const feeds = laesFeeds(ctx.valg);
+      const nu = ctx.nu.getTime();
+      const svar = await Promise.all(feeds.map(async (f) => ({ f, nyheder: await hentFeed(f, nu) })));
+      if (feeds.length && svar.every((s) => s.nyheder === null)) throw new KildeFejl(502, 'Ingen af dine nyhedskilder svarede.');
+      const alle: Nyhed[] = [];
+      const set = new Set<string>();
+      let medNyheder = 0;
+      for (const { nyheder } of svar) {
+        if (!nyheder?.length) continue;
+        medNyheder += 1;
+        const nyeste = [...nyheder].sort((a, b) => (b.udgivet ?? '').localeCompare(a.udgivet ?? '')).slice(0, MAKS_PER_FEED);
+        for (const n of nyeste) {
+          if (n.url) { if (set.has(n.url)) continue; set.add(n.url); }
+          alle.push(n);
+        }
+      }
+      alle.sort((a, b) => (b.udgivet ?? '').localeCompare(a.udgivet ?? ''));
+      return {
+        slags: 'nyheder', hentet: ctx.nu.toISOString(), uklar: true,
+        data: { nyheder: alle.slice(0, MAKS_NYHEDER), status: { antal: feeds.length, medNyheder, nyheder: alle.length, fejlede: svar.filter((s) => s.nyheder === null).map((s) => navnFor(s.f)) } },
+      };
+    },
+
+    async helbred(ctx): Promise<Helbred> {
+      const feeds = laesFeeds(ctx.valg);
+      if (!feeds.length) return { status: 'nede', tekst: 'Der er ingen nyhedskilder endnu.' };
+      const fejlede = feeds.filter((f) => fejler(f));
+      if (!fejlede.length) return { status: 'ok' };
+      if (fejlede.length === feeds.length) {
+        const sidst = Math.max(...fejlede.map((f) => fejler(f)?.tid ?? 0));
+        if (ctx.nu.getTime() - sidst < NEDE_LEVETID_MS) return { status: 'nede', tekst: `Ingen af kilderne svarer: ${opremsning(fejlede.map(navnFor))}.` };
+        return { status: 'ok', tekst: 'Prøver igen.' };
+      }
+      return { status: 'ok', tekst: `${opremsning(fejlede.map(navnFor))} svarer ikke lige nu.` };
+    },
+
+    async kort(ctx): Promise<KildeKort> {
+      const feeds = laesFeeds(ctx.valg);
+      if (!feeds.length) return { titel: 'Nyhedskilder', tekst: INTRO, felter: FELTER, handling: 'Tilføj' };
+      const fejlede = feeds.filter((f) => fejler(f));
+      const dele = [`${antalTekst(feeds.length)}: ${opremsning(feeds.map(navnFor))}.`];
+      if (fejlede.length) dele.push(`${opremsning(fejlede.map(navnFor))} svarer ikke lige nu.`);
+      dele.push('Indsæt flere adresser eller en OPML-fil for at tilføje flere.');
+      return { titel: 'Nyhedskilder', tekst: dele.join(' '), felter: FELTER, handling: 'Tilføj flere' };
+    },
+
+    async opsaet(ctx: KildeKontekst) {
+      let gamle: Feed[] = [];
+      if (o.dataDir) {
+        const p = (await laesKonfig(o.dataDir)).kilder.find((k) => k.id === NYHEDER_RSS_ID);
+        gamle = p ? laesFeeds(p.valg) : [];
+      }
+      const adresser = adresserFra(ctx.valg['adresser'] ?? '');
+      if (adresser.length > MAKS_PASTE) throw new KildeFejl(400, `Indsæt højst ${MAKS_PASTE} adresser ad gangen. Har du mange, så brug en OPML-fil.`);
+      const nye: Feed[] = [];
+      for (const a of adresser) nye.push(await tilfoej(a, ctx.nu));
+      const fraOpml: Feed[] = [];
+      let sprunget = 0;
+      const opml = ctx.valg['opml'] ?? '';
+      if (opml.trim()) {
+        let poster;
+        try { poster = parseOpml(opml); } catch { throw new KildeFejl(400, 'Filen kunne ikke læses som OPML. Eksportér den igen fra din læser.'); }
+        for (const p of poster) {
+          try { tjekAdresse(p.url, { oprindelse: 'ekstern' }); } catch { sprunget += 1; continue; }
+          if (p.url.length > MAKS_URL) { sprunget += 1; continue; }
+          fraOpml.push({ url: p.url, ...(p.navn ? { navn: p.navn } : {}), tilfoejet: ctx.nu.toISOString() });
+        }
+      }
+      // What the user typed comes first, then the file, then what was stored: the cap cuts the end of the file, not the user's own.
+      const liste: Feed[] = [...gamle];
+      const noegler = new Set(gamle.map((f) => normaliserAdresse(new URL(f.url))));
+      let tilfoejet = 0; let fandtes = 0; let forMange = 0;
+      for (const f of [...nye, ...fraOpml]) {
+        const n = normaliserAdresse(new URL(f.url));
+        if (noegler.has(n)) { fandtes += 1; continue; }
+        if (liste.length >= MAKS_FEEDS) { forMange += 1; continue; }
+        noegler.add(n); liste.push(f); tilfoejet += 1;
+      }
+      if (!liste.length) throw new KildeFejl(400, 'Indsæt en adresse eller vælg en OPML-fil.');
+      const dele = [`Tilføjede ${antalTekst(tilfoejet)}.`];
+      if (fandtes) dele.push(`${fandtes} fandtes allerede.`);
+      if (sprunget) dele.push(`Clawco sprang ${sprunget} over, fordi adressen ikke kan bruges.`);
+      if (forMange) dele.push(`Højst ${MAKS_FEEDS} kilder: ${forMange} var for mange og blev ikke tilføjet.`);
+      dele.push(`I alt ${antalTekst(liste.length)}.`);
+      return { tekst: dele.join(' '), valg: { feeds: JSON.stringify(liste) } };
+    },
+
+    async frakobl(): Promise<void> {
+      tilstand.clear();
+      hukommelse.clear();
+      if (cacheMappe) await rm(cacheMappe, { recursive: true, force: true });
+    },
+  };
+}

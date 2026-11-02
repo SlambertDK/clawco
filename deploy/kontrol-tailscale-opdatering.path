@@ -1,0 +1,12 @@
+# KC-0026: when the tailscale package is upgraded, /usr/sbin/tailscaled is
+# replaced, but the running "kontrol" daemon keeps the old version in memory.
+# Watch the binary and restart kontrol so it always runs what is installed.
+[Unit]
+Description=Genstart "kontrol" når Tailscale opdateres
+
+[Path]
+PathChanged=/usr/sbin/tailscaled
+Unit=kontrol-tailscale-opdatering.service
+
+[Install]
+WantedBy=default.target

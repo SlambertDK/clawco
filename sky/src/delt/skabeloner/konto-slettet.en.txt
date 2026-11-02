@@ -1,0 +1,11 @@
+Your Clawco account is deleted
+
+Hi
+
+Your Clawco account is now deleted. Your passkeys, your sign-ins and your email address have been removed from the account, and your Clawco and everything in it is deleted.
+
+Backups disappear on their own within {{dage}} days. We keep the invoices for 5 years, because Danish bookkeeping law requires it.
+
+This one email is your receipt. We will not write to you again.
+
+Clawco

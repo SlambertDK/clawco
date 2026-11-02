@@ -1,0 +1,11 @@
+[Unit]
+Description=Claude Code-arbejderen: tager opgaver fra Kontrolcenter op (KC-0047)
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.npm-global/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment="ARBEJDER_REPOS=kontrolcenter ShelfAtlas:staging"
+Environment=ARBEJDER_MODEL=sonnet
+Environment=ARBEJDER_FRIST=90m
+ExecStart=/usr/bin/bash %h/arbejde/kontrolcenter/deploy/arbejder/arbejder.sh
+TimeoutStartSec=100min

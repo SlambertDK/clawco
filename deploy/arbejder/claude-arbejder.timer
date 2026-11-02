@@ -1,0 +1,9 @@
+[Unit]
+Description=Kig efter opgaver fra Kontrolcenter hvert andet minut (KC-0047)
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=2min
+
+[Install]
+WantedBy=timers.target

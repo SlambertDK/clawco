@@ -1,0 +1,13 @@
+Dit login-link til Clawco
+
+Hej
+
+Her er dit link til at logge ind på Clawco:
+
+{{link}}
+
+Linket virker én gang, i {{minutter}} minutter, og kun i den browser, hvor du bad om det.
+
+Bad du ikke om et link, kan du se bort fra denne mail. Der sker ikke noget.
+
+Clawco

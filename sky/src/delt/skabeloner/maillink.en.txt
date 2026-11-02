@@ -1,0 +1,13 @@
+Your sign-in link for Clawco
+
+Hi
+
+Here is your link to sign in to Clawco:
+
+{{link}}
+
+The link works once, for {{minutter}} minutes, and only in the browser where you asked for it.
+
+If you did not ask for a link, you can ignore this email. Nothing will happen.
+
+Clawco

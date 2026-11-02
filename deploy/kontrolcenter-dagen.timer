@@ -1,0 +1,12 @@
+# Every morning at 07:05 local time (kira-home runs Europe/Copenhagen), five
+# minutes after Kiras morgenavis cron has written /tmp/avis_data_<date>.json.
+[Unit]
+Description=Kontrolcenter: Dagen bygges kl. 07.05
+
+[Timer]
+OnCalendar=*-*-* 07:05:00
+Persistent=true
+RandomizedDelaySec=0
+
+[Install]
+WantedBy=timers.target

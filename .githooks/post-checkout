@@ -1,0 +1,19 @@
+#!/bin/sh
+# Clear stale framework-generated route/type caches when switching
+# branches, so a build on one branch can't leave typecheck-breaking
+# artifacts for another branch that doesn't have the same routes.
+#
+# No-op in a repo that isn't using this pattern (nothing under
+# apps/*/.next or ./.next).
+#
+# Args: $1 = prev HEAD, $2 = new HEAD, $3 = 1 when this is a branch checkout.
+set -e
+
+[ "$3" = "1" ] || exit 0
+[ "$1" = "$2" ] && exit 0
+
+for d in apps/*/.next/types ./.next/types; do
+  [ -d "$d" ] || continue
+  rm -rf "$d"
+done
+exit 0

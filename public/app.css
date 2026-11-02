@@ -1,0 +1,630 @@
+/* Kontrolcenter — "Rolig kontrol", dark first. Tokens from the design canvas. */
+:root {
+  --ground: #121614; --nav: #0E1210; --surface: #1C211E; --raised: #242A26; --line: #2F3733;
+  --ink: #E8EBE7; --ink-2: #C3C9C4; --muted: #9AA39D; --dashed: #4A534E;
+  --handling: #6CC8E3; --handling-hover: #8ED8EC; --handling-bg: #4FB3D1; --handling-ink: #0B1A1F;
+  --handling-tint: #15303A; --handling-ring: #1F4A58;
+  --kraever-bg: #3A2A12; --kraever: #F0C27A; --kraever-line: #5A4320;
+  --ordnet-bg: #16301F; --ordnet: #8FD0A5; --ordnet-line: #2E5A3C;
+  --graense: #E08A7A; --graense-bg: #3A1D18; --graense-line: #5A2E26;
+  --font: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html { color-scheme: dark; }
+body { margin: 0; background: var(--ground); color: var(--ink); font-family: var(--font); font-size: 14px; line-height: 1.5; }
+a { color: var(--handling); text-decoration: none; } a:hover { color: var(--handling-hover); }
+button, input { font: inherit; }
+h1, h2, h3, p { margin: 0; }
+h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
+h2 { font-size: 16px; font-weight: 600; }
+.eyebrow { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.muted { color: var(--muted); } .mono { font-family: var(--mono); font-size: 12px; }
+
+/* Skeleton: nav · main · aside; stacks at phone width */
+.frame { min-height: 100vh; display: flex; flex-wrap: wrap; }
+nav { flex: 1 1 232px; max-width: 100%; background: var(--nav); border-right: 1px solid var(--line); padding: 20px 14px; display: flex; flex-direction: column; gap: 18px; }
+main { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; }
+aside { flex: 1 1 320px; max-width: 100%; background: var(--nav); border-left: 1px solid var(--line); padding: 20px 16px; display: flex; flex-direction: column; gap: 12px; min-height: 320px; }
+@media (min-width: 1140px) { nav { max-width: 232px; } aside { max-width: 360px; } }
+
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 600; padding: 0 6px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
+.dot-ok { background: var(--ordnet); } .dot-busy { background: var(--ink-2); animation: pulse 1s infinite alternate; } .dot-bad { background: var(--graense); }
+@keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+.rooms { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.rooms a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 0 10px; border-radius: 8px; color: var(--ink-2); font-weight: 500; }
+.rooms a:hover { background: var(--raised); color: var(--ink); }
+.rooms a[aria-current="page"] { background: var(--handling-tint); color: var(--handling); box-shadow: inset 0 0 0 1px var(--handling-ring); }
+.rooms a.unbuilt { color: var(--muted); }
+.rooms-sub { list-style: none; margin: 2px 0 4px; padding: 0 0 0 14px; display: flex; flex-direction: column; gap: 1px; }
+.rooms-sub a { min-height: 32px; font-size: 13px; font-weight: 400; }
+/* KC-0076: an element marked hidden is never shown, whatever its class sets for display. */
+[hidden] { display: none !important; }
+.count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--kraever); color: var(--ground); font-family: var(--mono); font-size: 11px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; }
+.nav-foot { margin-top: auto; display: flex; align-items: center; gap: 6px; color: var(--muted); padding: 0 6px; }
+
+.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--ground); position: sticky; top: 0; z-index: 2; }
+.hermes { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.room { padding: 24px; display: flex; flex-direction: column; gap: 16px; max-width: 960px; width: 100%; }
+.room-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.card-list { padding: 6px; gap: 0; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.card-list .card-head { padding: 10px 12px 6px; }
+.card-list > p.row { padding: 12px; }
+.card-list > .cc-tal { padding: 0 12px 4px; margin: 0; }
+.lines { margin: 0; padding-left: 18px; font-size: 15px; line-height: 1.55; color: var(--ink-2); }
+.lines li + li { margin-top: 4px; }
+.pending { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 10px; background: var(--kraever-bg); color: var(--kraever); border: 1px solid var(--kraever-line); }
+.pending-label { font-weight: 600; flex-shrink: 0; }
+.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--raised); }
+.row-link { color: inherit; } .row-link:hover { background: var(--raised); border-radius: 8px; }
+.row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.row-title { font-weight: 500; } a.row-title { color: var(--ink); } a.row-title:hover { color: var(--handling); }
+.row-note { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.row-note.tilstand-kraever { color: var(--kraever); } /* KC-0143: a bill that waits for a rule says so in the amber of Kræver dig */
+.time { color: var(--muted); width: 72px; flex-shrink: 0; }
+.news { align-items: flex-start; }
+.log-undone .row-title { text-decoration: line-through; color: var(--muted); }
+[data-element], [data-element] .row-title { cursor: default; }
+/* KC-0090: the keyboard's place is always visible (mouse and touch clicks show no ring) */
+:focus-visible { outline: 2px solid var(--handling); outline-offset: 2px; }
+[data-element].is-selected { outline: 1px solid var(--handling-ring); outline-offset: -1px; background: var(--handling-tint); border-radius: 8px; }
+.is-done { opacity: 0.55; }
+
+.chip { padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.chip.tilstand-ordnet { background: var(--ordnet-bg); color: var(--ordnet); border: 1px solid var(--ordnet-line); }
+.chip.tilstand-ordnet { display: inline-flex; align-items: center; gap: 4px; } .chip.tilstand-ordnet .ikon { width: 12px; height: 12px; }
+.chip.tilstand-graense { background: var(--graense-bg); color: var(--graense); border: 1px solid var(--graense-line); }
+.chip.tilstand-handling { background: var(--handling-tint); color: var(--handling); border: 1px solid var(--handling-ring); }
+.chip.tilstand-rolig { background: var(--raised); color: var(--ink-2); }
+.chip-muted { background: var(--raised); color: var(--muted); }
+.kontekst-wrap .chip-accent { background: var(--handling-tint); color: var(--handling); border: 1px solid var(--handling-ring); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+.btn { min-height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: transparent; color: var(--ink); font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.btn:hover { background: var(--raised); }
+.btn-primary { min-height: 40px; padding: 0 16px; border: none; background: var(--handling-bg); color: var(--handling-ink); font-weight: 600; }
+.btn-primary:hover { background: var(--handling-hover); }
+.btn-ghost { border-color: transparent; color: var(--handling); }
+.btn-graense { min-height: 40px; padding: 0 16px; background: var(--graense-bg); color: var(--graense); border-color: var(--graense-line); font-weight: 600; }
+.btn-graense:hover { background: var(--graense-line); }
+.spoerg { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; } .spoerg .ikon { width: 14px; height: 14px; flex-shrink: 0; }
+.btn[disabled] { opacity: 0.5; cursor: progress; }
+/* KC-0151: the booking card's one button names the car, day and time; on a phone it wraps instead of spilling over. */
+.udkast .btn { white-space: normal; padding-top: 8px; padding-bottom: 8px; line-height: 1.3; text-align: center; }
+/* KC-0151: "Tilføj ting" — a quiet disclosure, the owners as a column of checkboxes. KC-0215: the same on a thing's "Ret", with "Fjern" nested. */
+.bil-form summary, .ressource-ret summary { cursor: pointer; }
+.ressource-ret { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 10px; }
+.ressource-ret[open] > summary { margin-bottom: 4px; }
+.ressource-fjern { display: flex; flex-direction: column; gap: 8px; }
+.ressource-fjern > summary { color: var(--graense); }
+.bil-form fieldset, .ressource-ret fieldset { margin: 0; padding: 4px 12px 8px; border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; }
+.bil-form legend, .ressource-ret legend { padding: 0 4px; }
+.field-check { display: flex; align-items: center; gap: 10px; min-height: 36px; color: var(--ink); font-size: 14px; }
+.field-check input { margin: 0; width: 18px; height: 18px; flex: none; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.tile { display: flex; flex-direction: column; gap: 4px; padding: 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--ink); }
+.tile:hover { border-color: var(--handling-ring); color: var(--ink); }
+.tile-unbuilt { border-style: dashed; border-color: var(--dashed); color: var(--muted); }
+.tile-name { font-weight: 600; }
+
+.aside-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.aside-knapper { display: inline-flex; align-items: center; gap: 4px; }
+.chat { flex: 1; min-height: 160px; overflow: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 4px; }
+.msg { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); max-width: 100%; white-space: pre-wrap; word-wrap: break-word; }
+.msg-henrik { background: var(--raised); border-color: var(--line); align-self: flex-end; }
+.msg-time { color: var(--muted); }
+.msg-status { color: var(--muted); font-style: italic; }
+#chat-form { display: flex; gap: 8px; }
+#chat-form input { flex: 1; min-width: 0; min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
+#chat-form input:focus { outline: 1px solid var(--handling-ring); border-color: var(--handling-ring); }
+.toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--raised); border: 1px solid var(--line); color: var(--ink); padding: 10px 14px; border-radius: 10px; z-index: 5; max-width: 90vw; }
+.toast-error { border-color: var(--graense); color: var(--graense); }
+
+/* Mail */
+.tiles-stats { grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
+.tiles-stats .tile { gap: 2px; }
+.stat { font-family: var(--mono); font-size: 26px; font-weight: 500; line-height: 1.1; color: var(--ink); }
+.stack { display: flex; flex-direction: column; gap: 10px; }
+.stack > .card-head { padding: 0 4px; }
+.mail { gap: 10px; }
+.mail-head { display: flex; align-items: flex-start; gap: 10px; }
+.mail-resume { color: var(--ink-2); line-height: 1.5; }
+.chip.tilstand-kraever { background: var(--kraever-bg); color: var(--kraever); border: 1px solid var(--kraever-line); }
+.mail.is-done { opacity: 0.6; }
+
+/* Skrive */
+.doks { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip-btn { cursor: pointer; border: 1px solid var(--line); font: inherit; font-size: 12px; font-weight: 600; }
+.chip-btn:hover { color: var(--ink); background: var(--raised); }
+.dok { gap: 14px; }
+.afsnit-liste { display: flex; flex-direction: column; gap: 6px; }
+.afsnit { padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; }
+.afsnit p { font-size: 15px; line-height: 1.6; }
+.afsnit:hover, .afsnit.is-selected { border-color: var(--line); background: var(--raised); }
+.afsnit.has-forslag { border-left: 3px solid var(--ink-2); }
+.afsnit-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+.actions-small .btn { min-height: 30px; padding: 0 8px; font-size: 12px; }
+.kilder ul { margin: 6px 0 0; padding-left: 18px; color: var(--ink-2); }
+.forslag-ny { font-size: 15px; line-height: 1.6; }
+.nyt-form { gap: 10px; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field input, .field textarea, .field select { min-height: 40px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }
+.field textarea { resize: vertical; }
+.field select { min-height: 44px; } /* KC-0126: a tap target on every screen */
+
+/* KC-0041: Send til Claude Code. 16px text so iOS does not zoom into the field. */
+.cc-dialog { width: min(480px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); }
+.cc-dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
+.cc-dialog form { display: flex; flex-direction: column; gap: 14px; }
+.cc-dialog textarea { font-size: 16px; }
+/* KC-0080: the shortcuts on the laptop (? opens it) */
+.genveje-liste { display: grid; grid-template-columns: auto 1fr; gap: 10px 16px; margin: 0; align-items: baseline; }
+.genveje-liste dd { margin: 0; color: var(--ink-2); }
+.genveje h3 { margin: 4px 0 0; }
+.genveje-sige { margin: 0; padding-left: 18px; color: var(--ink-2); display: grid; gap: 4px; }
+.genveje .row-note { margin: 0; }
+kbd { display: inline-block; min-width: 22px; padding: 2px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--raised); color: var(--ink); font-family: var(--mono); font-size: 12px; text-align: center; }
+.genveje form > .btn { align-self: flex-end; }
+.cc-projekter { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; border: none; }
+.cc-projekter legend { width: 100%; margin-bottom: 6px; padding: 0; }
+.cc-projekt { flex: 1; min-width: 120px; }
+.cc-projekt input { position: absolute; opacity: 0; pointer-events: none; }
+.cc-projekt span { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--ground); color: var(--ink-2); font-weight: 600; cursor: pointer; }
+.cc-projekt input:checked + span { background: var(--handling-tint); border-color: var(--handling-ring); color: var(--handling); }
+.cc-projekt input:focus-visible + span { outline: 2px solid var(--handling); outline-offset: 2px; }
+.cc-row { align-items: flex-start; }
+.cc-row .row-main { overflow-wrap: anywhere; }
+/* KC-0045: Claude Code's question — options as buttons, his own words in one line. */
+.cc-svar-form { display: flex; gap: 8px; margin-top: 10px; }
+.cc-svar-form input { flex: 1; min-width: 0; min-height: 40px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--ground); color: var(--ink); font: inherit; }
+.cc-svar-form input:focus { outline: 1px solid var(--handling-ring); border-color: var(--handling-ring); }
+a.cc-pr { color: var(--handling); }
+.field input:focus, .field textarea:focus, .field select:focus { outline: 1px solid var(--handling-ring); border-color: var(--handling-ring); }
+a.btn { display: inline-flex; align-items: center; color: var(--ink); }
+
+/* Nyheder */
+.baner { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.bane { padding: 6px; }
+.nyhed { align-items: flex-start; }
+.nyhed .actions-small { margin-top: 4px; }
+.kilder-fejl { color: var(--muted); font-size: 12px; }
+
+/* KC-0007: chat always at hand */
+.frame { align-items: flex-start; }
+nav, aside { position: sticky; top: 0; height: 100vh; overflow: auto; }
+.aside-close { display: none; }
+#chat-toggle { display: none; }
+.rum-liste { display: none; } /* KC-0115: the phone's way to the rooms; the laptop has the nav */
+.rum-liste ul { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.rum-liste a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink); text-decoration: none; }
+.rum-liste a[aria-current] { border-color: var(--handling); }
+.kontekst-wrap { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; }
+.chip-x { border: none; background: transparent; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 2px 4px; }
+.chip-x:hover { color: var(--ink); }
+#kontekst-hint { margin-top: -6px; }
+/* KC-0077: suggestions in the empty chat; "Tryk" on a touch screen, "Klik" with a mouse */
+.forslag { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn-forslag { min-height: 36px; padding: 6px 14px; border-radius: 999px; border-color: var(--line); background: var(--surface); color: var(--handling); white-space: normal; text-align: left; }
+.btn-forslag:hover { background: var(--raised); }
+.kun-touch { display: none; }
+@media (pointer: coarse) { .kun-touch { display: inline; } .kun-mus { display: none; } }
+@media (max-width: 1139px) {
+  .frame { flex-direction: column; align-items: stretch; }
+  /* KC-0020: the rooms are a tab bar at the bottom, within thumb reach */
+  nav { position: fixed; top: auto; left: 0; right: 0; bottom: 0; height: auto; flex: none; z-index: 4; flex-direction: row; align-items: stretch; gap: 0; padding: 6px 8px; border-right: none; border-top: 1px solid var(--line); overflow: visible; }
+  .brand { display: none; }
+  .rooms { flex-direction: row; gap: 4px; flex: 1; }
+  .rooms li { flex: 1; min-width: 0; }
+  .rooms-sub { display: none; } /* on the phone the universes are tiles on the Univers page */
+  .rooms a { position: relative; justify-content: center; min-height: var(--tabbar-h); padding: 0 4px; font-size: 13px; white-space: nowrap; }
+  .rooms a .count { position: absolute; top: 2px; right: 2px; min-width: 18px; height: 18px; font-size: 10px; padding: 0 5px; }
+  .nav-foot { display: none; }
+  .top { position: static; }
+  main { flex: none; width: 100%; padding-bottom: 80px; }
+  aside { position: fixed; left: 0; right: 0; bottom: auto; top: calc(var(--vv-top, 0px) + var(--vv-h, 100vh) - var(--sheet-h)); height: var(--sheet-h); flex: none; max-width: none; border-left: none; border-top: 1px solid var(--line); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgba(0,0,0,0.45); transform: translateY(105%); transition: transform 0.2s ease; z-index: 6; }
+  body.chat-open aside { transform: none; }
+  .aside-close { display: inline-flex; align-items: center; }
+  #chat-toggle { display: inline-flex; align-items: center; gap: 8px; position: fixed; right: 16px; bottom: 16px; z-index: 5; min-height: 48px; padding: 0 18px; border-radius: 999px; border: none; background: var(--handling-bg); color: var(--handling-ink); font-weight: 600; cursor: pointer; box-shadow: 0 6px 20px rgba(0,0,0,0.4); }
+  body.chat-open #chat-toggle { display: none; }
+  #chat-toggle .count { background: var(--handling-ink); color: var(--handling-bg); }
+}
+/* selectable elements */
+[data-element] { cursor: pointer; transition: outline-color 0.1s; outline: 1px solid transparent; outline-offset: -1px; border-radius: 10px; }
+[data-element]:hover { outline-color: var(--dashed); }
+[data-element].is-selected { outline: 2px solid var(--handling); outline-offset: -2px; background: var(--handling-tint); }
+[data-element] a, [data-element] button { cursor: pointer; }
+
+/* KC-0008: busy elements and in-place results */
+.is-busy { position: relative; }
+.is-busy > * { filter: blur(2px); opacity: 0.6; pointer-events: none; }
+.is-busy::after { content: attr(data-busy); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; font-weight: 600; color: var(--ink); background: rgba(18,22,20,0.35); border-radius: 10px; filter: none; }
+.resultat { margin-top: 8px; padding: 10px 12px; border-radius: 10px; background: var(--ordnet-bg); border: 1px solid var(--ordnet-line); color: var(--ink); white-space: pre-wrap; line-height: 1.5; }
+.resultat .chip { margin-bottom: 4px; }
+.relevans { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.rel { font-size: 12px; line-height: 1.4; color: var(--ink-2); }
+.rel b { font-weight: 600; margin-right: 4px; padding: 1px 6px; border-radius: 999px; background: var(--raised); color: var(--ink); font-size: 11px; }
+.betydning { font-size: 15px; line-height: 1.55; color: var(--ink); }
+.kladde textarea { width: 100%; font-family: var(--font); font-size: 14px; line-height: 1.5; }
+
+/* KC-0013: queue */
+.koe-btn { position: relative; }
+.koe-panel { margin: 0 24px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.koe-panel .card-head { padding: 10px 12px 6px; }
+.koe-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--raised); }
+.koe-row .row-main { gap: 0; }
+.koe-status { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: var(--raised); color: var(--muted); white-space: nowrap; }
+.koe-status.running { background: var(--raised); color: var(--ink-2); }
+.koe-status.queued { background: var(--kraever-bg); color: var(--kraever); }
+.koe-status.done { background: var(--ordnet-bg); color: var(--ordnet); }
+.koe-status.failed { background: var(--graense-bg); color: var(--graense); }
+/* KC-0124: Stop alt, the pause band and "Hvad Clawco har gjort". */
+.nodstop { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding: 4px 12px 10px; }
+.btn-nodstop { min-height: 40px; padding: 0 18px; background: var(--graense-bg); color: var(--graense); border-color: var(--graense-line); font-weight: 600; }
+.btn-nodstop:hover { background: var(--graense-line); }
+.nodstop .row-note { flex: 1 1 200px; }
+.pause-baand { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 12px 24px 0; padding: 12px 16px; background: var(--surface); border: 1px solid var(--graense-line); border-radius: 14px; color: var(--ink); }
+.pause-baand .pause-tekst { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; }
+.pause-baand strong { color: var(--graense); font-weight: 600; }
+.revision { border-top: 1px solid var(--raised); margin-top: 6px; padding-top: 6px; }
+.revision-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 6px 12px; }
+.revision-head .eyebrow { margin: 0; }
+.revision-head [aria-pressed="true"] { background: var(--raised); border-color: var(--graense-line); color: var(--graense); }
+.revision-liste { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; }
+.revision-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 12px; border-top: 1px solid var(--raised); }
+.revision-row .revision-tid { color: var(--muted); font-size: 12px; white-space: nowrap; min-width: 44px; }
+.revision-row[data-nej] .row-title { color: var(--graense); }
+.revision-indhold[data-kun-nej] .revision-row:not([data-nej]) { display: none; }
+.revision-ingen-nej { display: none; padding: 8px 12px; }
+.revision-indhold[data-kun-nej] .revision-ingen-nej { display: block; }
+.toast a { color: var(--handling); margin-left: 8px; }
+.toast-fortryd { display: flex; align-items: center; gap: 12px; padding: 6px 6px 6px 14px; }
+.uge-note { color: var(--ink-2); line-height: 1.45; }
+.uge-aftaler { display: flex; flex-direction: column; gap: 2px; margin-top: 4px; font-size: 13px; }
+/* KC-0150: a resource's next seven days, one cell per day; a booked day is a plain fact, so the raised neutral surface (blue is only for what you press, KC-0064), and its title says "optaget". */
+.uge-strip { list-style: none; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 8px 0; padding: 0; }
+.strip-dag { text-align: center; font: 600 12px/1 var(--mono); color: var(--muted); padding: 6px 0; border-radius: 6px; border: 1px solid var(--line); }
+.strip-dag.optaget { background: var(--raised); color: var(--ink); border-color: var(--dashed); }
+/* KC-0120: Kilder in the Kø panel — one row per connected source, its state chip, Frakobl (two taps) for the owner. */
+.kilder-panel { border-top: 1px solid var(--raised); margin-top: 6px; }
+.kilder-panel .kilder { background: transparent; border: none; padding: 0; }
+.kilde-row .chip { white-space: nowrap; }
+.kilde-frakobl { min-height: 44px; min-width: 44px; }
+/* KC-0128: Start's connect cards — one source per block, a quiet rule between them. */
+.kilde-valg { gap: 0; }
+.kilde-valg > * + * { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
+.kilde-frakobl[data-bekraeft] { color: var(--graense); border-color: var(--graense-line); background: var(--graense-bg); }
+/* KC-0212: the owner's cost card in the Kø panel — total per month, the paid lines, the free ones in one row. */
+.omkostninger-panel { border-top: 1px solid var(--raised); margin-top: 6px; }
+.omkostninger-panel .omkostninger { background: transparent; border: none; padding: 0; }
+.omkostning-row { min-height: 44px; }
+.omkostning-row .chip { white-space: nowrap; }
+.indstillinger { padding: 10px 12px 12px; border-top: 1px solid var(--raised); display: flex; flex-direction: column; gap: 8px; }
+.indstillinger .field input { max-width: 360px; }
+
+/* KC-0015: stemme — mic wherever you can type, Lyt on decisions, Samtale */
+.top-btns { display: inline-flex; gap: 6px; align-items: center; }
+.mic { display: inline-flex; align-items: center; justify-content: center; width: 40px; min-width: 40px; height: 40px; padding: 0; border-radius: 10px; position: relative; }
+.mic-icon { width: 10px; height: 16px; border-radius: 5px; background: currentColor; position: relative; display: block; }
+.mic-icon::after { content: ""; position: absolute; left: -4px; right: -4px; bottom: -5px; height: 9px; border: 2px solid currentColor; border-top: none; border-radius: 0 0 9px 9px; }
+.mic.is-recording { background: var(--graense); color: var(--ground); border-color: var(--graense); animation: pulse 0.8s infinite alternate; }
+.mic.is-transcribing { color: var(--ink-2); border-color: var(--dashed); }
+.mic-field { align-self: flex-end; margin-top: 4px; }
+.field.has-mic { position: relative; }
+.field.has-mic .mic-field { position: absolute; right: 6px; bottom: 6px; width: 34px; min-width: 34px; height: 34px; opacity: 0.85; }
+.field.has-mic textarea, .field.has-mic input { padding-right: 46px; }
+.kladde { position: relative; }
+.kladde .mic-field { position: absolute; right: 6px; bottom: 6px; width: 34px; min-width: 34px; height: 34px; }
+.lyt { align-self: flex-start; min-height: 30px; padding: 0 10px; font-size: 12px; }
+.actions > .lyt { margin-left: auto; }
+.lyt::before { content: "▶ "; font-size: 10px; }
+.lyt.is-playing { background: var(--handling-tint); color: var(--handling); border-color: var(--handling-ring); }
+.lyt.is-playing::before { content: "■ "; }
+.msg .lyt { margin: 0 0 0 8px; min-height: 22px; padding: 0 6px; font-size: 11px; vertical-align: middle; }
+.samtale-btn.is-live { background: var(--handling-tint); color: var(--handling); box-shadow: inset 0 0 0 1px var(--handling-ring); }
+.samtale-panel { margin: 0 24px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
+.samtale-panel .card-head { padding: 10px 12px 6px; flex-wrap: wrap; }
+.samtale-state { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); font-size: 13px; }
+.samtale-log { max-height: 40vh; overflow: auto; padding: 6px 12px 10px; display: flex; flex-direction: column; gap: 6px; }
+@media (max-width: 1139px) {
+  .samtale-panel, .koe-panel { margin: 0 12px; }
+  .pause-baand { margin: 8px 12px 0; }
+  .mic { width: 48px; min-width: 48px; height: 44px; }
+  .samtale-btn { min-height: 40px; font-weight: 600; }
+}
+
+/* KC-0016: home-screen app — keep clear of the notch, status bar and home indicator (viewport-fit=cover) */
+body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right); }
+@media (max-width: 1139px) {
+  :root { --tabbar-h: 48px; --tabbar: calc(var(--tabbar-h) + 13px + env(safe-area-inset-bottom)); --sheet-h: min(560px, calc(var(--vv-h, 100vh) * 0.85)); }
+  .top { padding-top: calc(14px + env(safe-area-inset-top)); }
+  nav { padding-bottom: calc(6px + env(safe-area-inset-bottom)); }
+  main { padding-bottom: calc(var(--tabbar) + 80px); }
+  aside { padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+  #chat-toggle { bottom: calc(var(--tabbar) + 12px); right: calc(16px + env(safe-area-inset-right)); }
+  /* KC-0073: tucked away while Henrik scrolls down, so it never covers the button he reaches for */
+  #chat-toggle { transition: transform .2s ease, opacity .2s ease; }
+  body.fab-vaek #chat-toggle { transform: translateY(calc(100% + 24px)); opacity: 0; pointer-events: none; }
+  /* KC-0085: a message (and its Fortryd) sits above the tab bar and the Spørg Hermes button, never on them */
+  .toast { bottom: calc(var(--tabbar) + 68px); }
+  /* KC-0021: with the chat open only the chat scrolls; the sheet sits on the visible area (above the keyboard, --vv-* from app.js) */
+  html:has(body.chat-open), body.chat-open { overflow: hidden; }
+  aside, #chat { overscroll-behavior: contain; }
+  /* KC-0065: only the messages scroll, never the sheet too; with the keyboard open the sheet is the whole visible area */
+  aside { overflow: hidden; }
+  #chat { min-height: 0; }
+  .tastatur { --sheet-h: var(--vv-h, 100vh); }
+  .tastatur #kontekst-hint, .tastatur .forslag { display: none; }
+  .btn-forslag { min-height: 44px; }
+  /* iOS zooms the page in when a field under 16px gets focus — then the sheet is wider than the phone and stays zoomed */
+  input, textarea, select { font-size: 16px !important; }
+  /* no row wider than the phone: a row's buttons wrap under it (otherwise the page zooms out) */
+  .row { flex-wrap: wrap; }
+  .row-main { flex: 1 1 140px; }
+}
+
+/* KC-0028: Kuratoren's cards in Hjem ("Lige nu") */
+.kort-liste .card-head { padding: 0 4px; }
+.kort { gap: 10px; }
+.kort-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.kort-head .row-title { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+.kort .betydning, .kort .row-note, .kort .lines { overflow-wrap: anywhere; }
+.kort .row-note a { color: var(--handling); }
+/* "Intet at gøre": folded on every device — the button shows on the laptop too, the content stays hidden until opened */
+.altid-foldet { display: flex; flex-direction: column; }
+.altid-foldet .fold-knap { display: inline-flex; align-self: flex-start; margin: 4px 6px; }
+.altid-foldet .foldbar:not(.is-aaben) { display: none; }
+
+/* KC-0024: telefon-tilstand (a narrow touch screen) — larger text, the room's core first, the rest one tap away (shell/fold.ts) */
+.kun-telefon { display: none; }
+@media (max-width: 1139px) and (pointer: coarse) {
+  /* KC-0115: the phone has one screen, Nu; rooms are reached through the chat (its Rum list, or "jeg vil skrive") */
+  nav { display: none; }
+  :root { --tabbar: 0px; }
+  .rum-liste { display: block; }
+  body { font-size: 16px; }
+  .row-note, .rel, .uge-aftaler, .msg { font-size: 15px; }
+  .row-title { font-weight: 600; }
+  .kun-telefon { display: inline-flex; }
+  .kun-stor { display: none !important; }
+  /* KC-0075: the top is one row — Hermes dot + status (ellipsis) left, Samtale and Kø right; the room name is the headline below */
+  .crumb, .hermes > .muted { display: none; }
+  .top { flex-wrap: nowrap; gap: 8px; padding: calc(8px + env(safe-area-inset-top)) 12px 8px; }
+  .hermes { flex: 1 1 0; min-width: 0; }
+  #hermes-status { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .top-btns { flex-shrink: 0; gap: 2px; }
+  .samtale-btn, .koe-btn { min-height: 44px; padding: 0 10px; }
+  .koe-btn .count { margin-left: 6px; }
+  .foldbar:not(.is-aaben) { display: none; }
+  .fold-knap { align-self: stretch; justify-content: space-between; min-height: 48px; color: var(--ink-2); }
+  .fold-knap::after { content: "▾"; color: var(--muted); }
+  .fold-knap[aria-expanded="true"]::after { content: "▴"; }
+  .card-list .fold-knap { margin: 4px 6px; }
+  .altid-foldet .fold-knap { align-self: stretch; }
+  /* the recommendation: label and Lyt on top, the sentence across the full width */
+  .pending { flex-wrap: wrap; }
+  .pending > span:not(.pending-label) { order: 3; flex: 1 1 100%; }
+}
+
+/* Univers (KC-0038) and Mødet (KC-0030) */
+.uv-tavle { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.uv-kolonne { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--ground); border: 1px solid var(--line); min-width: 0; }
+.uv-opgave { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; border-radius: 10px; background: var(--raised); border: 1px solid var(--line); }
+.uv-moede-kort, .uv-kandidat, .uv-dok { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 12px; background: var(--raised); border: 1px solid var(--line); }
+.uv-forbered { display: flex; flex-direction: column; gap: 8px; }
+.uv-forhaand { width: 100%; height: 320px; border: 1px solid var(--line); border-radius: 10px; background: var(--ground); }
+.uv-moedevisning { display: grid; grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr); gap: 16px; align-items: start; }
+.uv-moedehoved { display: flex; flex-direction: column; gap: 6px; padding: 14px 16px; border-radius: 12px; }
+.uv-maal { font-size: 18px; font-weight: 600; color: var(--ink); }
+.uv-slides, .uv-side { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.uv-praesentation { width: 100%; height: min(72vh, 760px); border: 1px solid var(--line); border-radius: 12px; background: var(--ground); }
+.uv-deltager { display: flex; flex-direction: column; gap: 2px; }
+.uv-situation-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 16px; background: var(--raised); border-bottom: 1px solid var(--line); color: var(--ink); }
+@media (max-width: 1139px) {
+  .uv-tavle { grid-template-columns: 1fr; }
+  .uv-moedevisning { grid-template-columns: 1fr; }
+  .uv-moedevisning .uv-side { order: -1; }
+  .uv-praesentation { height: 70vh; }
+}
+.cc-anbefalet { align-self: center; }
+
+/* KC-0059: the visual layer — pictogram, one headline, a picture; the rest behind Hvorfor? (src/shell/visuel.ts) */
+.ikon { width: 18px; height: 18px; flex-shrink: 0; vertical-align: -3px; }
+.vis-hoved { display: flex; align-items: center; gap: 14px; }
+.vis-ikon { width: 56px; height: 56px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--raised); color: var(--ink-2); }
+.vis-ikon .ikon { width: 30px; height: 30px; }
+.vis-ikon.tilstand-kraever { background: var(--kraever-bg); color: var(--kraever); box-shadow: inset 0 0 0 1px var(--kraever-line); }
+.vis-ikon.tilstand-ordnet { background: var(--ordnet-bg); color: var(--ordnet); box-shadow: inset 0 0 0 1px var(--ordnet-line); }
+.vis-ikon.tilstand-graense { background: var(--graense-bg); color: var(--graense); box-shadow: inset 0 0 0 1px var(--graense-line); }
+.vis-ikon.tilstand-rolig { background: var(--raised); color: var(--ink-2); box-shadow: none; }
+.vis-titel { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vis-etiket { font-size: 11px; font-weight: 600; color: var(--muted); letter-spacing: 0.05em; text-transform: uppercase; }
+.vis-overskrift { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.2; color: var(--ink); }
+.vis-smaa { margin-left: auto; display: inline-flex; gap: 2px; }
+.vis-smaa .btn { min-height: 32px; padding: 0 10px; } .vis-smaa .btn:not(.spoerg) { color: var(--muted); } .vis-smaa .btn-primary:not(.spoerg) { color: var(--handling-ink); } /* KC-0129: Gem in a pile line stays readable */
+/* KC-0096: the two choices of Senere, in the card itself; hidden until the quiet Senere button is pressed. */
+.senere-valg { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.senere-valg[hidden] { display: none; }
+.vis-mere { border-top: 1px solid var(--line); padding-top: 8px; }
+.vis-mere > summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--muted); font-size: 13px; min-height: 28px; }
+.vis-mere > summary::-webkit-details-marker { display: none; }
+.vis-mere > summary:hover, .vis-mere[open] > summary { color: var(--handling); }
+.vis-mere > summary .ikon { width: 15px; height: 15px; }
+.vis-mere-indhold { display: flex; flex-direction: column; gap: 10px; padding-top: 8px; }
+.kort { gap: 14px; }
+
+/* Pictures */
+.dagslinje { padding: 2px 0 0; }
+.dl-spor { position: relative; height: 46px; border-radius: 12px; background: var(--raised); box-shadow: inset 0 0 0 1px var(--line); }
+.zone { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; color: var(--ink-2); }
+.zone .ikon { width: 16px; height: 16px; opacity: 0.85; }
+.zone-regn { background: repeating-linear-gradient(115deg, rgba(195, 201, 196, 0.22) 0 6px, rgba(195, 201, 196, 0.07) 6px 12px); box-shadow: inset 0 0 0 1px var(--line); }
+.zone-sol { background: rgba(195, 201, 196, 0.12); color: var(--ink-2); }
+.zone-optaget { background: rgba(154, 163, 157, 0.16); }
+.zone-fri { background: rgba(143, 208, 165, 0.14); color: var(--ordnet); }
+.punkt, .punkt-spoegelse { position: absolute; top: 50%; transform: translate(-50%, -50%); width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.punkt { background: var(--handling-bg); color: var(--handling-ink); box-shadow: 0 0 0 3px var(--surface); z-index: 1; }
+.punkt .ikon { width: 18px; height: 18px; }
+.punkt-tekst { position: absolute; top: calc(100% + 9px); left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: 12px; font-weight: 600; color: var(--ink); }
+.punkt-spoegelse { border: 1.5px dashed var(--muted); background: var(--surface); color: var(--muted); }
+.punkt-spoegelse .ikon { width: 16px; height: 16px; }
+.dl-skala { position: relative; height: 16px; margin-top: 28px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.dl-skala span { position: absolute; transform: translateX(-50%); }
+.beloeb { display: flex; flex-direction: column; gap: 8px; --tone: var(--ordnet); }
+.beloeb.tilstand-kraever { --tone: var(--kraever); }
+.bl-tal { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.bl-vaerdi { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; }
+.bl-dom { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--tone); }
+.bl-spor { position: relative; height: 10px; border-radius: 5px; background: var(--raised); }
+.bl-fyld { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; background: var(--tone); }
+.bl-graense { position: absolute; top: -5px; bottom: -5px; width: 2px; margin-left: -1px; background: var(--ink); border-radius: 1px; }
+.bl-noter { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+.nedtaelling { display: flex; align-items: center; gap: 16px; }
+.nedtaelling svg { width: 76px; height: 76px; flex-shrink: 0; }
+.nt-spor { fill: none; stroke: var(--raised); stroke-width: 7; }
+.nt-fyld { fill: none; stroke: var(--kraever); stroke-width: 7; stroke-linecap: round; }
+.nedtaelling text { fill: var(--ink); font: 700 21px var(--font); }
+.nt-tekst { display: flex; flex-direction: column; font-size: 19px; font-weight: 650; }
+.nt-enhed { font-size: 12px; font-weight: 500; color: var(--muted); }
+.uge { display: flex; gap: 6px; }
+.uge-dag { flex: 1 1 0; min-width: 0; max-width: 56px; padding: 8px 0; border-radius: 12px; background: var(--raised); display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 600; }
+.uge-dag.fri { background: var(--ordnet-bg); color: var(--ordnet); }
+.uge-dag.valgt { box-shadow: 0 0 0 2px var(--ordnet); }
+.uge-streg { width: 16px; height: 3px; border-radius: 2px; background: var(--dashed); margin: 7px 0; }
+.prikker { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pk-raekke { display: inline-flex; gap: 5px; flex-wrap: wrap; }
+.prik { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--dashed); }
+.prik.fyldt { background: var(--handling); border-color: var(--handling); }
+.pk-tekst { color: var(--muted); font-weight: 600; }
+.personer { display: flex; gap: 16px; flex-wrap: wrap; }
+.person { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; }
+.avatar { width: 46px; height: 46px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-weight: 650; font-size: 15px; background: hsl(var(--hue) 38% 28%); color: hsl(var(--hue) 70% 86%); box-shadow: inset 0 0 0 1px hsl(var(--hue) 40% 40%); flex-shrink: 0; }
+.person-navn { font-size: 13px; font-weight: 600; }
+.person-rolle { font-size: 11px; color: var(--muted); }
+.rum-ikon { width: 32px; height: 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--raised); color: var(--ink-2); }
+.row-link .rum-ikon { margin-right: 2px; }
+.tile .rum-ikon { margin-bottom: 6px; }
+.tile-ikon { display: inline-flex; color: var(--ink-2); margin-bottom: 4px; }
+.tile-ikon .ikon { width: 22px; height: 22px; }
+.mail-faerdig { display: flex; align-items: center; gap: 12px; }
+.mail-faerdig .chip { flex-shrink: 0; }
+.mail-faerdig .row-main { min-width: 0; }
+.mail-faerdig .row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-faerdig .spoerg { margin-left: auto; }
+.mail.is-done { padding: 12px 14px; opacity: 0.85; }
+.dagen-overblik { gap: 16px; }
+.kal-ikon { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; background: var(--raised); color: var(--ink-2); }
+.kal-ikon .ikon { width: 16px; height: 16px; }
+.vejr-ikon { display: inline-flex; color: var(--ink-2); margin-right: 4px; }
+.vejr-ikon .ikon { width: 16px; height: 16px; }
+.vis-mere-indhold .spoerg { align-self: flex-start; }
+.dagslinje.taet { padding-top: 66px; }
+/* KC-0074: the upper lane lifts icon AND label clear of the lower lane's icons (34 px + 4 px gap). */
+.punkt-op { transform: translate(-50%, calc(-50% - 38px)); }
+.punkt-op .punkt-tekst { top: auto; bottom: calc(100% + 6px); }
+.dl-nu { position: absolute; top: -6px; bottom: -6px; width: 2px; margin-left: -1px; background: var(--ink); border-radius: 1px; z-index: 2; }
+.dl-nu span { position: absolute; bottom: calc(100% + 1px); left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 10px; font-weight: 600; color: var(--ink); }
+.tp-ikon { width: 26px; height: 26px; border-radius: 8px; flex: none; }
+.tp-ikon .ikon { width: 15px; height: 15px; }
+.tp-tekst { flex: 1; min-width: 0; }
+.uv-moedevisning ol.lines, .uv-moede-kort ol.lines { list-style: none; padding-left: 0; }
+.uv-moedevisning ol.lines > li, .uv-moede-kort ol.lines > li { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.uv-moedevisning ol.lines > li + li, .uv-moede-kort ol.lines > li + li { margin-top: 8px; }
+.uv-maal { margin: 4px 0; }
+.uv-deltager { display: flex; flex-direction: row; flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+.uv-deltager .row-main, .uv-moedevisning .uv-deltager .row-main { flex: 1 1 160px; min-width: 0; }
+.uv-deltager .avatar { margin-top: 2px; }
+.beloeb.tilstand-kraever .bl-fyld { background: var(--dashed); }
+.bl-over { position: absolute; top: 0; bottom: 0; background: var(--kraever); border-radius: 0 5px 5px 0; }
+.vis-mere + .vis-mere { border-top: none; padding-top: 0; }
+@media (max-width: 600px) { .zone .ikon { display: none; } }
+
+/* KC-0064 phase 2: the three bands and the count line */
+.taellelinje { margin: 0; font-size: 13px; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: 0 6px; }
+.taellelinje .tilstand-kraever { color: var(--kraever); font-weight: 600; }
+.baand, .baand-indhold { display: flex; flex-direction: column; gap: 16px; }
+.baand-titel { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
+.baand-ordnet .foldbar.is-aaben { display: flex; flex-direction: column; gap: 16px; }
+/* KC-0064 rule 6: at most one large element per room view — the recommended card (Hjem) or the overblik (Dagen) */
+.kort-stor { border-color: var(--kraever-line); }
+.kort-stor .vis-overskrift { font-size: 26px; }
+@media (max-width: 600px) { .kort-stor .vis-overskrift { font-size: 22px; } }
+/* KC-0064 phase 3 (rule 5): a new element carries a kraever dot until it has been half in view for 2 s,
+   then the dot fades (is-set); a changed element gets a short handling ring. :where() keeps an
+   element's own position (e.g. absolute) in charge. */
+:where(.is-ny, .is-set) { position: relative; }
+.is-ny::before, .is-set::before { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--kraever); pointer-events: none; transition: opacity 0.4s; }
+.is-set::before { opacity: 0; }
+.is-endret { box-shadow: 0 0 0 2px var(--handling-ring); animation: endret 1.5s ease-out forwards; }
+@keyframes endret { to { box-shadow: 0 0 0 2px transparent; } }
+@media (prefers-reduced-motion: reduce) {
+  .is-ny::before, .is-set::before { transition: none; }
+  .is-set::before { display: none; }
+  .is-endret { animation: none; }
+  #chat-toggle { transition: none; }
+}
+
+/* KC-0068: the test switch in the Kø panel */
+.test-skift { padding: 10px 12px 12px; border-top: 1px solid var(--raised); display: flex; flex-direction: column; gap: 8px; }
+/* KC-0116: the household in the Kø panel (only with two or more persons). */
+.husstand-liste { padding: 10px 12px 12px; border-top: 1px solid var(--raised); display: flex; flex-direction: column; gap: 8px; }
+.husstand { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+
+/* KC-0078: freshness of a built room, quiet; older than today uses the amber "kræver" ink. */
+.friskhed { white-space: nowrap; }
+.friskhed-gammel { color: var(--kraever); }
+
+/* KC-0088: Hjem's next appointment under the greeting; quiet ink only (blue is for what you press). */
+.naeste { margin-top: 6px; font-size: 15px; color: var(--ink-2); }
+.naeste[hidden] { display: none; }
+.naeste-titel { color: var(--ink); font-weight: 600; }
+.naeste-om { font-variant-numeric: tabular-nums; }
+
+/* KC-0072: the calm band while Kontrolcenter cannot be reached; it goes away by itself. */
+.forbindelse-baand { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 10px); transform: translateX(-50%); z-index: 60; max-width: calc(100vw - 32px); background: var(--raised); border: 1px solid var(--line); color: var(--ink); padding: 10px 16px; border-radius: 999px; font-size: 14px; box-shadow: 0 6px 24px rgba(0, 0, 0, .35); }
+
+/* KC-0097: the group button of Mail (Færdig med de N til orientering): full width, 44 px on any device. */
+.gruppe-alle .btn { width: 100%; min-height: 44px; }
+
+/* KC-0086: on a phone every tap target is at least 44 px tall, buttons and icons 44 wide. Last in the file so it wins
+   over the component rules above (same or higher specificity are listed one by one). The laptop keeps its compact controls.
+   Inline links in running text (chat answers, results, toasts) keep their line height: a link inside a sentence is
+   exempt from the 44 px target (WCAG 2.5.8 inline exception), and padding it would break the line. */
+@media (pointer: coarse) and (max-width: 1139px) {
+  button, .btn, .chip-btn, .lyt, .msg .lyt, .actions-small .btn, .vis-smaa .btn { min-height: 44px; min-width: 44px; }
+  .btn, .chip-btn { display: inline-flex; align-items: center; justify-content: center; }
+  .vis-mere > summary { min-height: 44px; }
+  select, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), #chat-form input, .field input, .cc-svar-form input { min-height: 44px; }
+  /* a news title is a link on its own line, not part of a sentence */
+  a.row-title { display: block; min-height: 44px; padding: 10px 0; box-sizing: border-box; }
+  /* mic inside a text field: a 44 px box in the corner, the text keeps clear of it */
+  .field.has-mic .mic-field, .kladde .mic-field { width: 44px; min-width: 44px; height: 44px; right: 4px; bottom: 2px; }
+  .field.has-mic textarea, .field.has-mic input { padding-right: 56px; }
+  /* the x on the chat context chip: a 44 px box that overlaps its chip instead of making the chip tall */
+  .chip-x { min-width: 44px; min-height: 44px; margin: -14px -10px -14px -6px; }
+}
+
+/* KC-0117: the data-zone chip, only when the room has more than one zone in play (src/shell/zone.ts). */
+.zone-chip { display: none; }
+.room:has([data-datazone="privat"]):has([data-datazone="arbejde"]) .zone-chip,
+.room:has([data-datazone="privat"]):has([data-datazone="husstand"]) .zone-chip,
+.room:has([data-datazone="arbejde"]):has([data-datazone="husstand"]) .zone-chip { display: inline-flex; }
+
+/* KC-0147: the week's number — one line in Nu (Mondays) and on "Hvad Clawco ved om dig", plus eight bars there. */
+.ugetal { margin: 0 0 14px; }
+.ugetal-linje { margin: 0; font-size: 15px; line-height: 1.45; color: var(--ink); }
+.ugetal .row-note { margin: 6px 0 0; }
+.ugetal-soejler { margin: 12px 0 0; max-width: 360px; }
+.ugetal-soejler svg { display: block; width: 100%; height: auto; }
+.ugetal-soejle { fill: var(--ink-2); opacity: .4; } /* neutral: blue is only for what you press */
+.ugetal-soejle.ugetal-nu { opacity: 1; }
+.ugetal-soejle.ugetal-tom { fill: var(--dashed); opacity: 1; }
+.ugetal-nr { fill: var(--muted); font-family: var(--mono); font-size: 8px; }
+.ugetal-soejler figcaption { margin-top: 6px; }
+/* On a phone it is one line, no chart (the text alternative goes with the figure). */
+@media (max-width: 600px) { .ugetal-soejler { display: none; } .ugetal-linje { font-size: 14px; } }

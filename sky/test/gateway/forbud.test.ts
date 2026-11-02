@@ -1,0 +1,61 @@
+// KC-0183: what the gateway never does — forward /health or /_sky/, pass identity or our cookie inbound, let a
+// tenant set our cookie, or log a path, query string, cookie, header or body (AGENTS §0, D16).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { aldrigVidere, rensInd, rensUd, logLinje } from '../../src/gateway/forbud.ts';
+import { udstedToken } from '../../src/gateway/cookie.ts';
+import { laesGatewayNoegle } from '../../src/gateway/noegle.ts';
+import { ruteTabel } from '../../src/gateway/rute.ts';
+import { FROE, opsaet } from './hjaelp.ts';
+import { anmod, falskTenant, startGateway } from './net.ts';
+
+test('aldrigVidere: /health and /_sky in every spelling; ordinary paths pass', () => {
+  for (const s of ['/health', '/health/', '//health', '/%68ealth', '/HEALTH', '/_sky', '/_sky/', '/_sky/faa', '/%5fsky/x', '/x/../health']) assert.equal(aldrigVidere(s), true, s);
+  for (const s of ['/', '/rum/mail', '/healthy', '/api/health', '/_skyx']) assert.equal(aldrigVidere(s), false, s);
+});
+
+test('rensInd strips identity, forwarding, Cloudflare and hop-by-hop headers and our cookie; keeps the rest', () => {
+  const ud = rensInd({
+    host: 'h', accept: 'text/html', 'content-type': 'a/b', 'content-length': '3', 'last-event-id': '7',
+    'clawco-konto': 'x', 'tailscale-user-login': 'x', 'x-forwarded-for': 'x', 'x-forwarded-proto': 'x', forwarded: 'x', 'x-real-ip': 'x',
+    'true-client-ip': 'x', 'cf-connecting-ip': 'x', 'cf-ray': 'x', 'cdn-loop': 'x', connection: 'keep-alive, x-hemmelig', 'x-hemmelig': 'x',
+    'keep-alive': 'x', 'proxy-authorization': 'x', te: 'x', trailer: 'x', 'transfer-encoding': 'chunked', upgrade: 'x',
+    cookie: '__Host-clawco=t; a=1',
+  });
+  assert.deepEqual(ud, { host: 'h', accept: 'text/html', 'content-type': 'a/b', 'content-length': '3', 'last-event-id': '7', cookie: 'a=1' });
+});
+
+test('rensUd drops hop-by-hop headers and any Set-Cookie of our cookie, keeps content and cache headers', () => {
+  const ud = rensUd({
+    'content-type': 'text/event-stream', 'cache-control': 'no-cache', etag: '"x"', connection: 'close', 'transfer-encoding': 'chunked', 'keep-alive': 'x',
+    'set-cookie': ['__Host-clawco=x; Path=/', 'a=1'],
+  });
+  assert.deepEqual(ud, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', etag: '"x"', 'set-cookie': ['a=1'] });
+});
+
+test('logLinje has method, slug, status, duration and konto id only', () => {
+  assert.equal(logLinje({ metode: 'GET', slug: 'hus-abcdefgh', status: 200, ms: 12.6, konto: 4 }), 'gateway: GET hus-abcdefgh 200 13ms konto=4');
+  assert.equal(logLinje({ metode: 'POST', slug: 'hus-abcdefgh', status: 302, ms: 1, konto: null }), 'gateway: POST hus-abcdefgh 302 1ms konto=-');
+  assert.equal(logLinje({ metode: 'GET\nfalsk', slug: 'hus-abcdefgh', status: 200, ms: 1, konto: 1 }), 'gateway: ? hus-abcdefgh 200 1ms konto=1');
+});
+
+test('real requests leave log lines with no path, query string, cookie, header or body', async () => {
+  const t = await falskTenant();
+  const o = await opsaet(t.adresse);
+  const log: string[] = [];
+  const noegle = laesGatewayNoegle({ SKY_GATEWAY_SIGNERINGSNOEGLE: FROE }, null).noegle!;
+  const gw = await startGateway({ db: o.db, publicUrl: 'https://konto.eksempel.test', basedomain: 'eksempel.test', noegle, ruter: ruteTabel({ db: o.db }), samtykkeOk: async () => true, log: (s) => log.push(s), nu: o.ur.nu });
+  try {
+    const token = udstedToken(noegle.cookie, { t: o.slug, k: o.ejer.id, s: o.ejer.sessionId, e: o.ejer.email }, o.ur.nu());
+    const host = `${o.slug}.eksempel.test`;
+    await anmod(gw.port, { host, sti: '/rum/hemmelig-sti?q=hemmelig-query', metode: 'POST', krop: 'hemmelig-krop', headers: { cookie: `__Host-clawco=${token}; andet=hemmelig-cookie`, 'x-hemmelig': 'hemmelig-header' } });
+    await anmod(gw.port, { host, sti: '/rum/hemmelig-sti?q=hemmelig-query' });
+    await anmod(gw.port, { host, sti: '/_sky/faa?kode=hemmelig-kode' });
+    assert.equal(log.length, 3);
+    for (const l of log) {
+      assert.match(l, /^gateway: (GET|POST) hus-abcdefgh \d{3} \d+ms konto=(\d+|-)$/);
+      for (const naal of ['hemmelig', token, 'rum', '?', o.ejer.email]) assert.ok(!l.includes(naal), `${naal} in ${l}`);
+    }
+    assert.match(log[0]!, / 200 .*konto=\d+$/);
+  } finally { await gw.luk(); await t.luk(); await o.db.close(); }
+});

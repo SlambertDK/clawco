@@ -1,0 +1,17 @@
+# The image gets only what the app runs on (KC-0157): everything is out unless named below,
+# so a new file in the repo (a .env, a data folder, docs) never slips into an image.
+*
+!package.json
+!package-lock.json
+!src/
+!public/
+!config/
+# The scripted agent's mail fixtures (KC_AGENT=fake); the rest of test/ stays out.
+!test/fixtures/
+# Never, even inside an allowed folder:
+**/.env*
+**/node_modules
+# The tenant image (KC-0157) never gets the control plane's code or secrets (KC-0176).
+sky/
+# The operator's cost ledger (KC-0212) is Henrik's, never a customer's: no owner card in a tenant.
+config/omkostninger.json

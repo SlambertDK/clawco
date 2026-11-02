@@ -1,0 +1,15 @@
+{{inviterer}} invites you to {{husstand}} on Clawco
+
+Hi
+
+{{inviterer}} has invited you to the household {{husstand}} on Clawco.
+
+Accept the invitation here:
+
+{{link}}
+
+The link works for {{dage}} days and only for this email address. You sign in with a passkey or a link by email; there is no password.
+
+If you do not know the sender, you can ignore this email.
+
+Clawco

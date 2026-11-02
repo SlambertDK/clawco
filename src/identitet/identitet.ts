@@ -1,0 +1,98 @@
+// Who is looking (KC-0116, spec D2): the tailnet identity Tailscale Serve puts
+// on the request, mapped to a person in the household — or the implicit owner
+// in single-user mode. Pure: the caller supplies the headers, the TCP peer and
+// the household.
+//
+// Invariant: the person comes only from a verified header (loopback peer, i.e.
+// Tailscale Serve on this machine; or, under KC_IDENTITET=konto, the Sky
+// gateway's signature, KC-0179) or from single-user mode — never from a
+// cookie, query string or body the client controls.
+
+import type { Husstand, Person } from './husstand.ts';
+import { verificerKonto, type KontoIndstilling } from './konto.ts';
+
+export type { Person } from './husstand.ts';
+/** `log` (konto only): which check failed, for the server log; never shown, never the header value. */
+export type AfvistAdgang = { afvist: 401 | 403 | 503; hvorfor: string; log?: string };
+export type Anmodning = { headers: Headers; peer: string | undefined };
+
+/** The one person of a single-user install (dev, a laptop without Tailscale). */
+export const ENEBRUGER: Person = { id: 'ejer', login: null, navn: 'Ejer', rolle: 'ejer' };
+
+/** Nobody: who a lost request context resolves to. A guest without ejer — sees no privat or arbejde element. */
+export const INGEN: Person = { id: 'ingen', login: null, navn: 'Ingen', rolle: 'gaest' };
+
+export const erAfvist = (x: Person | AfvistAdgang): x is AfvistAdgang => 'afvist' in x;
+
+/** 127.0.0.0/8, ::1 and their IPv4-mapped form. */
+export function erLoopback(peer: string | undefined): boolean {
+  if (!peer) return false;
+  const p = peer.toLowerCase().replace(/^::ffff:/, '');
+  return p === '::1' || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(p);
+}
+
+/** Public Funnel traffic: Clawco is never public. */
+export const erFunnel = (h: Headers): boolean => h.has('tailscale-funnel-request');
+
+const AFVIST_FUNNEL: AfvistAdgang = { afvist: 403, hvorfor: 'Clawco kan kun åbnes fra dit eget Tailscale-net, ikke fra internettet.' };
+const AFVIST_UKENDT: AfvistAdgang = { afvist: 401, hvorfor: 'Clawco ved ikke, hvem du er. Åbn siden over Tailscale fra din egen enhed.' };
+const AFVIST_FREMMED: AfvistAdgang = { afvist: 403, hvorfor: 'Du er ikke med i husstanden her. Bed ejeren om en invitation.' };
+/** A household file that exists but cannot be read, or (konto) no household at all: nobody can be told apart. */
+export const HUSSTAND_ULAESELIG = 'Husstanden kunne ikke læses, så Clawco ved ikke, hvem du er. Ejeren skal rette husstand.json.';
+// Konto: the same wording as the tailnet refusals, without the Tailscale hint (Sky has none).
+const KONTO_UKENDT = 'Clawco ved ikke, hvem du er.';
+
+/** The household member with this login (case and surrounding space ignored). */
+const medLogin = (personer: Person[], login: string): Person | undefined => {
+  const l = login.trim().toLowerCase();
+  return l ? personer.find((p) => p.login?.trim().toLowerCase() === l) : undefined;
+};
+
+export function hvemKigger(a: Anmodning, husstand: Husstand | null): Person | AfvistAdgang {
+  if (erFunnel(a.headers)) return AFVIST_FUNNEL;
+  const login = erLoopback(a.peer) ? (a.headers.get('tailscale-user-login') ?? '').trim().toLowerCase() : '';
+  const personer = husstand?.personer ?? [];
+  if (personer.length === 0) return ENEBRUGER;
+  const hit = medLogin(personer, login);
+  if (hit) return hit;
+  if (login) return AFVIST_FREMMED;
+  if (personer.length === 1 && personer[0]) return personer[0];
+  return AFVIST_UKENDT;
+}
+
+/**
+ * KC-0179: who is looking under KC_IDENTITET=konto. Only the gateway's signature counts (konto.ts); every
+ * Tailscale header is ignored, and there is no single-user mode: without a household nobody is the owner.
+ */
+export function hvemKontoKigger(a: Anmodning, husstand: Husstand | null, k: KontoIndstilling, nuSek: number): Person | AfvistAdgang {
+  const v = verificerKonto(a, k, nuSek);
+  if (!v.ok) return { afvist: 401, hvorfor: KONTO_UKENDT, log: `konto afvist: ${v.grund}` };
+  const personer = husstand?.personer ?? [];
+  if (personer.length === 0) return { afvist: 503, hvorfor: HUSSTAND_ULAESELIG, log: 'konto: ingen husstand' };
+  return medLogin(personer, v.email) ?? { ...AFVIST_FREMMED, log: 'konto: e-mailen er ikke i husstanden' };
+}
+
+export type Kigger = (a: Anmodning, husstand: Husstand | null) => Person | AfvistAdgang;
+/** Which provider the app runs: a fixed person (the test world), konto (Sky), else the tailnet. */
+export type Identitetsvalg = { fast: Person } | { konto: KontoIndstilling };
+
+export function vaelgKigger(valg: Identitetsvalg | undefined, nu: () => Date): Kigger {
+  if (!valg) return hvemKigger;
+  // A fixed person (the test world) still never answers Funnel traffic.
+  if ('fast' in valg) return (a) => (erFunnel(a.headers) ? AFVIST_FUNNEL : valg.fast);
+  return (a, husstand) => hvemKontoKigger(a, husstand, valg.konto, Math.floor(nu().getTime() / 1000));
+}
+
+/** The TCP peer from @hono/node-server's bindings (the env of a request); undefined without them. */
+export function peerAf(env: unknown): string | undefined {
+  return (env as { incoming?: { socket?: { remoteAddress?: string } } } | undefined)?.incoming?.socket?.remoteAddress;
+}
+
+type Henter = { fetch: (r: Request, env?: unknown) => Response | Promise<Response> };
+/**
+ * KC-0179: in konto mode only a request with a valid signature reaches `signeret` (the testtilstand dispatcher,
+ * whose test world answers by cookie alone); everything else goes straight to `ellers` (the app), which refuses it.
+ */
+export function kunSigneret(k: KontoIndstilling, nu: () => Date, signeret: Henter, ellers: Henter): (r: Request, env?: unknown) => Response | Promise<Response> {
+  return (r, env) => (verificerKonto({ headers: r.headers, peer: peerAf(env) }, k, Math.floor(nu().getTime() / 1000)).ok ? signeret : ellers).fetch(r, env);
+}

@@ -1,0 +1,15 @@
+{{inviterer}} inviterer dig til {{husstand}} på Clawco
+
+Hej
+
+{{inviterer}} har inviteret dig til husstanden {{husstand}} på Clawco.
+
+Tag imod invitationen her:
+
+{{link}}
+
+Linket virker i {{dage}} dage og kun for denne mailadresse. Du logger ind med en passkey eller et link på mail; der er ingen adgangskode.
+
+Kender du ikke afsenderen, kan du se bort fra denne mail.
+
+Clawco

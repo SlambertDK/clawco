@@ -1,0 +1,37 @@
+{
+  "name": "clawco",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clawco: hvert svar fra din agent lander som et element i et rum, du kan handle på.",
+  "license": "AGPL-3.0-only",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "dev": "KC_AGENT=${KC_AGENT:-fake} KC_KILDER_MODE=fake KC_DATA_DIR=./data node --watch src/server.ts",
+    "start": "node --env-file-if-exists=.env src/server.ts",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p sky",
+    "test": "node --test 'test/**/*.test.ts' && npm --prefix sky test && node scripts/tickets/check.mjs",
+    "sky:test": "npm --prefix sky test",
+    "stripe:opsaet": "npm --prefix sky run --silent stripe:opsaet --",
+    "tickets:new": "node scripts/tickets/new.mjs",
+    "tickets:check": "node scripts/tickets/check.mjs",
+    "hemmeligheder": "node --env-file-if-exists=.env scripts/hemmeligheder.mjs",
+    "live:tjek": "node scripts/live-tjek.mjs",
+    "koldstart": "node --test test/testtilstand/koldstart.test.ts",
+    "docker:tjek": "node scripts/docker-tjek.mjs"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.5",
+    "fast-xml-parser": "5.11.2",
+    "hono": "4.13.14",
+    "imapflow": "2.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "linkedom": "0.18.14",
+    "playwright-core": "1.59.1",
+    "typescript": "^5.9.3"
+  }
+}

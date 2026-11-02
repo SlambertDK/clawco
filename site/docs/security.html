@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i="sec.meta.title">What Clawco promises about security</title>
+<meta name="description" content="What Clawco refuses to do, how it is reached, where your data lives, and what this website does and does not do." data-i-attr="content:sec.meta.description">
+<link rel="canonical" href="https://clawco.work/docs/security">
+<link rel="alternate" hreflang="en" href="https://clawco.work/docs/security">
+<link rel="alternate" hreflang="da" href="https://clawco.work/docs/security?lang=da">
+<link rel="alternate" hreflang="x-default" href="https://clawco.work/docs/security">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121614">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Clawco">
+<meta property="og:url" content="https://clawco.work/docs/security">
+<meta property="og:title" content="What Clawco promises about security" data-i-attr="content:sec.meta.title">
+<meta property="og:description" content="What Clawco refuses to do, how it is reached, where your data lives, and what this website does and does not do." data-i-attr="content:sec.meta.description">
+<meta property="og:image" content="https://clawco.work/billeder/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/strings.js" defer></script>
+<script src="/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i="c.skip">Skip to content</a>
+<header class="top">
+<div class="wrap bar">
+<a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Clawco</a>
+<nav aria-label="Main" data-i-attr="aria-label:c.nav.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a class="hide-sm" href="/docs/security" data-i="c.nav.security">Security</a>
+</nav>
+<button type="button" class="lang" data-lang-toggle aria-label="Switch language to Danish" data-i="c.lang" data-i-attr="aria-label:c.lang.label">Dansk</button>
+</div>
+</header>
+<main id="main">
+<article class="page">
+<div class="wrap narrow">
+<h1 data-i="sec.h1">Security promise</h1>
+<h2 data-i="sec.three.h">In three sentences</h2>
+<p class="lead" data-i="sec.three.p">Clawco never pays. It never messages another person and never deletes anything without your own tap on yes, and a voice command cannot give that yes. Everything it does is written to a log, with the way to undo it when there is one.</p>
+<!-- TODO(KC-0165): the final security text and the references to the tests behind each promise replace the paragraph below. -->
+<h2 data-i="sec.how.h">How it is enforced</h2>
+<p data-i="sec.how.p">Every action passes one decision step before anything runs. The kind of action comes from the app, never from the model, so what a model writes can add a refusal but cannot lift one.</p>
+<h2 data-i="sec.reach.h">How it is reached</h2>
+<p data-i="sec.reach.p">By default Clawco listens on 127.0.0.1, the machine it runs on. You can add your own tailnet. Requests that arrive through Tailscale Funnel are refused.</p>
+<h2 data-i="sec.data.h">Where your data lives</h2>
+<p data-i="sec.data.p1">A Clawco you install yourself keeps your data in your user folder, on your machine.</p>
+<p data-i="sec.data.p2">When the agent works, the text it needs goes to the model you chose. A model on your own machine keeps that step on your machine.</p>
+<h2 data-i="sec.site.h">This website</h2>
+<p data-i="sec.site.p">It sets no cookies, makes no requests to other servers and counts no visits. Fonts and scripts come from the site itself. The language toggle stores one thing, your language choice, in your own browser.</p>
+<p class="muted" data-i="sec.more">The full security text, with the tests behind each promise, is still being written.</p>
+</div>
+</article>
+</main>
+<footer class="foot">
+<div class="wrap">
+<nav aria-label="Footer" data-i-attr="aria-label:c.foot.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a href="/docs/security" data-i="c.nav.security">Security</a>
+<a href="/legal" data-href-da="/juridisk" data-i="c.nav.legal">Legal</a>
+<a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
+</nav>
+<p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
+<!-- TODO(KC-0166): add the link to the source repository here once the licence decision is made. No link until then. -->
+</div>
+</footer>
+</body>
+</html>

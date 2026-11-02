@@ -1,0 +1,45 @@
+/* Kontrolcenter testtilstand (KC-0068): the band at the top of every test page. Violet is used for nothing
+   else in the app (not teal handling, amber kraever, green ordnet, red graense), so test never looks real. */
+:root { --test-baand: #B48CF0; --test-baand-bg: #2A1F3D; --test-baand-h: 40px; --test-baand-total: calc(var(--test-baand-h) + env(safe-area-inset-top)); }
+
+.kc-test-baand { position: fixed; top: 0; left: 0; right: 0; z-index: 8; height: var(--test-baand-total); padding: env(safe-area-inset-top) calc(12px + env(safe-area-inset-right)) 0 calc(12px + env(safe-area-inset-left)); display: flex; align-items: center; gap: 8px; background: var(--test-baand-bg); color: var(--test-baand); border-bottom: 1px solid var(--test-baand); font-family: var(--font); font-size: 13px; font-weight: 600; }
+.kc-test-titel { flex: 1 1 auto; min-width: 0; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.kc-test-lang { min-width: 0; display: flex; align-items: baseline; gap: 6px; }
+.kc-test-kort { display: none; }
+.kc-test-navn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.kc-test-tid { flex: none; font-family: var(--mono); font-size: 12px; }
+.kc-test-fejl { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); font-weight: 500; }
+.kc-test-fejl:empty { display: none; }
+.kc-test-baand.har-fejl .kc-test-titel { display: none; }
+.kc-test-valg { flex: 0 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.kc-test-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } /* read by screen readers; the select speaks for itself on screen */
+.kc-test-valg select { min-width: 0; max-width: 100%; min-height: 28px; padding: 0 6px; border-radius: 8px; border: 1px solid var(--test-baand); background: var(--test-baand-bg); color: var(--test-baand); font: inherit; font-weight: 500; cursor: pointer; }
+.kc-test-sluk { flex: none; min-height: 28px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--test-baand); background: var(--test-baand); color: var(--test-baand-bg); font: inherit; font-weight: 700; cursor: pointer; }
+.kc-test-valg select:disabled, .kc-test-sluk:disabled { opacity: 0.55; cursor: progress; }
+.kc-test-baand select:focus-visible, .kc-test-baand button:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* The page makes room for the band: it never covers the header or the chat sheet input. */
+html.kc-test body { padding-top: var(--test-baand-total); }
+@media (min-width: 1140px) {
+  html.kc-test nav, html.kc-test aside { top: var(--test-baand-total); height: calc(100vh - var(--test-baand-total)); }
+  html.kc-test .top { top: var(--test-baand-total); }
+}
+@media (max-width: 1139px) {
+  /* with the keyboard open the sheet is the whole visible area — minus the band */
+  html.kc-test.tastatur { --sheet-h: calc(var(--vv-h, 100vh) - var(--test-baand-total)); }
+  .kc-test-baand { gap: 6px; padding-left: calc(10px + env(safe-area-inset-left)); padding-right: calc(10px + env(safe-area-inset-right)); }
+  .kc-test-valg select { max-width: 100%; }
+}
+/* Phone: just "Test" as the title and no separate clock; the picker ("HH:MM navn") gets the freed width. */
+@media (max-width: 480px) {
+  .kc-test-lang { display: none; }
+  .kc-test-kort { display: inline; }
+  .kc-test-titel { flex: none; }
+  .kc-test-valg { flex: 1 1 auto; }
+  .kc-test-valg select { width: 100%; text-overflow: ellipsis; }
+}
+
+/* KC-0086: Sluk and the moment select are tap targets on a phone */
+@media (pointer: coarse) {
+  .kc-test-valg select, .kc-test-sluk { min-height: 44px; }
+}

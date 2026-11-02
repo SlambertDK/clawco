@@ -1,0 +1,55 @@
+#!/bin/sh
+# Pre-commit gate: typecheck (skipped for docs-only commits, or when this
+# repo has no typecheck script) plus ticket-queue validation when
+# docs/tickets/ files are staged.
+#
+# Gate layering: pre-commit = typecheck only (fast, every commit); pre-push
+# = typecheck + tests (heavier, before anything reaches the remote). Tests
+# deliberately do NOT run here.
+#
+# Bypass for genuine WIP commits with:  git commit --no-verify
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACMR)
+
+docs_only=1
+if [ -n "$staged" ]; then
+  non_docs=$(printf '%s\n' "$staged" | grep -vE '(^docs/|\.md$)' || true)
+  [ -n "$non_docs" ] && docs_only=0
+fi
+
+if [ "$docs_only" = "1" ]; then
+  echo "pre-commit: docs-only change — typecheck gate skipped."
+elif [ ! -f package.json ]; then
+  echo "pre-commit: no package.json — nothing to typecheck, gate skipped."
+else
+  has_typecheck=$(node -e "const s=(require('./package.json').scripts)||{}; process.stdout.write(s.typecheck?'1':'')" 2>/dev/null || true)
+  if [ -z "$has_typecheck" ]; then
+    echo "pre-commit: no \"typecheck\" script in package.json — gate skipped."
+  else
+    PM=npm
+    [ -f pnpm-lock.yaml ] && PM=pnpm
+    [ -f yarn.lock ] && PM=yarn
+    [ -f bun.lockb ] && PM=bun
+    echo "pre-commit: $PM run typecheck…"
+    if ! $PM run typecheck; then
+      echo ""
+      echo "✗ typecheck FAILED — commit blocked."
+      echo "  Fix the type errors above, or bypass with: git commit --no-verify"
+      exit 1
+    fi
+    echo "✓ typecheck passed"
+  fi
+fi
+
+tickets_staged=$(printf '%s\n' "$staged" | grep -E '^docs/tickets/' || true)
+if [ -n "$tickets_staged" ] && [ -f scripts/tickets/check.mjs ]; then
+  echo "pre-commit: validating docs/tickets/…"
+  if ! node scripts/tickets/check.mjs; then
+    echo ""
+    echo "✗ ticket validation FAILED — commit blocked."
+    exit 1
+  fi
+fi
+
+exit 0

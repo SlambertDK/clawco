@@ -1,0 +1,41 @@
+{
+  "fetched_at": "2026-10-26T05:01:12+00:00",
+  "elapsed_sec": 41.2,
+  "total_items": 5,
+  "source_count": 3,
+  "error_count": 0,
+  "sources": [
+    { "source": "Eksempel Energi", "type": "rss", "error": null, "items": [
+      { "title": "Eksempel Energi strammer reserver i vinter", "url": "https://example.org/eksempel-energi/reserver", "published": "2026-10-26T04:10:00+00:00", "summary": "Systemansvaret skærper kravene til reservekapacitet i vintermånederne." },
+      { "title": "Ny udbudsrunde for fleksibilitet", "url": "https://example.org/eksempel-energi/udbud", "published": "2026-10-25T16:00:00+00:00", "summary": "Udbud åbner i november." }
+    ]},
+    { "source": "r/LocalLLaMA", "type": "reddit", "error": null, "items": [
+      { "title": "Open-weight agent model matches closed models on tool use", "url": "https://example.org/r/agents", "published": "2026-10-26T01:00:00+00:00", "summary": "Benchmark thread." }
+    ]},
+    { "source": "google_tasks", "type": "tasks", "error": null, "lists": [
+      { "name": "Huset", "tasks": [ { "title": "Ring til elektriker om tilbud", "due": "2026-10-27", "status": "needsAction" } ] }
+    ]},
+    { "source": "Anthropic", "type": "scrape", "error": null, "items": [
+      { "title": "Model update notes", "url": "https://example.org/anthropic/notes", "published": null, "summary": "Release notes." },
+      { "title": "Agent SDK guide", "url": "https://example.org/anthropic/sdk", "published": null, "summary": "Guide." }
+    ]}
+  ],
+  "kontroltaarn": {
+    "generated_date": "2026-10-26",
+    "calendar": { "events": [
+      { "calendar": "Arbejde", "title": "Driften: vinterberedskab", "start": "2026-10-26T10:00:00+01:00", "end": "2026-10-26T11:00:00+01:00", "all_day": false, "location": "Mødelokale 3" },
+      { "calendar": "Arbejde", "title": "Internt: leverandørvalg", "start": "2026-10-26T14:30:00+01:00", "end": "2026-10-26T15:30:00+01:00", "all_day": false, "location": null },
+      { "calendar": "Helligdage i Danmark", "title": "Efterårsferie slut", "start": "2026-10-26", "end": "2026-10-27", "all_day": true, "location": null }
+    ]},
+    "proton": { "count_attention": 2, "attention": [
+      { "subject": "Tilbud på ny eltavle", "from": "Elektrikeren ApS", "date": "2026-10-25T18:02:00+00:00" },
+      { "subject": "Forældremøde 3.b", "from": "Skolen", "date": "2026-10-25T12:40:00+00:00" }
+    ]},
+    "task_radar_count": 1,
+    "commitment_radar": [
+      { "source": "tasks", "title": "Ring til elektriker om tilbud", "due": "2026-10-27", "list": "Huset" }
+    ],
+    "attention_count": 6
+  },
+  "health": { "status": "stabil", "sleep_minutes": 432, "hrv": 61, "resting_hr": 52 }
+}

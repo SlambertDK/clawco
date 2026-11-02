@@ -1,0 +1,17 @@
+# KC-0017: Kontrolcenter's own Tailscale machine "kontrol", so the app lives at
+# https://kontrol.<tailnet>.ts.net (port 443 on kira-home belongs to Hermes'
+# dashboard). A second tailscaled in userspace mode, run as henrik — no root.
+# Login (once): tailscale --socket=%h/.local/state/kontrol-ts/tailscaled.sock up --hostname=kontrol --accept-dns=false
+# Serve (once, kept in its state): ... serve --bg 8750 ; ... serve --bg --http=80 8750
+[Unit]
+Description=Tailscale-maskinen "kontrol" for Kontrolcenter (userspace)
+After=network-online.target
+
+[Service]
+ExecStartPre=/usr/bin/mkdir -p %h/.local/state/kontrol-ts
+ExecStart=/usr/sbin/tailscaled --tun=userspace-networking --statedir=%h/.local/state/kontrol-ts --socket=%h/.local/state/kontrol-ts/tailscaled.sock --port=0
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

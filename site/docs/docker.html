@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i="dk.meta.title">Run Clawco in Docker</title>
+<meta name="description" content="Run Clawco as a container with Docker Compose: how it is reached, where your data lives, the agent, an optional notes folder and an optional Tailscale profile." data-i-attr="content:dk.meta.description">
+<link rel="canonical" href="https://clawco.work/docs/docker">
+<link rel="alternate" hreflang="en" href="https://clawco.work/docs/docker">
+<link rel="alternate" hreflang="da" href="https://clawco.work/docs/docker?lang=da">
+<link rel="alternate" hreflang="x-default" href="https://clawco.work/docs/docker">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121614">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Clawco">
+<meta property="og:url" content="https://clawco.work/docs/docker">
+<meta property="og:title" content="Run Clawco in Docker" data-i-attr="content:dk.meta.title">
+<meta property="og:description" content="Run Clawco as a container with Docker Compose: how it is reached, where your data lives, the agent, an optional notes folder and an optional Tailscale profile." data-i-attr="content:dk.meta.description">
+<meta property="og:image" content="https://clawco.work/billeder/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/strings.js" defer></script>
+<script src="/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i="c.skip">Skip to content</a>
+<header class="top">
+<div class="wrap bar">
+<a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Clawco</a>
+<nav aria-label="Main" data-i-attr="aria-label:c.nav.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a class="hide-sm" href="/docs/security" data-i="c.nav.security">Security</a>
+</nav>
+<button type="button" class="lang" data-lang-toggle aria-label="Switch language to Danish" data-i="c.lang" data-i-attr="aria-label:c.lang.label">Dansk</button>
+</div>
+</header>
+<main id="main">
+<article class="page">
+<div class="wrap narrow">
+<h1 data-i="dk.h1">Run Clawco in Docker</h1>
+<h2 data-i="dk.req.h">Requirements</h2>
+<p data-i="dk.req.p">Docker with the Compose plugin, and a copy of the Clawco source folder.</p>
+<p class="small"><a href="https://docs.docker.com/get-docker/" rel="noopener noreferrer" data-i="dk.req.link">Get Docker</a></p>
+<!-- TODO(KC-0166): link to the source repository here once the licence decision is made. -->
+<h2 data-i="dk.start.h">Start</h2>
+<p data-i="dk.start.p1">In the source folder, run:</p>
+<pre><code data-cmd="compose">docker compose up -d --build</code></pre>
+<p data-i="dk.start.p2">Then open http://127.0.0.1:8750. Start greets a new user.</p>
+<h2 data-i="dk.holds.h">What holds</h2>
+<ul>
+<li data-i="dk.holds.1">Reachable from this machine only: the port is published on 127.0.0.1.</li>
+<li data-i="dk.holds.2">Your data lives outside the image, in the volume clawco-data at /data. A new image never carries data.</li>
+<li data-i="dk.holds.3">The root filesystem is read-only, and the app runs as an ordinary user, not as root.</li>
+<li data-i="dk.holds.4">Keys you paste in Start are saved in /data/.env, next to the credentials for each source.</li>
+</ul>
+<h2 data-i="dk.backup.h">Backup</h2>
+<p data-i="dk.backup.p">A backup is a copy of the data volume:</p>
+<pre><code>docker run --rm -v clawco_clawco-data:/data -v "$PWD":/ud busybox tar czf /ud/clawco-data.tgz -C /data .</code></pre>
+<h2 data-i="dk.agent.h">The agent</h2>
+<p data-i="dk.agent.p">The container starts without a model key; Start asks for one. To use your own Hermes, set its address before you start:</p>
+<pre><code>KC_HERMES_URL=http://host.docker.internal:8642 docker compose up -d</code></pre>
+<h2 data-i="dk.notes.h">A notes folder (optional)</h2>
+<p data-i="dk.notes.p">To let Clawco read and save notes in a folder, uncomment the two notes lines in compose.yaml, then start with the folder named. It must be writable by user 1000.</p>
+<pre><code>CLAWCO_NOTER=/path/to/notes docker compose up -d</code></pre>
+<h2 data-i="dk.ts.h">Tailscale (optional)</h2>
+<p data-i="dk.ts.p1">An optional profile adds Tailscale, so you can reach Clawco from your phone over HTTPS. Put a Tailscale auth key in ~/.config/clawco/tailscale-authkey first, then run:</p>
+<pre><code>docker compose --profile tailscale up -d</code></pre>
+<p data-i="dk.ts.p2">Funnel stays off. This profile has been checked against Tailscale's documentation but has not yet been run against a real tailnet.</p>
+<p class="small"><a href="https://tailscale.com/" rel="noopener noreferrer" data-i="dk.ts.link">About Tailscale</a></p>
+</div>
+</article>
+</main>
+<footer class="foot">
+<div class="wrap">
+<nav aria-label="Footer" data-i-attr="aria-label:c.foot.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a href="/docs/security" data-i="c.nav.security">Security</a>
+<a href="/legal" data-href-da="/juridisk" data-i="c.nav.legal">Legal</a>
+<a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
+</nav>
+<p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
+<!-- TODO(KC-0166): add the link to the source repository here once the licence decision is made. No link until then. -->
+</div>
+</footer>
+</body>
+</html>

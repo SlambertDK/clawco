@@ -1,0 +1,26 @@
+# KC-0228: what the public mirror publishes (scripts/spejl-offentlig.sh), one git pathspec per line.
+# The private guard test/privat/offentlig.test.ts scans exactly these files for real names and addresses.
+src
+sky
+public
+test
+deploy
+scripts
+site
+config
+docs/legal
+docs/superpowers/specs/2026-10-31-trusselsmodel.md
+package.json
+package-lock.json
+tsconfig.json
+LICENSE
+README.md
+Dockerfile
+compose.yaml
+.dockerignore
+.env.example
+.gitignore
+.githooks
+.gitleaksignore
+:(exclude)test/privat
+:(exclude)docs/legal/RESUME-til-Henrik.md

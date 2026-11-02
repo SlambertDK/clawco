@@ -1,0 +1,28 @@
+{
+  "_note": "The one price source (KC-0190, AGENTS §0 r6). Amounts are integers in øre/cent. Approved by Henrik 2026-10-31 (KC-0169). EUR = DKK / 7.46, monthly rounded to the nearest 0.10 EUR, yearly to the nearest whole EUR. Change a price here, then run `npm run stripe:opsaet` (dry run) and `-- --anvend`.",
+  "status": "godkendt",
+  "moms": { "aktiv": false },
+  "proeve": { "dage": 14, "kort": false },
+  "fristVedFejl": 14,
+  "planer": {
+    "sky-solo": {
+      "navn": "Sky Solo",
+      "medlemmer": 1,
+      "maanedlig": { "dkk": 7900, "eur": 1060 },
+      "aarlig": { "dkk": 79000, "eur": 10600 }
+    },
+    "sky-husstand": {
+      "navn": "Sky Husstand",
+      "medlemmer": 6,
+      "maanedlig": { "dkk": 12900, "eur": 1730 },
+      "aarlig": { "dkk": 129000, "eur": 17300 }
+    }
+  },
+  "tilvalg": {
+    "inkluderet-model": {
+      "navn": "Inkluderet model",
+      "status": "senere",
+      "fraMaanedlig": { "dkk": 4900, "eur": 660 }
+    }
+  }
+}

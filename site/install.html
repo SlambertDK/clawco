@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i="install.meta.title">Install Clawco: one command on a Mac or Linux machine</title>
+<meta name="description" content="Install Clawco with one command on a Mac or Linux machine, or run it in Docker. What you need, what the installer does, and how to update." data-i-attr="content:install.meta.description">
+<link rel="canonical" href="https://clawco.work/install">
+<link rel="alternate" hreflang="en" href="https://clawco.work/install">
+<link rel="alternate" hreflang="da" href="https://clawco.work/install?lang=da">
+<link rel="alternate" hreflang="x-default" href="https://clawco.work/install">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121614">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Clawco">
+<meta property="og:url" content="https://clawco.work/install">
+<meta property="og:title" content="Install Clawco: one command on a Mac or Linux machine" data-i-attr="content:install.meta.title">
+<meta property="og:description" content="Install Clawco with one command on a Mac or Linux machine, or run it in Docker. What you need, what the installer does, and how to update." data-i-attr="content:install.meta.description">
+<meta property="og:image" content="https://clawco.work/billeder/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/strings.js" defer></script>
+<script src="/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i="c.skip">Skip to content</a>
+<header class="top">
+<div class="wrap bar">
+<a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Clawco</a>
+<nav aria-label="Main" data-i-attr="aria-label:c.nav.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a class="hide-sm" href="/docs/security" data-i="c.nav.security">Security</a>
+</nav>
+<button type="button" class="lang" data-lang-toggle aria-label="Switch language to Danish" data-i="c.lang" data-i-attr="aria-label:c.lang.label">Dansk</button>
+</div>
+</header>
+<main id="main">
+<section class="page">
+<div class="wrap narrow">
+<h1 data-i="install.h1">Install Clawco</h1>
+<p class="lead" data-i="install.lead">One command on a Mac or Linux machine. It needs Node 22.6 or newer, git and npm. If one is missing, the installer tells you the one command that fixes it.</p>
+<h2 data-i="install.step1.h">1. Run this in a terminal</h2>
+<div class="cmd"><code data-cmd="install">curl -fsSL https://clawco.work/install.sh | bash</code><button type="button" class="btn copy" data-copy="install" data-i="install.copy" aria-label="Copy the install command" data-i-attr="aria-label:install.copy.label">Copy</button></div>
+<p class="small"><a href="/install.sh" data-i="install.script">Read the script first</a></p>
+<p class="muted" data-i="install.update">Run the same command again later to update. The code is updated; your settings and your data are not touched.</p>
+<p class="muted" data-i="install.danish">The installer's messages are in Danish for now.</p>
+<h2 data-i="install.step2.h">2. Open Clawco</h2>
+<p data-i="install.step2.p">The installer starts Clawco as a background service and prints its address, by default http://127.0.0.1:8750. The Start room asks for a model key and walks you on from there.</p>
+<h2 data-i="install.req.h">What you need</h2>
+<ul>
+<li data-i="install.req.1">A Mac or a Linux machine with Node 22.6 or newer, git and npm. Or Docker with the Compose plugin.</li>
+<li data-i="install.req.2">A key from a model provider, or a model running on your own machine.</li>
+<li data-i="install.req.3">Optional: Tailscale, to reach Clawco from your phone.</li>
+</ul>
+<h2 data-i="install.dry.h">Look first</h2>
+<p data-i="install.dry.p">To see the plan without changing anything, add --dry-run:</p>
+<pre><code data-cmd="dryrun">curl -fsSL https://clawco.work/install.sh | bash -s -- --dry-run</code></pre>
+<h2 data-i="install.docker.h">Prefer Docker?</h2>
+<p data-i="install.docker.p">From a copy of the Clawco source folder, one Compose command starts Clawco as a container, reachable on this machine only.</p>
+<pre><code data-cmd="compose">docker compose up -d --build</code></pre>
+<p class="actions"><a class="btn" href="/docs/docker" data-i="install.docker.link">Read the Docker guide</a> <a class="btn" href="/docs/" data-i="install.docs.link">All documentation</a></p>
+</div>
+</section>
+</main>
+<footer class="foot">
+<div class="wrap">
+<nav aria-label="Footer" data-i-attr="aria-label:c.foot.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a href="/docs/security" data-i="c.nav.security">Security</a>
+<a href="/legal" data-href-da="/juridisk" data-i="c.nav.legal">Legal</a>
+<a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
+</nav>
+<p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
+<!-- TODO(KC-0166): add the link to the source repository here once the licence decision is made. No link until then. -->
+</div>
+</footer>
+</body>
+</html>

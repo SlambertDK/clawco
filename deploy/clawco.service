@@ -1,0 +1,17 @@
+# systemd user unit for Clawco, filled in by deploy/install.sh (KC-0156):
+# @APP@ = the code, @ENV@ = the settings file, @NODE@ = the node that passed
+# the installer's version check. Paths must not contain spaces or '%'.
+# Derived from deploy/kontrolcenter.service. Start on boot without a login
+# needs `sudo loginctl enable-linger $USER` once (the installer prints it).
+[Unit]
+Description=Clawco
+After=network-online.target
+
+[Service]
+WorkingDirectory=@APP@
+ExecStart=@NODE@ --env-file=@ENV@ src/server.ts
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

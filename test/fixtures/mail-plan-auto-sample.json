@@ -1,0 +1,6 @@
+{"actions":[
+{"id":"301","op":"move","to":"Folders/Regninger","why":"faktura fra elselskab"},
+{"id":"302","op":"archive","why":"nyhedsbrev uden handling"},
+{"id":"303","op":"move","to":"Folders/Afventer","why":"venter på svar fra håndværker"},
+{"id":"304","op":"archive","to":"Archive","why":"kvittering for betalt abonnement"}
+]}

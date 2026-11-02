@@ -1,0 +1,48 @@
+#!/bin/sh
+# Pre-push gate: typecheck AND test must pass before code reaches the
+# remote. Heavier than pre-commit, so it runs per-push rather than
+# per-commit. Skips silently when this repo has no package.json, or no such
+# script.
+#
+# Bypass with:  git push --no-verify
+set -e
+
+if [ ! -f package.json ]; then
+  echo "pre-push: no package.json — nothing to verify, gate skipped."
+  exit 0
+fi
+
+PM=npm
+[ -f pnpm-lock.yaml ] && PM=pnpm
+[ -f yarn.lock ] && PM=yarn
+[ -f bun.lockb ] && PM=bun
+
+has_script() {
+  node -e "const s=(require('./package.json').scripts)||{}; process.stdout.write(s['$1']?'1':'')" 2>/dev/null || true
+}
+
+if [ -n "$(has_script typecheck)" ]; then
+  echo "pre-push: $PM run typecheck…"
+  if ! $PM run typecheck; then
+    echo ""
+    echo "✗ typecheck FAILED — push blocked."
+    echo "  Bypass with: git push --no-verify"
+    exit 1
+  fi
+else
+  echo "pre-push: no \"typecheck\" script — skipped."
+fi
+
+if [ -n "$(has_script test)" ]; then
+  echo "pre-push: $PM run test…"
+  if ! $PM run test; then
+    echo ""
+    echo "✗ tests FAILED — push blocked."
+    echo "  Bypass with: git push --no-verify"
+    exit 1
+  fi
+else
+  echo "pre-push: no \"test\" script — skipped."
+fi
+
+echo "✓ pre-push checks passed"

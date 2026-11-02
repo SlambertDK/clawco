@@ -1,0 +1,34 @@
+# Clawco Sky — the Cloudflare Tunnel that publishes the account app and the tenants (KC-0212, spec D18).
+# A system unit on kira-home running as user `sky`, beside (never instead of) the host's other
+# cloudflared units. Installed by sky/deploy/opsaet-root.sh. Requires cloudflared ≥ 2025.4.0 for
+# --token-file. The token lives in /srv/sky/.env as SKY_CLOUDFLARE_TUNNEL_TOKEN; ExecStartPre copies it
+# into a 0600 file in this unit's private runtime directory, so it is never on a command line.
+# Public hostnames (the account app, *.<tenant domain> → the gateway, KC-0183) are set on the tunnel
+# in Cloudflare Zero Trust, not here: see sky/deploy/README.md.
+[Unit]
+Description=Clawco Sky: Cloudflare Tunnel
+After=network-online.target sky.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sky
+Group=sky
+RuntimeDirectory=clawco-sky-tunnel
+RuntimeDirectoryMode=0700
+ExecStartPre=/bin/bash /srv/sky/kontrolcenter/sky/deploy/tunnel-token.sh /srv/sky/.env %t/clawco-sky-tunnel/token
+ExecStart=cloudflared tunnel --no-autoupdate run --token-file %t/clawco-sky-tunnel/token
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

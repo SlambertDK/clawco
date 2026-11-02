@@ -1,0 +1,7 @@
+{"envelopes":[
+{"id":"242","subject":"Din faktura fra Nordlys El er klar","from":[{"name":"Nordlys El","email":"kunde@nordlys-el.example"}],"to":[{"name":null,"email":"os@example.test"}],"date":"2026-10-26T18:57:39Z","flags":[{"raw":"\\Seen","iana":"seen"}],"has-attachment":true,"size":48211,"message-id":"<a1@nordlys-el.example>","in-reply-to":null},
+{"id":"251","subject":"Tilbud på ny cykelhjelm","from":[{"name":"Cykelbutikken","email":"tilbud@cykelbutikken.example"}],"to":[{"name":null,"email":"os@example.test"}],"date":"2026-10-27T07:12:00Z","flags":[],"has-attachment":false,"size":9120,"message-id":"<b2@cykelbutikken.example>","in-reply-to":null},
+{"id":"247","subject":"Husk tandlægetid på torsdag","from":[{"name":"Tandklinikken Syd","email":"booking@tandklinik-syd.example"}],"to":[{"name":null,"email":"os@example.test"}],"date":"2026-10-27T05:30:10Z","flags":[{"raw":"\\Flagged","iana":"flagged"},{"raw":"\\Seen","iana":"seen"}],"has-attachment":false,"size":4300,"message-id":"<c3@tandklinik-syd.example>","in-reply-to":null},
+{"id":"236","subject":null,"from":[{"name":null,"email":"ukendt@example.invalid"}],"to":[],"date":"2026-10-25T10:00:00Z","flags":[],"has-attachment":false,"size":700,"message-id":"<d4@example.invalid>","in-reply-to":null},
+{"id":"230","subject":"Gamle nyheder om havearbejde","from":[],"to":[],"date":"2026-10-20T08:15:00Z","flags":[{"raw":"\\Seen","iana":"seen"}],"has-attachment":false,"size":15000,"message-id":"<e5@example.invalid>","in-reply-to":null}
+]}

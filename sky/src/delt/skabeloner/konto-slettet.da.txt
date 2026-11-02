@@ -1,0 +1,11 @@
+Din Clawco-konto er slettet
+
+Hej
+
+Din konto hos Clawco er nu slettet. Dine passkeys, dine logins og din mailadresse er fjernet fra kontoen, og din Clawco og alt i den er slettet.
+
+Sikkerhedskopierne forsvinder af sig selv inden for {{dage}} dage. Fakturaerne gemmer vi i 5 år, fordi bogføringsloven kræver det.
+
+Du får denne ene mail som kvittering. Vi skriver ikke til dig igen.
+
+Clawco

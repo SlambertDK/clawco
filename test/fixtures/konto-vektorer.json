@@ -1,0 +1,186 @@
+{
+  "beskrivelse": "KC-0179: delte testvektorer for Clawco-Konto-headeren. Byte-identisk i test/fixtures og sky/test/fixtures. Kun testnoegler fra faste froe; aldrig i drift.",
+  "format": "v1.<noegleId>.<base64url(JSON {t,k,e,iat})>.<base64url(Ed25519 over \"v1.<noegleId>.<payload>\")>",
+  "tenant": "hjem-test",
+  "nu": 1793000000,
+  "noegler": {
+    "a": {
+      "froe": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "offentlig": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+      "id": "Vkdap1RjR0w"
+    },
+    "b": {
+      "froe": "202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "offentlig": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc",
+      "id": "JPbtasv-EAk"
+    },
+    "c": {
+      "froe": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+      "offentlig": "JUO5L_EJVRFHatyDadtt3JM2ZaEZeN2hQE7hBmypVZ0",
+      "id": "AzliGSN_daY"
+    }
+  },
+  "vektorer": [
+    {
+      "navn": "gyldig",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5Mjk5OTk5NX0.kly4v33foZNloV1-5EITAu30QhTpAq8OnRMKKDGltTo9mAUnGkGJBW47SFZA5YczatA3-91tW8DRCfvTFijiAA",
+      "kilde": {
+        "noegle": "a",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-maja",
+          "e": "maja@example.com",
+          "iat": 1792999995
+        }
+      },
+      "forventet": "maja"
+    },
+    {
+      "navn": "ejer",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLWhlbnJpayIsImUiOiJIZW5yaWtARXhhbXBsZS5jb20iLCJpYXQiOjE3OTMwMDAwMDB9.JOqtYGbD8z-1_2CFJieXT3qHf9R-JFR_Tf3T-jGl31xavyx3RN3aZ-Z5r5YF0Ppisbg_O5IzBTsMzavP_P8cCQ",
+      "kilde": {
+        "noegle": "a",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-henrik",
+          "e": "Henrik@Example.com",
+          "iat": 1793000000
+        }
+      },
+      "forventet": "henrik"
+    },
+    {
+      "navn": "rotation-ny-noegle",
+      "header": "v1.JPbtasv-EAk.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5MzAwMDAwMH0.pB4ydQmBdEaelwie0Ko0tJ9yVXkTx-0SMyrtLxxz54yI8pNJ9Btm_p7yFYvVAmnDiWuAX0dZLVb0r2-CfaL3DQ",
+      "kilde": {
+        "noegle": "b",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-maja",
+          "e": "maja@example.com",
+          "iat": 1793000000
+        }
+      },
+      "forventet": "maja"
+    },
+    {
+      "navn": "praecis-60-sekunder",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5Mjk5OTk0MH0.K-_LBLqtUiT3X6adZWUuuUj2jyoZerZcy6lGtZWTBahm_feTFNj4asuMdWfWqNNgKj1H-nWPNdhuFOMooW-_Dg",
+      "kilde": {
+        "noegle": "a",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-maja",
+          "e": "maja@example.com",
+          "iat": 1792999940
+        }
+      },
+      "forventet": "maja"
+    },
+    {
+      "navn": "praecis-10-sekunder-frem",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5MzAwMDAxMH0.pMiBS_wPslQTC6NpFzuY_fcNVYi9cAfGddeiubJnQoPzYAim2c0zs8AZs0_dU4To8UiIZCMLmhLPbP8fKrtyCA",
+      "kilde": {
+        "noegle": "a",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-maja",
+          "e": "maja@example.com",
+          "iat": 1793000010
+        }
+      },
+      "forventet": "maja"
+    },
+    {
+      "navn": "udloebet",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5Mjk5OTkzOX0.TKULbU1l41aBLthZhPB1Jj6bDJ6KM5VdXrUvb7kA9lusfWs4dG8tpKDJdc38-6rNic08wNU1r9NpwlEEHUc6CQ",
+      "kilde": {
+        "noegle": "a",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-maja",
+          "e": "maja@example.com",
+          "iat": 1792999939
+        }
+      },
+      "forventet": 401
+    },
+    {
+      "navn": "fra-fremtiden",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5MzAwMDAxMX0.auAHXKTjAhxYWCeMUr-Kz5yYmDOjsBSgHrnotdMmvCryN1wiYpiAOrMp0DNvcNOGgAa20APdYuJYgfoYRs45Aw",
+      "kilde": {
+        "noegle": "a",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-maja",
+          "e": "maja@example.com",
+          "iat": 1793000011
+        }
+      },
+      "forventet": 401
+    },
+    {
+      "navn": "anden-tenant",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiYW5kZW4tdGVuYW50IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5Mjk5OTk5NX0.y82zSWz8XuGWFtz7fNVdkzMnviTkUZ6Q9zeCIgjbLFjOxZL2lD4NGcLRgeWfNbvvQ-YKprQLsVmPnhvTMofHDw",
+      "kilde": {
+        "noegle": "a",
+        "paastand": {
+          "t": "anden-tenant",
+          "k": "konto-maja",
+          "e": "maja@example.com",
+          "iat": 1792999995
+        }
+      },
+      "forventet": 401
+    },
+    {
+      "navn": "fremmed-noegle",
+      "header": "v1.AzliGSN_daY.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5Mjk5OTk5NX0.BYrhCenh-QpWZskiwfq7Cwqi6DmSmYpnRymgMXyLf5S9cZIZu7JbSqTSSRkYmsgheJf5ZUh9SxHMWRGu117AAw",
+      "kilde": {
+        "noegle": "c",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-maja",
+          "e": "maja@example.com",
+          "iat": 1792999995
+        }
+      },
+      "forventet": 401
+    },
+    {
+      "navn": "ikke-i-husstanden",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLWZyZW1tZWQiLCJlIjoiZnJlbW1lZEBleGFtcGxlLmNvbSIsImlhdCI6MTc5Mjk5OTk5NX0.lECuy_x7LVscvfKWMc_-jc8Mnt5HaWtj45MGpbGdU8CHBOtLRfd4HBiywCXJpxRTw8Ob_880g1Un4ZltSmbJBw",
+      "kilde": {
+        "noegle": "a",
+        "paastand": {
+          "t": "hjem-test",
+          "k": "konto-fremmed",
+          "e": "fremmed@example.com",
+          "iat": 1792999995
+        }
+      },
+      "forventet": 403
+    },
+    {
+      "navn": "manipuleret-efter-signering",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoiaGVucmlrQGV4YW1wbGUuY29tIiwiaWF0IjoxNzkyOTk5OTk1fQ.kly4v33foZNloV1-5EITAu30QhTpAq8OnRMKKDGltTo9mAUnGkGJBW47SFZA5YczatA3-91tW8DRCfvTFijiAA",
+      "kilde": null,
+      "afledt": "gyldig med payload byttet (e = henrik), samme signatur",
+      "forventet": 401
+    },
+    {
+      "navn": "forfalsket",
+      "header": "v1.Vkdap1RjR0w.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5Mjk5OTk5NX0.cz8jUtj84sX4JjhvM_J6R_dQy3FdILTMdLk2zdmMzXwnHCkQf4djsdzY7P4wFXilxATJrVCOiXsmJf2A52gvsA",
+      "kilde": null,
+      "afledt": "gyldig format, signaturen er sha512(\"forfalsket\")",
+      "forventet": 401
+    },
+    {
+      "navn": "forkert-noegle-id",
+      "header": "v1.AzliGSN_daY.eyJ0IjoiaGplbS10ZXN0IiwiayI6ImtvbnRvLW1hamEiLCJlIjoibWFqYUBleGFtcGxlLmNvbSIsImlhdCI6MTc5Mjk5OTk5NX0.kly4v33foZNloV1-5EITAu30QhTpAq8OnRMKKDGltTo9mAUnGkGJBW47SFZA5YczatA3-91tW8DRCfvTFijiAA",
+      "kilde": null,
+      "afledt": "gyldig signeret af a, men noegle-id er c",
+      "forventet": 401
+    }
+  ]
+}

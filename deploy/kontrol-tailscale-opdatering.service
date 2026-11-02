@@ -1,0 +1,7 @@
+# KC-0026: started by kontrol-tailscale-opdatering.path.
+[Unit]
+Description=Genstart "kontrol" efter en Tailscale-opdatering
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --user restart kontrol-tailscale

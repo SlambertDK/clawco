@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- KC-0016: the nav's brand dot on the ground colour; the mark sits inside the maskable safe zone. -->
+  <rect width="512" height="512" fill="#121614"/>
+  <circle cx="256" cy="256" r="132" fill="none" stroke="#1F4A58" stroke-width="20"/>
+  <circle cx="256" cy="256" r="84" fill="#6CC8E3"/>
+</svg>

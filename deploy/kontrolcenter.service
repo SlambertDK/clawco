@@ -1,0 +1,17 @@
+# systemd user unit for Kontrolcenter on kira-home.
+# Install: mkdir -p ~/.config/systemd/user && cp deploy/kontrolcenter.service ~/.config/systemd/user/
+#          systemctl --user daemon-reload && systemctl --user enable --now kontrolcenter
+#          loginctl enable-linger henrik   (once, so it survives logout)
+[Unit]
+Description=Kontrolcenter (Henriks rum mod Hermes)
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/kontrolcenter
+EnvironmentFile=%h/kontrolcenter/.env
+ExecStart=/usr/bin/env node src/server.ts
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=default.target

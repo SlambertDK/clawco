@@ -1,0 +1,62 @@
+# Clawco with Docker Compose (KC-0157). Notes: deploy/docker/README.md.
+#   GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build
+#   → http://127.0.0.1:8750 on this machine only.
+#   docker compose --profile tailscale up -d   → also https://<name>.<tailnet>.ts.net on your tailnet
+# Invariant (Tailscale-only, never public): every published port names 127.0.0.1;
+# test/docker-files.test.ts fails on anything else.
+name: clawco
+
+services:
+  clawco:
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-}
+    image: clawco:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8750:8750"
+    environment:
+      # Advanced: your own Hermes. Paste its key in Start; it is saved in the user folder.
+      KC_AGENT: ${KC_AGENT:-hermes-http}
+      KC_HERMES_URL: ${KC_HERMES_URL:-}
+      # With the notes folder below: KC_VAULT_DIR: /noter
+    volumes:
+      - clawco-data:/data
+      # Optional: your notes folder (an Obsidian vault) from this machine. Uncomment both lines.
+      # - ${CLAWCO_NOTER}:/noter
+    # Nothing but /data (and scratch in /tmp) is writable, so a new image never carries user data.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  # Optional: the official Tailscale container serves Clawco on your tailnet over HTTPS.
+  # The auth key is a Docker secret read from a file outside the repo (never in this file).
+  tailscale:
+    profiles: [tailscale]
+    image: tailscale/tailscale:stable
+    hostname: ${CLAWCO_TS_NAVN:-clawco}
+    restart: unless-stopped
+    environment:
+      TS_AUTHKEY: file:/run/secrets/ts_authkey
+      TS_AUTH_ONCE: "true"
+      TS_HOSTNAME: ${CLAWCO_TS_NAVN:-clawco}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./deploy/docker/tailscale:/config:ro
+    secrets:
+      - ts_authkey
+    depends_on:
+      - clawco
+
+volumes:
+  clawco-data:
+  tailscale-state:
+
+secrets:
+  ts_authkey:
+    file: ${CLAWCO_TS_AUTHKEY_FIL:-${HOME}/.config/clawco/tailscale-authkey}

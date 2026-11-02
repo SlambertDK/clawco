@@ -1,0 +1,19 @@
+{
+  "generated": "2026-10-31T06:58:12+01:00",
+  "days": [
+    { "date": "2026-10-31", "events": [
+      { "calendar": "Arbejde", "title": "Stand-up: programmet", "start": "2026-10-31T09:00:00+01:00", "end": "2026-10-31T09:15:00+01:00", "all_day": false, "location": "Mødelokale 1", "creator": "clara@example.test" },
+      { "calendar": "ella@example.test", "title": "Løbetur", "start": "2026-10-31T12:15:00+01:00", "end": "2026-10-31T13:00:00+01:00", "all_day": false, "location": null },
+      { "calendar": "Familie", "title": "Maja: nattevagt", "start": "2026-10-31", "end": "2026-11-01", "all_day": true },
+      { "calendar": "Arbejde", "title": "", "start": "2026-10-31T15:00:00+01:00" },
+      "ikke et objekt"
+    ] },
+    { "date": "2026-11-01", "events": [] },
+    { "date": "2026-11-02", "events": [
+      { "calendar": "Arbejde", "title": "Havvind Nord med Nordvik", "start": "2026-11-02T11:00:00+01:00", "end": "2026-11-02T12:00:00+01:00", "all_day": false, "location": "Mødelokale 2" }
+    ] },
+    { "events": [] },
+    { "date": "2026-11-03", "events": [] }
+  ],
+  "errors": ["Familie: tidsgrænse", 7]
+}

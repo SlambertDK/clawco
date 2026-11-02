@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i="home.meta.title">Clawco: your life on one screen, run by an agent that can't overstep</title>
+<meta name="description" content="A personal control centre that runs on your own machine. An agent shows one calm screen of what needs you. It never pays, and never messages anyone or deletes without your yes." data-i-attr="content:home.meta.description">
+<link rel="canonical" href="https://clawco.work/">
+<link rel="alternate" hreflang="en" href="https://clawco.work/">
+<link rel="alternate" hreflang="da" href="https://clawco.work/?lang=da">
+<link rel="alternate" hreflang="x-default" href="https://clawco.work/">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121614">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Clawco">
+<meta property="og:url" content="https://clawco.work/">
+<meta property="og:title" content="Clawco: your life on one screen, run by an agent that can't overstep" data-i-attr="content:home.meta.title">
+<meta property="og:description" content="A personal control centre that runs on your own machine. An agent shows one calm screen of what needs you. It never pays, and never messages anyone or deletes without your yes." data-i-attr="content:home.meta.description">
+<meta property="og:image" content="https://clawco.work/billeder/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Clawco","applicationCategory":"LifestyleApplication","operatingSystem":"macOS, Linux","url":"https://clawco.work/","description":"A personal control centre that runs on your own machine. An agent shows one calm screen of what needs you. It never pays, and never messages anyone or deletes without your yes."}
+</script>
+<script src="/strings.js" defer></script>
+<script src="/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i="c.skip">Skip to content</a>
+<header class="top">
+<div class="wrap bar">
+<a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Clawco</a>
+<nav aria-label="Main" data-i-attr="aria-label:c.nav.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a class="hide-sm" href="/docs/security" data-i="c.nav.security">Security</a>
+</nav>
+<button type="button" class="lang" data-lang-toggle aria-label="Switch language to Danish" data-i="c.lang" data-i-attr="aria-label:c.lang.label">Dansk</button>
+</div>
+</header>
+<main id="main">
+<section class="hero">
+<div class="wrap hero-grid">
+<div class="hero-text">
+<p class="eyebrow" data-i="home.hero.eyebrow">A personal control centre</p>
+<h1 data-i="home.hero.h1">Your life, one screen. An agent that can't overstep.</h1>
+<p class="lead" data-i="home.hero.lead">Clawco reads what you would otherwise have to read: mail, calendar, notes and news. It shows one screen with what needs you now. You act with one tap and undo with another. It never pays, and it never messages anyone or deletes anything without your yes.</p>
+<p class="actions">
+<a class="btn primary" href="/install" data-i="home.hero.cta.install">Install Clawco</a>
+<a class="btn" href="#journey" data-i="home.hero.cta.how">See how it works</a>
+</p>
+<p class="muted small" data-i="home.hero.note">Runs on your own Mac or Linux machine, or in Docker. By default it listens on that machine only.</p>
+</div>
+<figure class="shot phone">
+<img src="/billeder/hero-nu.webp" width="750" height="1050" alt="A phone showing Clawco's Now screen in dark mode: 7 things wait for you, 1 is in progress, 19 are done. A card from the family reads 'Saturday is free, say yes?' with one recommendation and one button. The interface is in Danish." data-i-attr="alt:home.hero.img.alt" decoding="async" fetchpriority="high">
+<figcaption class="muted small" data-i="home.hero.caption">A fictional day from Clawco's test world. The screen is in Danish today.</figcaption>
+</figure>
+</div>
+</section>
+
+<section id="refusals" class="band">
+<div class="wrap">
+<h2 data-i="home.refuse.h2">Three things it cannot do on its own</h2>
+<p class="intro" data-i="home.refuse.intro">These limits sit in the code that every action passes through, not in a prompt. What a model writes can add a refusal; it cannot remove one.</p>
+<div class="grid3">
+<article class="card limit">
+<h3 data-i="home.refuse.pay.h">It cannot pay</h3>
+<p data-i="home.refuse.pay.p">Every action passes one decision step, and that step refuses payments. Clawco shows the reason instead of a button.</p>
+</article>
+<article class="card limit">
+<h3 data-i="home.refuse.msg.h">It cannot message anyone</h3>
+<p data-i="home.refuse.msg.p">Writing to other people waits for your own tap on yes, once per action. A voice command cannot give that yes.</p>
+</article>
+<article class="card limit">
+<h3 data-i="home.refuse.del.h">It cannot delete</h3>
+<p data-i="home.refuse.del.p">Deleting works the same way: it waits for your own tap on yes, and a voice command cannot give it.</p>
+</article>
+</div>
+<p class="muted" data-i="home.refuse.foot">Every action is written to a log with the time, the source and, when there is one, the way to undo it.</p>
+<p class="muted"><a href="https://github.com/SlambertDK/clawco/tree/main/test/graenser" data-i="home.refuse.proof">Read the tests that hold these refusals.</a></p>
+</div>
+</section>
+
+<section id="journey" class="band">
+<div class="wrap split">
+<div>
+<h2 data-i="home.journey.h2">From install to a growing screen, in seven steps</h2>
+<p class="intro" data-i="home.journey.intro">The Start room walks you through it. Nothing is required beyond a model and one source, and each source you connect puts its first cards on the screen.</p>
+<ol class="steps">
+<li><h3 data-i="home.journey.1.h">Install</h3><p data-i="home.journey.1.p">One command on your machine. Clawco starts and prints its address.</p></li>
+<li><h3 data-i="home.journey.2.h">Say who you are</h3><p data-i="home.journey.2.p">Your name, the language the agent answers in, and whether you are alone or a household.</p></li>
+<li><h3 data-i="home.journey.3.h">Choose a model</h3><p data-i="home.journey.3.p">Paste a key from your provider, or use a model on your own machine. Clawco tests it live before it moves on.</p></li>
+<li><h3 data-i="home.journey.4.h">Connect a first source</h3><p data-i="home.journey.4.p">A calendar or your mail. The first cards appear in Now.</p></li>
+<li><h3 data-i="home.journey.5.h">Add more, bring what you know</h3><p data-i="home.journey.5.p">More sources, a notes folder, news. You can also bring what other assistants know about you, as notes you can read and edit.</p></li>
+<li><h3 data-i="home.journey.6.h">Correct one thing</h3><p data-i="home.journey.6.p">Fix something the agent got wrong. Clawco proposes a rule from it, and you approve it or not.</p></li>
+<li><h3 data-i="home.journey.7.h">Add your household</h3><p data-i="home.journey.7.p">The people you share a home with ask each other for time and claim shared things, like the car, through requests.</p></li>
+</ol>
+<p class="muted" data-i="home.journey.foot">Start folds away when you are done and returns only when a new source is worth adding.</p>
+</div>
+<figure class="shot phone">
+<img src="/billeder/start-kold.webp" width="750" height="1620" alt="Clawco's Start room on a cold start, in Danish: one card per step. The first card, Welcome, asks for a name, the language Hermes answers in, and alone or household. The second card, Choose your model, asks for a provider and a key." data-i-attr="alt:home.journey.img.alt" loading="lazy" decoding="async">
+<figcaption class="muted small" data-i="home.journey.caption">The Start room: one card per step.</figcaption>
+</figure>
+</div>
+</section>
+
+<section id="screen" class="band">
+<div class="wrap split">
+<div>
+<h2 data-i="home.screen.h2">One screen, seven blocks</h2>
+<p data-i="home.screen.p1">The agent can only fill a fixed set of blocks: card, decision, pile, done, conversation, request and resource. The screen never takes a new shape.</p>
+<p data-i="home.screen.p2">Things sit in three bands: needs you, in progress, done. They only move down.</p>
+<p data-i="home.screen.p3">Colour means state. Amber needs you. Blue is something you can press. Green is done and can be undone. Red is a limit. A calm screen is grey.</p>
+<ul class="swatches" aria-hidden="true"><li class="sw-kraever"></li><li class="sw-handling"></li><li class="sw-ordnet"></li><li class="sw-graense"></li><li class="sw-rolig"></li></ul>
+</div>
+<figure class="shot card-shot">
+<img src="/billeder/mail-beslutning.webp" width="654" height="748" alt="A mail decision card in Clawco, in Danish: confirm a meeting at 11 with Clara Holm and Jonas Berg. The buttons are Send in red, Save as draft, Copy and Done." data-i-attr="alt:home.screen.img.alt" loading="lazy" decoding="async">
+<figcaption class="muted small" data-i="home.screen.caption">Send is red because it writes to another person. It waits for your yes.</figcaption>
+</figure>
+</div>
+</section>
+
+<section id="household" class="band">
+<div class="wrap">
+<h2 data-i="home.house.h2">A household, without another app</h2>
+<p class="intro" data-i="home.house.p1">Ask each other for time, or claim something shared, like the car. A request has a visible state: asked, accepted, declined, alternative or expired.</p>
+<div class="pair">
+<figure class="shot card-shot">
+<img src="/billeder/husstand-foresp.webp" width="654" height="554" alt="A request card in Clawco's household room, in Danish: can you pick up Ella from swimming tomorrow? The answers are Yes, No and Can do 17.00." data-i-attr="alt:home.house.img1.alt" loading="lazy" decoding="async">
+<figcaption class="muted small" data-i="home.house.img1.caption">A request from Maja, waiting for an answer.</figcaption>
+</figure>
+<figure class="shot card-shot">
+<img src="/billeder/husstand-sammenfald.webp" width="654" height="812" alt="A card in Clawco, in Danish: the big car is booked twice on Tuesday 3 November. The buttons offer the small car, asking Maja to swap, or dropping it." data-i-attr="alt:home.house.img2.alt" loading="lazy" decoding="async">
+<figcaption class="muted small" data-i="home.house.img2.caption">A double booking of the car, with the ways out.</figcaption>
+</figure>
+</div>
+<p class="muted" data-i="home.house.p2">Your own Now, your notes and your work and private zones are never shown to the others.</p>
+</div>
+</section>
+
+<section id="ways" class="band">
+<div class="wrap">
+<h2 data-i="home.ways.h2">Ways to run it</h2>
+<div class="grid3">
+<article class="card"><h3 data-i="home.ways.1.h">On a Mac or Linux machine</h3><p data-i="home.ways.1.p">One command installs it as a background service under your user. It needs Node 22.6 or newer, git and npm; if one is missing, the installer says which command to run.</p></article>
+<article class="card"><h3 data-i="home.ways.2.h">In Docker</h3><p data-i="home.ways.2.p">Docker Compose runs it as a container with your data in a volume and a read-only root filesystem. It is published on this machine only.</p></article>
+<article class="card"><h3 data-i="home.ways.3.h">On your phone</h3><p data-i="home.ways.3.p">With Tailscale on the machine, one command makes Clawco reachable from your phone on your own tailnet. Clawco refuses requests that arrive through Tailscale Funnel.</p></article>
+</div>
+<p><a class="btn" href="/install" data-i="home.ways.link">Read the install guide</a></p>
+</div>
+</section>
+
+<section id="agent" class="band">
+<div class="wrap narrow">
+<h2 data-i="home.agent.h2">Works with your agent and your models</h2>
+<p data-i="home.agent.p1">Clawco works with a Hermes agent. You bring the model: in Start you choose a provider (Anthropic, OpenAI, GitHub Copilot or OpenRouter) and paste your key, or point Clawco at LM Studio or Ollama on your own machine. Clawco tests the choice live.</p>
+<p data-i="home.agent.p2">You pay your provider for what the agent uses. A model on your own machine costs nothing per use.</p>
+</div>
+</section>
+
+<section id="faq" class="band">
+<div class="wrap narrow">
+<h2 data-i="home.faq.h2">Questions, answered plainly</h2>
+<details><summary data-i="home.faq.1.q">What can't it do?</summary><p data-i="home.faq.1.a">It cannot pay. It cannot message other people or delete anything without your own tap on yes, and a voice command cannot give that yes.</p></details>
+<details><summary data-i="home.faq.2.q">Where is my data?</summary><p data-i="home.faq.2.a">In a folder on your own machine, the user folder. The code lives in another folder, so an update never touches your data. When the agent works on something, the text it needs goes to the model you chose; with a model on your own machine, that step stays on your machine too.</p></details>
+<details><summary data-i="home.faq.3.q">Does this site track me?</summary><p data-i="home.faq.3.a">No. It sets no cookies, makes no requests to other servers and counts no visits.</p></details>
+<details><summary data-i="home.faq.4.q">What does the model usage cost?</summary><p data-i="home.faq.4.a">You pay your model provider directly for what the agent uses. A model on your own machine costs nothing per use.</p></details>
+<details><summary data-i="home.faq.5.q">How do I remove it?</summary><p data-i="home.faq.5.a">Stop the background service and delete the folders. The guide for Mac and Linux lists the steps and says where your data is, so you can keep it.</p></details>
+<details><summary data-i="home.faq.6.q">Which languages?</summary><p data-i="home.faq.6.a">This site is in English and Danish. The screens are in Danish today, and an English interface is planned. When you start, you choose the language the agent answers in.</p></details>
+<p><a href="/docs/" data-i="home.faq.more">More in the documentation</a></p>
+</div>
+</section>
+</main>
+<footer class="foot">
+<div class="wrap">
+<nav aria-label="Footer" data-i-attr="aria-label:c.foot.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a href="/docs/security" data-i="c.nav.security">Security</a>
+<a href="/legal" data-href-da="/juridisk" data-i="c.nav.legal">Legal</a>
+<a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
+</nav>
+<p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
+</div>
+</footer>
+</body>
+</html>

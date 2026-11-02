@@ -1,0 +1,1785 @@
+// HTTP routes (Hono). Thin: parse, call the room, render. Start with
+// `node src/server.ts`; tests build the app with createApp().
+
+import { Hono, type Context } from 'hono';
+import { streamSSE } from 'hono/streaming';
+import { serve } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { execFile, execSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import type { AgentClient } from './agent/types.ts';
+import { createHermesHttp } from './agent/hermes-http.ts';
+import { createFakeAgent } from './agent/fake.ts';
+import { devAnswer } from './agent/devAnswers.ts';
+import type { LogEntry, RumLager } from './store/types.ts';
+import { createFileStore } from './store/fileStore.ts';
+import { createRunRegistry, fraTelefonen, type RunRecord } from './runs.ts';
+import { createLiveBus } from './live.ts';
+import { konfliktDue, kuratorDue, parseFrontload, parseKonfliktPlan, parseKuratorPlan, startScheduler, startTik, type KonfliktPlan, type KuratorPlan } from './scheduler.ts';
+import { createSettings, modelRevision, type Settings } from './settings.ts';
+import { TIER_KINDS, CHAT_KINDS } from './runs.ts';
+import { ROOMS } from './rooms/registry.ts';
+import { shell } from './shell/layout.ts';
+import { html, type Markup } from './shell/html.ts';
+import { renderIkkeFundet, ikkeFundetOverskrift, type IkkeFundetSlags } from './shell/ikkefundet.ts';
+import { renderUdenForbindelse } from './shell/udenforbindelse.ts';
+import { findRoom } from './rooms/registry.ts';
+import { UNIVERS, findUnivers, laesIndeks, laesUnivers, universRum } from './rooms/univers/lager.ts';
+import { synligUnivers, universRoom } from './rooms/univers/room.ts';
+import { renderMoedeVisning } from './rooms/univers/render.ts';
+import { koerMoedeTik, startMoedeTik } from './rooms/univers/moedetik.ts';
+import { getRoomModule, ROOM_MODULES } from './rooms/modules.ts';
+import { ActionError, type RoomDeps } from './rooms/module.ts';
+import { hjemEgne, kraeverIder, renderHjem, renderPlaceholder, type CcRaekke, type HjemData } from './rooms/hjem/render.ts';
+import { udloebet, type Kort } from './rooms/hjem/kort.ts';
+import { defaultRunner, type Runner } from './rooms/mail/source.ts';
+import { devMailRunner, devMailStateDir } from './rooms/mail/devSource.ts';
+import { RUM as DAGEN } from './rooms/dagen/room.ts';
+import { StemmeError, type StemmeClient } from './stemme/types.ts';
+import { createElevenLabs } from './stemme/elevenlabs.ts';
+import { createFakeStemme } from './stemme/fake.ts';
+import { AGENT_CONFIG, DEFAULT_VOICE_ID, KEYTERMS, antalTekst } from './stemme/agent.ts';
+import { bygOversigt, medKildeHelbred, medKuratorKort } from './stemme/oversigt.ts';
+import { vaelgSituation } from './situation/situation.ts';
+import { SITUATIONER, type Situation } from './situation/regler.ts';
+import type { Oversigt } from './stemme/types.ts';
+import { buildHjemChatRun, RUM as HJEM } from './rooms/hjem/prompt.ts';
+import { endreKurator, laesKurator, startKurator, synligKurator } from './kurator/kurator.ts';
+import type { NyhederState } from './rooms/nyheder/schema.ts';
+import { copenhagenDate } from './rooms/dagen/source.ts';
+import { besvar as udviklingBesvar, forRepo as udviklingForRepo, send as udviklingSend, status as udviklingStatus } from './udvikling/udvikling.ts';
+import { laesOpgaver } from './udvikling/lager.ts';
+import { OPGAVE_ID, synlige, tillid } from './udvikling/opgaver.ts';
+import { PROJEKTER, findProjekt } from './udvikling/projekter.ts';
+import { antalVenter, START as START_RUM, synligeRum } from './shell/synlig.ts';
+import { erFoersteGang, rejsen } from './rooms/start/room.ts';
+import { lavImportSkriver } from './import-skriver.ts';
+import { modtagRet } from './rooms/start/ret.ts';
+import { lavRetBus } from './rooms/rethaendelse.ts';
+import type { RegelSeam } from './rooms/start/regelforslag.ts';
+import { forhaandsvisningerNu, koerselFaerdig, modtagFoersteLaesning } from './rooms/start/vaerdi.ts';
+import { forhaandsvisningId, renderForhaandsvisning } from './rooms/start/forhaandsvisning.ts';
+import { lavProfilLager } from './store/profil.ts';
+import { medTesttilstand, testDataDir } from './testtilstand/kontakt.ts';
+import { lavTestverden } from './testtilstand/verden.ts';
+import { rumFraBesked, erHjaelp, erVidenBesked, hjaelpSvar } from './shell/aabn.ts';
+import { laesAabnet, markerAabnet } from './store/aabnet.ts';
+import { afgoerForslag, extractForslagBlok, fjernRegel, type Regelforslag } from './tillid/forslag.ts';
+import { maksTrinForForslag } from './tillid/trin.ts';
+import { gemRegelforslag, kanForeslaa } from './kurator/regelforslag.ts';
+import { fortrydLog, luk, regnskabFlyt, regnskabFortryd, regnskabVaelg, startKortHandling, udsaet, type Udfald } from './kurator/kortHandlinger.ts';
+import { SENERE, synligeKort, type Senere } from './kurator/senere.ts';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { erAfvist, HUSSTAND_ULAESELIG, INGEN, kunSigneret, peerAf, vaelgKigger, type Identitetsvalg, type Person } from './identitet/identitet.ts';
+import { kontoFraMiljoe } from './identitet/konto.ts';
+import { husstandSynlig, weekendTjek } from './hushold/room.ts';
+import { delerTitelRegel, type OptagetKalender } from './hushold/konflikt.ts';
+import type { KalenderLaesning } from './hushold/uge.ts';
+import { synligFor, zoneAf } from './identitet/zoner.ts';
+import { agentGulv, type Verb } from './graenser/verber.ts';
+import { KORSEL as KORT_KORSEL } from './rooms/hjem/kort.ts';
+import { aktionId, gennem, GraenseAfvist, TEGN } from './graenser/port.ts';
+import { HusstandFejl, laesHusstand } from './identitet/husstand.ts';
+import { renderIngenAdgang } from './shell/adgang.ts';
+import { lavPause, NodstopNaegtet, PauseFejl, PAUSE_TEKST, startIgen, stopAlt } from './graenser/nodstop.ts';
+import { erNej, lavRevisionslog, type Revisionslinje } from './graenser/revisionslog.ts';
+import { renderRevision } from './shell/revision.ts';
+import { renderKilder } from './shell/kilder.ts';
+import { renderOmkostninger } from './shell/omkostninger.ts';
+import { daekning, laesOmkostningsfil, OmkostningsFejl, OMKOSTNINGSFIL, type Omkostninger } from './omkostninger/regnskab.ts';
+import { vaultRod } from './store/vault.ts';
+import { lavReglerLager } from './tillid/lager.ts';
+import { jaFraTryk, regelFraForslag } from './graenser/regelforslag.ts';
+import { eksporter, opgoer, type Brugermappe } from './tillid/brugermappe.ts';
+import { sletAlt } from './tillid/slet.ts';
+import { renderSletAlt, renderViden, type Viden, type VidenKilde } from './tillid/viden.ts';
+import { idagKbh } from './shell/tid.ts';
+import { erMandag, faerdigeDage, fortrudtPaaDag, lavDagstal, raekke as ugeraekke, ugeAf, ugeLinje, ugeVisning } from './tillid/dagstal.ts';
+import { laesPersoner } from './kilder/noter/personer.ts';
+import { kan } from './identitet/roller.ts';
+import { KonfigFejl, lavRegister } from './kilder/register.ts';
+import { lavHelbredStyring, type HelbredStyring } from './kilder/helbred-fil.ts';
+import { genforbindFelter, stemmeSaetning } from './kilder/helbred-tekst.ts';
+import type { KildeHelbredKort } from './shell/kilde-helbred.ts';
+import { erFrisk, kildeFriskhed, type KildeFriskhed } from './shell/friskhed.ts';
+import { KildeFejl, type Kilde } from './kilder/types.ts';
+import { falskeKilder, kilderFraMiljoe, parseFalskTilstand } from './kilder/falsk/falsk.ts';
+import { legacyKilder } from './kilder/legacy/legacy.ts';
+import { lavVaultStier, NOTER_ID } from './kilder/noter/stier.ts';
+import { noterKilde } from './kilder/noter/noter.ts';
+import { mailImapKilde } from './kilder/mail-imap/mail-imap.ts';
+import { nyhederRss, NYHEDER_RSS_ID } from './kilder/nyheder-rss/kilde.ts';
+import { beskederKilde } from './kilder/beskeder/kilde.ts';
+import type { Kontakt } from './kilder/beskeder/besked.ts';
+import { mailForbindelse } from './kilder/mail-vindue.ts';
+import { googleKalender } from './kilder/google-kalender/kilde.ts';
+import { mailGmail } from './kilder/mail-gmail/kilde.ts';
+import { readNyhederSource } from './rooms/nyheder/source.ts';
+import { parseAll } from './rooms/mail/source.ts';
+import { falskKildeData } from './testtilstand/indhold/kilder.ts';
+import { PRODUKT } from './shell/navn.ts';
+import { manifest } from './shell/manifest.ts';
+import { MODEL_ENV_NOEGLER, udbyderAf, UDBYDERE } from './rooms/start/udbydere.ts';
+import { MODEL_FEJL } from './rooms/start/modelfejl.ts';
+import { modelKlaret, type ModelSyn } from './rooms/start/trin.ts';
+import { createDirekte } from './agent/direkte.ts';
+import { envNoegleLager } from './agent/noeglelager.ts';
+import { filNoegleLager } from './hemmeligheder/lager-fil.ts';
+import { registrerNoegleLager } from './hemmeligheder/registrer.ts';
+import { redigerKonsol } from './graenser/redaktion.ts';
+import { lavAgentNoegleSkriver, saetMiljoeNoegle } from './kilder/hemmeligheder.ts';
+
+/** KC-0127: Hermes' provider id for the provider chosen in Start's step 2 (none chosen = Hermes' own default, as on kira-home). */
+const hermesProvider = (s: Settings): string | undefined => (s.udbyder ? udbyderAf(s.udbyder)?.hermesProvider : undefined);
+
+/** KC-0127: the model settings as Start reads them (each tier's test keyed to its revision); KC-0180 health reads the same. */
+const modelSyn = (s: Settings): ModelSyn => ({
+  ...(s.udbyder ? { udbyder: s.udbyder } : {}), modeller: s.modeller, test: s.modelTest ?? {},
+  rev: { lille: modelRevision(s.udbyder, s.modeller.lille), taenker: modelRevision(s.udbyder, s.modeller.taenker) },
+});
+
+export type AppDeps = {
+  store: RumLager;
+  hermes: AgentClient;
+  /**
+   * KC-0127: Start's step 2. `fetchImpl` for model discovery (tests: a stub), `testMs` the live test's timeout
+   * (default 20 s), `miljoe` where Clawco's own key to Hermes is saved (default KC_ENV_FILE / .env and process.env).
+   */
+  model?: { fetchImpl?: typeof fetch; testMs?: number; miljoe?: { fil?: string; env?: Record<string, string | undefined> } };
+  sourceGlob: string;
+  mailStateDir?: string;
+  mailRunner?: Runner;
+  himalaya?: string;
+  vaultInbox?: string;
+  /** KC-0142: the vault root (KC_VAULT_DIR); absent = the parent of vaultInbox, else <dataDir>/vault (store/vault.ts). */
+  vaultDir?: string;
+  maxParallel?: number;
+  kalenderScript?: string;
+  dataDir?: string;
+  now?: () => Date;
+  sha?: string;
+  publicDir?: string;
+  /** KC-0015: the voice. Absent = no voice in the UI and 503 on /api/stemme/*. */
+  stemme?: StemmeClient;
+  /** KC-0017: the canonical address (KC_ADRESSE). Short host names redirect here. */
+  adresse?: string;
+  /** KC-0023: the vault's people register (KC_PEOPLE_DIR) Hermes looks people up in. KC-0136: absent = the chosen vault's. */
+  personer?: string;
+  /** KC-0136: the inbox when neither KC_VAULT_INBOX nor a vault chosen on the notes card says where (npm run dev). */
+  vaultInboxStandard?: string;
+  /** KC-0116: a fixed person for every request (the test world's fictional owner); KC-0179: konto = the Sky gateway's signature; absent = the tailnet identity. */
+  identitet?: Identitetsvalg;
+  /** KC-0132: the connectors this app offers (fakes in dev and the test world, the host's legacy adapters otherwise). */
+  kilder?: Kilde[];
+  /**
+   * KC-0138: the Beskeder connector, made here so it can read senders from the people register this app resolves
+   * (KC-0136). Absent = no message source offered.
+   */
+  beskeder?: (o: { kontakter: () => Promise<Kontakt[]> }) => Kilde;
+  /** KC-0212: the operator's cost ledger for the owner card in Kø, and paid MRR in øre (0 until billing feeds it). Absent = no card. */
+  omkostninger?: { laes: () => Promise<Omkostninger | null>; mrr: () => number };
+  /** KC-0130: E4's rule proposal for the first Ret (KC-0108 wires it); absent = Start shows the explanation card only. */
+  regelforslag?: RegelSeam;
+  /** KC-0129: where Start's import keeps raw uploads while a proposal is made (default `<os tmp>/clawco-import`); tests point it into their own dir. */
+  importTmp?: string;
+};
+
+/** KC-0116: who is looking, set once per request by the identity middleware. */
+type Hvem = { person: Person; husstand: Person[] };
+type Env = { Variables: Hvem };
+
+/**
+ * KC-0124: which audit lines a person reads. The owner reads all (the household's oversight; metadata only); a member
+ * or child their own lines, the household's and every stop/resume. A guest reads none (the routes answer 403).
+ */
+function synligRevision(p: Person, e: Revisionslinje): boolean {
+  if (p.rolle === 'gaest') return false;
+  if (p.rolle === 'ejer' || e.person === p.id || e.kilde === 'nodstop') return true;
+  return e.zoner.length > 0 && e.zoner.every((z) => z === 'husstand');
+}
+const START = Date.now();
+
+/** What a run says it is doing, by kind (KC-0100: also the fallback in the Kø panel for runs no room tagged). */
+const LABELS: Record<string, string> = { opdater: 'bygger rummet', handling: 'udfører en handling', fortryd: 'fortryder', chat: 'svarer i chatten', nyt: 'skriver udkast', forslag: 'laver forslag', brug: 'bruger forslag', afvis: 'afviser forslag', vaelg: 'skifter udkast', gem: 'gemmer', faerdig: 'rydder op', kladde: 'gemmer kladde', baggrund: 'flytter i baggrunden', frontload: 'bygger rummet (planlagt)', univers: 'svarer i universet', forbered: 'forbereder mødet', nytUnivers: 'opretter univers', placerMoede: 'lægger mødet i univers', skjulMoede: 'skjuler mødet', opgaveStatus: 'flytter opgaven', nytMoede: 'tilføjer mødet', arkiver: 'arkiverer universet', kurator: 'ordner kortene', laer: 'lærer af dit valg', send: 'sender et svar', afmeld: 'afmelder', analyse: 'analyserer' };
+
+function hilsen(now: Date): string {
+  const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Copenhagen', hour: '2-digit', hour12: false }).format(now));
+  return h < 10 ? 'Godmorgen, Henrik' : h < 17 ? 'Goddag, Henrik' : 'Godaften, Henrik';
+}
+
+export function createApp(deps: AppDeps) {
+  const now = deps.now ?? (() => new Date());
+  // KC-0124: the kill switch's pause and the audit log live on the data dir (none without one: in memory / off).
+  // KC-0126: the profile from Start's step 1 (none without a data dir); every run is told it.
+  const profil = deps.dataDir ? lavProfilLager(deps.dataDir) : undefined;
+  // KC-0136: the inbox and the people register come from the vault chosen on the notes card (kilder.json);
+  // vaultInbox / personer (KC_VAULT_INBOX / KC_PEOPLE_DIR) still win.
+  const stier = lavVaultStier({ ...(deps.dataDir ? { dataDir: deps.dataDir } : {}), env: { KC_VAULT_INBOX: deps.vaultInbox, KC_PEOPLE_DIR: deps.personer }, ...(deps.vaultInboxStandard ? { standardIndbakke: deps.vaultInboxStandard } : {}) });
+  const personerNu = (): string | undefined => stier().personer || undefined;
+  const runs = createRunRegistry(deps.hermes, { maxParallel: deps.maxParallel ?? 2, now, pause: lavPause(deps.dataDir), personer: () => stier().personer, ...(profil ? { profil: () => profil.laesNu() } : {}) });
+  const revision = deps.dataDir ? lavRevisionslog(deps.dataDir, { nu: now }) : undefined;
+  // KC-0142: the rules file in the vault; its integrity sha lives in the data dir (none without one: no rules).
+  const vaultDir = vaultRod({ KC_VAULT_DIR: deps.vaultDir, KC_VAULT_INBOX: deps.vaultInbox, KC_DATA_DIR: deps.dataDir });
+  const regler = vaultDir && deps.dataDir ? lavReglerLager({ vaultDir, dataDir: deps.dataDir }) : undefined;
+  // KC-0147: what required Henrik, per day (none without a data dir).
+  const dagstal = deps.dataDir ? lavDagstal({ dir: deps.dataDir }) : undefined;
+  const settings = createSettings(deps.dataDir ?? './data');
+  void settings.read().then((s) => runs.setModels(s.modeller, hermesProvider(s)));
+  const live = createLiveBus(Date.now());
+  // KC-0117: the person of the request being served; `d.person` reads it, so rooms need no extra parameter.
+  const hvemNu = new AsyncLocalStorage<Person>();
+  const d: RoomDeps = {
+    get person(): Person { return hvemNu.getStore() ?? INGEN; },
+    live,
+    store: deps.store, hermes: deps.hermes, runs, now,
+    dagenSourceGlob: deps.sourceGlob,
+    mailStateDir: deps.mailStateDir ?? '',
+    mailRunner: deps.mailRunner ?? defaultRunner(),
+    himalaya: deps.himalaya ?? 'himalaya',
+    get vaultInbox(): string { return stier().indbakke; },
+    kalenderScript: deps.kalenderScript ?? '',
+    ...(revision ? { revision } : {}),
+    ...(regler ? { regler } : {}),
+    ...(profil ? { profil } : {}),
+    retBus: lavRetBus(),
+    ...(deps.regelforslag ? { regelforslag: deps.regelforslag } : {}),
+    ...(deps.importTmp ? { importTmp: deps.importTmp } : {}),
+  };
+  // KC-0130: Start's step 6 hears the first Ret / Ikke relevant (Luk, and Hjem's chat about a card).
+  d.retBus!.lyt(modtagRet);
+  // KC-0127: Start's window on the model settings (one store with the Kø panel); none without a data dir.
+  if (deps.dataDir) {
+    const miljoe = deps.model?.miljoe;
+    d.model = {
+      async laes() { return modelSyn(await settings.read()); },
+      async vaelg(v) {
+        const s = await settings.setModels({ lille: v.lille, taenker: v.taenker }, { udbyder: v.udbyder });
+        runs.setModels(s.modeller, hermesProvider(s));
+      },
+      async saetTest(niveau, t) { await settings.setModelTest({ [niveau]: t }); },
+      saetAgentNoegle: (vaerdi) => saetMiljoeNoegle('KC_HERMES_API_KEY', vaerdi, { ...(miljoe?.fil ? { fil: miljoe.fil } : {}), ...(miljoe?.env ? { env: miljoe.env } : {}) }),
+      ...(deps.model?.fetchImpl ? { fetchImpl: deps.model.fetchImpl } : {}),
+      testMs: deps.model?.testMs ?? 20_000,
+    };
+  }
+  // KC-0132: the connector registry; which are connected lives in kilder.json on the data dir.
+  // KC-0139: health state of the connected sources; a read through the registry tells it how it went (the controller is made below).
+  const helbredRef: { styring?: HelbredStyring } = {};
+  const kilder = lavRegister({
+    dataDir: deps.dataDir ?? './data', store: deps.store, nu: now, live, efterLaesning: (id, ok) => helbredRef.styring?.laesning(id, ok).catch((err: unknown) => { console.error('helbred:', err instanceof Error ? err.message : err); }), ...(revision ? { revision } : {}), ...(deps.adresse ? { adresse: deps.adresse } : {}),
+    // KC-0128: the first value without the agent — Start stores the preview from the read, then the matching
+    // room rebuild and Kuratoren start (the preview stays until the rebuild lands; Start retires it).
+    async foersteLaesning({ kilde: k, laesning, zone, forbundet, person }) {
+      const { rum } = await modtagFoersteLaesning(d, { kilde: { id: k.id, navn: k.navn, slags: k.slags }, laesning, zone, ejer: person.id, forbundet });
+      live.notify(HJEM);
+      const mod = rum ? getRoomModule(rum) : undefined;
+      if (mod && rum) {
+        try { const run = await mod.opdater(d, 'opdater', { kanal: 'baggrund' }); if (run) tag(run, rum); } catch (err) { console.error('kilder: rummet kunne ikke bygges efter første læsning:', err instanceof Error ? err.message : err); }
+      }
+      void startKuratoren(false).catch(() => {});
+    },
+  });
+  for (const k of deps.kilder ?? []) kilder.registrer(k);
+  // KC-0138: messages read the people register for their senders (names and relations only; the register has no numbers yet).
+  if (deps.beskeder) {
+    kilder.registrer(deps.beskeder({
+      kontakter: async () => {
+        const dir = personerNu();
+        return dir ? (await laesPersoner(dir, { zone: 'privat' })).map((p) => ({ id: p.sti, navn: p.navn, relation: p.relation, numre: [] })) : [];
+      },
+    }));
+  }
+  // KC-0138: Kuratoren's window on the chosen conversations — every connected message source, read through the registry.
+  d.beskeder = async () => {
+    const ud = [];
+    for (const k of await kilder.forbundne('beskeder')) {
+      try { const l = await kilder.laes(k.id); if (l.slags === 'beskeder') ud.push(...l.data); } catch { /* not readable now: the health check says why */ }
+    }
+    return ud;
+  };
+  const helbred = lavHelbredStyring({ dataDir: deps.dataDir ?? './data', nu: now, register: kilder, store: deps.store, live });
+  helbredRef.styring = helbred;
+  // KC-0137: Nyheder's own feeds — null = the connector is not connected; connected but unreadable = an empty list (health says why).
+  d.rssNyheder = async () => {
+    try {
+      if (!(await kilder.forbundne('nyheder')).some((k) => k.id === NYHEDER_RSS_ID)) return null;
+    } catch { return null; }
+    try {
+      const l = await kilder.laes(NYHEDER_RSS_ID);
+      if (l.slags === 'nyheder') return { nyheder: l.data.nyheder, kilder: l.data.status };
+    } catch { /* not readable now: the health check says why */ }
+    return { nyheder: [], kilder: { antal: 0, medNyheder: 0, nyheder: 0, fejlede: [] } };
+  };
+  d.mailForbindelse = () => mailForbindelse(kilder); // KC-0214: Mail through the connector's verbs when no host mail source is connected
+  // KC-0139: what the health state says — cards for Nu, freshness for the rooms, a sentence for the voice. Display only:
+  // a kilder.json that cannot be read shows nothing here (the Kø panel says why), it never breaks a page.
+  const kortTilstande: readonly string[] = ['snart-udloebet', 'log-ind-igen', 'nede'];
+  /** Per connected source: what the health file remembers (sources never read nor checked have no entry). */
+  async function kildeStand(): Promise<{ kilde: Kilde; vist: string; f: KildeFriskhed }[]> {
+    try {
+      const fil = await helbred.laes();
+      return (await kilder.forbundneAlle()).flatMap((k) => {
+        const p = fil[k.id];
+        return p ? [{ kilde: k, vist: p.vist, f: { slags: k.slags, ...(p.sidstLaest ? { sidstLaest: p.sidstLaest } : {}), ok: p.vist === 'ok' || p.vist === 'snart-udloebet' } }] : [];
+      });
+    } catch (err) {
+      if (!(err instanceof KonfigFejl)) throw err;
+      return [];
+    }
+  }
+  async function kildeHelbredNu(): Promise<KildeHelbredKort[]> {
+    let fil: Awaited<ReturnType<typeof helbred.laes>>;
+    try { fil = await helbred.laes(); } catch { return []; }
+    const ud: KildeHelbredKort[] = [];
+    for (const [id, p] of Object.entries(fil)) {
+      if (!kortTilstande.includes(p.vist)) continue;
+      let f: Awaited<ReturnType<typeof kilder.forbindelse>>;
+      try { f = await kilder.forbindelse(id); } catch (err) {
+        if (err instanceof KonfigFejl) return [];
+        console.error(`helbred: kortet for ${id} kunne ikke bygges:`, err instanceof Error ? err.message : err); // a card that cannot be built never breaks the page
+        continue;
+      }
+      if (!f) continue; // no longer connected: no card
+      if (!synligFor(d.person, { zone: f.zone, ...(f.af ? { ejer: f.af } : {}) })) continue; // KC-0117: the count and the page show only what this person may see
+      ud.push({
+        id, navn: f.kilde.navn, slags: f.kilde.slags, auth: f.kilde.auth, vist: p.vist as KildeHelbredKort['vist'], zone: f.zone,
+        ...(f.af ? { ejer: f.af } : {}), ...(p.sidstLaest ? { sidstLaest: p.sidstLaest } : {}), ...(p.udloeber ? { udloeber: p.udloeber } : {}),
+        felter: genforbindFelter(f.kort.felter, f.valg), kanForbinde: kan(d.person.rolle, 'aendre-indstillinger'),
+      });
+    }
+    return ud;
+  }
+  /** The source a room's label speaks of: the one not current (the oldest), else the most recently read; null = nothing to say. */
+  d.kildeFriskhed = async (slags) => {
+    const alle = (await kildeStand()).filter((s) => s.f.slags === slags).map((s) => s.f);
+    const gamle = alle.filter((f) => !erFrisk(f, now()) && kildeFriskhed(f, now()).s !== '').sort((a, b) => (a.sidstLaest ?? '').localeCompare(b.sidstLaest ?? ''));
+    return gamle[0] ?? alle.filter((f) => erFrisk(f, now())).sort((a, b) => (b.sidstLaest ?? '').localeCompare(a.sidstLaest ?? ''))[0] ?? null;
+  };
+  /** By slags: sources whose elements must not pass as current. */
+  async function gamleNu(): Promise<Partial<Record<string, KildeFriskhed>>> {
+    const ud: Partial<Record<string, KildeFriskhed>> = {};
+    for (const slags of new Set((await kildeStand()).map((s) => s.f.slags))) {
+      const f = await d.kildeFriskhed?.(slags as 'kalender' | 'mail');
+      if (f && !erFrisk(f, now())) ud[slags] = f;
+    }
+    return ud;
+  }
+  /** One sentence per source that is log-ind-igen or nede (the voice says nothing of the rest). */
+  async function stemmeHelbred(): Promise<string[]> {
+    const ud: string[] = [];
+    for (const s of await kildeStand()) {
+      const t = stemmeSaetning(s.vist, s.kilde.auth, s.kilde.slags);
+      const hvor = t ? await kilder.hvor(s.kilde.id).catch(() => null) : null;
+      if (t && hvor && synligFor(d.person, { zone: hvor.zone, ...(hvor.af ? { ejer: hvor.af } : {}) })) ud.push(t);
+    }
+    return ud;
+  }
+  // KC-0133: Dagen's week from the connected calendar; one the user connected wins over the host's own (legacy) one.
+  d.ugeKalender = async () => {
+    try {
+      const forbundne = await kilder.forbundne('kalender');
+      const valgt = forbundne.find((k) => k.standard !== 'forbundet') ?? forbundne[0];
+      if (!valgt) return null;
+      const l = await kilder.laes(valgt.id);
+      return l.slags === 'kalender' ? { uge: l.data, fraVaerten: valgt.standard === 'forbundet' } : null;
+    } catch { return null; /* not readable now: the health check (Kilder in Kø) says why; Dagen builds without a week */ }
+  };
+  // KC-0126: what Start reads of the rest of the app (spec §3 Done; the registry for "worth adding").
+  d.rejse = {
+    async faerdigInput() {
+      const kurator = synligKurator(await laesKurator(deps.store), d.person);
+      // Real elements: open Kuratoren cards, every other room's waiting lines, and the cards closed in Nu (each was one Nu showed).
+      let venterLinjer = 0;
+      for (const m of ROOM_MODULES) if (m.id !== START_RUM) venterLinjer += (await m.hjemVenter(d)).length;
+      const lukket = kurator.lukket?.length ?? 0;
+      // Ret = the card's ask control (a Hjem chat line about "Kortet: …"); Ikke relevant = Luk with a reason.
+      const rettet = lukket > 0
+        || (await deps.store.readLog(HJEM, 200)).some((e) => e.kilde === 'henrik' && e.tekst.startsWith('Lukkede "'))
+        || (await deps.store.readChat(HJEM, 200)).some((e) => e.fra === 'henrik' && (e.kontekst ?? '').startsWith('Kortet: '));
+      // KC-0128: a source's preview is a real element too (built from data actually read).
+      const foerste = (await forhaandsvisningerNu(d)).length;
+      return { nuElementer: synligeKort(kurator.kort, now()).length + venterLinjer + lukket + foerste, rettet };
+    },
+    // KC-0130: step 6 points at the first element that carries Ret: a source's preview, else Kuratoren's first card.
+    async foersteKort() {
+      const forhaand = (await forhaandsvisningerNu(d))[0];
+      if (forhaand) return { titel: forhaand.titel };
+      const kort = synligeKort(synligKurator(await laesKurator(deps.store), d.person).kort, now())[0];
+      return kort ? { titel: kort.titel } : null;
+    },
+    async kilder() {
+      const alle = kilder.liste();
+      const forbundne = new Set<string>();
+      for (const slags of new Set(alle.map((k) => k.slags))) for (const k of await kilder.forbundne(slags)) forbundne.add(k.id);
+      return alle.map((k) => ({ id: k.id, navn: k.navn, slags: k.slags, forbundet: forbundne.has(k.id) }));
+    },
+    // KC-0128: the onboarding cards for Start's steps 3–4 (health only for connected sources).
+    async kort() {
+      return (await kilder.oversigt()).map((o) => ({ id: o.id, navn: o.navn, slags: o.slags, zone: o.zone, forbundet: o.forbundet, helbred: o.helbred, kort: o.kort }));
+    },
+    async mail() {
+      const ud: { emne: string; modtaget: string }[] = [];
+      for (const k of await kilder.forbundne('mail')) {
+        try {
+          const l = await kilder.laes(k.id);
+          if (l.slags === 'mail') ud.push(...l.data.map((m) => ({ emne: m.emne, modtaget: m.modtaget })));
+        } catch { /* a source that cannot be read adds nothing */ }
+      }
+      return ud;
+    },
+  };
+  // KC-0148: what the household universe reads — the persons of husstand.json (E1) and the calendars connected in
+  // the husstand zone (a calendar in privat or arbejde is not even read). A host calendar (nobody connected it) is the owner's.
+  const personerIHusstand = async (): Promise<Person[]> => {
+    try { return (await laesHusstand(deps.dataDir ?? './data'))?.personer ?? []; } catch (err) {
+      if (err instanceof HusstandFejl) return []; // the identity middleware already answers 503 for a broken file
+      throw err;
+    }
+  };
+  d.husstand = {
+    personer: personerIHusstand,
+    async kalendere() {
+      const ejer = (await personerIHusstand()).find((p) => p.rolle === 'ejer')?.id ?? null;
+      const ud: KalenderLaesning[] = [];
+      for (const k of await kilder.forbundne('kalender')) {
+        try {
+          const { zone, af } = await kilder.hvor(k.id);
+          if (zone !== 'husstand') continue;
+          const l = await kilder.laes(k.id);
+          if (l.slags === 'kalender') ud.push({ zone, ejer: af ?? ejer, data: l.data });
+        } catch { /* a calendar that cannot be read adds nothing */ }
+      }
+      return ud;
+    },
+    // KC-0152: every connected calendar of every zone for the Tuesday weekend check, which keeps busy blocks only (and a
+    // title only from a husstand-zone calendar or an owner who shares titles). The rules file is the vault owner's, so
+    // the title rule applies to the household's owner; any other member stays busy-only (fail closed).
+    async alleKalendere() {
+      const ejer = (await personerIHusstand()).find((p) => p.rolle === 'ejer')?.id ?? null;
+      const l = regler ? await regler.laes() : undefined;
+      const deler = l?.tilstand === 'ok' && delerTitelRegel(l.saet.regler);
+      const ud: OptagetKalender[] = [];
+      for (const k of await kilder.forbundne('kalender')) {
+        try {
+          const { zone, af } = await kilder.hvor(k.id);
+          const laes = await kilder.laes(k.id);
+          if (laes.slags !== 'kalender') continue;
+          const hvem = af || ejer;
+          ud.push({ zone, ejer: hvem, data: laes.data, delerTitel: deler && hvem !== null && hvem === ejer });
+        } catch { /* a calendar that cannot be read adds nothing */ }
+      }
+      return ud;
+    },
+    synlig: () => husstandSynlig(d),
+  };
+  // KC-0129: Start's import writes people and the profile through the notes connector's writers (the vault chosen on the
+  // notes card, or the env paths); "Lav en mappe til mig" sets the notes connector up as the card does.
+  d.importSkriver = lavImportSkriver({
+    stier,
+    ...(kilder.hent(NOTER_ID) ? { lavMappe: async () => { await kilder.forbind(NOTER_ID, { felter: { opsaetning: 'ny' } }, d.person); } } : {}),
+  });
+  const app = new Hono<Env>();
+
+  // KC-0017: a MagicDNS short name (`kontrol/`, plain http) goes to the canonical https address.
+  if (deps.adresse) {
+    const adresse = deps.adresse.replace(/\/+$/, '');
+    app.use('/*', async (c, next) => {
+      const url = new URL(c.req.url);
+      const kort = !url.hostname.includes('.') && !url.hostname.includes(':') && !url.hostname.startsWith('[') && url.hostname !== 'localhost';
+      if (kort) return c.redirect(adresse + url.pathname + url.search, 301);
+      await next();
+    });
+  }
+
+  // KC-0116: who is looking — before anything is served (static files included); /health stays open.
+  // The person comes only from the identity headers of a loopback peer (Tailscale Serve) or single-user mode,
+  // or (KC-0179, konto) from the Sky gateway's signature.
+  const husstandDir = deps.dataDir ?? './data';
+  const kigger = vaelgKigger(deps.identitet, now);
+  app.use('/*', async (c, next) => {
+    if (c.req.path === '/health') return next();
+    let husstand;
+    try { husstand = await laesHusstand(husstandDir); } catch (err) {
+      if (!(err instanceof HusstandFejl)) throw err;
+      console.error('identitet:', err.message);
+      return afvis(c, 503, HUSSTAND_ULAESELIG);
+    }
+    const hvem = kigger({ headers: c.req.raw.headers, peer: peerAf(c.env) }, husstand);
+    if (erAfvist(hvem)) {
+      if (hvem.log) console.warn('identitet:', hvem.log);
+      return afvis(c, hvem.afvist, hvem.hvorfor);
+    }
+    c.set('person', hvem);
+    c.set('husstand', husstand?.personer ?? []);
+    await hvemNu.run(hvem, next);
+  });
+  function afvis(c: Context<Env>, status: 401 | 403 | 503, hvorfor: string): Response {
+    if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: hvorfor }, status);
+    return c.html(renderIngenAdgang(hvorfor), status);
+  }
+  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand> } => ({ person: c.get('person'), husstand: c.get('husstand'), ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}) });
+
+  // KC-0018: no-cache = always revalidate, so a deploy reaches the browser and the home-screen app.
+  app.use('/*', async (c, next) => { c.header('Cache-Control', 'no-cache'); await next(); });
+  if (deps.publicDir) app.use('/*', serveStatic({ root: deps.publicDir }));
+
+  // KC-0121: the manifest is rendered from code (its name is PRODUKT).
+  app.get('/manifest.webmanifest', (c) => c.body(JSON.stringify(manifest()), 200, { 'Content-Type': 'application/manifest+json; charset=utf-8' }));
+
+  // KC-0094: what the service worker shows when the server cannot be reached; self-contained, no shell.
+  app.get('/uden-forbindelse', (c) => c.html(renderUdenForbindelse()));
+
+  // KC-0015: the voice. 'samtale' when the real client can mint agent tokens, 'lyt' with the fake.
+  const stemme = deps.stemme;
+  const stemmeNiveau: 'samtale' | 'lyt' | undefined = stemme ? (stemme.mode === 'elevenlabs' ? 'samtale' : 'lyt') : undefined;
+  let voiceId: Promise<string> | undefined;
+  function voice(): Promise<string> {
+    if (!stemme) return Promise.reject(new StemmeError('Stemmen er ikke sat op', 503));
+    if (!voiceId) {
+      voiceId = settings.read().then((s) => stemme.ensureVoice(s.stemme.voiceId)).then(async (v) => { await settings.setStemme({ voiceId: v }); return v; })
+        .catch((err: unknown) => {
+          // No library access (the key lacks voices_read) → the premade default, remembered for this process only.
+          console.error('stemme: kunne ikke vælge en stemme fra biblioteket, bruger standardstemmen:', err instanceof Error ? err.message : err);
+          return DEFAULT_VOICE_ID;
+        });
+    }
+    return voiceId;
+  }
+  let agentSync: Promise<string> | undefined;
+  /** Syncs the agent defined in code once per process; the ids land in the settings file. */
+  function agent(): Promise<string> {
+    if (!stemme) return Promise.reject(new StemmeError('Stemmen er ikke sat op', 503));
+    if (!agentSync) {
+      agentSync = (async () => {
+        const v = await voice();
+        const s = await settings.read();
+        const ids = await stemme.ensureAgent(AGENT_CONFIG, v, s.stemme);
+        await settings.setStemme(ids);
+        return ids.agentId;
+      })();
+      agentSync.catch(() => { agentSync = undefined; });
+    }
+    return agentSync;
+  }
+  function stemmeFejl(c: { json: (o: unknown, s: 400 | 404 | 502 | 503) => Response }, err: unknown): Response {
+    if (err instanceof StemmeError) return c.json({ error: err.message }, err.status === 503 ? 503 : err.status === 400 ? 400 : err.status === 404 ? 404 : 502);
+    throw err;
+  }
+
+  /** What the nav needs: pending counts per room (every active univers included), the active universes and (KC-0052) which rooms are relevant on `roomId`'s page. The Univers index is read once. */
+  async function navData(roomId = HJEM): Promise<{ venter: Record<string, number>; univers: { id: string; navn: string }[]; synlige: Set<string> }> {
+    const out: Record<string, number> = {};
+    for (const m of ROOM_MODULES) { if (m.id === UNIVERS) continue; const n = await m.venter(d); if (n) out[m.id] = n; }
+    const indeks = await laesIndeks(deps.store);
+    if (indeks.nyeMoeder.length) out[UNIVERS] = indeks.nyeMoeder.length;
+    // KC-0045/KC-0093: what waits in Hjem itself (Claude Code's questions and parked opgaver, Kuratoren's open cards) — the same count Hjem shows.
+    const egne = hjemEgne(await hjemEgneData());
+    if (egne) out[HJEM] = egne;
+    const univers = indeks.univers.filter((u) => !u.arkiveret).map((u) => ({ id: u.id, navn: u.navn }));
+    for (const u of univers) { const n = (await getRoomModule(universRum(u.id))?.venter(d)) ?? 0; if (n) out[universRum(u.id)] = n; }
+    const start = await rejsen(d);
+    const synlige = synligeRum({ roomId, rum: ROOMS.map((r) => r.id), univers: univers.map((u) => u.id), venter: out, aabnet: await laesAabnet(deps.store), now: now(), situation: (await situationNu()).situation, start: { faerdig: start.faerdig, forslag: start.forslag.length }, husstand: await husstandSynlig(d) });
+    return { venter: out, univers, synlige };
+  }
+  const venter = async (): Promise<Record<string, number>> => (await navData()).venter;
+
+  /** KC-0114: the situation now, from the engine. The meeting (KC-0030) is the one active now in any non-archived univers. */
+  async function situationNu(): Promise<{ situation: Situation; moede: { url: string; titel: string; start: string; slut: string; univers: string } | null }> {
+    const aktive = (await laesIndeks(deps.store)).univers.filter((u) => !u.arkiveret);
+    const universer = await Promise.all(aktive.map(async (u) => ({ slug: u.id, navn: u.navn, state: await laesUnivers(deps.store, u.id) })));
+    const { situation, moede: hit } = vaelgSituation({ now: now(), moeder: universer.flatMap((u) => u.state.moeder.map((m) => ({ id: m.id, start: m.start, slut: m.slut, univers: u.slug }))) });
+    const u = hit ? universer.find((x) => x.slug === hit.univers) : undefined;
+    const moede = u?.state.moeder.find((m) => m.id === hit?.id);
+    if (!u || !moede) return { situation, moede: null };
+    return { situation, moede: { url: `/moede/${encodeURIComponent(u.slug)}/${encodeURIComponent(moede.id)}`, titel: moede.titel, start: moede.start, slut: moede.slut, univers: u.navn } };
+  }
+
+  app.get('/api/situation', async (c) => c.json(await situationNu()));
+
+  // Opening the app lands in Start on the first run (KC-0126), else on the meeting when one is active, else on Hjem.
+  app.get('/', async (c) => c.redirect((await erFoersteGang(d)) ? '/rum/start' : (await situationNu()).moede?.url ?? '/rum/hjem', 302));
+  // KC-0115: Nu is Hjem grown up; the internal room id stays hjem.
+  app.get('/nu', (c) => c.redirect('/rum/hjem', 302));
+
+  // `hermes` stays for live:tjek; `agent` is the seam (KC-0118) — the same client today.
+  app.get('/health', async (c) => {
+    // KC-0127: status says why it is not reachable (mangler-noegle on a keyless install); /health itself always answers.
+    // KC-0180: reachable is the agent's own health (direkte: a key and a passed live test, no network call).
+    const [status, reachable] = await Promise.all([deps.hermes.status(), deps.hermes.health()]);
+    const agent = { mode: deps.hermes.mode, reachable, status };
+    return c.json({ ok: true, sha: deps.sha ?? 'dev', uptimeSec: Math.round((Date.now() - START) / 1000), hermes: agent, agent, pause: runs.paaPause() });
+  });
+
+  app.get('/api/indstillinger', async (c) => c.json({ ...(await settings.read()), niveauer: TIER_KINDS }));
+  app.post('/api/indstillinger', async (c) => {
+    const b = await body(c);
+    const m = typeof b['modeller'] === 'object' && b['modeller'] !== null ? (b['modeller'] as Record<string, string>) : {};
+    let s = await settings.setModels(m);
+    runs.setModels(s.modeller, hermesProvider(s));
+    const st = typeof b['stemme'] === 'object' && b['stemme'] !== null ? (b['stemme'] as Record<string, unknown>) : null;
+    if (st && typeof st['voiceId'] === 'string') { s = await settings.setStemme({ voiceId: st['voiceId'].trim() }); voiceId = undefined; agentSync = undefined; }
+    return c.json({ ...s, niveauer: TIER_KINDS });
+  });
+
+  /** KC-0124: the newest audit lines `person` may read (at most `antal`), optionally only the refusals. */
+  async function revisionFor(person: Person, antal: number, kunNej = false): Promise<Revisionslinje[]> {
+    if (!revision) return [];
+    return (await revision.seneste(500)).filter((e) => synligRevision(person, e) && (!kunNej || erNej(e))).slice(0, antal);
+  }
+  const navne = (c: Context<Env>): Record<string, string> => Object.fromEntries([c.get('person'), ...c.get('husstand')].map((p) => [p.id, p.id === c.get('person').id ? 'Du' : p.navn]));
+
+  /** KC-0120: "Kilder" in the Kø panel, rendered here (escaped); Frakobl only for whoever may change settings. */
+  async function kilderPanel(person: Person): Promise<string> {
+    try {
+      // KC-0139: "last read" survives a restart (helbred.json), else only this run's reads would show.
+      const fil = await helbred.laes();
+      const liste = (await kilder.oversigt()).map((o) => ({ ...o, sidstLaest: fil[o.id]?.sidstLaest ?? o.sidstLaest }));
+      return String(renderKilder(liste, { nu: now(), maaFrakoble: kan(person.rolle, 'aendre-indstillinger') }));
+    } catch (err) {
+      if (!(err instanceof KonfigFejl)) throw err;
+      console.error('kilder:', err.message);
+      return String(html`<p class="muted row" data-kilder="fejl">Forbindelserne kunne ikke læses. Ejeren skal rette kilder.json.</p>`);
+    }
+  }
+
+  /** KC-0212: the owner's cost card (escaped); '' for anyone else and on a host without a ledger. */
+  async function omkostningsKort(person: Person): Promise<string> {
+    if (person.rolle !== 'ejer' || !deps.omkostninger) return '';
+    try {
+      const o = await deps.omkostninger.laes();
+      return o ? String(renderOmkostninger(daekning(o, deps.omkostninger.mrr()))) : '';
+    } catch (err) {
+      if (!(err instanceof OmkostningsFejl)) throw err;
+      console.error('omkostninger:', err.message);
+      return String(renderOmkostninger('fejl'));
+    }
+  }
+
+  app.get('/api/koe', async (c) => c.json({
+    nu: now().getTime(),
+    // KC-0120: only while the panel is open (?kilder=1), so a page load never waits on a health check.
+    ...(c.req.query('kilder') === '1' ? { kilder: await kilderPanel(c.get('person')), omkostninger: await omkostningsKort(c.get('person')) } : {}),
+    pause: runs.paaPause(),
+    // KC-0124: "Hvad Clawco har gjort", rendered here (one renderer, escaped); a guest gets nothing.
+    revision: c.get('person').rolle === 'gaest' ? '' : String(renderRevision(await revisionFor(c.get('person'), 50), { nu: now(), navne: navne(c) })),
+    runs: runs.list().filter((r) => synligFor(c.get('person'), r)).slice(0, 40).map((r) => ({ id: r.id, room: r.room ?? null, label: r.label ?? LABELS[r.kind] ?? r.kind, kind: r.kind, status: r.status, startedAt: r.startedAt, begyndt: r.begyndtAt ?? null, finishedAt: r.finishedAt ?? null, text: r.result?.text ?? r.error ?? null })),
+  }));
+
+  // KC-0124: the audit log (owner and members; never a guest). ?nej=1 = only what Clawco said no to.
+  app.get('/api/revision', async (c) => {
+    if (c.get('person').rolle === 'gaest') return c.json({ error: 'En gæst kan ikke se, hvad Clawco har gjort.' }, 403);
+    const linjer = await revisionFor(c.get('person'), 50, c.req.query('nej') === '1');
+    return c.json({ linjer, kaede: revision ? await revision.tjekKaede() : { ok: true } });
+  });
+
+  // KC-0124: "Stop alt" (any non-guest) and "Start igen" (the owner only). Both write one audit line.
+  app.post('/api/nodstop', async (c) => {
+    const stoppede = await stopAlt({ runs, revision, person: c.get('person'), kanal: 'knap' });
+    for (const r of ROOMS) live.notify(r.id);
+    return c.json({ pause: true, stoppede });
+  });
+  app.post('/api/nodstop/genoptag', async (c) => {
+    await startIgen({ runs, revision, person: c.get('person'), kanal: 'knap' });
+    for (const r of ROOMS) live.notify(r.id);
+    return c.json({ pause: runs.paaPause() });
+  });
+  // KC-0124: while paused nothing new starts — every room route that would ask Hermes or act answers 503 at the door.
+  app.use('/api/rum/*', async (c, next) => {
+    if (c.req.method === 'POST' && runs.paaPause()) return c.json({ error: PAUSE_TEKST }, 503);
+    await next();
+  });
+
+  // KC-0122: a refusal from the policy layer is a 403 with the plain Danish reason (the room's log has the line).
+  app.onError((err, c) => {
+    if (err instanceof GraenseAfvist) return c.json({ error: err.message, graense: err.udfald === 'kraever-ja' ? 'kraever-ja' : 'afvist' }, 403);
+    // KC-0124: a run asked for while paused (the last line of defence, src/runs.ts), and a role that may not stop/resume.
+    if (err instanceof PauseFejl) return c.json({ error: err.message }, 503);
+    if (err instanceof NodstopNaegtet) return c.json({ error: err.message }, 403);
+    // KC-0132: a connector refusal carries its status (fail closed); a kilder.json that cannot be read is 503, never "none".
+    if (err instanceof KildeFejl) return c.json({ error: err.message }, err.status);
+    if (err instanceof KonfigFejl) { console.error('kilder:', err.message); return c.json({ error: 'Forbindelserne kunne ikke læses. Ejeren skal rette kilder.json.' }, 503); }
+    console.error(err);
+    return c.text('Internal Server Error', 500);
+  });
+
+  // KC-0122: a one-time yes for exactly one button, asked for by the browser when a red button is tapped. Never by voice.
+  app.post('/api/graense/ja', async (c) => {
+    const b = await body(c);
+    const rum = typeof b['rum'] === 'string' ? b['rum'] : '';
+    const slags = typeof b['slags'] === 'string' ? b['slags'] : '';
+    // KC-0146: a rule's Slå fra / Slå til igen on /viden (id "R-0001:pause") is a tap too; nothing else on that page is.
+    const videnRegel = rum === 'viden' && slags === 'regel';
+    // KC-0144: Ja on a rule proposal in Nu (id = the proposal's id) is a tap too.
+    const hjemForslag = rum === HJEM && slags === 'forslag';
+    if (!videnRegel && !hjemForslag && ((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
+    const id = slags === 'aktion' ? aktionId(typeof b['id'] === 'string' ? b['id'] : '', typeof b['body'] === 'object' && b['body'] !== null ? b['body'] as Record<string, unknown> : {}) : typeof b['id'] === 'string' ? b['id'] : '';
+    if (!id) return c.json({ error: 'Ukendt knap' }, 400);
+    return c.json({ ja: TEGN.udsted({ person: c.get('person').id, rum, slags, id }) });
+  });
+
+  // KC-0132: the connectors. Reading the list needs a known person (the identity middleware); changing it, the owner.
+  const ejerKun = (c: Context<Env>): Response | null => (kan(c.get('person').rolle, 'aendre-indstillinger') ? null : c.json({ error: 'Kun ejeren kan forbinde og frakoble kilder.' }, 403));
+  app.get('/api/kilder', async (c) => c.json({ kilder: await kilder.oversigt() }));
+  app.post('/api/kilder/:id/forbind', async (c) => {
+    const nej = ejerKun(c); if (nej) return nej;
+    let b: unknown;
+    try { b = await c.req.json(); } catch { return c.json({ error: 'Ugyldig forespørgsel' }, 400); }
+    return c.json(await kilder.forbind(c.req.param('id'), b, c.get('person')));
+  });
+  app.post('/api/kilder/:id/frakobl', async (c) => {
+    const nej = ejerKun(c); if (nej) return nej;
+    await kilder.frakobl(c.req.param('id'), c.get('person'));
+    return c.json({ forbundet: false });
+  });
+  app.get('/api/kilder/:id/tilbage', async (c) => {
+    const nej = ejerKun(c); if (nej) return nej;
+    await kilder.tilbage(c.req.param('id'), c.req.query('state') ?? '', c.req.query('code') ?? '', c.get('person'));
+    return c.redirect('/', 302);
+  });
+
+  // KC-0146 "Hvad Clawco ved om dig": the page, Hent alt, Slet alt and a rule's Slå fra. The owner only: the page and
+  // the export hold the whole household's data. Slet alt is not a handling — no room, chat phrase, voice id or Hermes
+  // answer reaches it; only this route, with the typed word. The work is done by plain functions (src/tillid/), so Sky
+  // (KC-0206) can run the export and the delete inside a tenant without this app.
+  const KUN_EJER = `Kun ejeren kan se og ændre, hvad ${PRODUKT} har gemt.`;
+  const erEjer = (c: Context<Env>): boolean => c.get('person').rolle === 'ejer';
+  /** The user's folder (D7): the data dir and the vault's Clawco/; the vault, people register and inbox are the user's own notes. */
+  const brugermappe = (): Brugermappe => {
+    const s = stier();
+    return { dataDir: deps.dataDir ?? './data', ...(vaultDir ? { vaultDir } : {}), beskyt: [s.personer, s.indbakke].filter((p) => !!p) };
+  };
+  const personerListe = async (): Promise<{ dir: string; liste: { navn: string; relation: string; sti: string }[] } | null> => {
+    const dir = personerNu();
+    if (!dir) return null;
+    return { dir, liste: (await laesPersoner(dir, { zone: 'privat' })).map((p) => ({ navn: p.navn, relation: p.relation, sti: p.sti })) };
+  };
+  async function videnNu(): Promise<Viden> {
+    let kildeliste: VidenKilde[] = [];
+    try {
+      kildeliste = await Promise.all((await d.rejse!.kilder()).map(async (k) => ({ ...k, ...(k.forbundet ? { zone: (await kilder.hvor(k.id)).zone } : {}) })));
+    } catch (err) {
+      if (!(err instanceof KonfigFejl)) throw err;
+      console.error('viden:', err.message);
+    }
+    return { kilder: kildeliste, regler: regler ? { fil: regler.fil, laest: await regler.laes() } : null, personer: await personerListe(), gemt: await opgoer(brugermappe()), ...(dagstal ? { ugetal: ugeraekke(faerdigeDage(await dagstal.dage(), idagKbh(now())), ugeAf(now())) } : {}) };
+  }
+  async function videnSide(c: Context<Env>, main: Markup, titel: string, status: 200 | 400 = 200): Promise<Response> {
+    const { venter: v, univers, synlige: syn } = await navData();
+    return c.html(String(shell({ ...hvem(c), roomId: HJEM, hermesStatus: 'Klar', venter: v, main, chat: await deps.store.readChat(HJEM), stemme: stemmeNiveau, univers, synlige: syn, titel })), status);
+  }
+  const erForm = (c: Context<Env>): boolean => /^(application\/x-www-form-urlencoded|multipart\/form-data)/i.test(c.req.header('content-type') ?? '');
+  async function formFelt(c: Context<Env>, navn: string): Promise<string> {
+    if (erForm(c)) { const f = await c.req.parseBody(); return typeof f[navn] === 'string' ? f[navn] : ''; }
+    const b = await body(c);
+    return typeof b[navn] === 'string' ? b[navn] : '';
+  }
+  /** A form posted from another site (the browser says so) never reaches these routes. */
+  const fremmed = (c: Context<Env>): boolean => { const s = c.req.header('sec-fetch-site'); return !!s && s !== 'same-origin' && s !== 'none'; };
+
+  app.get('/viden', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, KUN_EJER);
+    const v = await videnNu();
+    const tom = !v.gemt.rum.length && !v.gemt.clawco.length && !v.gemt.andre && !v.gemt.noegler;
+    return videnSide(c, renderViden({ ...v, slettet: c.req.query('slettet') === '1' && tom }), `Hvad ${PRODUKT} ved om dig`);
+  });
+  app.get('/viden/slet-alt', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, KUN_EJER);
+    return videnSide(c, renderSletAlt(await videnNu()), 'Slet alt');
+  });
+  app.get('/api/tillid/eksport', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, KUN_EJER);
+    const p = await personerListe();
+    const zip = await eksporter(brugermappe(), p ? { personer: { dir: p.dir, filer: p.liste.map((x) => x.sti) } } : {}, now());
+    return c.body(new Uint8Array(zip), 200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="clawco-${copenhagenDate(now())}.zip"`, 'Cache-Control': 'no-store' });
+  });
+  app.post('/api/tillid/slet-alt', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan slette alt.');
+    if (fremmed(c)) return c.json({ error: 'Slet alt kan kun bestilles fra Clawco selv.' }, 403);
+    if ((await formFelt(c, 'bekraeft')).trim() !== 'SLET') {
+      const fejl = 'Skriv SLET med store bogstaver for at slette alt.';
+      return erForm(c) ? videnSide(c, renderSletAlt(await videnNu(), { fejl }), 'Slet alt', 400) : c.json({ error: fejl }, 400);
+    }
+    const person = c.get('person');
+    // Nothing may run or start while the folder is emptied: stop every run (the pause goes with the folder).
+    await runs.stopAlle(person.id);
+    try {
+      await sletAlt(brugermappe(), { person: person.id, kanal: 'knap', ...(revision ? { revision } : {}) });
+    } catch (err) {
+      await runs.genoptag(person.id);
+      throw err;
+    }
+    // An empty store again: the data dir is there, nothing cached from the old settings, no pause.
+    if (deps.dataDir) await mkdir(deps.dataDir, { recursive: true });
+    await runs.genlaesPause();
+    voiceId = undefined;
+    agentSync = undefined;
+    const s = await settings.read();
+    runs.setModels(s.modeller, hermesProvider(s));
+    for (const r of ROOMS) live.notify(r.id);
+    return erForm(c) ? c.redirect('/viden?slettet=1', 303) : c.json({ slettet: true });
+  });
+  // A rule's Slå fra / Slå til igen: the rules file changes only with a fresh human tap (KC-0123), redeemed here.
+  app.post('/api/tillid/regler/:id/:status', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, KUN_EJER);
+    const status = c.req.param('status');
+    if ((status !== 'pause' && status !== 'aktiv') || !regler) return c.json({ error: 'Ukendt regel' }, 404);
+    const b = await body(c);
+    const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: 'viden', slags: 'regel', id: `${c.req.param('id')}:${status}` });
+    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    const l = await regler.laes();
+    if (l.tilstand !== 'ok') return c.json({ error: 'Reglerne kan ikke læses; ret filen først.' }, 409);
+    const id = c.req.param('id');
+    if (!l.saet.regler.some((r) => r.id === id)) return c.json({ error: 'Ukendt regel' }, 404);
+    await regler.skriv({ ...l.saet, regler: l.saet.regler.map((r) => (r.id === id ? { ...r, status } : r)) });
+    return c.json({ id, status });
+  });
+
+  // KC-0144: the card "Skal jeg gøre det til en regel?". The ONLY writer of the rules file from a proposal is Ja below: a
+  // redeemed human-tap token (jaFraTryk) for exactly that proposal, from the owner, from the app itself. Hermes' text and
+  // mail never reach it. Fortryd of the log line removes exactly the rule made (the app, no Hermes run).
+  const FORTRYD_REGEL = /^lokal:\{"fjernRegel":"(R-\d{4,})"\}$/;
+  const SAMME_SIDE = 'Forslaget kan kun besvares fra Clawco selv.';
+  type ForslagUdfald = { status: 200; regelId?: string; igen?: true; forslag?: Regelforslag } | { status: 404 | 409 | 503; error: string };
+
+  app.post('/api/tillid/forslag/:id/godkend', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan gøre noget til en regel.');
+    if (fremmed(c)) return c.json({ error: SAMME_SIDE }, 403);
+    const id = c.req.param('id');
+    if (!regler) return c.json({ error: 'Der er ingen regelfil at gemme i.' }, 503);
+    if (!synligKurator(await laesKurator(deps.store), d.person).regelforslag?.some((f) => f.id === id)) return c.json({ error: 'Forslaget findes ikke' }, 404);
+    const b = await body(c);
+    const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: HJEM, slags: 'forslag', id });
+    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    let u = { status: 404, error: 'Forslaget findes ikke' } as ForslagUdfald; // set inside the chain step below
+    // One chain step: the rules file and the proposal's state change together, so a second tap sees the first.
+    await endreKurator(deps.store, async (s) => {
+      const f = s.regelforslag?.find((x) => x.id === id);
+      if (!f) return s;
+      if (f.status === 'godkendt') { u = { status: 200, ...(f.regelId ? { regelId: f.regelId } : {}), igen: true }; return s; }
+      if (f.status === 'afvist') { u = { status: 409, error: 'Du har allerede sagt nej tak til det forslag.' }; return s; }
+      const l = await regler.laes();
+      if (l.tilstand === 'ulaeselig') { u = { status: 409, error: 'Reglerne kan ikke læses; ret filen først.' }; return s; }
+      // The cap is checked again against the file as it is now: it may have changed since the card was made.
+      if (f.trin > maksTrinForForslag(l, f.gaelder)) { u = { status: 409, error: 'Reglerne er ændret, siden forslaget blev lavet. Tryk Ret reglen.' }; return s; }
+      const saet = l.tilstand === 'ok' ? l.saet : { naesteId: 1, regler: [], ugyldige: [] };
+      // A rule from this very proposal already in the file (a crash between the write and the state): adopt it, write nothing more.
+      const findes = saet.regler.find((r) => r.oprindelse.kortId === f.kortId && r.oprindelse.art === f.art && r.titel === f.titel);
+      let regelId = findes?.id;
+      if (!findes) {
+        const ny = regelFraForslag(saet, { titel: f.titel, tekst: f.tekst, trin: f.trin, gaelder: f.gaelder, oprindelse: { art: f.art, kortId: f.kortId } }, ja, idagKbh(now()));
+        await regler.skriv(ny.saet);
+        regelId = ny.regel.id;
+      }
+      u = { status: 200, ...(regelId ? { regelId } : {}), forslag: f };
+      return { ...s, regelforslag: afgoerForslag(s.regelforslag ?? [], id, 'godkendt', now(), regelId) };
+    });
+    if (u.status !== 200) return c.json({ error: u.error }, u.status);
+    if (u.forslag && u.regelId && !u.igen) {
+      const f = u.forslag;
+      await deps.store.appendLog(HJEM, { kilde: 'henrik', tekst: `Gjorde det til en regel: ${f.titel} (${u.regelId})`, handlingId: `regelforslag:${id}`, fortryd: `lokal:${JSON.stringify({ fjernRegel: u.regelId })}`, zone: zoneAf(f), ...(f.ejer ? { ejer: f.ejer } : {}) });
+      await revision?.skriv({ person: c.get('person').id, kanal: 'knap', rum: HJEM, verb: 'bogfoer', udfald: 'tillad', hvorfor: 'Ejeren trykkede Ja til et forslag om en regel.', handlingId: `regelforslag:${id}`, zoner: [zoneAf(f)], kilde: 'forslag' });
+      live.notify(HJEM);
+    }
+    return c.json({ id, regelId: u.regelId });
+  });
+
+  app.post('/api/tillid/forslag/:id/afvis', async (c) => {
+    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan svare på et forslag til en regel.');
+    if (fremmed(c)) return c.json({ error: SAMME_SIDE }, 403);
+    const id = c.req.param('id');
+    if (!synligKurator(await laesKurator(deps.store), d.person).regelforslag?.some((f) => f.id === id)) return c.json({ error: 'Forslaget findes ikke' }, 404);
+    let u = { status: 404, error: 'Forslaget findes ikke' } as ForslagUdfald; // set inside the chain step below
+    await endreKurator(deps.store, (s) => {
+      const f = s.regelforslag?.find((x) => x.id === id);
+      if (!f) return s;
+      if (f.status === 'afvist') { u = { status: 200 }; return s; }
+      if (f.status === 'godkendt') { u = { status: 409, error: 'Forslaget er allerede gjort til en regel; fortryd det i loggen.' }; return s; }
+      u = { status: 200 };
+      return { ...s, regelforslag: afgoerForslag(s.regelforslag ?? [], id, 'afvist', now()) };
+    });
+    if (u.status !== 200) return c.json({ error: u.error }, u.status);
+    live.notify(HJEM);
+    return c.json({ id });
+  });
+
+  /** Fortryd on "Gjorde det til en regel": removes exactly that rule, once. Not a Hermes run. */
+  async function fortrydRegel(logId: string, regelId: string): Promise<Udfald> {
+    if (!regler) return { ok: false, status: 503, error: 'Der er ingen regelfil.' };
+    let u = { ok: false, status: 404, error: 'Linjen findes ikke' } as Udfald; // set inside the chain step below
+    await endreKurator(deps.store, async (s) => {
+      const e = (await deps.store.readLog(HJEM, 1000)).find((x) => x.id === logId);
+      if (!e) return s;
+      if (e.fortrudt) { u = { ok: false, status: 409, error: 'Allerede fortrudt' }; return s; }
+      const l = await regler.laes();
+      if (l.tilstand !== 'ok') { u = { ok: false, status: 409, error: 'Reglerne kan ikke læses; ret filen først.' }; return s; }
+      const uden = fjernRegel(l.saet, regelId);
+      if (!uden) { u = { ok: false, status: 409, error: 'Reglen står ikke længere i filen' }; return s; }
+      await regler.skriv(uden);
+      await deps.store.updateLog(HJEM, logId, { fortrudt: now().toISOString() });
+      u = { ok: true };
+      return s;
+    });
+    if (u.ok) live.notify(HJEM);
+    return u;
+  }
+
+  app.get('/api/live', (c) => streamSSE(c, async (stream) => {
+    let open = true;
+    let wake!: () => void;
+    let waiting = new Promise<void>((res) => { wake = res; });
+    const pending: RunRecord[] = [];
+    const off = runs.onFinished((r) => { pending.push(r); wake(); });
+    stream.onAbort(() => { open = false; off(); wake(); });
+    await stream.writeSSE({ event: 'hello', data: JSON.stringify({ running: runs.list().filter((r) => r.status === 'running' || r.status === 'queued').length }) });
+    while (open) {
+      const timer = setTimeout(() => wake(), 25_000);
+      await waiting;
+      clearTimeout(timer);
+      waiting = new Promise<void>((res) => { wake = res; });
+      if (!open) break;
+      if (pending.length) {
+        for (const r of pending.splice(0)) await stream.writeSSE({ event: 'run.done', data: JSON.stringify({ id: r.id, room: r.room ?? null, label: r.label ?? LABELS[r.kind] ?? r.kind, status: r.status, text: r.result?.text ?? r.error ?? null }) });
+      } else await stream.write(': keepalive\n\n');
+    }
+    off();
+  }));
+
+  /**
+   * One planned rebuild of a room. KC-0137: Nyheder is rebuilt on a schedule only when there is a paper to build from
+   * — Henrik's morning paper is registered, or the user's own feeds are connected — so an install with neither is
+   * never sent after a paper nobody set up. Resolves to whether a run started.
+   */
+  async function bygPlanlagt(roomId: string): Promise<boolean> {
+    const mod = getRoomModule(roomId);
+    if (!mod) return false;
+    if (roomId === 'nyheder' && !kilder.hent('kira-morgenavis') && !(await d.rssNyheder?.())) return false;
+    const run = await mod.opdater(d, 'opdater', { kanal: 'baggrund' });
+    if (!run) return false;
+    run.kind = 'frontload';
+    tag(run, roomId);
+    return true;
+  }
+
+  /** Planned rebuilds (frontloading). Returns a stop function. */
+  function frontload(spec: string): () => void {
+    return startScheduler(parseFrontload(spec), (roomId) => { void bygPlanlagt(roomId).catch(() => {}); }, undefined, () => !runs.paaPause()); // KC-0124: no planned rebuild while paused
+  }
+
+  /** Today's Nyheder lines with their stamp, unless Kuratoren already saw that stamp (state.nyhederSet); else null (= nothing new). */
+  async function nyeNyheder(): Promise<{ linjer: string[]; stempel: string } | null> {
+    const ny = await deps.store.readState<Partial<NyhederState>>('nyheder');
+    if (!ny || ny.dato !== copenhagenDate(now()) || !Array.isArray(ny.femLinjer) || ny.femLinjer.length === 0 || !ny.genereret) return null;
+    if (ny.genereret === (await laesKurator(deps.store)).nyhederSet) return null;
+    return { linjer: ny.femLinjer, stempel: ny.genereret };
+  }
+
+  const startKuratoren = async (dyb: boolean): Promise<RunRecord | null> => {
+    const ny = await nyeNyheder();
+    const personer = personerNu();
+    const run = await startKurator(d, { dyb, nyheder: ny?.linjer ?? null, ...(ny ? { nyhederStempel: ny.stempel } : {}), ...(personer ? { personer } : {}) });
+    if (run) live.notify(HJEM); // the timer's runs are not tagged; Hjem's I gang band shows them
+    return run;
+  };
+
+  /** Today's deep run is owed: none ran today (sidstDyb, Copenhagen) and today's Nyheder has been built. */
+  async function skylderDyb(): Promise<boolean> {
+    const n = now();
+    const { sidstDyb } = await laesKurator(deps.store);
+    if (sidstDyb && copenhagenDate(new Date(sidstDyb)) === copenhagenDate(n)) return false;
+    const g = (await deps.store.readState<Partial<NyhederState>>('nyheder'))?.genereret;
+    return typeof g === 'string' && !Number.isNaN(Date.parse(g)) && copenhagenDate(new Date(g)) === copenhagenDate(n);
+  }
+
+  /**
+   * The hourly check: a run when due and something is new — deep while today's deep run is owed (so a
+   * Nyheder rebuild that came while another run was in flight is not lost). `sidst` is stamped only by a
+   * successful run, so the check also remembers (in memory) when it last tried: a tick that finds nothing new,
+   * or a run that fails, must not make every minute tick re-read mail or re-ask Hermes. While a deep run is
+   * owed, only that memory gates it (not `sidst`): the first tick after the run in flight runs it.
+   */
+  let sidstTjek: string | undefined;
+  async function kuratorTik(plan: KuratorPlan): Promise<RunRecord | null> {
+    if (runs.paaPause()) return null; // KC-0124: nothing planned runs while paused (and nothing is stamped)
+    // A run in flight: nothing to try, and nothing stamped (the next tick after it may be the deep run).
+    if (runs.list().some((r) => r.kind === 'kurator' && (r.status === 'queued' || r.status === 'running'))) return null;
+    const dyb = await skylderDyb();
+    const sidst = dyb ? undefined : (await laesKurator(deps.store)).sidst;
+    const sidste = [sidst, sidstTjek].filter((x): x is string => Boolean(x) && !Number.isNaN(Date.parse(x as string))).sort().pop();
+    if (!kuratorDue(plan, now(), sidste)) return null;
+    sidstTjek = now().toISOString(); // stamped before the attempt, so a null, a throw or a failed run all count
+    return startKuratoren(dyb);
+  }
+
+  /** KC-0028: Kuratoren's schedule ("07-22/60"; empty or "fra" = off), plus right after a Mail/Nyheder rebuild. Returns a stop function. */
+  function kurator(spec: string): () => void {
+    const plan = parseKuratorPlan(spec);
+    if (!plan) return () => {};
+    const fejl = (e: unknown): void => { console.error('kurator: kørslen kunne ikke startes', e); };
+    const t = setInterval(() => { void kuratorTik(plan).catch(fejl); }, 60_000);
+    t.unref();
+    const off = runs.onFinished((r) => {
+      if (runs.paaPause()) return;
+      if (r.status !== 'done' || (r.kind !== 'opdater' && r.kind !== 'frontload') || (r.room !== 'mail' && r.room !== 'nyheder')) return;
+      // Deep when owed (today's Nyheder built, no deep run today); startKurator itself refuses a second one the same day.
+      void skylderDyb().then((dyb) => startKuratoren(dyb)).catch(fejl);
+    });
+    return () => { clearInterval(t); off(); };
+  }
+
+  /** Hjem's own waiting things, read once for the page and for the nav count (KC-0093: one definition). */
+  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[] }> {
+    // KC-0117: Hjem shows (and counts) only what the person looking may see.
+    const egne = (await deps.store.readLog(HJEM, 200)).filter((e) => synligFor(d.person, e));
+    const gjort = egne.filter((e) => e.handlingId && !e.handlingId.startsWith('regnskab:') && !e.fortrudt).map((e) => e.handlingId as string);
+    const kurator = synligKurator(await laesKurator(deps.store), d.person);
+    // An expired card goes at once, not at the next run, and a card put away (Senere, KC-0096) until its time.
+    const kort = synligeKort(kurator.kort, now());
+    // KC-0043: what Claude Code has from Henrik, with its status.
+    const claudeCode = synlige(await laesOpgaver(deps.store), now()).map((o) => ({ id: o.id, status: o.status, projekt: findProjekt(o.projekt)?.navn ?? o.projekt, saetning: o.saetning, oprettet: o.oprettet,
+      ...(o.ticket ? { ticket: o.ticket } : {}), ...(o.bevis ? { bevis: o.bevis } : {}), ...(o.pr ? { pr: o.pr } : {}), ...(o.grund ? { grund: o.grund } : {}),
+      ...(o.spoergsmaal ? { spoergsmaal: { tekst: o.spoergsmaal.tekst, valg: o.spoergsmaal.valg } } : {}), ...(o.svar ? { svar: o.svar.tekst } : {}) }));
+    // KC-0142: a rules file that cannot be read is the owner's to fix (one card); otherwise nothing is shown.
+    const r = d.person.rolle === 'ejer' && regler ? await regler.laes() : undefined;
+    // KC-0144: only the owner answers proposals (the rules file is the household's).
+    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(d.person.rolle === 'ejer' && kurator.regelforslag?.length ? { regelforslag: kurator.regelforslag } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
+  }
+
+  /** Hjem is not a room module: its page is built here from every room's hjemVenter, the logs and Kuratoren's cards. */
+  async function hjemData(nav: { synlige?: ReadonlySet<string>; venter: Record<string, number> }): Promise<{ data: HjemData; hermesStatus: string }> {
+    const synligeNu = nav.synlige;
+    const vent: { roomId: string; tekst: string }[] = [];
+    for (const m of ROOM_MODULES) vent.push(...(await m.hjemVenter(d)));
+    const venterPaaAndre = (await Promise.all(ROOM_MODULES.map((m) => m.hjemIgang?.(d) ?? []))).flat(); // KC-0149
+    // Every active univers: today's prepared meeting.
+    for (const u of (await laesIndeks(deps.store)).univers) if (!u.arkiveret) vent.push(...(await universRoom(u.id).hjemVenter(d)));
+    const logs = await Promise.all(ROOM_MODULES.map(async (m) => (await deps.store.readLog(m.id, 8)).filter((e) => synligFor(d.person, e))));
+    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag } = await hjemEgneData();
+    const gamle = await gamleNu();
+    const egneIds = new Set(egne.slice(0, 8).map((e) => e.id));
+    // Only Hjem's own entries can be undone from Hjem; the other rooms' lines are shown plain.
+    const hermes = [...logs.flat(), ...egne.slice(0, 8)].sort((a, b) => b.tid.localeCompare(a.tid)).slice(0, 10)
+      .map((e) => ({ ...(e.graense ? { graense: e.graense } : {}), ...(egneIds.has(e.id) ? { tid: e.tid, tekst: e.tekst, id: e.id, ...(e.handlingId ? { handlingId: e.handlingId } : {}), ...(e.fortryd ? { fortryd: e.fortryd } : {}), ...(e.fortrudt ? { fortrudt: e.fortrudt } : {}) } : { tid: e.tid, tekst: e.tekst }) }));
+    const hermesStatus = (await getRoomModule(DAGEN)?.view(d))?.hermesStatus ?? 'Klar';
+    // KC-0088: the earliest next appointment any room offers (today only Dagen does).
+    const naeste = (await Promise.all(ROOM_MODULES.map((m) => m.naeste?.(d) ?? null))).filter((n) => n !== null).sort((a, b) => a.start.localeCompare(b.start))[0];
+    // A written row whose card is gone keeps its Fortryd in "Skrevet i regnskab" (a card only put away, KC-0096, is not gone).
+    const aabne = new Set(kurator.kort.filter((k) => !udloebet(k, now())).map((k) => k.id));
+    const regnskab = Object.entries(kurator.regnskab ?? {}).filter(([id, r]) => r.status === 'skrevet' && !aabne.has(id))
+      .map(([id, r]) => ({ id, hvor: r.hvor, ...(r.leverandoer ? { leverandoer: r.leverandoer } : {}), ...(r.beloeb ? { beloeb: r.beloeb } : {}), ...(r.valuta ? { valuta: r.valuta } : {}) }));
+    const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
+    const sit = await situationNu();
+    const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now()), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+  }
+
+  /**
+   * KC-0147: notes what stands in Nu's Kræver dig band (the ids come from the band's own groups, kraeverIder) and the
+   * day's Fortryd count (log lines undone today, in every room) — only for the owner, whose band it is.
+   */
+  async function noterDagstal(data: HjemData): Promise<void> {
+    if (!dagstal || d.person.rolle !== 'ejer') return;
+    const dato = idagKbh(now());
+    const logs = await Promise.all([HJEM, ...ROOM_MODULES.map((m) => m.id)].map((id) => deps.store.readLog(id, 500)));
+    const laest = regler ? await regler.laes() : undefined;
+    await dagstal.noter(dato, kraeverIder(data), { fortryd: fortrudtPaaDag(logs.flat().filter((e) => synligFor(d.person, e)), dato), ...(laest?.tilstand === 'ok' ? { regler: laest.saet.regler.filter((r) => r.status === 'aktiv').length } : {}) });
+  }
+
+  /** The week's number for Nu: Mondays only (KC-0052), about the week that just ended — this week has barely begun. */
+  async function ugetalNu(): Promise<Markup | undefined> {
+    if (!dagstal || d.person.rolle !== 'ejer' || !erMandag(now())) return undefined;
+    const v = ugeVisning(ugeraekke(faerdigeDage(await dagstal.dage(), idagKbh(now())), ugeAf(now())).slice(0, -1), 'sidste');
+    return v ? ugeLinje(v) : undefined;
+  }
+
+  async function hjemView(nav: { synlige?: ReadonlySet<string>; venter: Record<string, number> }): Promise<{ main: Markup; hermesStatus: string }> {
+    const { data, hermesStatus } = await hjemData(nav);
+    await noterDagstal(data);
+    const ugetal = await ugetalNu();
+    return { main: renderHjem({ ...data, ...(ugetal ? { ugetal } : {}) }), hermesStatus };
+  }
+
+  app.get('/api/rum/hjem/fragment', async (c) => {
+    const nav = await navData(HJEM);
+    const { main, hermesStatus } = await hjemView(nav);
+    return c.json({ html: String(main), venter: nav.venter, hermesStatus, version: live.version(HJEM) });
+  });
+
+  app.get('/api/rum/:id/fragment', async (c) => {
+    const mod = getRoomModule(c.req.param('id'));
+    if (!mod) return c.json({ error: 'Rummet er ikke bygget' }, 404);
+    const view = await mod.view(d);
+    if (view.status) return c.json({ error: 'Findes ikke' }, view.status);
+    return c.json({ html: String(view.main), venter: await venter(), hermesStatus: view.hermesStatus, version: live.version(mod.id) });
+  });
+
+  app.get('/api/rum/:id/live', (c) => {
+    // Hjem is not a module but is live too (KC-0028): Kuratoren and the card buttons notify 'hjem'.
+    const id = c.req.param('id');
+    const mod = id === HJEM ? { id: HJEM } : getRoomModule(id);
+    if (!mod) return c.text('Rummet er ikke bygget', 404);
+    return streamSSE(c, async (stream) => {
+      let open = true;
+      let wake!: () => void;
+      let waiting = new Promise<void>((res) => { wake = res; });
+      const pending: number[] = [];
+      const off = live.subscribe(mod.id, (v) => { pending.push(v); wake(); });
+      stream.onAbort(() => { open = false; off(); wake(); });
+      await stream.writeSSE({ event: 'hello', data: JSON.stringify({ version: live.version(mod.id) }) });
+      while (open) {
+        const timer = setTimeout(() => wake(), 25_000);
+        await waiting;
+        clearTimeout(timer);
+        waiting = new Promise<void>((res) => { wake = res; });
+        if (!open) break;
+        if (pending.length) { const v = pending[pending.length - 1]!; pending.length = 0; await stream.writeSSE({ event: 'changed', data: JSON.stringify({ version: v }) }); }
+        else await stream.write(': keepalive\n\n');
+      }
+      off();
+    });
+  });
+
+  /**
+   * KC-0089: an unknown HTML address is a calm Danish 404 inside the normal skeleton. A frame (a presentation's
+   * <iframe>) gets plain text instead: a whole skeleton inside it would only be noise.
+   */
+  async function ikkeFundet(c: Context<Env>, slags: IkkeFundetSlags): Promise<Response> {
+    if (c.req.header('sec-fetch-dest') === 'iframe') return c.text('Findes ikke', 404);
+    const { venter: v, univers, synlige: syn } = await navData(HJEM);
+    const main = renderIkkeFundet(slags);
+    return c.html(String(shell({ ...hvem(c), roomId: HJEM, hermesStatus: 'Klar', venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: ikkeFundetOverskrift(slags) })), 404);
+  }
+  app.notFound((c) => {
+    const p = new URL(c.req.url).pathname;
+    if (p === '/api' || p.startsWith('/api/')) return c.json({ error: 'Findes ikke' }, 404);
+    return ikkeFundet(c, 'side');
+  });
+
+  app.get('/rum/:id/dok/:name', async (c) => {
+    const mod = getRoomModule(c.req.param('id'));
+    const f = mod?.fil ? await mod.fil(d, c.req.param('name')) : null;
+    if (!f) return ikkeFundet(c, 'dokument');
+    return c.body(f.content, 200, { 'content-type': f.contentType, 'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.filename)}` });
+  });
+
+  // Hermes' presentations are untrusted HTML: served inline for <iframe sandbox>, with a CSP that allows inline styles, fonts and images only.
+  const VIS_CSP = "default-src 'none'; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; img-src data: https:; base-uri 'none'; form-action 'none'; frame-ancestors 'self'";
+  app.get('/rum/:id/vis/:name', async (c) => {
+    const name = c.req.param('name');
+    const mod = getRoomModule(c.req.param('id'));
+    const f = mod?.fil && name.endsWith('.html') ? await mod.fil(d, name) : null;
+    if (!f) return ikkeFundet(c, 'dokument');
+    return c.body(f.content, 200, { 'content-type': 'text/html; charset=utf-8', 'x-content-type-options': 'nosniff', 'content-security-policy': VIS_CSP });
+  });
+
+  // KC-0030: the meeting view — the shell of the univers with the meeting as main. Not live: the fragment would swap in the univers page.
+  app.get('/moede/:slug/:moedeId', async (c) => {
+    const slugNavn = c.req.param('slug');
+    const { venter: v, univers, synlige: syn } = await navData(universRum(slugNavn));
+    const info = findUnivers(await laesIndeks(deps.store), slugNavn);
+    const state = info && !info.arkiveret ? await laesUnivers(deps.store, slugNavn) : null;
+    const moede = state?.moeder.find((m) => m.id === c.req.param('moedeId'));
+    if (!info || !state || !moede) {
+      const main = html`<header class="room-head"><div><a class="muted" href="/rum/dagen">Til Dagen</a><h1>Mødet findes ikke</h1><p class="muted">Det er enten flyttet, slettet eller aldrig oprettet. Gå til Dagen for at se, hvad der er i kalenderen.</p></div></header>`;
+      return c.html(String(shell({ ...hvem(c), roomId: 'hjem', hermesStatus: 'Klar', venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: 'Mødet findes ikke' })), 404);
+    }
+    const rum = universRum(slugNavn);
+    return c.html(String(shell({
+      ...hvem(c), roomId: rum, hermesStatus: state.hermesStatus ?? 'Klar', venter: v, main: renderMoedeVisning(info, moede, synligUnivers(state, d.person), now()), chat: await deps.store.readChat(rum),
+      stemme: stemmeNiveau, univers, synlige: syn, titel: moede.titel, kontekst: `Mødet: ${moede.titel}`.slice(0, 200),
+      bodyData: { situation: 'moede', 'moede-slut': moede.slut, 'moede-id': moede.id },
+    })));
+  });
+
+  app.get('/rum/:id', async (c) => {
+    const room = findRoom(c.req.param('id'));
+    if (!room) return ikkeFundet(c, 'rum');
+    const mod = getRoomModule(room.id);
+    if (mod || room.id === HJEM) await markerAabnet(deps.store, room.id, now());
+    const { venter: v, univers, synlige: syn } = await navData(room.id);
+    if (mod) {
+      const view = await mod.view(d);
+      const chat = await deps.store.readChat(mod.id);
+      return c.html(String(shell({ ...hvem(c), roomId: room.id, hermesStatus: view.hermesStatus, venter: v, main: view.main, chat, stemme: stemmeNiveau, live: true, univers, synlige: syn, ...(view.titel ? { titel: view.titel } : {}) })), view.status ?? 200);
+    }
+    if (room.id === HJEM) {
+      const { main, hermesStatus } = await hjemView({ synlige: syn, venter: v });
+      return c.html(String(shell({ ...hvem(c), roomId: room.id, hermesStatus, venter: v, main, chat: await deps.store.readChat(HJEM), stemme: stemmeNiveau, live: true, univers, synlige: syn, bodyData: { situation: (await situationNu()).situation } })));
+    }
+    return c.html(String(shell({ ...hvem(c), roomId: room.id, hermesStatus: 'Klar', venter: v, main: renderPlaceholder(room), chat: [], stemme: stemmeNiveau, univers, synlige: syn })));
+  });
+
+  /** KC-0064: a room run starting or ending changes its I gang band, and Hjem's (which shows every room's). */
+  function notifyIgang(run: RunRecord): void {
+    if (CHAT_KINDS.has(run.kind) || !run.room) return;
+    live.notify(run.room);
+    if (run.room !== HJEM) live.notify(HJEM);
+  }
+  runs.onFinished(notifyIgang); // a failed run never calls the room's rendered(), so its row must go here
+  // KC-0128: a finished rebuild (or Kuratoren run) replaces the previews it covers; Nu and Start refresh.
+  runs.onFinished((r) => {
+    if (r.status !== 'done') return;
+    void koerselFaerdig(d, r).then((ja) => { if (ja) { live.notify(START_RUM); live.notify(HJEM); } }).catch((err: unknown) => console.error('start: forhåndsvisningen kunne ikke erstattes:', err));
+  });
+  function tag(run: RunRecord, roomId: string, hint?: string): RunRecord {
+    const navn = findRoom(roomId)?.navn ?? roomId;
+    if (!run.room) run.room = roomId;
+    if (!run.label) run.label = `${navn}: ${hint ?? LABELS[run.kind] ?? run.kind}`;
+    notifyIgang(run);
+    return run;
+  }
+  const accepted = (c: { json: (o: unknown, s: 202) => Response }, run: RunRecord) => c.json({ runId: run.id }, 202);
+  // KC-0082: one press, one run. The same press while its run is still going (another tab, the phone and the
+  // laptop, a double tap before the button greys out) joins that run instead of asking Hermes twice.
+  // The promise is stored before the start resolves, so two presses arriving together also share one run.
+  const tryk = new Map<string, Promise<RunRecord | null>>();
+  function enGang(noegle: string, startFn: () => Promise<RunRecord | null>): Promise<RunRecord | null> {
+    const igang = tryk.get(noegle);
+    if (igang) return igang;
+    const p = startFn().then((run) => {
+      if (!run) tryk.delete(noegle);
+      else void run.finished.then(() => { if (tryk.get(noegle) === p) tryk.delete(noegle); });
+      return run;
+    }, (err: unknown) => { tryk.delete(noegle); throw err; });
+    tryk.set(noegle, p);
+    return p;
+  }
+
+  // Only a fenced block that holds a "flyt" key is the app's; other code blocks in an answer stay.
+  const FLYT_BLOCK = /```(?:json)?\s*(\{[^`]*?"flyt"[^`]*?\})\s*```/gi;
+
+  // KC-0019: Hjem's chat — no state of its own; Hermes gets the overview of every room.
+  async function startHjemChat(dd: RoomDeps, besked: string, kontekst?: string): Promise<RunRecord> {
+    await deps.store.appendChat(HJEM, { fra: 'henrik', tekst: besked, ...(kontekst ? { kontekst } : {}) });
+    const { tekst } = await bygOversigt(ROOM_MODULES, d, SITUATIONER[(await situationNu()).situation].stemme);
+    const stand = synligKurator(await laesKurator(deps.store), d.person);
+    const aabne = stand.kort;
+    const r0 = stand.regnskab;
+    // "Ret" on a card: Hermes sees which card Henrik points at, with what the card says (an afledt segment, KC-0123).
+    const kort = kontekst ? aabne.find((k) => `Kortet: ${k.titel}` === kontekst) : undefined;
+    if (kontekst?.startsWith('Kortet: ')) await d.retBus?.meld(dd, { art: 'ret', tid: now().toISOString(), titel: kontekst.slice('Kortet: '.length), ...(kort ? { kortId: kort.id } : {}), tekst: besked });
+    // KC-0144: a Ret on a card, or Ret reglen on a pending proposal, may bring ONE rule proposal back (the owner's only).
+    // Decided here in the request: a run's callback has no person. The answer is only ever stored as a pending proposal.
+    const mulig = kanForeslaa(dd);
+    const revideret = mulig && kontekst?.startsWith('Forslag: ') ? (stand.regelforslag ?? []).find((f) => f.status === 'afventer' && `Forslag: ${f.titel}` === kontekst) : undefined;
+    const regelLaest = await regler?.laes();
+    const spec = buildHjemChatRun(besked, tekst, now(), aabne.map((k) => ({ id: k.id, titel: k.titel, betyder: k.betyder, ...(r0?.[k.id]?.status === 'skrevet' ? { hvor: r0[k.id]!.hvor } : {}) })), regelLaest, kontekst ? { kontekst, ...(kort ? { kort } : {}), ...(mulig && (kort || revideret) ? { forslag: true as const } : {}), ...(revideret ? { revideret } : {}) } : undefined);
+    return dd.runs.start({
+      kind: 'chat',
+      spec,
+      onDone: async (output) => {
+        const { tekst: udenForslag, blok } = mulig ? extractForslagBlok(output) : { tekst: output, blok: undefined };
+        const text = udenForslag.replace(FLYT_BLOCK, '').trim() || '(intet svar)';
+        await deps.store.appendChat(HJEM, { fra: 'hermes', tekst: text });
+        const forslagKort = kort ?? (revideret ? { id: revideret.kortId, titel: revideret.kortTitel, ...(revideret.zone ? { zone: revideret.zone } : {}), ...(revideret.ejer ? { ejer: revideret.ejer } : {}) } : undefined);
+        if (forslagKort) await gemRegelforslag(dd, { kort: forslagKort, art: revideret?.art ?? 'ret', blok }).catch((err: unknown) => console.error('regelforslag:', err instanceof Error ? err.message : err));
+        // A correction names the ledger the row should be in; it moves only when that differs from where it is now.
+        // Unknown ids, cards without a written row and a missing/same target are ignored. A vault error must not fail the run.
+        try {
+          for (const m of output.matchAll(FLYT_BLOCK)) {
+            let raw: unknown;
+            try { raw = JSON.parse(m[1]!); } catch { continue; }
+            const { flyt, til } = (raw && typeof raw === 'object' ? raw : {}) as { flyt?: unknown; til?: unknown };
+            if (typeof flyt !== 'string' || (til !== 'shelfatlas' && til !== 'privat')) continue;
+            // regnskabFlyt checks the card and the row inside Hjem's state chain; a refusal (404/409) is ignored here.
+            await regnskabFlyt(d, flyt, til);
+          }
+        } catch (err) {
+          console.error('hjem chat: flyt mislykkedes:', err);
+        }
+        return { text };
+      },
+    });
+  }
+
+  // KC-0028: Kuratoren's top cards (by prioritet) before the rooms, in the spoken overview. Cards are not voice-executable: punkter stay as they are.
+  async function oversigtMedKort(): Promise<Oversigt> {
+    return medKildeHelbred(medKuratorKort(await bygOversigt(ROOM_MODULES, d, SITUATIONER[(await situationNu()).situation].stemme), (await laesKurator(deps.store)).kort, d.person, now()), await stemmeHelbred());
+  }
+
+  /** KC-0122: the human-tap token a button that needed a yes sends along (absent = none). */
+  async function jaFra(c: { req: { json: () => Promise<unknown> } }): Promise<{ ja?: string }> {
+    const b = await body(c);
+    return typeof b['ja'] === 'string' ? { ja: b['ja'] } : {};
+  }
+
+  async function body(c: { req: { json: () => Promise<unknown> } }): Promise<Record<string, unknown>> {
+    try { const b = await c.req.json(); return typeof b === 'object' && b !== null ? (b as Record<string, unknown>) : {}; } catch { return {}; }
+  }
+
+  app.post('/api/rum/:id/opdater', async (c) => {
+    const mod = getRoomModule(c.req.param('id'));
+    if (!mod) return c.json({ error: 'Rummet er ikke bygget' }, 404);
+    const b = await body(c);
+    const mode = typeof b['mode'] === 'string' ? b['mode'] : 'opdater';
+    // KC-0223: a mail connection that cannot be read says so in plain words (400), not a server error.
+    let run;
+    try { run = await enGang(`${mod.id}|opdater|${mode}`, () => mod.opdater(d, mode, { kanal: 'knap' })); } catch (err) { if (err instanceof ActionError) return c.json({ error: err.message }, err.status); throw err; }
+    return run ? accepted(c, tag(run, mod.id)) : c.json({ error: 'ukendt mode for rummet' }, 400);
+  });
+
+  app.post('/api/rum/:id/handlinger/:hid', async (c) => {
+    const mod = getRoomModule(c.req.param('id'));
+    if (!mod) return c.json({ error: 'Rummet er ikke bygget' }, 404);
+    const hid = c.req.param('hid');
+    const ja = await jaFra(c);
+    const run = await enGang(`${mod.id}|handling|${hid}`, () => mod.handling(d, hid, { kanal: 'knap', ...ja }));
+    return run ? accepted(c, tag(run, mod.id)) : c.json({ error: 'Handlingen findes ikke i rummet' }, 404);
+  });
+
+  app.post('/api/rum/:id/log/:lid/fortryd', async (c) => {
+    const mod = getRoomModule(c.req.param('id'));
+    if (!mod) return c.json({ error: 'Rummet er ikke bygget' }, 404);
+    const lid = c.req.param('lid');
+    const ja = await jaFra(c);
+    const run = await enGang(`${mod.id}|fortryd|${lid}`, () => mod.fortryd(d, lid, { kanal: 'knap', ...ja }));
+    return run ? accepted(c, tag(run, mod.id)) : c.json({ error: 'Kan ikke fortrydes' }, 404);
+  });
+
+  app.post('/api/rum/:id/aktion/:name', async (c) => {
+    const mod = getRoomModule(c.req.param('id'));
+    if (!mod?.aktion) return c.json({ error: 'Rummet har ingen aktioner' }, 404);
+    const b = await body(c);
+    try {
+      const name = c.req.param('name');
+      const run = await enGang(`${mod.id}|aktion|${name}|${JSON.stringify(b)}`, () => mod.aktion!(d, name, b, { kanal: 'knap', ...(typeof b['ja'] === 'string' ? { ja: b['ja'] } : {}) }));
+      return run ? accepted(c, tag(run, mod.id)) : c.json({ error: 'Ukendt aktion' }, 404);
+    } catch (err) {
+      if (err instanceof ActionError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
+  });
+
+  app.post('/api/rum/:id/chat', async (c) => {
+    const id = c.req.param('id');
+    const mod = getRoomModule(id);
+    if (!mod && id !== HJEM) return c.json({ error: 'Rummet har ingen chat endnu' }, 404);
+    const b = await body(c);
+    const besked = typeof b['besked'] === 'string' ? b['besked'].trim().slice(0, 2000) : '';
+    if (!besked) return c.json({ error: 'besked mangler' }, 400);
+    // KC-0052: "jeg vil skrive" opens Skrive. Only the chat form asks for this (aabn); Samtale and the rest go to Hermes.
+    if (b['aabn'] === true) {
+      const univers = (await laesIndeks(deps.store)).univers.filter((u) => !u.arkiveret);
+      const valg = { husstand: await husstandSynlig(d) }; // KC-0148: Husstanden opens only for whom it is there
+      // KC-0098: "Hvad kan jeg sige?" is answered here and kept in the room's chat like any answer.
+      if (erHjaelp(besked)) {
+        const svar = hjaelpSvar(univers, valg);
+        await deps.store.appendChat(mod ? mod.id : HJEM, { fra: 'henrik', tekst: besked });
+        await deps.store.appendChat(mod ? mod.id : HJEM, { fra: 'hermes', tekst: svar });
+        return c.json({ svar });
+      }
+      // KC-0146: "hvad ved du om mig" opens the page of what Clawco knows (the owner's; anyone else asks Hermes).
+      if (erVidenBesked(besked) && c.get('person').rolle === 'ejer') return c.json({ aabn: '/viden' });
+      const hit = rumFraBesked(besked, univers, valg);
+      if (hit && hit.id !== id) {
+        await markerAabnet(deps.store, hit.id, now());
+        return c.json({ aabn: `/rum/${hit.id}`, ...(hit.videre ? { videre: besked } : {}) });
+      }
+    }
+    // KC-0024: from the phone Hermes answers short.
+    const dd = b['enhed'] === 'telefon' ? { ...d, runs: fraTelefonen(runs) } : d;
+    const kontekst = typeof b['kontekst'] === 'string' && b['kontekst'].trim() ? b['kontekst'].trim().slice(0, 200) : undefined;
+    if (!mod) return accepted(c, tag(await startHjemChat(dd, besked, kontekst), HJEM));
+    try {
+      return accepted(c, tag(await mod.chat(dd, besked, kontekst, { kanal: 'chat' }), mod.id));
+    } catch (err) {
+      if (err instanceof ActionError) return c.json({ error: err.message }, 400);
+      throw err;
+    }
+  });
+
+  // KC-0028: Kuratoren — start a run, and what the buttons on a card do.
+  const kortFejl = (c: { json: (o: unknown, s: 404 | 409 | 503) => Response }, u: Extract<Udfald, { ok: false }>): Response => c.json({ error: u.error }, u.status);
+  const kortSvar = (c: { json: (o: unknown, s: 200 | 202) => Response }, u: Extract<Udfald, { ok: true }>): Response =>
+    u.run ? c.json({ runId: tag(u.run, HJEM).id }, 202) : c.json({ ok: true }, 200);
+
+  app.post('/api/rum/hjem/kurator', async (c) => {
+    const b = await body(c);
+    const run = await startKuratoren(b['dyb'] === true);
+    return run ? c.json({ runId: run.id }, 202) : c.json({ intet: true }, 200);
+  });
+
+  /** KC-0122: Hjem's card routes pass the policy layer too (verb from the app; the card's zone). */
+  async function kortGennem<T>(c: Context<Env>, id: string, verb: Verb, koer: () => Promise<T>): Promise<T> {
+    const k = synligKurator(await laesKurator(deps.store), d.person).kort.find((x) => x.id === id);
+    return gennem(d, { rum: HJEM, id, verb, zoner: [k ? zoneAf(k) : KORT_KORSEL] }, 'kort', { kanal: 'knap', ...(await jaFra(c)) }, koer);
+  }
+
+  app.post('/api/rum/hjem/kort/:id/luk', async (c) => {
+    const b = await body(c);
+    const g = b['grund'];
+    if (g !== undefined && (typeof g !== 'string' || g.trim().length > 300)) return c.json({ error: 'grund skal være tekst på højst 300 tegn' }, 400);
+    const u = await kortGennem(c, c.req.param('id'), 'sorter', () => luk(d, c.req.param('id'), typeof g === 'string' ? g.trim() : '', personerNu()));
+    return u.ok ? kortSvar(c, u) : kortFejl(c, u);
+  });
+
+  app.post('/api/rum/hjem/kort/:id/senere', async (c) => {
+    const til = (await body(c))['til'];
+    if (typeof til !== 'string' || !SENERE.includes(til)) return c.json({ error: 'til skal være aften eller morgen' }, 400);
+    const u = await kortGennem(c, c.req.param('id'), 'sorter', () => udsaet(d, c.req.param('id'), til as Senere));
+    return u.ok ? kortSvar(c, u) : kortFejl(c, u);
+  });
+
+  app.post('/api/rum/hjem/kort/:id/handling', async (c) => {
+    // A card's handling is Hermes' free-form instruction: the app's floor (KC-0122 verber.ts), never what the model claims.
+    const u = await kortGennem(c, c.req.param('id'), agentGulv({}), () => startKortHandling(d, c.req.param('id')));
+    return u.ok ? kortSvar(c, u) : kortFejl(c, u);
+  });
+
+  app.post('/api/rum/hjem/fortryd/:logId', async (c) => {
+    const logId = c.req.param('logId');
+    // KC-0144: the undo of a rule made from a proposal is the app's own (it shrinks the rules file), for the owner only.
+    const regelId = FORTRYD_REGEL.exec((await deps.store.readLog(HJEM, 1000)).find((x) => x.id === logId)?.fortryd ?? '')?.[1];
+    if (regelId && !erEjer(c)) return afvis(c, 403, 'Kun ejeren kan fortryde en regel.');
+    const u = await kortGennem(c, logId, 'udfoer-med-fortryd', () => (regelId ? fortrydRegel(logId, regelId) : fortrydLog(d, logId)));
+    return u.ok ? kortSvar(c, u) : kortFejl(c, u);
+  });
+
+  app.post('/api/rum/hjem/kort/:id/regnskab/:hvor', async (c) => {
+    const id = c.req.param('id');
+    const hvor = c.req.param('hvor');
+    if (hvor !== 'fortryd' && hvor !== 'flyt' && hvor !== 'shelfatlas' && hvor !== 'privat') return c.json({ error: 'hvor skal være fortryd, flyt, shelfatlas eller privat' }, 400);
+    const u = await kortGennem(c, id, 'bogfoer', () => hvor === 'fortryd' ? regnskabFortryd(d, id) : hvor === 'flyt' ? regnskabFlyt(d, id) : regnskabVaelg(d, id, hvor));
+    return u.ok ? kortSvar(c, u) : kortFejl(c, u);
+  });
+
+  // KC-0041/KC-0043: the development pipeline. Henrik sends an opgave; the metode plugin on the Mac fetches
+  // its repo's opgaver over Tailscale and reports status back (the contract: docs/superpowers/specs/2026-10-29-…).
+  app.get('/api/udvikling/projekter', (c) => c.json({ projekter: PROJEKTER }));
+
+  app.post('/api/udvikling/opgaver', async (c) => {
+    const u = await udviklingSend(d, await body(c));
+    return u.ok ? c.json({ opgave: u.opgave }, 201) : c.json({ error: u.error }, u.status);
+  });
+
+  app.get('/api/udvikling/opgaver', async (c) => {
+    const repo = c.req.query('repo') ?? '';
+    if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return c.json({ error: 'repo skal være owner/name' }, 400);
+    const r = await udviklingForRepo(d, repo);
+    return r ? c.json(r) : c.json({ error: 'Ukendt repo' }, 404);
+  });
+
+  app.post('/api/udvikling/opgaver/:id/status', async (c) => {
+    const id = c.req.param('id');
+    if (!OPGAVE_ID.test(id)) return c.json({ error: 'Opgaven findes ikke' }, 404);
+    const u = await udviklingStatus(d, id, await body(c));
+    return u.ok ? c.json({ opgave: u.opgave }) : c.json({ error: u.error }, u.status);
+  });
+
+  // KC-0045: Henrik answers the question a parked ticket asks.
+  app.post('/api/udvikling/opgaver/:id/svar', async (c) => {
+    const id = c.req.param('id');
+    if (!OPGAVE_ID.test(id)) return c.json({ error: 'Opgaven findes ikke' }, 404);
+    const u = await udviklingBesvar(d, id, await body(c));
+    return u.ok ? c.json({ opgave: u.opgave }) : c.json({ error: u.error }, u.status);
+  });
+
+  // KC-0015: the stemme routes. Fail-closed: no client → 503 on all of them.
+  app.use('/api/stemme/*', async (c, next) => {
+    if (!stemme) return c.json({ error: 'Stemmen er ikke sat op (KC_ELEVENLABS_API_KEY mangler)' }, 503);
+    await next();
+  });
+
+  app.post('/api/stemme/lyt', async (c) => {
+    let fd: FormData;
+    try { fd = await c.req.formData(); } catch { return c.json({ error: 'lydfilen mangler' }, 400); }
+    const file = fd.get('file');
+    if (!(file instanceof Blob) || file.size === 0) return c.json({ error: 'lydfilen mangler' }, 400);
+    if (file.size > 8_000_000) return c.json({ error: 'optagelsen er for lang' }, 400);
+    const rum = String(fd.get('rum') ?? '');
+    const mod = getRoomModule(rum);
+    const terms = [...KEYTERMS];
+    if (mod?.stemme) { try { for (const p of (await mod.stemme(d)).punkter) for (const v of p.valg) terms.push(v.label); } catch { /* keyterms are a nicety */ } }
+    try {
+      const tekst = await stemme!.lyt(new Uint8Array(await file.arrayBuffer()), file.type || 'audio/webm', terms);
+      return c.json({ tekst });
+    } catch (err) { return stemmeFejl(c, err); }
+  });
+
+  app.post('/api/stemme/sig', async (c) => {
+    const b = await body(c);
+    const tekst = typeof b['tekst'] === 'string' ? b['tekst'].trim() : '';
+    if (!tekst || tekst.length > 2000) return c.json({ error: 'tekst mangler eller er for lang (højst 2000 tegn)' }, 400);
+    try {
+      const { body: audio, contentType } = await stemme!.sig(tekst, await voice());
+      return new Response(audio, { status: 200, headers: { 'content-type': contentType, 'cache-control': 'no-store' } });
+    } catch (err) { return stemmeFejl(c, err); }
+  });
+
+  app.get('/api/stemme/oversigt', async (c) => c.json(await oversigtMedKort()));
+
+  // KC-0124: while paused the voice offers and runs nothing.
+  app.post('/api/stemme/samtale', async (c) => {
+    if (runs.paaPause()) return c.json({ error: PAUSE_TEKST }, 409);
+    const b = await body(c);
+    const rum = typeof b['rum'] === 'string' ? b['rum'] : 'hjem';
+    try {
+      const agentId = await agent();
+      const [token, o] = await Promise.all([stemme!.samtaleToken(agentId), oversigtMedKort()]);
+      const dynamiskeVariabler = { oversigt: o.tekst, rum: ROOMS.find((r) => r.id === rum)?.navn ?? 'Nu', antal_tekst: antalTekst(o.punkter.length) };
+      return c.json({ token, agentId, dynamiskeVariabler });
+    } catch (err) { return stemmeFejl(c, err); }
+  });
+
+  /** A choice from the overview, by its spoken id "rum:valgId". Only ids in the current overview run. */
+  app.post('/api/stemme/udfoer', async (c) => {
+    if (runs.paaPause()) return c.json({ error: PAUSE_TEKST }, 409);
+    const b = await body(c);
+    const id = typeof b['id'] === 'string' ? b['id'].trim() : '';
+    const sep = id.indexOf(':');
+    if (sep <= 0) return c.json({ error: 'id mangler' }, 400);
+    const rum = id.slice(0, sep);
+    const valgId = id.slice(sep + 1);
+    const mod = getRoomModule(rum);
+    if (!mod) return c.json({ error: 'Rummet findes ikke' }, 404);
+    const o = await bygOversigt(ROOM_MODULES, d);
+    const valg = o.punkter.filter((p) => p.rum === rum).flatMap((p) => p.valg).find((v) => v.id === valgId);
+    if (!valg) return c.json({ error: 'Valget findes ikke i det, der venter' }, 404);
+    let run: RunRecord | null = null;
+    if (valgId.startsWith('aktion:')) {
+      const [, name, arg] = valgId.split(':');
+      if (name !== 'faerdig' || !mod.aktion) return c.json({ error: 'Det kan ikke gøres med stemmen' }, 400);
+      try { run = await mod.aktion(d, name, { mailId: arg ?? '' }, { kanal: 'stemme' }); } catch (err) { if (err instanceof ActionError) return c.json({ error: err.message }, 400); throw err; }
+    } else {
+      run = await mod.handling(d, valgId, { kanal: 'stemme' });
+    }
+    if (!run) return c.json({ error: 'Valget findes ikke i rummet' }, 404);
+    tag(run, mod.id, valg.label);
+    return c.json({ runId: run.id, label: valg.label }, 202);
+  });
+
+  app.get('/api/runs/:runId/events', (c) => {
+    const id = c.req.param('runId');
+    if (!runs.get(id)) return c.text('Kørslen findes ikke', 404);
+    return streamSSE(c, async (stream) => {
+      let n = 0;
+      let finished!: () => void;
+      const closed = new Promise<void>((res) => { finished = res; });
+      const unsubscribe = runs.subscribe(id, (e) => {
+        void stream.writeSSE({ event: e.type, data: JSON.stringify(e), id: String(++n) })
+          .then(() => { if (e.type === 'done' || e.type === 'error') finished(); });
+      });
+      if (!unsubscribe) { finished(); return; }
+      stream.onAbort(() => { unsubscribe(); finished(); });
+      await closed;
+      unsubscribe();
+    });
+  });
+
+  /** The calendar poller (Univers: new meetings). Returns a stop function; off without a calendar script. */
+  const moedeTik = (): (() => void) => startMoedeTik(d, undefined, () => !runs.paaPause());
+  // KC-0149: the rooms' clocks (a request's reminders and expiry), outside any request; nothing while paused.
+  const tikNu = async (): Promise<void> => { for (const m of ROOM_MODULES) await m.tik?.(d); };
+  const rumTik = (): (() => void) => startTik(tikNu, undefined, () => !runs.paaPause());
+
+  // KC-0152: the Saturday conflict — Tuesdays from the plan's time Husstanden looks at the coming weekend (once per weekend,
+  // the room remembers); null when it is not due or Clawco is paused. `spec` "07:30"; empty or "fra" = off.
+  const konfliktTik = async (plan: KonfliktPlan): Promise<Awaited<ReturnType<typeof weekendTjek>> | null> => {
+    if (runs.paaPause() || !konfliktDue(plan, now())) return null;
+    return weekendTjek(d);
+  };
+  const konflikt = (spec: string): (() => void) => {
+    const plan = parseKonfliktPlan(spec);
+    if (!plan) return () => {};
+    return startTik(async () => { await konfliktTik(plan); }, 60_000, () => !runs.paaPause());
+  };
+
+  // KC-0139: every connected source's health once now and then every 30 minutes (and right after a failed read, see the registry); nothing while paused.
+  const helbredTik = (): (() => void) => {
+    const tik = (): Promise<void> => helbred.pollAlle();
+    void tik().catch((err: unknown) => console.error('helbred:', err instanceof Error ? err.message : err));
+    return startTik(tik, 30 * 60_000, () => !runs.paaPause());
+  };
+
+  return { app, runs, live, frontload, bygPlanlagt, kurator, kuratorTik, konflikt, konfliktTik, moedeTik, moedeTikNu: () => koerMoedeTik(d), rumTik, tikNu, helbred, helbredTik };
+}
+
+function env(name: string, fallback = ''): string { return (process.env[name] ?? fallback).trim(); }
+
+/** The sha /health shows: <rod>/GIT_SHA when a build baked one (KC-0157: an image has no .git), else git, else unknown. */
+export function gitSha(rod: string, git: () => string = () => execSync('git rev-parse --short HEAD', { cwd: rod, stdio: ['ignore', 'pipe', 'ignore'] }).toString()): string {
+  let fil = '';
+  try { fil = readFileSync(path.join(rod, 'GIT_SHA'), 'utf8').trim(); } catch { /* no baked sha */ }
+  if (fil) return fil;
+  try { return git().trim() || 'unknown'; } catch { return 'unknown'; }
+}
+
+/**
+ * KC-0118: which AgentClient runs. KC_AGENT (hermes-http | direkte | fake); without it the older KC_HERMES_MODE
+ * (http | fake). KC-0180: direkte = the model provider called directly, no Hermes (a Sky container).
+ */
+export function agentValg(e: Record<string, string | undefined>): AgentClient['mode'] {
+  const valgt = (e['KC_AGENT'] ?? '').trim();
+  if (valgt) {
+    if (valgt === 'hermes-http' || valgt === 'direkte' || valgt === 'fake') return valgt;
+    throw new Error('KC_AGENT skal være hermes-http, direkte eller fake');
+  }
+  const gammel = (e['KC_HERMES_MODE'] ?? '').trim() || 'http';
+  if (gammel === 'http') return 'hermes-http';
+  if (gammel === 'fake') return 'fake';
+  throw new Error('KC_HERMES_MODE skal være http eller fake');
+}
+
+/**
+ * KC-0120: the calendar script — KC_KALENDER_SCRIPT, else the bundled scripts/kalender_uge.py under `rod`; none with
+ * the fake agent. main() derives it once and hands the same value to the meeting tick and to the kira-kalender
+ * connector (which Dagen reads). KC-0133: the bundled script only where Kira can read the calendar (`kiraToken`: its
+ * Google token script exists); a product install without Kira gets "Log ind med Google" instead.
+ */
+export function kalenderScriptFra(e: Record<string, string | undefined>, mode: AgentClient['mode'], rod: string, o: { kiraToken: boolean }): string {
+  if (mode === 'fake') return '';
+  const sat = (e['KC_KALENDER_SCRIPT'] ?? '').trim();
+  if (sat) return sat;
+  return o.kiraToken ? path.join(rod, 'scripts', 'kalender_uge.py') : '';
+}
+
+/** The token script kalender_uge.py reads Kira's Google access through (its default --token-script). */
+const KIRA_TOKEN_SCRIPT = path.join(homedir(), '.hermes', 'scripts', 'google_token_refresh.py');
+
+/** KC-0133: the Google calendar is offered unless the host already connects a calendar of its own (kira-kalender). */
+export function medGoogleKalender(kilder: Kilde[], google: () => Kilde): Kilde[] {
+  return kilder.some((k) => k.slags === 'kalender' && k.standard === 'forbundet') ? kilder : [...kilder, google()];
+}
+
+/**
+ * KC-0133: the app's own address, which an OAuth provider sends the browser back to — KC_ADRESSE (the tailnet https
+ * address), else http://localhost:<port> when the app listens on loopback (a laptop install), else none.
+ */
+export function egenAdresse(e: Record<string, string | undefined>, hostname: string, port: number): string {
+  const sat = (e['KC_ADRESSE'] ?? '').trim();
+  if (sat) return sat;
+  return ['127.0.0.1', 'localhost', '::1'].includes(hostname) ? `http://localhost:${port}` : '';
+}
+
+/** KC-0136: the notes connector is offered unless the host already connects a vault (kira-noter from the env). */
+export function medNoter(kilder: Kilde[], noter: () => Kilde = () => noterKilde()): Kilde[] {
+  return kilder.some((k) => k.slags === 'noter' && k.standard === 'forbundet') ? kilder : [...kilder, noter()];
+}
+
+/** KC-0137: the user's own news sources (RSS/OPML), offered after the host's own; `dataDir` holds its ETags and parsed items. */
+export function medNyhederRss(kilder: Kilde[], rss: () => Kilde = () => nyhederRss()): Kilde[] {
+  return [...kilder, rss()];
+}
+
+/** KC-0137: Mail's times as before, plus Nyheder's morning rebuild where the host has no morning paper of its own to wait for (Henrik's install builds it from the 07:05 timer). */
+export function standardFrontload(e: Record<string, string | undefined>): string {
+  return `mail=06:50,12:00,17:00${(e['KC_DAGEN_SOURCE_GLOB'] ?? '').trim() ? '' : ';nyheder=07:08'}`;
+}
+
+/** KC-0134: any IMAP account, offered after the host's own sources (kira-mail stays the first mail source). */
+export function medMailImap(kilder: Kilde[], mail: () => Kilde = () => mailImapKilde()): Kilde[] {
+  return [...kilder, mail()];
+}
+
+/** KC-0135: Gmail through "Log ind med Google" (no app password), offered after the other sources; it reads with the same IMAP reader. */
+export function medMailGmail(kilder: Kilde[], gmail: () => Kilde = () => mailGmail()): Kilde[] {
+  return [...kilder, gmail()];
+}
+
+/**
+ * KC-0127: the agent from the environment. Without KC_HERMES_API_KEY the client is still built (a fresh install,
+ * KC-0156): its status says mangler-noegle, its runs fail closed, and the key is read again on every call, so the one
+ * Start saves works at once. Model keys go into Hermes' env file only when KC_HERMES_ENV_FILE names it; the gateway
+ * restart (KC_HERMES_GENSTART, default `hermes gateway restart`) runs only after such a write. `env` overrides where
+ * the key is read from (tests).
+ *
+ * KC-0180: direkte keeps model keys in its own NoegleLager (env default: KC_MODEL_NOEGLE_<UDBYDER>; KC_HEMMELIGHEDER_FIL
+ * (KC-0181) selects the encrypted file store, whose key Sky delivers onto a tmpfs and which refuses until then). The provider list, the fixed
+ * error sentences and the live-test status come from here, so src/agent/ imports nothing of the app. `fetchImpl`
+ * replaces the provider calls (tests).
+ */
+export function lavAgent(e: Record<string, string | undefined>, o: { env?: Record<string, string | undefined>; fetchImpl?: typeof fetch } = {}): AgentClient {
+  const valg = agentValg(e);
+  if (valg === 'fake') return createFakeAgent({ answer: devAnswer, delayMs: 800 });
+  const kilde = o.env ?? e;
+  if (valg === 'direkte') {
+    const dataDir = (e['KC_DATA_DIR'] ?? '').trim() || './data';
+    const settings = createSettings(dataDir);
+    const noeglefil = (e['KC_HEMMELIGHEDER_FIL'] ?? '').trim();
+    const udbyderIds = UDBYDERE.map((u) => u.id);
+    return createDirekte({
+      udbydere: UDBYDERE,
+      lager: registrerNoegleLager(noeglefil ? filNoegleLager({ udbydere: udbyderIds, dataDir, noeglefil }) : envNoegleLager({ udbydere: udbyderIds, env: kilde })),
+      fejl: MODEL_FEJL,
+      testet: async () => { const s = await settings.read(); return { ...(s.udbyder ? { udbyder: s.udbyder } : {}), ok: modelKlaret(modelSyn(s)) }; },
+      ...(o.fetchImpl ? { fetchImpl: o.fetchImpl } : {}),
+    });
+  }
+  const fil = (e['KC_HERMES_ENV_FILE'] ?? '').trim();
+  const [kommando, ...args] = ((e['KC_HERMES_GENSTART'] ?? '').trim() || 'hermes gateway restart').split(/\s+/);
+  const genstart = (): Promise<void> => new Promise((resolve, reject) => {
+    execFile(kommando!, args, { timeout: 60_000 }, (err) => (err ? reject(new Error(`Hermes kunne ikke genstartes (${kommando})`)) : resolve()));
+  });
+  return createHermesHttp({
+    baseUrl: (e['KC_HERMES_URL'] ?? '').trim() || 'http://127.0.0.1:8642',
+    apiKey: () => kilde['KC_HERMES_API_KEY'],
+    noegler: { ...(fil ? { skriv: lavAgentNoegleSkriver(fil, MODEL_ENV_NOEGLER) } : {}), genstart },
+  });
+}
+
+export async function main(): Promise<void> {
+  redigerKonsol(); // KC-0125: nothing printed holds a secret value
+  const mode = agentValg(process.env);
+  // KC-0179: KC_IDENTITET=konto (Clawco Sky) — a missing or invalid key refuses to start, naming the key.
+  const konto = kontoFraMiljoe(process.env);
+  const hermes = lavAgent(process.env);
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const publicDir = path.relative(process.cwd(), path.join(here, '..', 'public')) || 'public';
+  const kalenderScript = kalenderScriptFra(process.env, mode, path.join(here, '..'), { kiraToken: existsSync(KIRA_TOKEN_SCRIPT) });
+  const port = Number(env('KC_PORT', '8750'));
+  const hostname = env('KC_HOST', '127.0.0.1');
+  const adresse = egenAdresse(process.env, hostname, port);
+  const stemmeMode = env('KC_STEMME_MODE', mode === 'fake' ? 'fake' : 'elevenlabs');
+  const stemme = stemmeMode === 'fake' ? createFakeStemme() : env('KC_ELEVENLABS_API_KEY') ? createElevenLabs({ apiKey: env('KC_ELEVENLABS_API_KEY') }) : undefined;
+  const { app, frontload, kurator, konflikt, moedeTik, rumTik, helbredTik } = createApp({
+    store: createFileStore(env('KC_DATA_DIR', './data')),
+    hermes,
+    ...(stemme ? { stemme } : {}),
+    sourceGlob: env('KC_DAGEN_SOURCE_GLOB', '/tmp/avis_data_{date}.json'),
+    mailStateDir: mode === 'fake' ? await devMailStateDir(env('KC_DATA_DIR', './data'), new Date()) : env('KC_MAIL_STATE_DIR', path.join(process.env['HOME'] ?? '', '.hermes', 'state')),
+    mailRunner: mode === 'fake' ? devMailRunner() : defaultRunner(),
+    himalaya: env('KC_HIMALAYA', 'himalaya'),
+    kalenderScript,
+    dataDir: env('KC_DATA_DIR', './data'),
+    vaultInbox: env('KC_VAULT_INBOX'),
+    // KC-0136: in dev the old scratch inbox until a vault is chosen on the notes card.
+    ...(mode === 'fake' ? { vaultInboxStandard: path.join(env('KC_DATA_DIR', './data'), 'dev-vault-indbakke') } : {}),
+    vaultDir: vaultRod({ KC_VAULT_DIR: env('KC_VAULT_DIR'), KC_VAULT_INBOX: env('KC_VAULT_INBOX'), KC_DATA_DIR: env('KC_DATA_DIR', './data') }),
+    sha: gitSha(path.join(here, '..')),
+    publicDir,
+    ...(adresse ? { adresse } : {}),
+    ...(env('KC_PEOPLE_DIR') ? { personer: env('KC_PEOPLE_DIR') } : {}),
+    // KC-0132: the fakes (fed from the test world's story) under KC_KILDER_MODE=fake, else the host's own sources.
+    // KC-0133: plus "Log ind med Google" for the calendar, unless the host connects its own.
+    // KC-0135: plus Gmail through the same Google app, after the calendar.
+    kilder: medMailGmail(medGoogleKalender(medNyhederRss(medMailImap(medNoter(kilderFraMiljoe(process.env, {
+      falsk: () => { const t = parseFalskTilstand(env('KC_KILDER_FALSK')); return falskeKilder({ data: falskKildeData(), tilstand: (s) => t[s] ?? 'ok' }); },
+      legacy: () => legacyKilder(process.env, { run: defaultRunner(), laesNyheder: readNyhederSource, parseMail: parseAll, kalenderScript }),
+      agent: mode,
+    }))), () => nyhederRss({ dataDir: env('KC_DATA_DIR', './data') })), () => googleKalender(adresse ? { adresse } : {})), () => mailGmail(adresse ? { adresse } : {})),
+    // KC-0138: messages that reach Hermes, through its gateway hook's log in the data dir; KC_BESKEDER_DAGE = how long read messages are kept.
+    beskeder: (o) => beskederKilde({ dataDir: env('KC_DATA_DIR', './data'), dage: Number(env('KC_BESKEDER_DAGE', '14')) || 14, ...o }),
+    // KC-0212: the operator's ledger (absent in a tenant image: no card). No paid customers are read yet, so MRR is 0.
+    omkostninger: { laes: () => laesOmkostningsfil(env('KC_OMKOSTNINGER', OMKOSTNINGSFIL)), mrr: () => 0 },
+    ...(konto ? { identitet: { konto } } : {}),
+  });
+  frontload(env('KC_FRONTLOAD', standardFrontload(process.env)));
+  kurator(env('KC_KURATOR', '07-22/60'));
+  konflikt(env('KC_LORDAGSKONFLIKT', '07:30')); // KC-0152: Tuesdays; "fra" turns it off
+  moedeTik();
+  rumTik();
+  helbredTik();
+  // KC-0068: a device with the kc_test cookie gets the fictional test world (created on first use); timers above stay on the real app.
+  const lav = () => lavTestverden({ dataDir: testDataDir({ KC_TEST_DATA_DIR: env('KC_TEST_DATA_DIR', ''), KC_DATA_DIR: env('KC_DATA_DIR', './data') }), publicDir, ...(stemme ? { stemme } : {}) });
+  // KC-0179: in konto mode only a signed request reaches the dispatcher (its test world answers by cookie alone).
+  const dispatcher = medTesttilstand(app, lav);
+  const fetch = konto ? kunSigneret(konto, () => new Date(), dispatcher, app) : dispatcher.fetch;
+  serve({ fetch, port, hostname }, (info) => {
+    console.log(`${PRODUKT} lytter på http://${info.address}:${info.port} (agent: ${mode}, stemme: ${stemme ? stemme.mode : 'fra'}, identitet: ${konto ? 'konto' : 'tailnet'})`);
+  });
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) void main();

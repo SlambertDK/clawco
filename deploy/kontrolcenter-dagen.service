@@ -1,0 +1,10 @@
+# One-shot: rebuild the room Dagen through Hermes (triggered by the timer).
+[Unit]
+Description=Kontrolcenter: byg Dagen om morgenen
+After=kontrolcenter.service
+Requires=kontrolcenter.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/kontrolcenter
+ExecStart=/usr/bin/env bash deploy/dagen-morgen.sh

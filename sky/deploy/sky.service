@@ -1,0 +1,34 @@
+# Clawco Sky — the control plane (KC-0176). A *system* unit running as the dedicated user `sky`; for the
+# beta it runs on kira-home (KC-0212, spec D18), reached only through clawco-sky-tunnel.service, and
+# listens on 127.0.0.1 only. Installed by root with sky/deploy/opsaet-root.sh (see sky/deploy/README.md);
+# Postgres is the host's system cluster over its unix socket (peer auth, no password).
+[Unit]
+Description=Clawco Sky (kontrolplanet)
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=sky
+Group=sky
+WorkingDirectory=/srv/sky/kontrolcenter/sky
+# Secrets live outside the checkout, so `git reset --hard` in deploy.sh can never touch them.
+EnvironmentFile=/srv/sky/.env
+ExecStart=/usr/bin/node src/server.ts
+Restart=on-failure
+RestartSec=5
+# KC-0221: Sky drains open connections for 5 s on SIGTERM and exits; never wait the default 90 s.
+TimeoutStopSec=20s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

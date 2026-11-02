@@ -1,0 +1,5 @@
+name: clawco-beskeder
+description: Clawco (KC-0138) — writes a trimmed line per inbound Telegram, WhatsApp or Signal message for Clawco to read. Read-only; never sends.
+events:
+  - agent:start
+  - gateway:startup

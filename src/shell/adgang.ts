@@ -1,0 +1,32 @@
+// KC-0116: the page shown when Clawco does not know who is looking, or must
+// refuse them. Self-contained (no shell, no data): nothing about the household
+// is rendered for someone who is not in it. Dark tokens of public/app.css.
+
+import { html } from './html.ts';
+
+export function renderIngenAdgang(hvorfor: string): string {
+  return String(html`<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#0E1210">
+<title>Ingen adgang</title>
+<style>
+:root { color-scheme: dark; --ground: #121614; --surface: #1C211E; --line: #2F3733; --ink: #E8EBE7; --muted: #9AA39D; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--ground); color: var(--ink); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.5; }
+main { width: 100%; max-width: 420px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px; display: flex; flex-direction: column; gap: 12px; }
+h1 { margin: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+p { margin: 0; color: var(--muted); }
+</style>
+</head>
+<body data-adgang="afvist">
+<main>
+<h1>Ingen adgang</h1>
+<p>${hvorfor}</p>
+</main>
+</body>
+</html>`);
+}
