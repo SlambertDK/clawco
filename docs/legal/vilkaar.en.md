@@ -32,9 +32,9 @@ Clawco reads, sorts and suggests. Answers and suggestions from a language model 
 
 You sign in with a passkey or a link sent by email. There are no passwords. You must look after your email and your devices. Tell us at once if anyone else can get in.
 
-With the Sky Husstand plan you can invite up to six people to your household. Each person gets their own account. You may only invite people who have agreed to it.
+In the beta there is one person per account: you. Sky Husstand has room for up to six people, but invitations, where others get their own account, do not exist yet. We send no invitations for you. When they come, we update the terms first, and you must agree to the new terms.
 
-Children can be members of the household. A parent or another person with parental responsibility must consent on the child's behalf, and you, as the customer, confirm this when you add the child. Under 13, the law requires the parent's consent (Danish Data Protection Act section 6, GDPR Art. 8 — verify). A child cannot create an account alone before turning 13.
+Children cannot be added yet. An account is for people aged 18 and over.
 
 ## 4. How you may use the service
 
@@ -68,29 +68,29 @@ The limits do not mean that suggestions are correct. You must read what you say 
 
 ## 7. Subscription and prices
 
-You can choose Sky Solo (one person) or Sky Husstand (up to six people). Prices are on the pricing page and are shown again at checkout, including VAT, before you pay. You pay month by month or year by year. Payment goes through Stripe. We do not store your card details.
+You can choose Sky Solo (one person) or Sky Husstand (room for up to six people, see section 3). Prices are shown when you choose a plan and again at checkout, before you pay. They are whole prices: we are not VAT-registered, so no VAT is added. You pay month by month or year by year. Payment goes through Stripe. We do not store your card details.
 
 ## 8. Free trial
 
-You can try for 14 days without a card. When the 14 days are over, your instance stops unless you have chosen a plan. You then have 30 days to take out your data, and after that it is deleted.
+You can try for 14 days without a card. When the 14 days are over, your subscription is put on pause until you choose a plan. Your account page shows this. In the beta we do not stop or delete your Clawco automatically. We write to you before we do anything to it, and you have at least 30 days from that message to take out your data.
 
 ## 9. Renewal and cancellation
 
-The subscription renews automatically for the same period, at the same price, until you cancel. For yearly subscriptions we send an email reminder at least 14 days before renewal.
+The subscription renews automatically for the same period, at the same price, until you cancel. We do not yet send a reminder before a renewal. Your account page shows the date of the next payment.
 
 You can cancel whenever you like. The cancel button in your account is not built yet; until it is, you write to kontakt@clawco.work, and an email is just as valid. The subscription runs to the end of the period you have paid for. You get no refund for a period already begun, unless the law or these terms give you the right.
 
-If a payment fails, Stripe tries again. If that does not help, we stop your instance and write to you. You have 30 days to pay or take out your data.
+If a payment fails, Stripe may try to charge again under the rules we have set up there. Your account page shows that the payment is missing and has a button to fix the card. In the beta we do not stop or delete your Clawco automatically because a payment is missing. We write to you before we do anything to it, and you have at least 30 days from that message to pay or take out your data.
 
 ## 10. Right of withdrawal
 
-If you are a consumer, you have a 14-day right of withdrawal from the day you buy a paid subscription (Danish Consumer Contracts Act section 17 — verify). Write to kontakt@clawco.work to withdraw. An email saying that you withdraw is enough; you do not need a particular form.
+If you are a consumer, you have a 14-day right of withdrawal from the day you buy a paid subscription (Danish Consumer Contracts Act sections 18 and 19). Write to kontakt@clawco.work to withdraw. An email saying that you withdraw is enough; you do not need a particular form.
 
 You can ask us to start right away. When you buy, you therefore confirm:
 
 - that you expressly ask us to start the service immediately
-- that you know you lose the right of withdrawal once the service has been fully provided (Consumer Contracts Act section 18(2) no. 13 — verify)
-- that, if you withdraw after we have started, you pay for what we have provided until then (Consumer Contracts Act section 20 — verify)
+- that you know you lose the right of withdrawal once the service has been fully provided (Consumer Contracts Act section 18(2) no. 2)
+- that, if you withdraw after we have started, you pay for what we have provided until then (Consumer Contracts Act section 25)
 
 ## 11. Availability and backup
 
@@ -110,7 +110,7 @@ Your mandatory consumer rights, including the rules on defects in digital servic
 
 ## 15. Governing law, venue and complaints
 
-Danish law applies. Disputes are decided at the District Court of Odense (Retten i Odense), unless the law lets you use your home law and courts, for example as a consumer in another EU country (Rome I Regulation Art. 6, Brussels I Regulation Art. 18 — verify). You can complain to the Danish Consumer Complaints Board (Forbrugerklagenævnet — verify).
+Danish law applies. Disputes are decided at the District Court of Odense (Retten i Odense), unless the law lets you use your home law and courts, for example as a consumer in another EU country (Rome I Regulation Art. 6, Brussels I Regulation Art. 18). You can complain to the Danish Consumer Complaints Board (Forbrugerklagenævnet) through Nævnenes Hus (naevneneshus.dk). The Board only takes cases above a minimum price and charges a complaint fee; the rules are on naevneneshus.dk.
 
 ## 16. Contact and related documents
 

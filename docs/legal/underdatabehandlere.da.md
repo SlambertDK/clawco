@@ -14,15 +14,15 @@ Sidst opdateret: [dato]
 
 En underdatabehandler er en leverandør, som Henrik Lambert (personligt drevet, uden selskab) bruger til at levere Clawco Sky, og som kommer i kontakt med personoplysninger. Her er den fulde liste. Den er offentlig, så du kan se, hvem der er med.
 
-Listen hører til Privatlivspolitik og Databehandleraftale. Alle henvisninger til GDPR og andre regler skal verificeres.
+Listen hører til Privatlivspolitik og Databehandleraftale. Overførselsgrundlagene er tjekket 2. november 2026 mod den officielle liste over Data Privacy Framework (dataprivacyframework.gov) og mod leverandørernes egne databehandleraftaler.
 
 ## Listen
 
 | Navn | Hvad de gør | Hvor | Overførselsgrundlag |
 |---|---|---|---|
-| Cloudflare, Inc. | Tunnel og DNS for clawco.work og adresserne under den. Krypteringen (TLS) afsluttes i Cloudflares kant, så Cloudflare kan teknisk se trafikken til og fra din Clawco dér, også indhold. R2 til krypterede sikkerhedskopier (bygget, endnu ikke slået til). | Kanten: Cloudflares datacentre, normalt det nærmeste. R2: EU-jurisdiktion. | Cloudflare er et amerikansk selskab: EU-US Data Privacy Framework og EU's standardkontrakter (verificér). |
-| Stripe Payments Europe Ltd | Betaling, abonnement, fakturaer og moms | Irland | Selskabet er i EU. Hvis Stripe-koncernen overfører data til USA, bygger det på Stripes grundlag, fx standardkontrakter eller EU-US Data Privacy Framework — verificér |
-| Resend, Inc. | Sender mails fra os: login-links, invitationer, kvitteringer og påmindelser | Afsendelse fra EU-regionen i Irland. Kontodata, metadata og logs om mailene i USA. | Resend er et amerikansk selskab: standardkontrakter og EU-US Data Privacy Framework (verificér). |
+| Cloudflare, Inc. | Tunnel og DNS for clawco.work og adresserne under den. Krypteringen (TLS) afsluttes i Cloudflares kant, så Cloudflare kan teknisk se trafikken til og fra din Clawco dér, også indhold. R2 til krypterede sikkerhedskopier (bygget, endnu ikke slået til). | Kanten: Cloudflares datacentre, normalt det nærmeste. R2: EU-jurisdiktion. | Cloudflare er et amerikansk selskab. Det står som aktiv deltager i EU-US Data Privacy Framework (tjekket 2. november 2026). Cloudflares databehandleraftale (cloudflare.com/cloudflare-customer-dpa/) indeholder desuden EU's standardkontrakter. |
+| Stripe Payments Europe Ltd | Betaling, abonnement, fakturaer og moms | Irland | Selskabet er i EU. Hvis Stripe-koncernen overfører data til USA, bygger det på Stripes eget grundlag. Stripe, LLC (USA) står som aktiv deltager i EU-US Data Privacy Framework (tjekket 2. november 2026). |
+| Resend (Plus Five Five, Inc.) | Sender mails fra os: login-links og en bekræftelse, når en konto er slettet | Afsendelse fra EU-regionen i Irland. Kontodata, metadata og logs om mailene i USA. | Resend er et amerikansk selskab. På dataprivacyframework.gov står Resend 2. november 2026 som "Active - Re-certification under Review" (aktiv, fornyelsen er under behandling). Overførslen bygger derfor på EU's standardkontrakter i Resends databehandleraftale (resend.com/legal/dpa). Data Privacy Framework er et ekstra grundlag, så længe certificeringen står som aktiv. |
 
 Der er ingen hostingleverandør på listen: din Clawco og vores database kører på vores egen server i Danmark. Vi bruger ingen ekstern fejlovervågning, og vi bruger ingen modeludbyder på dine vegne.
 
@@ -45,7 +45,7 @@ Vi gør dette, hver gang listen ændres:
 
 Haster det af hensyn til sikkerhed, fx hvis en leverandør falder fra, kan vi skifte hurtigere. Så skriver vi til dig så hurtigt som muligt, og du har samme ret til at gøre indsigelse.
 
-Vi har en skriftlig aftale med hver underdatabehandler. De har samme krav til databeskyttelse som os (GDPR art. 28 — verificér). Vi hæfter for dem over for dig.
+Vi har en skriftlig aftale med hver underdatabehandler. De har samme krav til databeskyttelse som os (GDPR art. 28, stk. 4). Vi hæfter for dem over for dig.
 
 ## Ændringslog
 

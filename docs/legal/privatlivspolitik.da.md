@@ -12,7 +12,7 @@ Version 0.1-udkast · 2026-11-02
 
 Gælder fra: [dato for offentliggørelse]
 
-Her står, hvilke oplysninger vi behandler, hvorfor, hvem der kan se dem, og hvad du kan gøre. Politikken følger GDPR art. 13 og 14 (verificér). Den gælder for Clawco Sky, ikke for Clawco, du kører selv.
+Her står, hvilke oplysninger vi behandler, hvorfor, hvem der kan se dem, og hvad du kan gøre. Politikken følger GDPR art. 13 og 14. Den gælder for Clawco Sky, ikke for Clawco, du kører selv.
 
 ## 1. Hvem er ansvarlig
 
@@ -28,7 +28,7 @@ Dit indhold i instansen er en særlig sag, se afsnit 3.
 
 **Brugsmønstre.** Vi indsamler ingen brugsstatistik. Kommer der en dag anonyme tal om, hvordan produktet bruges, sker det kun, hvis du selv slår det til, og du kan slå det fra igen når som helst.
 
-**Mails fra os.** Vi sender de mails, du har brug for: login-link, kvitteringer, påmindelser om prøveperiode og fornyelse og vigtige ændringer. Nyhedsbreve og tilbud sender vi kun, hvis du har sagt ja.
+**Mails fra os.** Vi sender de mails, du har brug for: login-link og en bekræftelse, når du sletter din konto. Skal vi fortælle dig om en vigtig ændring, skriver vi også til dig. Vi sender ingen påmindelser om prøveperiode eller fornyelse endnu. Nyhedsbreve og tilbud sender vi kun, hvis du har sagt ja.
 
 ## 3. Dit indhold i din instans
 
@@ -48,10 +48,9 @@ Din instans sender de dele af dit indhold, som modellen skal læse, til den mode
 
 - **Kontrakt** (GDPR art. 6(1)(b)): konto, abonnement, drift af din instans og betaling.
 - **Berettiget interesse** (art. 6(1)(f)): sikkerhed, fejlfinding og misbrugsforebyggelse. Vi vejer det mod dine rettigheder.
-- **Retlig forpligtelse** (art. 6(1)(c)): regnskab, jf. Bogføringsloven (verificér).
+- **Retlig forpligtelse** (art. 6(1)(c)): regnskab, jf. Bogføringsloven § 12.
 - **Samtykke** (art. 6(1)(a)): markedsføringsmails og, hvis de en dag kommer, anonyme brugsmønstre. Du kan trække samtykket tilbage, uden at det påvirker det, der er sket før.
 
-Alle artikelhenvisninger i dette afsnit: verificér.
 
 ## 5. Hvem får oplysningerne
 
@@ -67,14 +66,14 @@ Vi giver kun oplysninger videre til myndigheder, hvis loven kræver det.
 
 ## 6. Overførsel uden for EU
 
-Vi gemmer dit indhold og dine kontooplysninger i EU. Nogle af vores leverandører er selskaber i USA eller har moderselskaber der. Hvis en overførsel sker, bygger den på et gyldigt grundlag, fx EU's standardkontrakter (SCC) eller EU-US Data Privacy Framework (GDPR kap. V — verificér). Pr. leverandør: Cloudflare og Resend er amerikanske selskaber og overfører på standardkontrakter og Data Privacy Framework; Stripe Payments Europe er i Irland, og Stripe-koncernens overførsler til USA bygger på Stripes eget grundlag. Din egen modeludbyder er dit eget valg efter din aftale med dem.
+Vi gemmer dit indhold og dine kontooplysninger i EU. Nogle af vores leverandører er selskaber i USA eller har moderselskaber der. Hvis en overførsel sker, bygger den på et gyldigt grundlag efter GDPR kapitel V: EU-US Data Privacy Framework, når modtageren står som aktiv deltager, ellers EU's standardkontrakter (SCC). Pr. leverandør, tjekket 2. november 2026 mod dataprivacyframework.gov: Cloudflare, Inc. står som aktiv deltager, og Cloudflares databehandleraftale indeholder desuden EU's standardkontrakter. Resend (Plus Five Five, Inc.) står som "Active - Re-certification under Review" (aktiv, fornyelsen er under behandling); derfor bygger overførslen på EU's standardkontrakter i Resends databehandleraftale. Stripe Payments Europe er i Irland; Stripe, LLC (USA) står som aktiv deltager, og Stripe-koncernens overførsler til USA bygger på Stripes eget grundlag. Din egen modeludbyder er dit eget valg efter din aftale med dem.
 
 ## 7. Hvor længe vi gemmer
 
 - Kontooplysninger: mens kontoen findes. Når du sletter kontoen, fjerner vi med det samme din e-mailadresse, dit land, dit sprog, dine passkeys og dine sessioner. Tilbage er et kontonummer uden e-mail og det, regnskabet kræver.
 - Dit indhold: til du sletter kontoen. Så stopper instansen, og data slettes, se Sletning og eksport.
 - Backup: højst 30 dage. Slettet indhold forsvinder fra backup inden for 30 dage. I beta er sikkerhedskopier endnu ikke slået til.
-- Regnskabsbilag (fakturaer): 5 år efter udgangen af regnskabsåret (Bogføringsloven — verificér).
+- Regnskabsbilag (fakturaer): 5 år efter udgangen af regnskabsåret (Bogføringsloven § 12).
 - Tekniske logs: højst 30 dage. Tællingen af loginforsøg (en hash af IP-adressen): et døgn.
 
 ## 8. Dine rettigheder
@@ -89,15 +88,15 @@ Du har ret til:
 - **indsigelse** mod behandling, der bygger på berettiget interesse (art. 21)
 - at **trække samtykke tilbage**
 
-Skriv til kontakt@clawco.work. Vi svarer inden for en måned. Er du utilfreds, kan du klage til Datatilsynet (datatilsynet.dk). Alle artikelhenvisninger: verificér.
+Skriv til kontakt@clawco.work. Vi svarer inden for en måned. Er du utilfreds, kan du klage til Datatilsynet (datatilsynet.dk).
 
 ## 9. Børn
 
-Clawco Sky er for personer fra 13 år. Et barn kan være medlem af en husstand, men kun hvis en forælder eller en anden med forældremyndighed samtykker på barnets vegne (Databeskyttelsesloven §6, GDPR art. 8 — verificér). Det er kunden, der bekræfter samtykket, når barnet tilføjes. Forælderen kan til enhver tid trække det tilbage og få barnets oplysninger slettet. Et barn under 13 kan ikke oprette en konto selv.
+Clawco Sky er for personer fra 18 år. Børn kan ikke tilføjes som medlemmer endnu. Kommer det, opdaterer vi denne politik først. I Danmark er børn under 15 år for unge til selv at give samtykke til en onlinetjeneste (Databeskyttelsesloven § 6, stk. 2 og 3, jf. GDPR art. 8); her skal den, der har forældremyndigheden, samtykke.
 
 ## 10. Automatiske afgørelser
 
-Vi træffer ingen afgørelser, der har retsvirkning for dig, alene ved hjælp af automatisk behandling (GDPR art. 22 — verificér). Agentens forslag bekræftes altid af et menneske, før noget sker. Og agenten betaler, skriver til andre og sletter aldrig uden dit ja.
+Vi træffer ingen afgørelser, der har retsvirkning for dig, alene ved hjælp af automatisk behandling (GDPR art. 22). Agentens forslag bekræftes altid af et menneske, før noget sker. Og agenten betaler, skriver til andre og sletter aldrig uden dit ja.
 
 ## 11. Ændringer og kontakt
 

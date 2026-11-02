@@ -12,7 +12,7 @@ Version 0.1-udkast · 2026-11-02
 
 # Data Processing Agreement for Clawco Sky
 
-The agreement is offered to customers who want one. It follows GDPR Art. 28 (verify).
+The agreement is offered to customers who want one. It follows GDPR Art. 28.
 
 ## 1. The parties
 
@@ -26,7 +26,7 @@ This agreement is an annex to the Terms of Service for Clawco Sky. If the two di
 
 The customer is the controller of the personal data held in the customer's instance (the "content"). We are the processor for the content. For the customer's account data and payment we are the controller ourselves, see the Privacy Policy.
 
-If the customer uses Clawco for purely personal purposes, the GDPR may not apply at all to the customer's own processing (Art. 2(2)(c) — verify). The agreement is then a voluntary comfort. It matters for customers who use Clawco for more than private use.
+If the customer uses Clawco for purely personal purposes, the GDPR may not apply at all to the customer's own processing (Art. 2(2)(c)). The agreement is then a voluntary comfort. It matters for customers who use Clawco for more than private use.
 
 ## 3. Instructions
 
@@ -40,7 +40,7 @@ Everyone at our company who could come near the content is bound by confidential
 
 ## 5. Security
 
-We have technical and organisational measures that fit the risk (Art. 32 — verify). The main ones are in Annex B. We may change them as long as security does not get worse.
+We have technical and organisational measures that fit the risk (Art. 32). The main ones are in Annex B. We may change them as long as security does not get worse.
 
 ## 6. Subprocessors
 
@@ -52,20 +52,20 @@ If the customer uses their own model key, the chosen model provider is the custo
 
 ## 7. Transfers outside the EU
 
-We host the content in the EU, on our own server in Denmark. Traffic to and from the instance passes through Cloudflare, Inc. (USA), where encryption (TLS) ends, see Subprocessors. If we transfer content to a country outside the EU, it only happens on a valid basis under GDPR Chapter V, for example standard contractual clauses (verify).
+We host the content in the EU, on our own server in Denmark. Traffic to and from the instance passes through Cloudflare, Inc. (USA), where encryption (TLS) ends, see Subprocessors. If we transfer content to a country outside the EU, it only happens on a valid basis under GDPR Chapter V, for example standard contractual clauses. For Cloudflare, Inc. and Resend (Plus Five Five, Inc.) the basis is stated in Subprocessors.
 
 ## 8. Assistance
 
 We help the customer as far as we can with:
 
-- answering data subjects' rights requests (Art. 12-22 — verify). The customer can download everything as a zip ("Hent alt") and delete their account.
-- security, impact assessments and consulting the supervisory authority (Art. 32-36 — verify)
+- answering data subjects' rights requests (Art. 12-22). The customer can download everything as a zip ("Hent alt") and delete their account.
+- security, impact assessments and consulting the supervisory authority (Art. 32-36)
 
 We may charge a reasonable fee for assistance that takes a lot of work.
 
 ## 9. Personal data breaches
 
-If we discover a breach that affects the content, we notify the customer without undue delay and no later than 48 hours after we become aware of it (Art. 33(2) — verify). The notice describes what we know: what happened, which data and which instances are affected, and what we are doing about it.
+If we discover a breach that affects the content, we notify the customer without undue delay and no later than 48 hours after we become aware of it. The law requires notice without undue delay (Art. 33(2)); the 48 hours are our own commitment. The notice describes what we know: what happened, which data and which instances are affected, and what we are doing about it.
 
 ## 10. Deletion and return
 
@@ -93,7 +93,7 @@ For the customer: [name, date]. For Henrik Lambert (a private individual, no com
 
 - **Purpose:** to provide Clawco Sky: host the customer's isolated instance, let the agent read and sort the customer's sources and show the result.
 - **Nature:** storage, reading, sorting, display, backup, deletion. The instance sends excerpts to the model provider the customer has chosen.
-- **Categories of data subjects:** the customer and members of the household, including children, and people mentioned in the customer's email, calendar and notes.
+- **Categories of data subjects:** the customer and people mentioned in the customer's email, calendar and notes, for example the customer's household and children.
 - **Categories of data:** whatever the customer connects: email, calendar, notes, news, messages, bills, contact details. May include sensitive data if the customer puts it in.
 - **Duration:** as long as the subscription runs, plus time for export and backup (see section 10).
 

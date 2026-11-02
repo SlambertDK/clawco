@@ -14,7 +14,7 @@ Version 0.1-udkast · 2026-11-02
 
 Effective from: [date of publication]
 
-This page says what information we process, why, who can see it, and what you can do. The policy follows GDPR Art. 13 and 14 (verify). It applies to Clawco Sky, not to a Clawco you run yourself.
+This page says what information we process, why, who can see it, and what you can do. The policy follows GDPR Art. 13 and 14. It applies to Clawco Sky, not to a Clawco you run yourself.
 
 ## 1. Who is responsible
 
@@ -30,7 +30,7 @@ Your content in the instance is a special case, see section 3.
 
 **Usage patterns.** We collect no usage statistics. If anonymous figures about how the product is used ever come, it will only happen if you switch it on yourself, and you can switch it off again at any time.
 
-**Emails from us.** We send the emails you need: sign-in links, receipts, reminders about the trial and renewal, and important changes. We send newsletters and offers only if you have said yes.
+**Emails from us.** We send the emails you need: sign-in links and a confirmation when you delete your account. If we need to tell you about an important change, we write to you as well. We do not yet send reminders about the trial or renewal. We send newsletters and offers only if you have said yes.
 
 ## 3. Your content in your instance
 
@@ -50,10 +50,9 @@ Your instance sends the parts of your content that the model needs to read to th
 
 - **Contract** (GDPR Art. 6(1)(b)): account, subscription, running your instance and payment.
 - **Legitimate interest** (Art. 6(1)(f)): security, troubleshooting and abuse prevention. We weigh it against your rights.
-- **Legal obligation** (Art. 6(1)(c)): bookkeeping, see the Danish Bookkeeping Act (verify).
+- **Legal obligation** (Art. 6(1)(c)): bookkeeping, see section 12 of the Danish Bookkeeping Act.
 - **Consent** (Art. 6(1)(a)): marketing emails and, if they ever come, anonymous usage patterns. You can withdraw consent without affecting what happened before.
 
-All article references in this section: verify.
 
 ## 5. Who receives the information
 
@@ -69,14 +68,14 @@ We only pass information to public authorities if the law requires it.
 
 ## 6. Transfers outside the EU
 
-We store your content and account data in the EU. Some of our suppliers are companies in the USA or have parent companies there. If a transfer takes place, it rests on a valid basis, for example the EU Standard Contractual Clauses (SCC) or the EU-US Data Privacy Framework (GDPR Chapter V — verify). Per supplier: Cloudflare and Resend are US companies and transfer under standard contractual clauses and the Data Privacy Framework; Stripe Payments Europe is in Ireland, and the Stripe group's transfers to the USA rest on Stripe's own basis. Your own model provider is your own choice under your agreement with them.
+We store your content and account data in the EU. Some of our suppliers are companies in the USA or have parent companies there. If a transfer takes place, it rests on a valid basis under GDPR Chapter V: the EU-US Data Privacy Framework when the recipient is listed as an active participant, otherwise the EU Standard Contractual Clauses (SCC). Per supplier, checked on 2 November 2026 against dataprivacyframework.gov: Cloudflare, Inc. is listed as an active participant, and Cloudflare's data processing agreement also contains the EU Standard Contractual Clauses. Resend (Plus Five Five, Inc.) is listed as "Active - Re-certification under Review"; the transfer therefore rests on the EU Standard Contractual Clauses in Resend's data processing agreement. Stripe Payments Europe is in Ireland; Stripe, LLC (USA) is listed as an active participant, and the Stripe group's transfers to the USA rest on Stripe's own basis. Your own model provider is your own choice under your agreement with them.
 
 ## 7. How long we keep it
 
 - Account data: while the account exists. When you delete the account, we remove your email address, your country, your language, your passkeys and your sessions at once. What remains is an account number without an email address, and what the bookkeeping requires.
 - Your content: until you delete the account. Then the instance stops and the data is deleted, see Deletion and export.
 - Backups: at most 30 days. Deleted content disappears from backups within 30 days. In beta, backups are not yet switched on.
-- Accounting records (invoices): 5 years after the end of the financial year (Bookkeeping Act — verify).
+- Accounting records (invoices): 5 years after the end of the financial year (Bookkeeping Act section 12).
 - Technical logs: at most 30 days. The count of sign-in attempts (a hash of the IP address): one day.
 
 ## 8. Your rights
@@ -91,15 +90,15 @@ You have the right to:
 - **object** to processing based on legitimate interest (Art. 21)
 - **withdraw consent**
 
-Write to kontakt@clawco.work. We answer within one month. If you are not satisfied, you can complain to the Danish Data Protection Agency, Datatilsynet (datatilsynet.dk). All article references: verify.
+Write to kontakt@clawco.work. We answer within one month. If you are not satisfied, you can complain to the Danish Data Protection Agency, Datatilsynet (datatilsynet.dk).
 
 ## 9. Children
 
-Clawco Sky is for people aged 13 and over. A child can be a member of a household, but only if a parent or another person with parental responsibility consents on the child's behalf (Data Protection Act section 6, GDPR Art. 8 — verify). The customer confirms the consent when the child is added. The parent can withdraw it at any time and have the child's data deleted. A child under 13 cannot create an account alone.
+Clawco Sky is for people aged 18 and over. Children cannot be added as members yet. If that comes, we update this policy first. In Denmark, children under 15 are too young to give their own consent to an online service (Data Protection Act section 6(2) and (3), cf. GDPR Art. 8); there, the person with parental responsibility must consent.
 
 ## 10. Automated decisions
 
-We make no decisions with legal effect on you based solely on automated processing (GDPR Art. 22 — verify). The agent's suggestions are always confirmed by a human before anything happens. And the agent never pays, writes to others or deletes without your yes.
+We make no decisions with legal effect on you based solely on automated processing (GDPR Art. 22). The agent's suggestions are always confirmed by a human before anything happens. And the agent never pays, writes to others or deletes without your yes.
 
 ## 11. Changes and contact
 

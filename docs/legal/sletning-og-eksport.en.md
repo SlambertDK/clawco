@@ -34,7 +34,7 @@ Export costs nothing and is not limited in number. If the file is very large, it
 
 You can delete your account at konto.clawco.work under "Slet konto" (delete account). If you have not signed in within the last 5 minutes, we ask you to sign in again with your passkey or a link by email, and you type your email address to confirm, so that no one deletes your things by mistake. The page offers to let you get everything first.
 
-If you own a Clawco, you delete it and everything in it, and the people you invited lose access. A member of a household deletes only their own account; the household continues for the others.
+If you own a Clawco, you delete it and everything in it, also for the others in your household. Invitations, where others get their own account, do not exist yet. When they come, a member can delete only their own account, and the household continues for the others.
 
 ## What happens, and in which order
 
@@ -42,7 +42,7 @@ If you own a Clawco, you delete it and everything in it, and the people you invi
 |---|---|
 | Day 0 | You confirm the deletion. At once your instance is stopped and its volume is deleted. No one can sign in. Your model keys and sessions are removed. Your email address, your country, your language and your passkeys are deleted. We take no more backups. You get a receipt by email. |
 | Within 30 days | Your backups expire, and the key that can open them is destroyed. After day 30 your content no longer exists with us. In beta, backups are not yet switched on. |
-| 5 years | We keep accounting records (invoices and payments) because the law requires it. The Danish Bookkeeping Act requires 5 years after the end of the financial year (verify). They hold only what is needed: name, email, amount and date. None of your content. |
+| 5 years | We keep accounting records (invoices and payments) because the law requires it. The Danish Bookkeeping Act requires 5 years after the end of the financial year (section 12). They hold only what is needed: name, email, amount and date. None of your content. |
 
 What remains is only an account number without an email address, with the versions of the terms you said yes to, your Clawco's random name (so it is never given to someone else), and a receipt for the deletion. None of your content.
 
@@ -50,20 +50,18 @@ A deletion cannot be undone. We use backups for operations, not to restore an ac
 
 ## When the subscription ends
 
-You do not have to delete. If you cancel, your instance runs to the end of the period you have paid for. After that it stops. You have 30 days to take out your data. If you do nothing, it is deleted after the 30 days, and then the timeline above follows from day 0.
-
-The same applies if the free 14-day trial ends without a subscription, or if a payment fails and is not put right. We write to you before we delete.
+You do not have to delete. If you cancel, the subscription runs to the end of the period you have paid for. In the beta we do not stop or delete your Clawco automatically, neither when you cancel, nor when the free 14-day trial ends without a subscription, nor when a payment fails and is not put right. We write to you before we do anything to it, and you have at least 30 days from that message to take out your data. If we delete it, the timeline above follows from day 0.
 
 ## The timeline in days
 
-- Export: at any time while the instance runs, and for 30 days after it ends.
+- Export: at any time while your Clawco exists, and for at least 30 days after our message that we will stop or delete it.
 - Instance stopped, volume and account data deleted: day 0.
 - Backups expired: at the latest day 30 after the deletion.
 - Accounting records: 5 years after the end of the financial year.
 
 ## Your rights
 
-You have the right to erasure under GDPR Art. 17 and to move your data under Art. 20 (verify both). Write to kontakt@clawco.work if you cannot get started. We confirm the deletion in writing if you ask. You can also complain to the Danish Data Protection Agency, Datatilsynet.
+You have the right to erasure under GDPR Art. 17 and to move your data under Art. 20. Write to kontakt@clawco.work if you cannot get started. We confirm the deletion in writing if you ask. You can also complain to the Danish Data Protection Agency, Datatilsynet.
 
 ## Contact
 

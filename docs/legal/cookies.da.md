@@ -44,7 +44,7 @@ Vi indsamler heller ingen brugsstatistik uden cookies, se Privatlivspolitik.
 
 ## Hvorfor der ikke er et banner
 
-Danske regler kræver samtykke til cookies, der ikke er nødvendige (Cookiebekendtgørelsen, verificér). Cookierne ovenfor er nødvendige for den tjeneste, du selv beder om, og kræver ikke samtykke. Har vi ikke andre cookies, er der intet at spørge om. Vi oplyser dig her i stedet.
+Danske regler kræver samtykke til cookies, der ikke er nødvendige (Cookiebekendtgørelsen, bekendtgørelse nr. 1148 af 9. december 2011, §§ 3 og 4). Cookierne ovenfor er nødvendige for den tjeneste, du selv beder om, og kræver ikke samtykke. Har vi ikke andre cookies, er der intet at spørge om. Vi oplyser dig her i stedet.
 
 Hvis vi en dag vil bruge flere cookies, ændrer vi først denne side og indhenter dit samtykke.
 

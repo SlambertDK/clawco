@@ -46,7 +46,7 @@ We collect no usage statistics without cookies either, see the Privacy Policy.
 
 ## Why there is no banner
 
-Danish rules require consent for cookies that are not necessary (the Cookie Order, Cookiebekendtgørelsen — verify). The cookies above are necessary for the service you ask for yourself, and do not need consent. If we have no other cookies, there is nothing to ask about. We inform you here instead.
+Danish rules require consent for cookies that are not necessary (the Cookie Order, Cookiebekendtgørelsen, order no. 1148 of 9 December 2011, sections 3 and 4). The cookies above are necessary for the service you ask for yourself, and do not need consent. If we have no other cookies, there is nothing to ask about. We inform you here instead.
 
 If we ever want to use more cookies, we will first change this page and ask for your consent.
 

@@ -10,7 +10,7 @@ Version 0.1-udkast · 2026-11-02
 
 # Databehandleraftale for Clawco Sky
 
-Aftalen tilbydes de kunder, der ønsker en. Den følger GDPR art. 28 (verificér).
+Aftalen tilbydes de kunder, der ønsker en. Den følger GDPR art. 28.
 
 ## 1. Parterne
 
@@ -24,7 +24,7 @@ Aftalen er et bilag til Vilkår for Clawco Sky. Hvis de to er uenige om behandli
 
 Kunden er dataansvarlig for de personoplysninger, der ligger i kundens instans ("indholdet"). Vi er databehandler for indholdet. For kundens kontooplysninger og betaling er vi selv dataansvarlig, se Privatlivspolitik.
 
-Bruger kunden Clawco til rent personlige formål, gælder GDPR måske slet ikke for kundens egen behandling (art. 2(2)(c) — verificér). Aftalen er så en frivillig tryghed. Den er relevant for kunder, der bruger Clawco til mere end privat brug.
+Bruger kunden Clawco til rent personlige formål, gælder GDPR måske slet ikke for kundens egen behandling (art. 2, stk. 2, litra c). Aftalen er så en frivillig tryghed. Den er relevant for kunder, der bruger Clawco til mere end privat brug.
 
 ## 3. Instruks
 
@@ -38,7 +38,7 @@ Alle hos os, der kan komme i nærheden af indholdet, har tavshedspligt. Vi læse
 
 ## 5. Sikkerhed
 
-Vi har tekniske og organisatoriske foranstaltninger, der passer til risikoen (art. 32 — verificér). De vigtigste står i Bilag B. Vi kan ændre dem, så længe sikkerheden ikke bliver ringere.
+Vi har tekniske og organisatoriske foranstaltninger, der passer til risikoen (art. 32). De vigtigste står i Bilag B. Vi kan ændre dem, så længe sikkerheden ikke bliver ringere.
 
 ## 6. Underdatabehandlere
 
@@ -50,20 +50,20 @@ Hvis kunden bruger sin egen modelnøgle, er den valgte modeludbyder kundens egen
 
 ## 7. Overførsel uden for EU
 
-Vi hoster indholdet i EU, på vores egen server i Danmark. Trafikken til og fra instansen går gennem Cloudflare, Inc. (USA), hvor krypteringen (TLS) afsluttes, se Underdatabehandlere. Overfører vi indhold til et land uden for EU, sker det kun på et gyldigt grundlag efter GDPR kap. V, fx standardkontrakter (verificér).
+Vi hoster indholdet i EU, på vores egen server i Danmark. Trafikken til og fra instansen går gennem Cloudflare, Inc. (USA), hvor krypteringen (TLS) afsluttes, se Underdatabehandlere. Overfører vi indhold til et land uden for EU, sker det kun på et gyldigt grundlag efter GDPR kap. V, fx standardkontrakter. For Cloudflare, Inc. og Resend (Plus Five Five, Inc.) står grundlaget i Underdatabehandlere.
 
 ## 8. Bistand
 
 Vi hjælper kunden, så vidt vi kan, med:
 
-- at svare på de registreredes rettigheder (art. 12-22 — verificér). Kunden kan selv hente alt som zip ("Hent alt") og slette sin konto.
-- sikkerhed, konsekvensanalyser og høring af tilsynet (art. 32-36 — verificér)
+- at svare på de registreredes rettigheder (art. 12-22). Kunden kan selv hente alt som zip ("Hent alt") og slette sin konto.
+- sikkerhed, konsekvensanalyser og høring af tilsynet (art. 32-36)
 
 Vi må tage rimeligt betaling for bistand, der kræver meget arbejde.
 
 ## 9. Brud på persondatasikkerheden
 
-Opdager vi et brud, der berører indholdet, giver vi kunden besked uden unødigt ophold og senest 48 timer efter, vi har fået kendskab til det (art. 33(2) — verificér). Beskeden beskriver, hvad vi ved: hvad der er sket, hvilke oplysninger og hvilke instanser der er berørt, og hvad vi gør ved det.
+Opdager vi et brud, der berører indholdet, giver vi kunden besked uden unødigt ophold og senest 48 timer efter, vi har fået kendskab til det. Loven kræver besked uden unødigt ophold (art. 33, stk. 2); de 48 timer er vores eget tilsagn. Beskeden beskriver, hvad vi ved: hvad der er sket, hvilke oplysninger og hvilke instanser der er berørt, og hvad vi gør ved det.
 
 ## 10. Sletning og tilbagelevering
 
@@ -91,7 +91,7 @@ For kunden: [navn, dato]. For Henrik Lambert (personligt drevet, uden selskab): 
 
 - **Formål:** at levere Clawco Sky: hoste kundens isolerede instans, lade agenten læse og ordne kundens kilder og vise resultatet.
 - **Art:** opbevaring, læsning, sortering, visning, backup, sletning. Instansen sender uddrag til den modeludbyder, kunden har valgt.
-- **Kategorier af registrerede:** kunden og medlemmer af husstanden, herunder børn, og personer, der omtales i kundens mail, kalender og noter.
+- **Kategorier af registrerede:** kunden og personer, der omtales i kundens mail, kalender og noter, fx kundens husstand og børn.
 - **Kategorier af oplysninger:** det, kunden kobler til: mail, kalender, noter, nyheder, beskeder, regninger, kontaktoplysninger. Kan indeholde følsomme oplysninger, hvis kunden selv lægger dem ind.
 - **Varighed:** så længe abonnementet løber, plus tid til eksport og backup (se pkt. 10).
 

@@ -32,7 +32,7 @@ Eksporten koster ikke noget og er ikke begrænset i antal. Er filen meget stor, 
 
 Du kan slette din konto på konto.clawco.work under "Slet konto". Har du ikke logget ind inden for de sidste 5 minutter, beder vi dig logge ind igen med din passkey eller et link på e-mail, og du skriver din e-mailadresse for at bekræfte, så ingen sletter dit ved en fejl. Siden tilbyder dig at hente alt først.
 
-Ejer du en Clawco, sletter du den og alt i den, og dem, du har inviteret, mister adgangen. Et medlem af en husstand sletter kun sin egen konto; husstanden fortsætter for de andre.
+Ejer du en Clawco, sletter du den og alt i den, også for de andre i din husstand. Invitationer, hvor andre får deres egen konto, findes ikke endnu. Når de kommer, kan et medlem slette kun sin egen konto, og husstanden fortsætter for de andre.
 
 ## Hvad sker der, og i hvilken rækkefølge
 
@@ -40,7 +40,7 @@ Ejer du en Clawco, sletter du den og alt i den, og dem, du har inviteret, mister
 |---|---|
 | Dag 0 | Du bekræfter sletningen. Med det samme stoppes din instans, og dens volumen slettes. Ingen kan logge ind. Dine modelnøgler og sessioner fjernes. Din e-mailadresse, dit land, dit sprog og dine passkeys slettes. Vi tager ikke flere sikkerhedskopier. Du får en kvittering på mail. |
 | Inden for 30 dage | Dine sikkerhedskopier udløber, og nøglen, der kan åbne dem, destrueres. Efter dag 30 findes dit indhold ikke længere hos os. I beta er sikkerhedskopier endnu ikke slået til. |
-| 5 år | Regnskabsbilag (fakturaer og betalinger) gemmer vi, fordi loven kræver det. Bogføringsloven kræver 5 år efter udgangen af regnskabsåret (verificér). De indeholder kun det, der skal til: navn, e-mail, beløb og dato. Intet af dit indhold. |
+| 5 år | Regnskabsbilag (fakturaer og betalinger) gemmer vi, fordi loven kræver det. Bogføringsloven kræver 5 år efter udgangen af regnskabsåret (§ 12). De indeholder kun det, der skal til: navn, e-mail, beløb og dato. Intet af dit indhold. |
 
 Tilbage er kun et kontonummer uden e-mail med de versioner af vilkårene, du sagde ja til, din Clawcos tilfældige navn (så det aldrig gives til en anden), og en kvittering for sletningen. Intet af dit indhold.
 
@@ -48,20 +48,18 @@ En sletning kan ikke fortrydes. Vi bruger sikkerhedskopier til drift, ikke til a
 
 ## Når abonnementet ender
 
-Du behøver ikke at slette. Hvis du siger op, kører din instans til udgangen af den periode, du har betalt for. Herefter stopper den. Du har 30 dage til at hente dine data. Hvis du ikke gør noget, bliver de slettet efter de 30 dage, og så følger tidslinjen ovenfor fra dag 0.
-
-Det samme gælder, hvis den gratis prøveperiode på 14 dage udløber uden et abonnement, eller hvis en betaling fejler og ikke bliver rettet. Vi skriver til dig, før vi sletter.
+Du behøver ikke at slette. Siger du op, løber abonnementet til udgangen af den periode, du har betalt for. I beta stopper eller sletter vi ikke din Clawco automatisk, hverken når du siger op, når den gratis prøve på 14 dage udløber uden et abonnement, eller når en betaling fejler og ikke bliver rettet. Vi skriver til dig, før vi gør noget ved den, og du har mindst 30 dage fra den besked til at hente dine data. Sletter vi den, følger tidslinjen ovenfor fra dag 0.
 
 ## Tidslinjen i dage
 
-- Eksport: når som helst, mens instansen kører, og i 30 dage efter udløb.
+- Eksport: når som helst, mens din Clawco findes, og i mindst 30 dage efter vores besked om, at vi vil stoppe eller slette den.
 - Instansen stoppes, volumen og kontooplysninger slettes: dag 0.
 - Sikkerhedskopier udløbet: senest dag 30 efter sletningen.
 - Regnskabsbilag: 5 år efter udgangen af regnskabsåret.
 
 ## Dine rettigheder
 
-Du har ret til sletning efter GDPR art. 17 og til at flytte dine data efter art. 20 (verificér begge). Skriv til kontakt@clawco.work, hvis du ikke kan komme i gang. Vi bekræfter sletningen skriftligt, hvis du beder om det. Du kan også klage til Datatilsynet.
+Du har ret til sletning efter GDPR art. 17 og til at flytte dine data efter art. 20. Skriv til kontakt@clawco.work, hvis du ikke kan komme i gang. Vi bekræfter sletningen skriftligt, hvis du beder om det. Du kan også klage til Datatilsynet.
 
 ## Kontakt
 

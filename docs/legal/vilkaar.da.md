@@ -30,9 +30,9 @@ Clawco læser, sorterer og foreslår. Svar og forslag fra en sprogmodel kan vær
 
 Du logger ind med en passkey eller et link på e-mail. Der er ingen adgangskoder. Du skal passe på din e-mail og dine enheder. Fortæl os det med det samme, hvis nogen andre kan komme ind.
 
-Med abonnementet Sky Husstand kan du invitere op til seks personer til din husstand. Hver person får sin egen konto. Du må kun invitere personer, der har sagt ja til det.
+I beta er der én person pr. konto: dig. Sky Husstand har plads til op til seks personer, men invitationer, hvor andre får deres egen konto, findes ikke endnu. Vi sender ingen invitationer for dig. Kommer de, opdaterer vi vilkårene først, og du skal sige ja til de nye vilkår.
 
-Børn kan være medlem af husstanden. En forælder eller en anden med forældremyndighed skal samtykke på barnets vegne, og det er dig som kunde, der bekræfter det, når du tilføjer barnet. Under 13 år kræver loven samtykke fra forælderen (Databeskyttelsesloven §6, GDPR art. 8 — verificér). Et barn kan ikke oprette en konto selv, før det er fyldt 13.
+Børn kan ikke tilføjes endnu. En konto er til personer fra 18 år.
 
 ## 4. Sådan må du bruge tjenesten
 
@@ -66,29 +66,29 @@ Grænserne betyder ikke, at forslag er rigtige. Du skal selv læse, hvad du sige
 
 ## 7. Abonnement og priser
 
-Du kan vælge Sky Solo (én person) eller Sky Husstand (op til seks personer). Priserne står på prissiden og vises igen i kassen, før du betaler, med moms. Du betaler måned for måned eller år for år. Betalingen går gennem Stripe. Vi gemmer ikke dine kortoplysninger.
+Du kan vælge Sky Solo (én person) eller Sky Husstand (plads til op til seks personer, se punkt 3). Priserne vises, når du vælger plan, og igen i kassen, før du betaler. Det er hele priser: vi er ikke momsregistreret, så der kommer ingen moms oveni. Du betaler måned for måned eller år for år. Betalingen går gennem Stripe. Vi gemmer ikke dine kortoplysninger.
 
 ## 8. Gratis prøveperiode
 
-Du kan prøve i 14 dage uden kort. Når de 14 dage er gået, stopper din instans, medmindre du har valgt en plan. Du har herefter 30 dage til at hente dine data, og så bliver de slettet.
+Du kan prøve i 14 dage uden kort. Når de 14 dage er gået, sættes dit abonnement på pause, indtil du vælger en plan. Din kontoside viser det. I beta stopper eller sletter vi ikke din Clawco automatisk. Vi skriver til dig, før vi gør noget ved den, og du har mindst 30 dage fra den besked til at hente dine data.
 
 ## 9. Fornyelse og opsigelse
 
-Abonnementet fornyes automatisk for samme periode, til samme pris, indtil du siger det op. Ved årsabonnement sender vi en påmindelse på e-mail mindst 14 dage før fornyelsen.
+Abonnementet fornyes automatisk for samme periode, til samme pris, indtil du siger det op. Vi sender endnu ingen påmindelse før en fornyelse. Din kontoside viser datoen for næste betaling.
 
 Du kan sige op, når du vil. Knappen til at sige op i din konto er ikke bygget endnu; indtil den er, skriver du til kontakt@clawco.work, og en mail er lige så gyldig. Abonnementet løber til udgangen af den periode, du har betalt for. Du får ikke penge tilbage for en påbegyndt periode, medmindre loven eller disse vilkår giver ret til det.
 
-Hvis en betaling fejler, prøver Stripe igen. Hjælper det ikke, stopper vi din instans og skriver til dig. Du har 30 dage til at betale eller hente dine data.
+Hvis en betaling fejler, kan Stripe prøve at trække igen efter de regler, vi har sat op der. Din kontoside viser, at betalingen mangler, og har en knap til at rette kortet. I beta stopper eller sletter vi ikke din Clawco automatisk, fordi en betaling mangler. Vi skriver til dig, før vi gør noget ved den, og du har mindst 30 dage fra den besked til at betale eller hente dine data.
 
 ## 10. Fortrydelsesret
 
-Hvis du er forbruger, har du 14 dages fortrydelsesret fra den dag, du køber et betalt abonnement (Forbrugeraftaleloven §17 — verificér). Skriv til kontakt@clawco.work for at fortryde. Det er nok med en mail, hvor du skriver, at du fortryder; du behøver ikke en bestemt blanket.
+Hvis du er forbruger, har du 14 dages fortrydelsesret fra den dag, du køber et betalt abonnement (Forbrugeraftaleloven §§ 18 og 19). Skriv til kontakt@clawco.work for at fortryde. Det er nok med en mail, hvor du skriver, at du fortryder; du behøver ikke en bestemt blanket.
 
 Du kan bede os om at starte straks. Når du køber, bekræfter du derfor:
 
 - at du udtrykkeligt beder os om at starte tjenesten med det samme
-- at du ved, at du mister fortrydelsesretten, når tjenesten er leveret fuldt ud (Forbrugeraftaleloven §18 stk. 2 nr. 13 — verificér)
-- at du, hvis du fortryder efter start, betaler for det, vi har leveret indtil da (Forbrugeraftaleloven §20 — verificér)
+- at du ved, at du mister fortrydelsesretten, når tjenesten er leveret fuldt ud (Forbrugeraftaleloven § 18, stk. 2, nr. 2)
+- at du, hvis du fortryder efter start, betaler for det, vi har leveret indtil da (Forbrugeraftaleloven § 25)
 
 ## 11. Tilgængelighed og backup
 
@@ -108,7 +108,7 @@ Dine ufravigelige rettigheder som forbruger, herunder reglerne om mangler ved di
 
 ## 15. Lovvalg, værneting og klager
 
-Dansk ret gælder. Tvister afgøres ved Retten i Odense, medmindre loven giver dig ret til at bruge din hjemlige ret og domstol, fx som forbruger i et andet EU-land (Rom I-forordningen art. 6, Bruxelles I-forordningen art. 18 — verificér). Du kan klage til Forbrugerklagenævnet (verificér).
+Dansk ret gælder. Tvister afgøres ved Retten i Odense, medmindre loven giver dig ret til at bruge din hjemlige ret og domstol, fx som forbruger i et andet EU-land (Rom I-forordningen art. 6, Bruxelles I-forordningen art. 18). Du kan klage til Forbrugerklagenævnet via Nævnenes Hus (naevneneshus.dk). Nævnet tager kun sager over en mindstepris og kræver et klagegebyr; reglerne står på naevneneshus.dk.
 
 ## 16. Kontakt og øvrige dokumenter
 
