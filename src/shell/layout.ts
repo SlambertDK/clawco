@@ -42,6 +42,8 @@ export type ShellOpts = {
   husstand?: Person[];
   /** KC-0124: the kill switch's state; a band above the room while paused. Absent = not paused. */
   pause?: PauseTilstand;
+  /** KC-0201: under Clawco Sky (KC_SKY=ja) the address of the account app's help page; shown as "Få hjælp" in the Kø panel. Absent = no link. */
+  hjaelp?: { href: string };
 };
 
 export const ELEVENLABS_SDK = 'https://cdn.jsdelivr.net/npm/@elevenlabs/client@1.32.0/dist/lib.iife.js';
@@ -128,6 +130,7 @@ export function shell(o: ShellOpts): Markup {
       <div class="kilder-panel" data-kilder="panel" hidden></div>
       ${!o.person || o.person.rolle === 'ejer' ? html`<div class="omkostninger-panel" data-omkostninger="panel" hidden></div>` : ''}
       ${!o.person || o.person.rolle === 'ejer' ? html`<div class="viden-link"><a class="btn btn-ghost" href="/viden">Hvad ${PRODUKT} ved om dig</a></div>` : ''}
+      ${o.hjaelp ? html`<div class="viden-link"><a class="btn btn-ghost" href="${o.hjaelp.href}" data-hjaelp>Få hjælp</a></div>` : ''}
       <form id="indstillinger" class="indstillinger" onsubmit="return false">
         <span class="eyebrow">Tænkeniveau</span>
         <label class="field"><span class="row-note">Småting (chat, handlinger, kladder)</span><input name="lille" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="lille"></span></label>

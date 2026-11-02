@@ -29,7 +29,7 @@ export const koerBinaer: KoerselBinaer = (argv, input, env) => new Promise((reso
 
 const ETIKET = 'clawco.kopi';
 
-export function lokalKopiNode(o: { koer: KoerselBinaer; billede: string; netvaerk: string; kontoPubkey: string; noegleFlag: string[] }) {
+export function lokalKopiNode(o: { koer: KoerselBinaer; billede: string; netvaerk: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[] }) {
   const tekst: Koersel = async (argv) => { const r = await o.koer(argv); return { kode: r.kode, ud: r.ud.toString('utf8'), fejl: r.fejl }; };
   const docker = dockerKommando(tekst);
 
@@ -78,7 +78,7 @@ export function lokalKopiNode(o: { koer: KoerselBinaer; billede: string; netvaer
       await docker([
         'run', '--detach', '--name', navn, '--label', `${ETIKET}=${tenant}`, '--network', o.netvaerk,
         '--volume', `${navn}-data:/data`,
-        ...tenantKoersel({ tenantId: tenant, gateway, kontoPubkey: o.kontoPubkey, noegleFlag: o.noegleFlag }),
+        ...tenantKoersel({ tenantId: tenant, gateway, kontoPubkey: o.kontoPubkey, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag }),
         o.billede,
       ]);
       return { adresse: await beholderAdresse(docker, o.netvaerk, navn) };

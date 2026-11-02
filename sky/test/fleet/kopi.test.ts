@@ -33,7 +33,7 @@ function falsk(start: { volumener?: string[] } = {}) {
     if (a === 'run') return ok(argv.includes('-cf') ? Buffer.from('TAR-BYTES') : '');
     return { kode: 125, ud: Buffer.alloc(0), fejl: `ukendt: ${argv.slice(0, 3).join(' ')}` };
   };
-  const node = lokalKopiNode({ koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, noegleFlag: ['--tmpfs', '/run/secrets:rw', '--env', 'KC_HEMMELIGHEDER_FIL=/run/secrets/clawco-lager'] });
+  const node = lokalKopiNode({ koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', noegleFlag: ['--tmpfs', '/run/secrets:rw', '--env', 'KC_HEMMELIGHEDER_FIL=/run/secrets/clawco-lager'] });
   return { node, kald, volumener, containere };
 }
 

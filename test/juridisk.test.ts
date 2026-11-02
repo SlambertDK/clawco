@@ -146,6 +146,8 @@ test('byggJuridisk: a page per document and language, with title, one h1, lang, 
       const d = side(ud, rel);
       assert.equal(d.documentElement.getAttribute('lang'), sprog, rel);
       assert.equal(d.querySelectorAll('h1').length, 1, `${rel}: one h1`);
+      // KC-0201: the footer reaches the help page like every other page's footer.
+      assert.equal(d.querySelector('footer a[href^="/hjaelp"]')?.textContent, sprog === 'da' ? 'Hjælp' : 'Help', `${rel}: help link`);
       assert.ok((d.querySelector('title')?.textContent ?? '').trim().length > 5, `${rel}: title`);
       assert.match(d.querySelector('meta[name="viewport"]')?.getAttribute('content') ?? '', /width=device-width/);
       const desc = d.querySelector('meta[name="description"]')?.getAttribute('content') ?? '';

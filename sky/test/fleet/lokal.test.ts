@@ -97,7 +97,7 @@ export function falskDocker(start: { containere?: Record<string, boolean>; volum
   return { koer, kald, containere, volumener, netvaerk, husstande };
 }
 
-const lav = (d: ReturnType<typeof falskDocker>) => lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
+const lav = (d: ReturnType<typeof falskDocker>) => lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
 const EJER = { id: 'hus-abcdefgh', ejer: 'Mette.Hansen@example.test' };
 
 test('klargoer on a clean host: an ICC-off network, the volume, the household file, then one hardened container — exact argv', async () => {
@@ -122,6 +122,7 @@ test('klargoer on a clean host: an ICC-off network, the volume, the household fi
     '--env', 'KC_DATA_DIR=/data', '--env', 'KC_PORT=8750', '--env', 'KC_HOST=0.0.0.0',
     '--env', 'KC_IDENTITET=konto', '--env', 'KC_KONTO_TENANT=hus-abcdefgh', '--env', `KC_KONTO_PUBKEY=${PUBKEY}`,
     '--env', 'KC_KONTO_GATEWAY=172.18.0.1', '--env', 'KC_AGENT=direkte',
+    '--env', 'KC_SKY=ja', '--env', 'KC_SKY_URL=https://konto.example.dk',
     'clawco:test',
   ]);
   for (const [i, a] of run.entries()) {
@@ -261,7 +262,7 @@ test('KC-0216: startede with no running tenant makes one Docker call; a containe
 
 test('a Docker error that is not "no such" is not swallowed', async () => {
   const koer: Koersel = async () => ({ kode: 1, ud: '', fejl: 'Cannot connect to the Docker daemon' });
-  const f = lokalFlaade({ koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
+  const f = lokalFlaade({ koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
   await assert.rejects(f.status('a1'), /Docker/);
   await assert.rejects(f.klargoer(EJER), /Docker/);
 });

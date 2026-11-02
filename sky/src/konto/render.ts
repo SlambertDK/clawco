@@ -7,6 +7,7 @@ import { T } from './tekster.ts';
 import type { SessionVisning } from './session.ts';
 import type { PasskeyVisning } from './passkey.ts';
 import type { SletOversigt } from './slet.ts';
+import { svartid, type HjaelpMail } from './hjaelp.ts';
 
 export { CSS } from '../delt/side.ts';
 
@@ -55,7 +56,10 @@ export function linkSide(a: { token: string; gyldig: boolean; afvist?: boolean; 
 /** Where the account's own Clawco is (KC-0182): its address once klar, a waiting line while it is made. */
 export type ClawcoVisning = { url: string } | { venter: true } | null;
 
-export function kontoSide(a: { email: string; csrf: string; passkeyAntal: number; sessioner: SessionVisning[]; nuvaerendeId: number; abonnement?: { plan: string; tekst: string }; clawco?: ClawcoVisning }): string {
+/** KC-0201: "Få hjælp" on the account page: the mailto (built by hjaelp.ts) and where its text can be read first. */
+export type HjaelpLink = { mailto: string };
+
+export function kontoSide(a: { email: string; csrf: string; passkeyAntal: number; sessioner: SessionVisning[]; nuvaerendeId: number; abonnement?: { plan: string; tekst: string }; clawco?: ClawcoVisning; hjaelp?: HjaelpLink }): string {
   const sessioner = a.sessioner.map((s) => html`<li><span>${s.enhed || '?'} <small>· ${s.metode === 'passkey' ? T.metodePasskey : T.metodeLink} · ${T.sidstSet} ${tid(s.sidstSet)}</small></span>${s.id === a.nuvaerendeId
     ? html`<small>${T.denneEnhed}</small>`
     : html`<form method="post" action="/konto/sessioner/${s.id}/afslut" class="inline">${csrfFelt(a.csrf)}<button type="submit" class="lille">${T.logUdHer}</button></form>`}</li>`);
@@ -80,6 +84,11 @@ ${a.abonnement ? html`<section>
 <h2>${T.dataTitel}</h2>
 <p><a href="/konto/hent-alt">${T.dataLink}</a></p>
 </section>
+${a.hjaelp ? html`<section>
+<h2>${T.hjaelpTitel}</h2>
+<p><a href="${a.hjaelp.mailto}">${T.hjaelpKnap}</a> · <a href="/konto/hjaelp">${T.hjaelpSe}</a></p>
+<p class="daempet">${svartid('da')}</p>
+</section>` : ''}
 <form method="post" action="/log-ud">${csrfFelt(a.csrf)}<button type="submit">${T.logUd}</button></form>
 <h2>${T.sletTitel}</h2>
 <p><a href="/konto/slet">${T.sletLink}</a></p>`, { csrf: a.csrf });
@@ -123,6 +132,18 @@ ${csrfFelt(a.csrf)}
 <button type="submit" class="fare">${T.sletKnap}</button>
 </form>` : ikkeFrisk('/konto/slet')}
 <p><a href="/konto">${T.tilbage}</a></p>`, { csrf: a.csrf });
+}
+
+/** KC-0201: the text the "Få hjælp" mail will carry, shown before anything is sent (the button is a plain mailto:). */
+export function hjaelpVisning(a: { mail: HjaelpMail; hjaelpSide?: string }): string {
+  return side(T.hjaelpKnap, html`<h1>${T.hjaelpKnap}</h1>
+<p>${T.hjaelpIntro}</p>
+<h2>${T.hjaelpTekstTitel}</h2>
+<pre class="kort">${a.mail.tekst.replace(/\r\n/g, '\n')}</pre>
+<p><a class="knap primaer" href="${a.mail.mailto}">${T.hjaelpSend}</a></p>
+<p class="daempet">${svartid('da')}</p>
+${a.hjaelpSide ? html`<p><a href="${a.hjaelpSide}">${T.hjaelpSide}</a></p>` : ''}
+<p><a href="/konto">${T.tilbage}</a></p>`);
 }
 
 export function slettetSide(): string {

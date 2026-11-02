@@ -31,6 +31,17 @@ Changing a text: copy the current files to `docs/legal/arkiv/<fil>.<sprog>.<old 
 the same `version` from `docs/legal/vilkaar.da.md` and `privatlivspolitik.da.md`, so every account is asked to accept
 again; restart Sky after the deploy (it reads the versions at start).
 
+## The help pages and security.txt (KC-0201)
+
+`/hjaelp` (the index), `/hjaelp/<article>` (eight articles) and `/hjaelp/security-report` are plain files here, English in the HTML and
+both languages in `strings.js` like every other page; no form, no cookie, one mailbox. The mailbox and the response times
+live in `config/hjaelp.json` (the account app reads the same file); `test/site-hjaelp.test.ts` fails when the site says anything else.
+An article may only say what the code does: each step names the route it uses (`data-route`, checked against the routes in `sky/src`
+and `src`), each quoted button the label the code holds (`data-etiket`), and the claims about what is not built (support look-along,
+lock on a lapsed payment, import of clawco.zip) fail their test the day someone builds it, which is the cue to rewrite the article.
+`/.well-known/security.txt` (RFC 9116) expires on the date in the file; the test fails 30 days before, so move `Expires` out (at most a
+year ahead) and redeploy. A dot folder is copied by the build like any other; the test builds the site and checks it arrived.
+
 ## Build and check
 
 ```bash

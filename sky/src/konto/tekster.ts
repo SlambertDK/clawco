@@ -46,6 +46,13 @@ export const T = {
   sletLink: 'Slet min konto',
   dataTitel: 'Dine data',
   dataLink: 'Hent alt, hvad Clawco har om dig',
+  hjaelpTitel: 'Hjælp',
+  hjaelpKnap: 'Få hjælp',
+  hjaelpSe: 'Se, hvad der kommer med i mailen',
+  hjaelpIntro: 'Din mailprogram åbner en kladde til os med de tekniske oplysninger nedenfor. Du kan læse og rette den, før du sender.',
+  hjaelpTekstTitel: 'Det her står i mailen',
+  hjaelpSend: 'Åbn en mail til os',
+  hjaelpSide: 'Læs hjælpesiden først',
 
   hentAltTitel: 'Hent alt',
   hentAltIntro: 'Få alt, hvad Clawco har om dig, som én zip-fil: din konto, dit abonnement og dine fakturaer, og hvis du ejer en Clawco, alt i den.',

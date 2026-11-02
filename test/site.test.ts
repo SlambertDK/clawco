@@ -23,6 +23,7 @@ const UDGAAENDE = new Set(['nodejs.org', 'docs.docker.com', 'tailscale.com', 'br
 const FORBUDTE_ORD = ['supercharge', 'revolutionary', 'seamless', 'effortless', 'unlock', 'game-changer', 'ai-powered', '10x', 'magic'];
 
 const laes = (rel: string): string => readFileSync(path.join(ROD, rel), 'utf8');
+const POSTKASSE = (JSON.parse(readFileSync(path.join(ROD, 'config/hjaelp.json'), 'utf8')) as { postkasse: string }).postkasse;
 
 function sider(dir = SITE, rel = ''): string[] {
   const ud: string[] = [];
@@ -139,6 +140,8 @@ test('no request to any other host: every src/href/content/url() is local, own h
   for (const k of kilder) {
     const v = k.vaerdi.trim();
     if (!/^(https?:)?\/\//i.test(v)) {
+      // KC-0201: the one mailbox is a plain link, not a request (test/site-hjaelp.test.ts holds that it is the only address).
+      if (k.tag === 'a' && k.attr === 'href' && v === `mailto:${POSTKASSE}`) continue;
       assert.ok(!/^[a-z][a-z0-9+.-]*:/i.test(v), `${k.side}: ${k.tag}[${k.attr}] has a scheme: ${v}`);
       continue;
     }
@@ -184,7 +187,7 @@ test('every local link resolves to a file; every canonical is in the sitemap', (
     const d = dok(side);
     for (const el of Array.from(d.querySelectorAll('a[href],link[href],script[src],img[src],source[srcset]'))) {
       const v = el.getAttribute('href') ?? el.getAttribute('src') ?? el.getAttribute('srcset') ?? '';
-      if (/^(https?:)?\/\//.test(v) || v.startsWith('#')) continue;
+      if (/^(https?:)?\/\//.test(v) || v.startsWith('#') || v.startsWith('mailto:')) continue;
       assert.ok(loes(v), `${side}: broken link ${v}`);
     }
     const canon = d.querySelector('link[rel="canonical"]')!.getAttribute('href')!;

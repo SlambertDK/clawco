@@ -1,0 +1,6 @@
+{
+  "_note": "The one source for where help goes and how fast we answer (KC-0201, AGENTS §0 r6). The mailbox is one address; it forwards to the owner through Cloudflare Email Routing, which has no auto-reply, so the response time is stated in words on the help page, in the account app and in the plan description, all built from the numbers below. test/site-hjaelp.test.ts and sky/test/konto/hjaelp.test.ts fail when a page says anything else.",
+  "postkasse": "kontakt@clawco.work",
+  "svarHverdage": 2,
+  "sikkerhedSvarHverdage": 5
+}

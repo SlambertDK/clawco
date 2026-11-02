@@ -99,7 +99,7 @@ export const HAERDNING = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privile
 
 /** How a tenant's app runs, after `--volume …:/data`: read-only root, its key tmpfs, its user, hardening,
  *  limits and identity. The same for a tenant and for a restored copy of it (fleet/kopi.ts). */
-export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubkey: string; noegleFlag: string[] }): string[] {
+export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[] }): string[] {
   return [
     // Read-only root; only /data (the volume) and a small /tmp are writable.
     '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
@@ -118,10 +118,12 @@ export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubke
     '--env', 'KC_IDENTITET=konto', '--env', `KC_KONTO_TENANT=${o.tenantId}`, '--env', `KC_KONTO_PUBKEY=${o.kontoPubkey}`,
     '--env', `KC_KONTO_GATEWAY=${o.gateway}`,
     '--env', 'KC_AGENT=direkte',
+    // KC-0201: the app's "Få hjælp" points at this Sky's account app (SKY_PUBLIC_URL).
+    '--env', 'KC_SKY=ja', '--env', `KC_SKY_URL=${o.skyUrl}`,
   ];
 }
 
-export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: string; kontoPubkey: string; kryptering: VolumenKryptering; noegleFlag: string[] }): Flaade {
+export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: string; kontoPubkey: string; skyUrl: string; kryptering: VolumenKryptering; noegleFlag: string[] }): Flaade {
   const navne = (id: string) => ({ container: `clawco-t-${tjekTenantId(id)}`, volumen: `clawco-t-${id}-data` });
   const docker = dockerKommando(o.koer);
   const adresse = (container: string) => beholderAdresse(docker, o.netvaerk, container);
@@ -133,7 +135,7 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
       'run', '--detach', '--name', container, '--label', `${ETIKET}=${id}`,
       '--network', o.netvaerk, '--restart', 'unless-stopped',
       '--volume', `${volumen}:/data`,
-      ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, noegleFlag: o.noegleFlag }),
+      ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag }),
       billede,
     ];
   }

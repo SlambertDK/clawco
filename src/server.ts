@@ -128,6 +128,7 @@ import { readNyhederSource } from './rooms/nyheder/source.ts';
 import { parseAll } from './rooms/mail/source.ts';
 import { falskKildeData } from './testtilstand/indhold/kilder.ts';
 import { PRODUKT } from './shell/navn.ts';
+import { hjaelpFraMiljoe } from './shell/hjaelp.ts';
 import { manifest } from './shell/manifest.ts';
 import { MODEL_ENV_NOEGLER, udbyderAf, UDBYDERE } from './rooms/start/udbydere.ts';
 import { MODEL_FEJL } from './rooms/start/modelfejl.ts';
@@ -197,6 +198,8 @@ export type AppDeps = {
    * the rooms' clock gets its read side alone. Absent = no Send on a request (the route answers 503).
    */
   kanal?: KanalClient;
+  /** KC-0201: under Clawco Sky (KC_SKY=ja, shell/hjaelp.ts) the account app's help page; the Kø panel shows "Få hjælp". Absent = no link. */
+  hjaelp?: { href: string };
 };
 
 /** KC-0116: who is looking, set once per request by the identity middleware. */
@@ -538,7 +541,7 @@ export function createApp(deps: AppDeps) {
     if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: hvorfor }, status);
     return c.html(renderIngenAdgang(hvorfor), status);
   }
-  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand> } => ({ person: c.get('person'), husstand: c.get('husstand'), ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}) });
+  const hvem = (c: Context<Env>): Hvem & { pause?: ReturnType<typeof runs.pauseTilstand>; hjaelp?: { href: string } } => ({ person: c.get('person'), husstand: c.get('husstand'), ...(runs.paaPause() ? { pause: runs.pauseTilstand() } : {}), ...(deps.hjaelp ? { hjaelp: deps.hjaelp } : {}) });
 
   // KC-0018: no-cache = always revalidate, so a deploy reaches the browser and the home-screen app.
   app.use('/*', async (c, next) => { c.header('Cache-Control', 'no-cache'); await next(); });
@@ -1876,6 +1879,7 @@ export async function main(): Promise<void> {
   const port = Number(env('KC_PORT', '8750'));
   const hostname = env('KC_HOST', '127.0.0.1');
   const adresse = egenAdresse(process.env, hostname, port);
+  const hjaelp = hjaelpFraMiljoe(process.env);
   const stemmeMode = env('KC_STEMME_MODE', mode === 'fake' ? 'fake' : 'elevenlabs');
   const stemme = stemmeMode === 'fake' ? createFakeStemme() : env('KC_ELEVENLABS_API_KEY') ? createElevenLabs({ apiKey: env('KC_ELEVENLABS_API_KEY') }) : undefined;
   const kanal = lavKanal(process.env, mode);
@@ -1911,6 +1915,8 @@ export async function main(): Promise<void> {
     omkostninger: { laes: () => laesOmkostningsfil(env('KC_OMKOSTNINGER', OMKOSTNINGSFIL)), mrr: () => 0 },
     ...(konto ? { identitet: { konto } } : {}),
     ...(kanal ? { kanal } : {}),
+    // KC-0201: "Få hjælp" in the settings, only under Clawco Sky (KC_SKY=ja plus KC_SKY_URL).
+    ...(hjaelp ? { hjaelp } : {}),
   });
   frontload(env('KC_FRONTLOAD', standardFrontload(process.env)));
   kurator(env('KC_KURATOR', '07-22/60'));

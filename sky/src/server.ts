@@ -9,7 +9,7 @@ import { laesConfig, laesKopiConfig, type KopiConfig, type SkyConfig } from './c
 import { pgDatabase, type Database } from './db/pool.ts';
 import { migrer } from './db/migrer.ts';
 import { helbred } from './helbred.ts';
-import { gitSha } from './delt/sha.ts';
+import { gitSha, skyVersion } from './delt/sha.ts';
 import { falskPost } from './delt/post.ts';
 import { postFraEnv } from './delt/post-udbyder.ts';
 import { haendelser } from './delt/haendelser.ts';
@@ -101,7 +101,7 @@ export function noeglering(env: Record<string, string | undefined>): Noegler {
  *  (no root on kira-home for LUKS): the tenant's model keys are, in its own key file (KC-0181). */
 export function flaadeFra(config: SkyConfig): Flaade | null {
   const f = config.flaade;
-  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
+  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
   if (f.driver === 'hetzner') return hetznerFlaade({ omkostninger: () => laesOmkostninger(), mrr: () => 0 });
   return null;
 }
@@ -165,6 +165,8 @@ export function kontoDeps(config: SkyConfig, db: Database, h = haendelser(), fl:
     afvikler: fl ? flaadeAfvikler(fl) : ingenAfvikler(),
     haendelser: h,
     ...(fl ? { clawco: clawcoFor({ db, basedomain: config.basedomain }) } : {}),
+    // KC-0201: the public help page lives on the product's own domain (not in local development).
+    ...(config.dev ? {} : { hjaelpSide: `https://${config.basedomain}/hjaelp` }),
   };
 }
 
@@ -221,7 +223,7 @@ export function kopiFra(o: { config: SkyConfig; db: Database; ring: Noeglering |
   const f = o.config.flaade;
   const nej = (): Promise<never> => Promise.reject(new Error('ingen flåde (SKY_FLAADE er ikke lokal): ingen kundediske at kopiere'));
   const node: KopiNode = f.driver === 'lokal'
-    ? lokalKopiNode({ koer, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, noegleFlag: noegleRunFlag() })
+    ? lokalKopiNode({ koer, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() })
     : { pak: nej, udpak: nej, start: nej, pakGendannet: nej, fjern: nej };
   const k = o.kopi;
   return {
@@ -267,9 +269,9 @@ export function udrulFra(o: { config: SkyConfig; db: Database; ring: Noeglering 
         opdateres: (slug, ja) => saetOpdateres(db, slug, ja ? new Date() : null),
         noterKoersel: (slug, x) => noterKoersel(db, slug, x, new Date()),
       },
-      koerer: lokalBilledKoerer({ koer: koerProces, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, noegleFlag: noegleRunFlag() }),
+      koerer: lokalBilledKoerer({ koer: koerProces, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() }),
       kopi: {
-        node: lokalKopiNode({ koer: koerBinaer, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, noegleFlag: noegleRunFlag() }),
+        node: lokalKopiNode({ koer: koerBinaer, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() }),
         noegler: kopiNoegler({ db, ring }),
       },
       lagre: {
@@ -326,6 +328,15 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
     tilPlan: async (kontoId) => config.tilmelding === 'open' && profilErKlar(await hentProfil(db, kontoId), samtykke),
   };
   konto.abonnement = async (kontoId) => kontoResume(await hentRettigheder(db, kontoId, priser, new Date()), priser);
+  // KC-0201: the facts "Få hjælp" puts in the mail. Billing's entitlement and the fleet's row, handed to konto as one seam
+  // (konto never imports either); the account number and the last error code are added by konto itself.
+  const sha = gitSha();
+  const version = skyVersion();
+  konto.hjaelp = async (kontoId) => {
+    const r = await hentRettigheder(db, kontoId, priser, new Date());
+    const t = await tenantForEjer(db, kontoId);
+    return { plan: r.plan, status: r.status, skrivebeskyttet: r.skrivebeskyttet, version, sha, release: t?.release ?? 'ingen', placering: t?.driver ?? 'ingen' };
+  };
   // KC-0206: what Hent alt adds to the account rows — the owner's own Clawco export (only once it is klar) and billing.
   konto.eksport = {
     tenant: async (kontoId) => {

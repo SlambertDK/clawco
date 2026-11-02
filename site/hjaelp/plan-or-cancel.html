@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i="help.plan-or-cancel.meta.title">Change plan or cancel</title>
+<meta name="description" content="Change plan, update the card, read invoices or cancel from one button on the subscription page, which opens Stripe’s page for your subscription." data-i-attr="content:help.plan-or-cancel.meta.description">
+<link rel="canonical" href="https://clawco.work/hjaelp/plan-or-cancel">
+<link rel="alternate" hreflang="en" href="https://clawco.work/hjaelp/plan-or-cancel">
+<link rel="alternate" hreflang="da" href="https://clawco.work/hjaelp/plan-or-cancel?lang=da">
+<link rel="alternate" hreflang="x-default" href="https://clawco.work/hjaelp/plan-or-cancel">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121614">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Clawco">
+<meta property="og:url" content="https://clawco.work/hjaelp/plan-or-cancel">
+<meta property="og:title" content="Change plan or cancel" data-i-attr="content:help.plan-or-cancel.meta.title">
+<meta property="og:description" content="Change plan, update the card, read invoices or cancel from one button on the subscription page, which opens Stripe’s page for your subscription." data-i-attr="content:help.plan-or-cancel.meta.description">
+<meta property="og:image" content="https://clawco.work/billeder/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/strings.js" defer></script>
+<script src="/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i="c.skip">Skip to content</a>
+<header class="top">
+<div class="wrap bar">
+<a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Clawco</a>
+<nav aria-label="Main" data-i-attr="aria-label:c.nav.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a class="hide-sm" href="/docs/security" data-i="c.nav.security">Security</a>
+</nav>
+<button type="button" class="lang" data-lang-toggle aria-label="Switch language to Danish" data-i="c.lang" data-i-attr="aria-label:c.lang.label">Dansk</button>
+</div>
+</header>
+<main id="main">
+<article class="page">
+<div class="wrap narrow">
+<p><a href="/hjaelp" data-i="help.back">All help articles</a></p>
+<h1 data-i="help.plan-or-cancel.h1">Change plan or cancel</h1>
+<p data-i="help.plan-or-cancel.1">Only the owner of a Clawco manages the subscription. A household member who opens the page is told to ask the owner.</p>
+<ol>
+<li data-route="GET /konto/abonnement" data-etiket="Se abonnement og planer" data-i="help.plan-or-cancel.2">On your account page, press “Se abonnement og planer”.</li>
+<li data-route="POST /api/abonnement/portal" data-etiket="Kort, fakturaer og planskift" data-i="help.plan-or-cancel.3">Press “Kort, fakturaer og planskift”. Stripe’s page for your subscription opens.</li>
+<li data-route="GET /konto/abonnement" data-i="help.plan-or-cancel.4">When you are done there, you come back to the subscription page.</li>
+</ol>
+<p data-i="help.plan-or-cancel.5">What Stripe’s page offers is set in Stripe, not in Clawco. If you cannot change plan or cancel there, write to us.</p>
+<p data-etiket="Slutter" data-i="help.plan-or-cancel.6">The subscription page shows what Stripe has told us. A cancellation shows as “Slutter” with the date.</p>
+<p data-i="help.plan-or-cancel.7">If you move to a plan with fewer places than people in your household, nobody loses access, but you cannot invite more until you are within the limit.</p>
+<p data-i="help.plan-or-cancel.8">Cancelling is not deleting. In this version, cancelling a subscription deletes nothing.</p>
+<p><a href="/hjaelp/delete-account" data-i="help.plan-or-cancel.9">Deleting your account</a></p>
+<h2 data-i="help.stuck.h">Still stuck?</h2>
+<p data-i="help.stuck.p">Write to us at the address below. In your account, “Få hjælp” opens the same mail with a few technical facts already in it.</p>
+<p><a href="mailto:kontakt@clawco.work" data-i="help.mail">kontakt@clawco.work</a></p>
+<p data-i="help.reply.time">We answer within 2 working days.</p>
+<p class="muted" data-i="help.never">Never send us your model key, a password, a passkey or card details. We do not ask for them, and nothing in this help flow collects them.</p>
+</div>
+</article>
+</main>
+<footer class="foot">
+<div class="wrap">
+<nav aria-label="Footer" data-i-attr="aria-label:c.foot.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a href="/docs/security" data-i="c.nav.security">Security</a>
+<a href="/hjaelp" data-i="c.nav.help">Help</a>
+<a href="/legal" data-href-da="/juridisk" data-i="c.nav.legal">Legal</a>
+<a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
+</nav>
+<p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
+</div>
+</footer>
+</body>
+</html>

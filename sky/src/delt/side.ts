@@ -34,6 +34,7 @@ legend { color: var(--daempet); margin: 12px 0 4px; padding: 0; }
 label.valg { display: flex; gap: 10px; align-items: flex-start; color: var(--tekst); background: var(--flade); border: 1px solid var(--kant); border-radius: 10px; padding: 12px 14px; margin: 8px 0; cursor: pointer; }
 label.valg input { margin-top: 5px; accent-color: var(--accent); }
 select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--kant); background: #0b0d11; color: var(--tekst); font: inherit; }
+pre.kort { white-space: pre-wrap; overflow-wrap: anywhere; font: 14px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 a.knap { display: inline-block; text-decoration: none; padding: 10px 16px; border-radius: 8px; margin-top: 12px; }
 a.knap.primaer { background: var(--accent); color: #0b0d11; font-weight: 600; }
 .trin { color: var(--daempet); font-size: 0.9rem; margin: 0 0 8px; }

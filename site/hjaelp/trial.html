@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title data-i="help.trial.meta.title">The free trial and what happens at the end</title>
+<meta name="description" content="The free trial lasts 14 days and asks for no card. How to start it, what your account shows, and what the pause at the end does and does not do." data-i-attr="content:help.trial.meta.description">
+<link rel="canonical" href="https://clawco.work/hjaelp/trial">
+<link rel="alternate" hreflang="en" href="https://clawco.work/hjaelp/trial">
+<link rel="alternate" hreflang="da" href="https://clawco.work/hjaelp/trial?lang=da">
+<link rel="alternate" hreflang="x-default" href="https://clawco.work/hjaelp/trial">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#121614">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Clawco">
+<meta property="og:url" content="https://clawco.work/hjaelp/trial">
+<meta property="og:title" content="The free trial and what happens at the end" data-i-attr="content:help.trial.meta.title">
+<meta property="og:description" content="The free trial lasts 14 days and asks for no card. How to start it, what your account shows, and what the pause at the end does and does not do." data-i-attr="content:help.trial.meta.description">
+<meta property="og:image" content="https://clawco.work/billeder/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/site.css">
+<script src="/strings.js" defer></script>
+<script src="/site.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#main" data-i="c.skip">Skip to content</a>
+<header class="top">
+<div class="wrap bar">
+<a class="brand" href="/"><span class="dot" aria-hidden="true"></span>Clawco</a>
+<nav aria-label="Main" data-i-attr="aria-label:c.nav.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a class="hide-sm" href="/docs/security" data-i="c.nav.security">Security</a>
+</nav>
+<button type="button" class="lang" data-lang-toggle aria-label="Switch language to Danish" data-i="c.lang" data-i-attr="aria-label:c.lang.label">Dansk</button>
+</div>
+</header>
+<main id="main">
+<article class="page">
+<div class="wrap narrow">
+<p><a href="/hjaelp" data-i="help.back">All help articles</a></p>
+<h1 data-i="help.trial.h1">The free trial and what happens at the end</h1>
+<p data-i="help.trial.1">You can try Clawco for 14 days. No card is asked for during the trial, and nothing is charged without your yes. A trial can be used once per account.</p>
+<ol>
+<li data-route="GET /konto/abonnement" data-etiket="Se abonnement og planer" data-i="help.trial.2">On your account page, press “Se abonnement og planer”.</li>
+<li data-route="POST /api/abonnement/checkout" data-etiket="Start 14 dages gratis prøve" data-i="help.trial.3">Choose a plan, how often you would pay and where you live, then press “Start 14 dages gratis prøve”. Stripe’s page opens; it does not ask for a card.</li>
+</ol>
+<p data-etiket="Gratis prøve til" data-i="help.trial.4">Your account then reads “Gratis prøve til” and the last day of the trial.</p>
+<h2 data-i="help.trial.5">When the trial ends</h2>
+<p data-etiket="På pause: prøven er slut" data-i="help.trial.6">If you have not chosen to pay, the subscription is paused and the subscription page says “På pause: prøven er slut”. Nothing is charged, and nothing is deleted.</p>
+<p data-gaelder="ingen-haandhaevelse" data-i="help.trial.7">In this version the pause is a state on your subscription. It does not switch your Clawco off.</p>
+<ol start="3">
+<li data-route="POST /api/abonnement/portal" data-etiket="Kort, fakturaer og planskift" data-i="help.trial.8">To carry on, open the subscription page and press “Kort, fakturaer og planskift”. Stripe’s page for your subscription opens. If you cannot find how to pay there, write to us.</li>
+</ol>
+<h2 data-i="help.stuck.h">Still stuck?</h2>
+<p data-i="help.stuck.p">Write to us at the address below. In your account, “Få hjælp” opens the same mail with a few technical facts already in it.</p>
+<p><a href="mailto:kontakt@clawco.work" data-i="help.mail">kontakt@clawco.work</a></p>
+<p data-i="help.reply.time">We answer within 2 working days.</p>
+<p class="muted" data-i="help.never">Never send us your model key, a password, a passkey or card details. We do not ask for them, and nothing in this help flow collects them.</p>
+</div>
+</article>
+</main>
+<footer class="foot">
+<div class="wrap">
+<nav aria-label="Footer" data-i-attr="aria-label:c.foot.label">
+<a href="/install" data-i="c.nav.install">Install</a>
+<a href="/docs/" data-i="c.nav.docs">Docs</a>
+<a href="/docs/security" data-i="c.nav.security">Security</a>
+<a href="/hjaelp" data-i="c.nav.help">Help</a>
+<a href="/legal" data-href-da="/juridisk" data-i="c.nav.legal">Legal</a>
+<a href="https://github.com/SlambertDK/clawco" data-i="c.nav.source">Source (AGPL-3.0)</a>
+</nav>
+<p class="muted" data-i="c.foot.promise">This site sets no cookies, makes no requests to other servers and counts no visits.</p>
+</div>
+</footer>
+</body>
+</html>

@@ -17,7 +17,8 @@ import { sletKonto, sletOversigt, type Husstand, type TenantAfvikler } from './s
 import { opretEksportLink, gyldigtEksportLink, bygEksport, EKSPORT_MS, type EksportKilder } from './eksport.ts';
 import { EKSEMPLER } from './eksempler.ts';
 import { erSpaerret, fejlNoegle, taelOp, FEJL_PR_IP } from './graenser.ts';
-import { CSS, logIndSide, type ClawcoVisning, tjekMailSide, linkSide, kontoSide, passkeySide, sletSide, slettetSide, udbakkeSide, hentAltSide, hentAltKlarSide, hentAltDoedSide, hentAltFejlSide, renderEksempel, galleriSide } from './render.ts';
+import { hjaelpMail, type HjaelpFelter } from './hjaelp.ts';
+import { CSS, hjaelpVisning, logIndSide, type ClawcoVisning, tjekMailSide, linkSide, kontoSide, passkeySide, sletSide, slettetSide, udbakkeSide, hentAltSide, hentAltKlarSide, hentAltDoedSide, hentAltFejlSide, renderEksempel, galleriSide } from './render.ts';
 import { T } from './tekster.ts';
 
 export type KontoDeps = {
@@ -35,6 +36,12 @@ export type KontoDeps = {
   abonnement?: (kontoId: number) => Promise<{ plan: string; tekst: string }>;
   /** Where the account's Clawco is (KC-0182), wired in server.ts from the fleet; konto never imports fleet/. */
   clawco?: (kontoId: number) => Promise<ClawcoVisning>;
+  /** KC-0201: the facts "Få hjælp" puts in the mail (plan and state, versions, placement), wired in server.ts from billing and the
+   *  fleet; konto never imports them. Absent = no help link on /konto and no /konto/hjaelp. The account number and the last
+   *  error code are added here, never taken from the seam. */
+  hjaelp?: (kontoId: number) => Promise<Omit<HjaelpFelter, 'kontoId' | 'sidsteFejl'>>;
+  /** KC-0201: the public help page's address, shown on /konto/hjaelp when wired. */
+  hjaelpSide?: string;
   /** KC-0206: what "Hent alt" adds besides the account rows (the owner's tenant export, billing), wired in server.ts. */
   eksport?: EksportKilder;
   nu?: () => Date;
@@ -47,7 +54,7 @@ const TIL_COOKIE = 'sky-til';
 const KLIENT_JS = fs.readFileSync(new URL('../../public/konto.js', import.meta.url), 'utf8');
 /** Where a login may send the person on; anything else goes to /konto (no open redirect). Besides our own
  *  pages, the gateway's /aabn (KC-0183) with its query: a same-origin path whose own signature is checked there. */
-const TIL = new Set(['/konto', '/konto/passkeys', '/konto/slet', '/konto/abonnement', '/konto/hent-alt']);
+const TIL = new Set(['/konto', '/konto/passkeys', '/konto/slet', '/konto/abonnement', '/konto/hent-alt', '/konto/hjaelp']);
 const AABN = /^\/aabn\?[A-Za-z0-9_.~%=&+-]{1,3000}$/;
 /** KC-0198: the sign-up flow, with its own query (plan, interval, language) only. */
 const TILMELD = /^\/tilmeld(\?[A-Za-z0-9_.~%=&+-]{1,300})?$/;
@@ -202,7 +209,18 @@ export function kontoRuter(d: KontoDeps): Hono {
       passkeyAntal: (await passkeys(d.db, l.konto.id)).length, sessioner: await sessioner(d.db, l.konto.id, nu()),
       ...(d.abonnement ? { abonnement: await d.abonnement(l.konto.id) } : {}),
       ...(d.clawco ? { clawco: await d.clawco(l.konto.id) } : {}),
+      ...(d.hjaelp ? { hjaelp: { mailto: hjaelpMail({ ...(await d.hjaelp(l.konto.id)), kontoId: l.konto.id }).mailto } } : {}),
     }));
+  });
+
+  // --- Få hjælp (KC-0201): the text the mail will carry, readable before it is sent ----------------------
+  app.get('/konto/hjaelp', async (c) => {
+    if (!d.hjaelp) return c.text('Ikke fundet', 404);
+    const l = await login(c);
+    if (!l) return c.redirect('/log-ind?til=/konto/hjaelp', 303);
+    const fejl = c.req.query('fejl');
+    const felter: HjaelpFelter = { ...(await d.hjaelp(l.konto.id)), kontoId: l.konto.id, ...(fejl ? { sidsteFejl: fejl } : {}) };
+    return c.html(hjaelpVisning({ mail: hjaelpMail(felter), ...(d.hjaelpSide ? { hjaelpSide: d.hjaelpSide } : {}) }));
   });
 
   app.post('/konto/sessioner/:id/afslut', async (c) => {

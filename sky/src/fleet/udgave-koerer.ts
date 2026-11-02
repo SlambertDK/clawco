@@ -25,7 +25,7 @@ function kladdeDisk(disk: string): string {
   return disk;
 }
 
-export function lokalBilledKoerer(o: { koer: Koersel; netvaerk: string; kontoPubkey: string; noegleFlag: string[]; tilfaeldig?: () => string }) {
+export function lokalBilledKoerer(o: { koer: Koersel; netvaerk: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[]; tilfaeldig?: () => string }) {
   const docker = dockerKommando(o.koer);
   const ny = () => (o.tilfaeldig ?? (() => randomBytes(4).toString('hex')))();
 
@@ -62,7 +62,7 @@ export function lokalBilledKoerer(o: { koer: Koersel; netvaerk: string; kontoPub
       const gateway = await sikrNetvaerk(docker, o.netvaerk);
       await docker([
         'run', '--detach', '--name', navn, '--label', ETIKET, '--network', o.netvaerk, '--volume', `${disk}:/data`,
-        ...tenantKoersel({ tenantId: navn, gateway, kontoPubkey: o.kontoPubkey, noegleFlag: o.noegleFlag }),
+        ...tenantKoersel({ tenantId: navn, gateway, kontoPubkey: o.kontoPubkey, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag }),
         billede,
       ]);
       try {

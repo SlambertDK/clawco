@@ -36,7 +36,7 @@ function falsk(o: { sha?: string; doerStraks?: boolean } = {}) {
     }
     return { kode: 125, ud: '', fejl: `ukendt: ${argv.slice(0, 3).join(' ')}` };
   };
-  const k = lokalBilledKoerer({ koer, netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, noegleFlag: ['--tmpfs', '/run/secrets:rw'], tilfaeldig: () => '0123abcd' });
+  const k = lokalBilledKoerer({ koer, netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', noegleFlag: ['--tmpfs', '/run/secrets:rw'], tilfaeldig: () => '0123abcd' });
   return { k, kald, volumener, containere };
 }
 
