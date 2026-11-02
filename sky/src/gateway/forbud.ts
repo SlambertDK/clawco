@@ -1,5 +1,5 @@
 // What the gateway never does (KC-0183, AGENTS §0 r7, D16): forward a tenant's /health (open by design, shows
-// the sha; Sky reads it over the private network) or anything under /_sky/; pass on a header a client could use
+// the sha; Sky reads it over the private network), anything under /_sky/ or /intern/ (KC-0184); pass on a header a client could use
 // to claim an identity, or the gateway's own cookie; let a tenant set the gateway's cookie; or log a path, a
 // query string, a cookie, a header or a body.
 import type { IncomingHttpHeaders } from 'node:http';
@@ -15,11 +15,12 @@ function somTenantSer(sti: string): string {
 
 export function aldrigVidere(sti: string): boolean {
   const p = somTenantSer(sti);
-  return p === '/health' || p.startsWith('/health/') || p === '/_sky' || p.startsWith('/_sky/');
+  // KC-0184: /intern/ is the tenant's control route (Sky's own signed calls over the private network only).
+  return p === '/health' || p.startsWith('/health/') || p === '/_sky' || p.startsWith('/_sky/') || p === '/intern' || p.startsWith('/intern/');
 }
 
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authorization', 'proxy-authenticate', 'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade']);
-const IDENTITET = /^(clawco-konto|tailscale-.*|x-forwarded-.*|forwarded|x-real-ip|true-client-ip|cf-.*|cdn-loop)$/;
+const IDENTITET = /^(clawco-konto|clawco-kontrol|tailscale-.*|x-forwarded-.*|forwarded|x-real-ip|true-client-ip|cf-.*|cdn-loop)$/;
 
 type Ud = Record<string, string | string[]>;
 

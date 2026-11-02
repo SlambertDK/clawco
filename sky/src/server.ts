@@ -50,6 +50,9 @@ import { gateway } from './gateway/proxy.ts';
 import { stoetteVejRuter, type StoetteSeams, type StoetteSideDeps } from './gateway/stoette-vej.ts';
 import { aabnStoette, aktiveStoetter, annullerStoette, erPersonale, givStoette, noterUdloebne, sendStoetteKvittering, sessionStartet, stoetteGyldig, tilbagekaldStoette } from './konto/stoette.ts';
 import { tenantKald, type TenantKald } from './gateway/tenantkald.ts';
+import { kontrolKald } from './gateway/kontrolkald.ts';
+import { husstandensEjer, medlemskabHusstand } from './konto/medlemskab.ts';
+import type { Entitlements } from './konto/invitation.ts';
 import { abonnementEksport } from './abonnement/eksport.ts';
 import { hentKonto } from './konto/konto.ts';
 import { loginUrl, tenantOrigin } from './gateway/login-vej.ts';
@@ -172,7 +175,7 @@ export function flaadeDeps(config: SkyConfig, db: Database, ring: Noeglering | n
 }
 
 /** The account app's seams. Mail (KC-0178): Resend when SKY_RESEND_API_KEY is set, else Post refuses (fail closed);
- *  SKY_DEV=1 uses the fake Post with an outbox page. Households (KC-0184) are not built yet; deprovisioning
+ *  SKY_DEV=1 uses the fake Post with an outbox page. Households (KC-0184) are wired in forbind (membership needs the gateway key); deprovisioning
  *  goes through the fleet SKY_FLAADE picks (KC-0212), else it refuses. The event bus is passed in so
  *  billing can listen on the same one. */
 export function kontoDeps(config: SkyConfig, db: Database, h = haendelser(), fl: AfstemDeps | null = flaadeDeps(config, db), env: Record<string, string | undefined> = process.env): KontoDeps {
@@ -184,7 +187,7 @@ export function kontoDeps(config: SkyConfig, db: Database, h = haendelser(), fl:
     rp: { id: config.rpId, navn: 'Clawco', origin: new URL(config.publicUrl).origin },
     publicUrl: config.publicUrl,
     dev: config.dev,
-    // Until households (KC-0184), the fleet's table is what says an account owns a tenant.
+    // The fleet's table says an account owns a tenant; forbind replaces this with the membership-aware one (KC-0184).
     husstand: fl ? flaadeHusstand({ db, basedomain: config.basedomain, reserve: ingenHusstand() }) : ingenHusstand(),
     afvikler: fl ? flaadeAfvikler(fl) : ingenAfvikler(),
     haendelser: h,
@@ -214,7 +217,8 @@ export function tilmeldingDeps(o: { config: SkyConfig; db: Database; adgang: Ret
     adgang: { login: async (c) => somLogin(await o.adgang.login(c)), beskyttet: async (c, csrf) => somLogin(await o.adgang.beskyttet(c, csrf)) },
     profil: { hent: (id) => hentProfil(db, id), gem: (id, p) => gemProfil(db, id, p), noterTid: (id, klar) => noterTilmeldingstid(db, id, klar) },
     rettighed: async (id) => {
-      const r = await hentRettigheder(db, id, ab.priser, new Date());
+      const e = await tenantForEjer(db, id) ? null : await husstandensEjer(db, id);
+      const r = await hentRettigheder(db, e?.ejerKontoId ?? id, ab.priser, new Date());
       return { status: r.status, kilde: r.kilde };
     },
     harProeve: async (id) => !((await hentKundeRaekke(db, id))?.proeveBrugt ?? false),
@@ -224,8 +228,10 @@ export function tilmeldingDeps(o: { config: SkyConfig; db: Database; adgang: Ret
       try { s = await kontoensCheckout(db, ab.klient, id, session); } catch { return null; }
       return s?.status === 'complete' ? { proeve: s.abonnement?.status === 'trialing' } : null;
     },
+    // KC-0184: a household member's Clawco is the household's, under its owner's plan.
     tenant: async (id) => {
-      const t = await tenantForEjer(db, id);
+      const e = await tenantForEjer(db, id) ? null : await husstandensEjer(db, id);
+      const t = e ? await hentTenant(db, e.tenantId) : await tenantForEjer(db, id);
       return t ? { slug: t.slug, tilstand: t.tilstand, fejl: t.fejl, bestilt: t.tider.bestilt ?? new Date(0), klar: t.tider.klar ?? null } : null;
     },
     proevIgen: async (id) => {
@@ -351,6 +357,24 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
   konto.post = maaltPost(konto.post, (r) => noterPost(db, r));
   const betaling = laesBetaling(env);
   const priser = laesPriser();
+  // KC-0184: households. The plan's limit is the owner's entitlement (KC-0192: medlemmerMax while it is a trial or
+  // active; otherwise the owner alone). The tenant is changed only by the signed control call (gateway/kontrolkald.ts),
+  // and only from the membership code behind the owner's own click or a member's own "Forlad".
+  const entitlements: Entitlements = {
+    medlemmer: async (slug) => {
+      const t = await hentTenant(db, slug);
+      if (!t) return 1;
+      const r = await hentRettigheder(db, t.ejerKontoId, priser, new Date());
+      return r.status === 'proeve' || r.status === 'aktiv' ? Math.max(1, r.medlemmerMax) : 1;
+    },
+  };
+  const husstandKald = kontrolKald({ noegle: gk.noegle });
+  // The invitation pages stay off (404) until SKY_HUSSTAND_INVITATIONER=1: the published terms v1.0 (vilkår §3,
+  // privatlivspolitik §9) say invitations and child members do not exist yet and that the terms change first.
+  if ((env['SKY_HUSSTAND_INVITATIONER'] ?? '').trim() === '1') {
+    konto.medlemskab = { kald: husstandKald, entitlements, glem: (slug) => ruter.glem(slug), url: (slug) => `${tenantOrigin(slug, config.publicUrl, config.basedomain)}/` };
+  }
+  konto.husstand = medlemskabHusstand({ db, kald: husstandKald, entitlements, glem: (slug) => ruter.glem(slug) });
   let klient: BetalingsKlient | null = null;
   let falsk: FalskBetalingsKlient | null = null;
   let hemmelighed = betaling.webhookHemmelighed;

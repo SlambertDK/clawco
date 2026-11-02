@@ -2,7 +2,7 @@
 
 Hi
 
-{{inviterer}} has invited you to the household {{husstand}} on Clawco.
+{{inviterer}} has invited you to {{husstand}} on Clawco.
 
 Accept the invitation here:
 

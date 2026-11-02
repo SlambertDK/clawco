@@ -2,7 +2,7 @@
 
 Hej
 
-{{inviterer}} har inviteret dig til husstanden {{husstand}} på Clawco.
+{{inviterer}} har inviteret dig til {{husstand}} på Clawco.
 
 Tag imod invitationen her:
 

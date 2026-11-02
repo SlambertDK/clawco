@@ -73,6 +73,7 @@ import { MAX_KANAL_BESKEDER, MAX_KANAL_TEKST } from './schema.ts';
 import { AKTION_HANDLING, maaHandle, maaSe } from './rettigheder.ts';
 import { aktiverIndgang, fjernPerson, InvitationFejl, MAX_PERSONER, navnFra, nyPerson, nytMedlem, parseInvitation, skiftRolle, slug, vurderInvitation } from './invitation.ts';
 import { invitationSektion, renderInviter } from './invitation-render.ts';
+import { anvendIntern, type InternOp } from './intern.ts';
 import { erRolle, ROLLE_NAVN } from '../identitet/roller.ts';
 import type { Person } from '../identitet/husstand.ts';
 
@@ -519,6 +520,39 @@ async function fjernMedlem(deps: RoomDeps, body: Record<string, unknown>): Promi
   await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du fjernede ${p.navn} fra husstanden. Hendes adgang og beskeder fra Clawco er stoppet; det, I har delt, står der stadig.`.slice(0, 300), zone: 'privat', ejer: af.id });
   notify(deps);
   return deps.runs.local('fjern-medlem', () => faerdig(deps, `${p.navn} er fjernet fra husstanden.`));
+}
+
+/**
+ * KC-0184: Clawco Sky's control call (server.ts verifies it; intern.ts is the pure change): an accepted invitation
+ * pre-creates the member (her own entry waits for her first visit, as the owner's own invite does), a removal or her
+ * leaving takes her line and her extras out (shared history stays, as fjernMedlem), a role change is stored. Inside
+ * the room's queue; a line to each owner. Not a person's request: nothing here reads deps.person.
+ */
+export async function internMedlem(deps: RoomDeps, op: InternOp): Promise<{ aendret: boolean }> {
+  const gem = gemmer(deps);
+  const r = await iKoe(async () => {
+    const personer = await deps.husstand!.personer();
+    const r = somAktion(() => anvendIntern(personer, op));
+    if (!r.aendret || !r.person) return r;
+    const p = r.person;
+    const s = await laesState(deps);
+    const medlemmer = op.op === 'tilfoej'
+      ? [...s.medlemmer.filter((m) => m.id !== p.id), nytMedlem(p, { slags: 'egen', navn: p.navn, rolle: p.rolle, login: op.email }, deps.now())]
+      : op.op === 'fjern' ? s.medlemmer.filter((m) => m.id !== p.id) : s.medlemmer.map((m) => (m.id === p.id ? { ...m, rolle: p.rolle } : m));
+    await deps.store.writeState(RUM, { ...s, medlemmer, ...(op.op === 'fjern' ? { udkast: s.udkast.filter((u) => u.af !== p.id) } : {}) });
+    await gem(r.personer);
+    return r;
+  });
+  if (!r.aendret || !r.person) return { aendret: false };
+  const p = r.person;
+  const tekst = op.op === 'tilfoej' ? `${p.navn} tog imod invitationen og er med i husstanden som ${ROLLE_NAVN[p.rolle]}.`
+    : op.op === 'fjern' ? `${p.navn} er ikke længere med i husstanden. Det, I har delt, står der stadig.`
+      : `${p.navn} er nu ${ROLLE_NAVN[p.rolle]}.`;
+  for (const ejer of r.personer.filter((x) => x.rolle === 'ejer')) {
+    await deps.store.appendLog(RUM, { kilde: 'system', tekst: tekst.slice(0, 300), zone: 'privat', ejer: ejer.id });
+  }
+  notify(deps);
+  return { aendret: true };
 }
 
 /** What the owner's red Send would send to member `id` now, and its yes id (invitation.ts vurderInvitation). Throws ActionError. */

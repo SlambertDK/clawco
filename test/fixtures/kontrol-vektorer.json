@@ -1,0 +1,16 @@
+{
+  "beskrivelse": "KC-0184: delt testvektor for Clawco-Kontrol (Skys kontrolkald til en tenants interne rute). Byte-identisk i test/fixtures og sky/test/fixtures. Nøgle a fra konto-vektorer.json; aldrig i drift.",
+  "format": "k1.<noegleId>.<base64url(JSON {aud,t,m,p,h,iat,n})>.<base64url(Ed25519 over \"k1.<noegleId>.<payload>\")>; h = base64url(SHA-256(krop))",
+  "tenant": "hus-abcdefgh",
+  "nu": 1793000000,
+  "noegle": {
+    "froe": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "offentlig": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+    "id": "Vkdap1RjR0w"
+  },
+  "metode": "POST",
+  "sti": "/intern/husstand/medlem",
+  "nonce": "0123456789abcdef",
+  "krop": "{\"op\":\"tilfoej\",\"email\":\"eva@example.com\",\"navn\":\"Eva\",\"rolle\":\"barn\"}",
+  "header": "k1.Vkdap1RjR0w.eyJhdWQiOiJjbGF3Y28tdGVuYW50LWtvbnRyb2wiLCJ0IjoiaHVzLWFiY2RlZmdoIiwibSI6IlBPU1QiLCJwIjoiL2ludGVybi9odXNzdGFuZC9tZWRsZW0iLCJoIjoiUWJiUURxcjhvX1p0R3hlRU5uc081UGJfSDAtTW1nMVVQNkZyTWpZSkFTUSIsImlhdCI6MTc5MzAwMDAwMCwibiI6IjAxMjM0NTY3ODlhYmNkZWYifQ.kOC9UKsj5mlkfVvc7BRy2YUifwXC9iYfdwiBDyT1Ob7sx-dofwnV95S6LHGnJpvsPeJrwS1Obo5Yr2bMiLozBQ"
+}

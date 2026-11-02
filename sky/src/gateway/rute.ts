@@ -1,6 +1,7 @@
 // The gateway's routing (KC-0183): which Host goes where, and the route table — the fleet's own tenant rows
 // (KC-0182) in state `klar`, slug → private address and owner. Cached a few seconds and invalidated at once by
-// the fleet's iGateway/udAfGateway hooks; membership is cached at most 30 seconds. A database error is never
+// the fleet's iGateway/udAfGateway hooks; membership is cached at most 30 seconds, and `glem` (also called when a
+// member is removed or leaves, KC-0184) drops it at once. A database error is never
 // answered from a guess: it propagates and the gateway answers 503.
 import type { Database } from '../db/pool.ts';
 import { erSlug } from '../delt/slug.ts';
@@ -50,14 +51,15 @@ export function ruteTabel(o: { db: Database; nu?: () => number; ttlMs?: number; 
       ruter.set(slug, { r, til: nu() + ttl });
       return r;
     },
-    // Until households (KC-0184), the owner is the one member.
+    // The owner, and (KC-0184) every account with a membership row for this tenant; a deleted account is nobody.
     async medlem(slug, kontoId) {
       const n = `${slug} ${kontoId}`;
       const c = medlemmer.get(n);
       if (c && c.til > nu()) return c.ja;
       const r = await o.db.query(
-        `SELECT 1 FROM flaade.tenant t JOIN konto k ON k.id = t.ejer_konto_id
-          WHERE t.slug = $1 AND t.tilstand = 'klar' AND t.ejer_konto_id = $2 AND k.slettet_ved IS NULL`, [slug, kontoId]);
+        `SELECT 1 FROM flaade.tenant t JOIN konto k ON k.id = $2 AND k.slettet_ved IS NULL
+          WHERE t.slug = $1 AND t.tilstand = 'klar'
+            AND (t.ejer_konto_id = $2 OR EXISTS (SELECT 1 FROM medlemskab m WHERE m.tenant_id = t.slug AND m.konto_id = $2))`, [slug, kontoId]);
       const ja = r.length === 1;
       medlemmer.set(n, { ja, til: nu() + medlemTtl });
       return ja;

@@ -59,7 +59,7 @@ export type ClawcoVisning = { url: string } | { venter: true } | null;
 /** KC-0201: "Få hjælp" on the account page: the mailto (built by hjaelp.ts) and where its text can be read first. */
 export type HjaelpLink = { mailto: string };
 
-export function kontoSide(a: { email: string; csrf: string; passkeyAntal: number; sessioner: SessionVisning[]; nuvaerendeId: number; abonnement?: { plan: string; tekst: string; handlinger?: { href: string; tekst: string }[] }; clawco?: ClawcoVisning; hjaelp?: HjaelpLink }): string {
+export function kontoSide(a: { email: string; csrf: string; passkeyAntal: number; sessioner: SessionVisning[]; nuvaerendeId: number; abonnement?: { plan: string; tekst: string; handlinger?: { href: string; tekst: string }[] }; clawco?: ClawcoVisning; hjaelp?: HjaelpLink; husstand?: boolean }): string {
   const sessioner = a.sessioner.map((s) => html`<li><span>${s.enhed || '?'} <small>· ${s.metode === 'passkey' ? T.metodePasskey : T.metodeLink} · ${T.sidstSet} ${tid(s.sidstSet)}</small></span>${s.id === a.nuvaerendeId
     ? html`<small>${T.denneEnhed}</small>`
     : html`<form method="post" action="/konto/sessioner/${s.id}/afslut" class="inline">${csrfFelt(a.csrf)}<button type="submit" class="lille">${T.logUdHer}</button></form>`}</li>`);
@@ -72,6 +72,10 @@ ${a.abonnement ? html`<section>
 <p>${a.abonnement.plan} <small>· ${a.abonnement.tekst}</small></p>
 <p><a href="/konto/abonnement">${T.abonnementLink}</a></p>
 ${a.abonnement.handlinger?.length ? html`<ul class="liste">${a.abonnement.handlinger.map((h) => html`<li><a href="${h.href}">${h.tekst}</a></li>`)}</ul>` : ''}
+</section>` : ''}
+${a.husstand ? html`<section>
+<h2>${T.husstandTitel}</h2>
+<p><a href="/konto/husstand" data-husstand>${T.husstandLink}</a></p>
 </section>` : ''}
 <section>
 <h2>${T.passkeysTitel}</h2>
@@ -210,4 +214,105 @@ export function udbakkeSide(beskeder: Besked[]): string {
   const liste = [...beskeder].reverse().map((b) => html`<li><span>${b.til} <small>· ${b.skabelon}</small></span>${b.data['link'] ? html`<a href="${b.data['link']}" data-link>${b.data['link']}</a>` : ''}</li>`);
   return side(T.udbakkeTitel, html`<h1>${T.udbakkeTitel}</h1>
 <section>${beskeder.length ? html`<ul class="liste">${liste}</ul>` : html`<p>${T.udbakkeTom}</p>`}</section>`);
+}
+
+// --- KC-0184: the household ------------------------------------------------------------------------
+export type HusstandFelter = { email?: string; navn?: string; rolle?: string; inviterer?: string };
+export type HusstandVisning =
+  | { art: 'ejer'; url: string; medlemmer: { kontoId: number; email: string; navn: string; rolle: string }[]; invitationer: { id: number; email: string; navn: string; rolle: string; udloeber: Date }[]; pladser: { brugt: number; max: number }; felter: HusstandFelter }
+  | { art: 'medlem'; url: string | null; rolle: string; navn: string }
+  | { art: 'ingen' };
+
+const ROLLER = ['medlem', 'barn', 'gaest'] as const;
+const rolleNavn = (r: string): string => T.rolle[r] ?? r;
+
+function rolleValg(navn: string, valgt: string | undefined, id?: string): Markup {
+  return html`<select name="${navn}"${id ? html` id="${id}"` : ''}>${ROLLER.map((r) => html`<option value="${r}"${r === (valgt ?? 'medlem') ? html` selected` : ''}>${rolleNavn(r)}</option>`)}</select>`;
+}
+
+export function husstandSide(a: { csrf: string; visning: HusstandVisning; besked?: string; fejl?: string }): string {
+  const v = a.visning;
+  const top = html`<h1>${T.husstandTitel}</h1>
+${a.besked ? html`<p class="besked" data-besked>${a.besked}</p>` : ''}
+${a.fejl ? html`<p class="status" data-fejl>${a.fejl}</p>` : ''}`;
+  if (v.art === 'ingen') return side(T.husstandTitel, html`${top}<p>${T.husstandIngen}</p><p><a href="/konto">${T.tilbage}</a></p>`, { csrf: a.csrf });
+  if (v.art === 'medlem') {
+    return side(T.husstandTitel, html`${top}
+${v.url ? html`<p class="besked">${T.husstandDinClawco} <a href="${v.url}" data-clawco>${v.url}</a></p>` : ''}
+<p>${T.husstandDinRolle} <strong data-rolle>${rolleNavn(v.rolle)}</strong></p>
+<section>
+<h2>${T.husstandForlad}</h2>
+<p class="daempet">${T.husstandForladTekst}</p>
+<form method="post" action="/konto/husstand/forlad">${csrfFelt(a.csrf)}<button type="submit" class="fare">${T.husstandForlad}</button></form>
+</section>
+<p><a href="/konto">${T.tilbage}</a></p>`, { csrf: a.csrf });
+  }
+  const fuld = v.pladser.brugt >= v.pladser.max;
+  const medlemmer = v.medlemmer.map((m) => html`<li data-medlem="${m.email}"><span>${m.navn} <small>· ${m.email} · ${rolleNavn(m.rolle)}</small></span>
+<form method="post" action="/konto/husstand/medlemmer/${String(m.kontoId)}/rolle" class="inline">${csrfFelt(a.csrf)}${rolleValg('rolle', m.rolle)}<button type="submit" class="lille">${T.husstandGemRolle}</button></form>
+<form method="post" action="/konto/husstand/medlemmer/${String(m.kontoId)}/fjern" class="inline">${csrfFelt(a.csrf)}<button type="submit" class="lille fare" data-fjern>${T.husstandFjern}</button></form></li>`);
+  const ventende = v.invitationer.map((i) => html`<li data-invitation="${i.email}"><span>${i.navn} <small>· ${i.email} · ${rolleNavn(i.rolle)} · ${T.husstandUdloeber} ${tid(i.udloeber)}</small></span>
+<form method="post" action="/konto/husstand/invitationer/${String(i.id)}/igen" class="inline">${csrfFelt(a.csrf)}<button type="submit" class="lille">${T.husstandSendIgen}</button></form>
+<form method="post" action="/konto/husstand/invitationer/${String(i.id)}/annuller" class="inline">${csrfFelt(a.csrf)}<button type="submit" class="lille fare">${T.husstandAnnuller}</button></form></li>`);
+  return side(T.husstandTitel, html`${top}
+<p class="besked">${T.husstandDinClawco} <a href="${v.url}" data-clawco>${v.url}</a></p>
+<section>
+<h2>${T.husstandMedlemmerTitel}</h2>
+<ul class="liste"><li><span>${T.husstandDu}</span></li>${medlemmer}</ul>
+${v.medlemmer.length === 0 ? html`<p class="daempet">${T.husstandKunDig}</p>` : ''}
+</section>
+${ventende.length ? html`<section><h2>${T.husstandVentendeTitel}</h2><ul class="liste">${ventende}</ul></section>` : ''}
+<section>
+<h2>${T.husstandInviterTitel}</h2>
+<p class="daempet" data-pladser>${T.husstandPladser(v.pladser.brugt, v.pladser.max)}</p>
+${fuld ? html`<p class="status" data-fuld>${T.husstandFuld(v.pladser.max)}</p>` : html`<p>${T.husstandInviterIntro}</p>
+<form method="post" action="/konto/husstand/inviter" data-inviter>
+${csrfFelt(a.csrf)}
+<label for="email">${T.husstandEmailFelt}</label>
+<input id="email" type="email" name="email" required maxlength="254" autocomplete="off" value="${v.felter.email ?? ''}">
+<label for="navn">${T.husstandNavnFelt}</label>
+<input id="navn" type="text" name="navn" required maxlength="80" autocomplete="off" value="${v.felter.navn ?? ''}">
+<label for="rolle">${T.husstandRolleFelt}</label>
+${rolleValg('rolle', v.felter.rolle, 'rolle')}
+<label for="inviterer">${T.husstandInvitererFelt}</label>
+<input id="inviterer" type="text" name="inviterer" required maxlength="60" value="${v.felter.inviterer ?? ''}">
+<p class="daempet" data-boern>${T.husstandBoernNote}</p>
+<button type="submit" class="primaer">${T.husstandSeMailen}</button>
+</form>`}
+</section>
+<p><a href="/konto">${T.tilbage}</a></p>`, { csrf: a.csrf });
+}
+
+/** The exact mail before it is sent (the same render as the send). Send is the owner's own click. */
+export function invitationPreviewSide(a: { csrf: string; id: number; token: string; til: string; emne: string; tekst: string }): string {
+  return side(T.previewTitel, html`<h1>${T.previewTitel}</h1>
+<p>${T.previewIntro}</p>
+<div class="kort">
+<p><small>${T.previewTil}</small> <span data-til>${a.til}</span></p>
+<p><small>${T.previewEmne}</small> <span data-emne>${a.emne}</span></p>
+<pre class="kort" data-mail>${a.tekst.replace(/\r\n/g, '\n')}</pre>
+</div>
+<form method="post" action="/konto/husstand/inviter/send">
+${csrfFelt(a.csrf)}
+<input type="hidden" name="id" value="${String(a.id)}">
+<input type="hidden" name="t" value="${a.token}">
+<button type="submit" class="primaer" data-send>${T.previewSend}</button>
+</form>
+<p><a href="/konto/husstand">${T.previewRet}</a></p>`, { csrf: a.csrf });
+}
+
+export type InvitationTilstand =
+  | { art: 'log-ind'; til: string }
+  | { art: 'aaben'; csrf: string; token: string; inviterer: string; rolle: string }
+  | { art: 'med'; url: string | null }
+  | { art: 'nej'; tekst: string };
+
+/** The invited person's page (/invitation?t=…): reading it never spends the link; only its POST accepts. */
+export function invitationSide(a: InvitationTilstand): string {
+  const krop = a.art === 'log-ind' ? html`<p>${T.invitationLogInd}</p><p><a class="knap primaer" href="/log-ind?til=${encodeURIComponent(a.til)}" data-log-ind>${T.invitationLogIndKnap}</a></p>`
+    : a.art === 'aaben' ? html`<p>${T.invitationTekst(a.inviterer, rolleNavn(a.rolle))}</p>
+<form method="post" action="/invitation">${csrfFelt(a.csrf)}<input type="hidden" name="t" value="${a.token}"><button type="submit" class="primaer" data-tag-imod>${T.invitationTagImod}</button></form>`
+      : a.art === 'med' ? html`<p class="besked" data-med>${T.invitationMed}</p>${a.url ? html`<p><a class="knap primaer" href="${a.url}" data-clawco>${T.invitationAabn}</a></p>` : ''}`
+        : html`<p class="status" data-nej>${a.tekst}</p><p><a href="/konto">${T.tilbage}</a></p>`;
+  return side(T.invitationTitel, html`<h1>${T.invitationTitel}</h1>${krop}`, a.art === 'aaben' ? { csrf: a.csrf } : {});
 }

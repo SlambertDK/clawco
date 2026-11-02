@@ -18,7 +18,9 @@ import { opretEksportLink, gyldigtEksportLink, bygEksport, EKSPORT_MS, type Eksp
 import { EKSEMPLER } from './eksempler.ts';
 import { erSpaerret, fejlNoegle, taelOp, FEJL_PR_IP } from './graenser.ts';
 import { hjaelpMail, type HjaelpFelter } from './hjaelp.ts';
-import { CSS, hjaelpVisning, logIndSide, type ClawcoVisning, tjekMailSide, linkSide, kontoSide, passkeySide, sletSide, slettetSide, udbakkeSide, hentAltSide, hentAltKlarSide, hentAltDoedSide, hentAltFejlSide, renderEksempel, galleriSide } from './render.ts';
+import { annuller, ejersTenant, forbered, findInvitation, gensend, pladser, send, sidsteInviterer, ventendeInvitationer, erInviterRolle, type Entitlements, type Udkast } from './invitation.ts';
+import { accepter, fjernMedlem, forlad, medlemmer, medlemskabFor, skiftRolle, type HusstandKald, type MedlemskabDeps } from './medlemskab.ts';
+import { CSS, hjaelpVisning, logIndSide, type ClawcoVisning, tjekMailSide, linkSide, kontoSide, passkeySide, sletSide, slettetSide, udbakkeSide, hentAltSide, hentAltKlarSide, hentAltDoedSide, hentAltFejlSide, renderEksempel, galleriSide, husstandSide, invitationPreviewSide, invitationSide, type HusstandFelter } from './render.ts';
 import { T } from './tekster.ts';
 
 export type KontoDeps = {
@@ -44,6 +46,10 @@ export type KontoDeps = {
   hjaelpSide?: string;
   /** KC-0206: what "Hent alt" adds besides the account rows (the owner's tenant export, billing), wired in server.ts. */
   eksport?: EksportKilder;
+  /** KC-0184: households — the signed call to the tenant (gateway/kontrolkald.ts), the plan's limit (Entitlements), the
+   *  gateway's membership cache and a tenant's public address, wired in server.ts; konto never imports gateway/ or
+   *  abonnement/. Absent = no household pages (404). */
+  medlemskab?: { kald: HusstandKald; entitlements: Entitlements; glem(slug: string): void; url(slug: string): string };
   nu?: () => Date;
 };
 
@@ -54,11 +60,13 @@ const TIL_COOKIE = 'sky-til';
 const KLIENT_JS = fs.readFileSync(new URL('../../public/konto.js', import.meta.url), 'utf8');
 /** Where a login may send the person on; anything else goes to /konto (no open redirect). Besides our own
  *  pages, the gateway's /aabn (KC-0183) with its query: a same-origin path whose own signature is checked there. */
-const TIL = new Set(['/konto', '/konto/passkeys', '/konto/slet', '/konto/abonnement', '/konto/hent-alt', '/konto/hjaelp', '/personale']); // KC-0188: the staff page
+const TIL = new Set(['/konto', '/konto/passkeys', '/konto/slet', '/konto/abonnement', '/konto/hent-alt', '/konto/hjaelp', '/konto/husstand', '/personale']); // KC-0188: the staff page
 const AABN = /^\/aabn\?[A-Za-z0-9_.~%=&+-]{1,3000}$/;
 /** KC-0198: the sign-up flow, with its own query (plan, interval, language) only. */
 const TILMELD = /^\/tilmeld(\?[A-Za-z0-9_.~%=&+-]{1,300})?$/;
-const sikkerTil = (v: unknown): string => (typeof v === 'string' && (TIL.has(v) || AABN.test(v) || TILMELD.test(v)) ? v : '/konto');
+/** KC-0184: an invitation's own page, back after logging in with the invited address. */
+const INVITATION = /^\/invitation\?t=[A-Za-z0-9_-]{43}$/;
+const sikkerTil = (v: unknown): string => (typeof v === 'string' && (TIL.has(v) || AABN.test(v) || TILMELD.test(v) || INVITATION.test(v)) ? v : '/konto');
 
 function erLoopback(a: string): boolean {
   return a === '127.0.0.1' || a === '::1' || a === '::ffff:127.0.0.1';
@@ -210,8 +218,130 @@ export function kontoRuter(d: KontoDeps): Hono {
       ...(d.abonnement ? { abonnement: await d.abonnement(l.konto.id) } : {}),
       ...(d.clawco ? { clawco: await d.clawco(l.konto.id) } : {}),
       ...(d.hjaelp ? { hjaelp: { mailto: hjaelpMail({ ...(await d.hjaelp(l.konto.id)), kontoId: l.konto.id }).mailto } } : {}),
+      ...(d.medlemskab ? { husstand: true } : {}),
     }));
   });
+
+  // --- Husstand (KC-0184): invite by mail with the owner's own click, members, roles, leaving -------------
+  if (d.medlemskab) {
+    const ms = d.medlemskab;
+    const md: MedlemskabDeps = { db: d.db, kald: ms.kald, entitlements: ms.entitlements, glem: ms.glem };
+    const inv = { db: d.db, publicUrl: d.publicUrl, entitlements: ms.entitlements, post: d.post };
+    const fejl = (g: string): string => T.husstandFejl[g] ?? T.husstandFejl['ukendt']!;
+    type Status = 200 | 400 | 403 | 404 | 409 | 429 | 502 | 503;
+
+    async function husstand(c: Context, l: Login, o: { besked?: string; fejl?: string; felter?: HusstandFelter; status?: Status } = {}) {
+      const t = await ejersTenant(d.db, l.konto.id);
+      const a = { csrf: l.session.csrf, ...(o.besked ? { besked: o.besked } : {}), ...(o.fejl ? { fejl: o.fejl } : {}) };
+      if (t) {
+        return c.html(husstandSide({ ...a, visning: {
+          art: 'ejer', url: ms.url(t.slug), medlemmer: await medlemmer(d.db, t.slug), invitationer: await ventendeInvitationer(d.db, t.slug, nu()),
+          pladser: await pladser(inv, t.slug, nu()), felter: o.felter ?? { inviterer: await sidsteInviterer(d.db, l.konto.id) },
+        } }), o.status ?? 200);
+      }
+      const m = await medlemskabFor(d.db, l.konto.id);
+      return c.html(husstandSide({ ...a, visning: m ? { art: 'medlem', url: ms.url(m.tenantId), rolle: m.rolle, navn: m.navn } : { art: 'ingen' } }), o.status ?? 200);
+    }
+    const statusFor = (g: string): Status => (g === 'ikke-ejer' ? 403 : g === 'fuld' || g === 'ventende' || g === 'allerede-med' || g === 'ukendt' ? 409 : g === 'for-mange' ? 429 : g === 'post-fejl' ? 502 : g === 'tenant-nede' ? 503 : 400);
+    const preview = (c: Context, l: Login, u: Udkast) => c.html(invitationPreviewSide({ csrf: l.session.csrf, id: u.id, token: u.token, til: u.til, emne: u.mail.emne, tekst: u.mail.tekst }));
+    const id = (c: Context): number => (/^\d{1,18}$/.test(c.req.param('id') ?? '') ? Number(c.req.param('id')) : -1);
+    const maks = async (kontoId: number): Promise<number> => {
+      const t = await ejersTenant(d.db, kontoId);
+      return t ? (await pladser(inv, t.slug, nu())).max : 1;
+    };
+
+    app.get('/konto/husstand', async (c) => {
+      const l = await login(c);
+      if (!l) return c.redirect('/log-ind?til=/konto/husstand', 303);
+      const ok = T.husstandOk[c.req.query('ok') ?? ''];
+      return husstand(c, l, ok ? { besked: ok } : {});
+    });
+
+    // Step 1: the exact mail, nothing sent.
+    app.post('/konto/husstand/inviter', async (c) => {
+      const f = await formular(c);
+      const l = await beskyttet(c, f['csrf']);
+      if (!l) return forbudt(c);
+      const r = await forbered(inv, { ejerKontoId: l.konto.id, email: f['email'], navn: f['navn'], rolle: f['rolle'], inviterer: f['inviterer'], nu: nu() });
+      if (r.ok) return preview(c, l, r.udkast);
+      const felter: HusstandFelter = { email: String(f['email'] ?? ''), navn: String(f['navn'] ?? ''), rolle: erInviterRolle(f['rolle']) ? f['rolle'] : 'medlem', inviterer: String(f['inviterer'] ?? '') };
+      return husstand(c, l, { fejl: r.grund === 'fuld' ? T.husstandFuld(r.max ?? 1) : fejl(r.grund), felter, status: statusFor(r.grund) });
+    });
+
+    // Step 2: the owner's own click sends what he saw.
+    app.post('/konto/husstand/inviter/send', async (c) => {
+      const f = await formular(c);
+      const l = await beskyttet(c, f['csrf']);
+      if (!l) return forbudt(c);
+      const r = await send(inv, { ejerKontoId: l.konto.id, id: /^\d{1,18}$/.test(String(f['id'] ?? '')) ? Number(f['id']) : -1, token: f['t'], nu: nu() });
+      if (r === 'sendt') return c.redirect('/konto/husstand?ok=sendt', 303);
+      return husstand(c, l, { fejl: r === 'fuld' ? T.husstandFuld(await maks(l.konto.id)) : fejl(r), status: statusFor(r) });
+    });
+
+    app.post('/konto/husstand/invitationer/:id/igen', async (c) => {
+      const l = await beskyttet(c, (await formular(c))['csrf']);
+      if (!l) return forbudt(c);
+      const r = await gensend(inv, { ejerKontoId: l.konto.id, id: id(c), nu: nu() });
+      if (r.ok) return preview(c, l, r.udkast);
+      return husstand(c, l, { fejl: r.grund === 'fuld' ? T.husstandFuld(await maks(l.konto.id)) : fejl(r.grund), status: statusFor(r.grund) });
+    });
+
+    app.post('/konto/husstand/invitationer/:id/annuller', async (c) => {
+      const l = await beskyttet(c, (await formular(c))['csrf']);
+      if (!l) return forbudt(c);
+      const r = await annuller(d.db, { ejerKontoId: l.konto.id, id: id(c), nu: nu() });
+      return r === 'ok' ? c.redirect('/konto/husstand?ok=annulleret', 303) : husstand(c, l, { fejl: fejl(r), status: statusFor(r) });
+    });
+
+    app.post('/konto/husstand/medlemmer/:id/rolle', async (c) => {
+      const f = await formular(c);
+      const l = await beskyttet(c, f['csrf']);
+      if (!l) return forbudt(c);
+      const rolle = f['rolle'];
+      if (!erInviterRolle(rolle)) return husstand(c, l, { fejl: fejl('rolle'), status: 400 });
+      const r = await skiftRolle(md, { ejerKontoId: l.konto.id, medlemKontoId: id(c), rolle });
+      return r === 'ok' ? c.redirect('/konto/husstand?ok=rolle', 303) : husstand(c, l, { fejl: fejl(r), status: statusFor(r) });
+    });
+
+    app.post('/konto/husstand/medlemmer/:id/fjern', async (c) => {
+      const l = await beskyttet(c, (await formular(c))['csrf']);
+      if (!l) return forbudt(c);
+      const r = await fjernMedlem(md, { ejerKontoId: l.konto.id, medlemKontoId: id(c) });
+      return r === 'ok' ? c.redirect('/konto/husstand?ok=fjernet', 303) : husstand(c, l, { fejl: fejl(r), status: statusFor(r) });
+    });
+
+    app.post('/konto/husstand/forlad', async (c) => {
+      const l = await beskyttet(c, (await formular(c))['csrf']);
+      if (!l) return forbudt(c);
+      const r = await forlad(md, { kontoId: l.konto.id });
+      return r === 'tenant-nede' ? husstand(c, l, { fejl: fejl(r), status: 503 }) : c.redirect('/konto/husstand', 303);
+    });
+
+    // The invited person: GET shows (mail scanners only GET), POST accepts.
+    app.get('/invitation', async (c) => {
+      const t = c.req.query('t') ?? '';
+      const aaben = await findInvitation(d.db, t, nu());
+      if (!aaben) return c.html(invitationSide({ art: 'nej', tekst: T.invitationUgyldig }), 404);
+      const l = await login(c);
+      if (!l) return c.html(invitationSide({ art: 'log-ind', til: `/invitation?t=${t}` }));
+      if (l.konto.email !== aaben.email) return c.html(invitationSide({ art: 'nej', tekst: T.invitationAndenEmail }), 403);
+      return c.html(invitationSide({ art: 'aaben', csrf: l.session.csrf, token: t, inviterer: aaben.inviterer, rolle: aaben.rolle }));
+    });
+
+    app.post('/invitation', async (c) => {
+      const f = await formular(c);
+      const l = await beskyttet(c, f['csrf']);
+      if (!l) return forbudt(c);
+      const r = await accepter(md, { token: f['t'], kontoId: l.konto.id, nu: nu() });
+      if (r.udfald === 'ok' || r.udfald === 'allerede-medlem') return c.html(invitationSide({ art: 'med', url: r.tenantId ? ms.url(r.tenantId) : null }));
+      const NEJ: Record<string, [string, Status]> = {
+        ugyldig: [T.invitationUgyldig, 404], 'anden-email': [T.invitationAndenEmail, 403], 'anden-husstand': [T.invitationAndenHusstand, 409],
+        'ejer-selv': [T.invitationEjerSelv, 409], fuld: [T.invitationFuld, 409], 'tenant-nede': [fejl('tenant-nede'), 503],
+      };
+      const [tekst, status] = NEJ[r.udfald] ?? [T.invitationUgyldig, 404];
+      return c.html(invitationSide({ art: 'nej', tekst }), status);
+    });
+  }
 
   // --- Få hjælp (KC-0201): the text the mail will carry, readable before it is sent ----------------------
   app.get('/konto/hjaelp', async (c) => {

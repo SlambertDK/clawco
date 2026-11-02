@@ -77,7 +77,11 @@ import { SENERE, synligeKort, type Senere } from './kurator/senere.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { ENEBRUGER, erAfvist, HUSSTAND_ULAESELIG, INGEN, kunSigneret, peerAf, vaelgKigger, type Identitetsvalg, type Person } from './identitet/identitet.ts';
 import { kontoFraMiljoe } from './identitet/konto.ts';
-import { husstandSynlig, invitationKlar, invitationSend, inviterView, kanalSend, kanalSendKlar, vedBesoeg, weekendTjek } from './hushold/room.ts';
+import { nonceLager, verificerKontrol } from './identitet/kontrol.ts';
+import { INTERN_MAKS_BYTES, INTERN_STI, parseIntern } from './hushold/intern.ts';
+import { InvitationFejl } from './hushold/invitation.ts';
+import { bodyLimit } from 'hono/body-limit';
+import { husstandSynlig, internMedlem, invitationKlar, invitationSend, inviterView, kanalSend, kanalSendKlar, vedBesoeg, weekendTjek } from './hushold/room.ts';
 import { maaSe } from './hushold/rettigheder.ts';
 import { KanalFejl, lavFakeKanal, lavHermesKanal, type KanalClient } from './hushold/kanal.ts';
 import { laesLog as laesBeskedLog } from './kilder/beskeder/jsonl.ts';
@@ -558,6 +562,32 @@ export function createApp(deps: AppDeps) {
       await next();
     });
   }
+
+  // KC-0184: Clawco Sky's control call (identitet/kontrol.ts) — an accepted invitation, a removal, a member leaving, a
+  // role change. Before the identity middleware: it carries no person, and a person's Clawco-Konto never opens it.
+  // Only under konto identity; the gateway never forwards /intern/ from outside (sky/src/gateway/forbud.ts).
+  const kontrolKonto = deps.identitet && 'konto' in deps.identitet ? deps.identitet.konto : undefined;
+  const kontrolNonces = nonceLager();
+  // The body is read only up to its limit (bodyLimit stops a larger one while it streams), never whole.
+  const internGraense = bodyLimit({ maxSize: INTERN_MAKS_BYTES, onError: (c) => c.json({ error: 'For stor' }, 413) });
+  app.post(INTERN_STI, async (c, next) => (kontrolKonto ? next() : c.json({ error: 'Findes ikke' }, 404)), internGraense, async (c) => {
+    if (!kontrolKonto) return c.json({ error: 'Findes ikke' }, 404);
+    const krop = Buffer.from(await c.req.arrayBuffer());
+    const v = verificerKontrol({ headers: c.req.raw.headers, peer: peerAf(c.env), metode: c.req.method, sti: c.req.path, krop }, kontrolKonto, Math.floor(now().getTime() / 1000), kontrolNonces);
+    if (!v.ok) {
+      console.warn('intern: kontrolkald afvist:', v.grund);
+      return c.json({ error: 'Clawco ved ikke, hvem du er.' }, 401);
+    }
+    try {
+      let raw: unknown;
+      try { raw = JSON.parse(krop.toString('utf8')); } catch { throw new InvitationFejl('Ugyldig forespørgsel.'); }
+      const r = await internMedlem(d, parseIntern(raw));
+      return c.json({ ok: true, aendret: r.aendret });
+    } catch (err) {
+      if (err instanceof InvitationFejl || err instanceof ActionError) return c.json({ error: err.message }, err.status);
+      throw err;
+    }
+  });
 
   // KC-0116: who is looking — before anything is served (static files included); /health stays open.
   // The person comes only from the identity headers of a loopback peer (Tailscale Serve) or single-user mode,

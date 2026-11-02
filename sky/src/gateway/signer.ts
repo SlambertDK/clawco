@@ -47,7 +47,7 @@ export function signerKonto(privat: KeyObject, p: KontoPaastand): string {
   return signer(privat, 'v1', id, krop);
 }
 
-function signer(privat: KeyObject, version: 'v1' | 's1', id: string, krop: unknown): string {
+function signer(privat: KeyObject, version: 'v1' | 's1' | 'k1', id: string, krop: unknown): string {
   const til = `${version}.${id}.${Buffer.from(JSON.stringify(krop)).toString('base64url')}`;
   return `${til}.${sign(null, Buffer.from(til), privat).toString('base64url')}`;
 }
@@ -60,4 +60,19 @@ export type StoetteBevis = { t: string; a: string; g: number; u: number; h: numb
 export function signerStoetteBevis(privat: KeyObject, b: StoetteBevis): string {
   if (!b.t || !/^\d{1,18}$/.test(b.a) || ![b.g, b.u, b.h, b.iat].every(Number.isSafeInteger) || b.u <= b.g || typeof b.r !== 'string') throw new Error('beviset er ugyldigt');
   return signer(privat, 's1', offentligAf(privat).id, { t: b.t, a: b.a, g: b.g, u: b.u, h: b.h, r: b.r, iat: b.iat });
+}
+
+/** KC-0184: a control call from Sky to a tenant's internal route (gateway/kontrolkald.ts), never a person. Header
+ *  `Clawco-Kontrol: k1.<keyid>.<payload>.<signature>`, its own prefix and audience, so a Clawco-Konto header (v1.) or a
+ *  support bevis (s1.) can never pass as one, nor one as them. payload = {aud, t: tenant, m: method, p: path,
+ *  h: base64url SHA-256 of the exact body, iat, n: a 16-hex nonce the tenant accepts once}, in that order. */
+export const KONTROL_HEADER = 'Clawco-Kontrol';
+export const KONTROL_AUD = 'clawco-tenant-kontrol';
+export type KontrolPaastand = { t: string; m: string; p: string; h: string; iat: number; n: string };
+
+export const kropHash = (krop: string | Buffer): string => createHash('sha256').update(krop).digest('base64url');
+
+export function signerKontrol(privat: KeyObject, k: KontrolPaastand): string {
+  if (!k.t || !/^[A-Z]{3,7}$/.test(k.m) || !/^\/[a-z0-9/_-]{1,200}$/.test(k.p) || !/^[A-Za-z0-9_-]{43}$/.test(k.h) || !Number.isSafeInteger(k.iat) || k.iat < 0 || !/^[a-f0-9]{16}$/.test(k.n)) throw new Error('kontrolkaldet er ugyldigt');
+  return signer(privat, 'k1', offentligAf(privat).id, { aud: KONTROL_AUD, t: k.t, m: k.m, p: k.p, h: k.h, iat: k.iat, n: k.n });
 }

@@ -367,3 +367,15 @@ test('KC-0201: forbind wires "Få hjælp": plan and state from billing, the plac
   assert.equal(dev.konto.hjaelpSide, undefined, 'no public help page address in local development');
   await db.close();
 });
+
+test('KC-0184: household invitations stay off until SKY_HUSSTAND_INVITATIONER=1 (the published terms v1.0 say they do not exist yet)', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  const slukket = await forbind(laesConfig(ENV), db, {});
+  assert.equal(slukket.konto.medlemskab, undefined);
+  const tom = await forbind(laesConfig(ENV), db, { SKY_HUSSTAND_INVITATIONER: '' });
+  assert.equal(tom.konto.medlemskab, undefined);
+  const taendt = await forbind(laesConfig(ENV), db, { SKY_HUSSTAND_INVITATIONER: '1' });
+  assert.ok(taendt.konto.medlemskab);
+  await db.close();
+});

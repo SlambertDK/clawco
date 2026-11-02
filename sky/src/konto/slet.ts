@@ -73,6 +73,14 @@ export async function sletKonto(
     await tx.query('DELETE FROM udsendte_mails WHERE konto_id = $1', [k.id]);
     await tx.query('DELETE FROM loginkode WHERE email = $1', [k.email]);
     await tx.query('DELETE FROM graense WHERE noegle = $1', [emailNoegle(k.email)]);
+    // KC-0184: household rows naming the person (a member has left through the seam above): her membership, the
+    // invitations to or from her, and, for an owner, the tenant's memberships and invitations (its Clawco is gone).
+    await tx.query('DELETE FROM medlemskab WHERE konto_id = $1', [k.id]);
+    await tx.query('DELETE FROM invitation WHERE email = $1 OR inviteret_af = $2 OR brugt_af = $2', [k.email, k.id]);
+    if (t?.rolle === 'ejer') {
+      await tx.query('DELETE FROM medlemskab WHERE tenant_id = $1', [t.tenantId]);
+      await tx.query('DELETE FROM invitation WHERE tenant_id = $1', [t.tenantId]);
+    }
     // The row stays as a tombstone without the email, so billing (KC-0173) can still refer to the id.
     // KC-0206: country, language and the sign-up time go too; what stays, and why, is konto/beholdt.ts.
     await tx.query('UPDATE konto SET email = NULL, slettet_ved = $2, land = NULL, sprog = NULL, tilmelding_ms = NULL WHERE id = $1', [k.id, a.nu.toISOString()]);
