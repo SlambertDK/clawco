@@ -13,6 +13,10 @@ export const TIRSDAG_WEEKEND = 'tirsdag-weekend';
 export const ENGELSK = 'engelsk';
 export const ENGELSK_MOMENT: Moment = { id: ENGELSK, tid: '07:10', navn: 'Morgen, på engelsk', url: '/rum/hjem', replik: 'What is waiting for me today?' };
 
+/** KC-0069: the morning with two runs going — one with Hermes, one waiting in the queue (verden.ts starts them) — so Nu and the Kø panel show "I kø". Not part of the day's order. */
+export const KOE = 'koe';
+export const KOE_MOMENT: Moment = { id: KOE, tid: '07:12', navn: 'Kørsler i kø', url: '/rum/hjem', replik: 'Hvad arbejder du på?' };
+
 /** The day, in order. `replik` is a line Henrik might say to the voice at that moment. */
 export const MOMENT_TABEL: readonly Moment[] = [
   { id: 'morgen', tid: '07:10', navn: 'Morgen', url: '/rum/hjem', replik: 'Godmorgen, hvad skal jeg i dag?' },
@@ -60,7 +64,7 @@ export const rumNr = (n: number): number => Math.min(n, MOMENT_TABEL.findIndex((
 
 /** The moment's position in the day (throws on an unknown id). */
 export function momentNr(id: string): number {
-  const i = MOMENT_TABEL.findIndex((m) => m.id === (id === ENGELSK ? 'morgen' : id)); // KC-0170: the English variant is the morning
+  const i = MOMENT_TABEL.findIndex((m) => m.id === (id === ENGELSK || id === KOE ? 'morgen' : id)); // KC-0170, KC-0069: the English variant and the queue moment are the morning
   if (i < 0) throw new Error(`ukendt moment: ${id}`);
   return i;
 }

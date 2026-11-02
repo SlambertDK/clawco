@@ -190,7 +190,7 @@ export function billede(b: Billede, ctx?: NuKontekst): Markup {
 
 /** Pictogram + one headline (+ a small label above it). */
 export function visHoved(v: Pick<Visuel, 'ikon' | 'tone'>, overskrift: string, etiket?: string): Markup {
-  return html`<div class="vis-hoved"><span class="vis-ikon tilstand-${tilstandFraTone(v.tone)}">${ikon(v.ikon)}</span><div class="vis-titel">${etiket ? html`<span class="vis-etiket">${etiket}</span>` : ''}<h3 class="vis-overskrift">${overskrift}</h3></div></div>`;
+  return html`<div class="vis-hoved"><span class="vis-ikon tilstand-${tilstandFraTone(v.tone)}"${v.tone ? html` data-tone="${v.tone}"` : ''}>${ikon(v.ikon)}</span><div class="vis-titel">${etiket ? html`<span class="vis-etiket">${etiket}</span>` : ''}<h3 class="vis-overskrift">${overskrift}</h3></div></div>`;
 }
 
 /** The explanation behind one tap, on every device. */

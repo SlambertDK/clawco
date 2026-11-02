@@ -22,10 +22,11 @@ const DATA: Record<Skabelon, Record<string, string>> = {
   velkomst: { link: LINK, abonnement: 'Din gratis prøve slutter 16. november 2026.', hjaelp: 'kontakt@hjaelp.example.test', svartid: 'Vi svarer inden for 2 hverdage.', konto: 'https://konto.example.test/konto', saelger: 'Sælger Eksempel (personligt drevet), Eksempelvej 1, 5000 Odense C, Danmark.' },
   'kom-i-gang': { link: LINK, afmeld: 'https://konto.example.test/post/afmeld?t=afmeld_TOKEN', hjaelp: 'kontakt@hjaelp.example.test', saelger: 'Sælger Eksempel (personligt drevet), Eksempelvej 1, 5000 Odense C, Danmark.' },
   'proeve-slutter': { dato: '16. november 2026', link: LINK, saelger: 'Sælger Eksempel (personligt drevet), Eksempelvej 1, 5000 Odense C, Danmark.' },
+  driftsbesked: { titel: 'Vigtig besked om din Clawco: et brud', tekst: 'Hej,\n\nVi skriver, fordi noget er gået galt.\n\nHvad der er sket\nNoget.\n\nVenlig hilsen\nHenrik Lambert, Clawco' },
 };
 
 /** Mails that carry no link of the generic kind (the account link): the deletion receipt, the withdrawal receipt and an operator alert. */
-const UDEN_LINK = new Set<Skabelon>(['konto-slettet', 'fortrydelse', 'alarm']);
+const UDEN_LINK = new Set<Skabelon>(['konto-slettet', 'fortrydelse', 'alarm', 'driftsbesked']);
 
 function antal(hoe: string, naal: string): number {
   return hoe.split(naal).length - 1;
@@ -187,4 +188,35 @@ test('KC-0200: a seller line with markup is escaped in HTML and kept as written 
     assert.ok(m.html.includes(esc(OND)));
     assert.ok(m.tekst.includes(OND));
   }
+});
+
+// KC-0230: the operator's free-text notice (scripts/besked-til-kunder.ts). The subject and the text are the operator's own
+// words: the subject is one line, the text keeps its line breaks, both are escaped in HTML and kept as written in the text.
+test('KC-0230: the operator notice carries the subject and the text as written, in both parts, with the standard footer', () => {
+  for (const sprog of SPROG as readonly Sprog[]) {
+    const data = DATA.driftsbesked;
+    const m = renderMail({ skabelon: 'driftsbesked', sprog, data });
+    assert.equal(m.emne, data['titel']);
+    assert.ok(m.tekst.includes(data['tekst']!), `${sprog}: the text as written, line breaks and all`);
+    assert.match(m.html, /white-space:pre-wrap/, 'the HTML part keeps the line breaks');
+    assert.ok(m.html.includes(esc(data['tekst']!)));
+    assert.match(m.tekst, sprog === 'da' ? /fordi du har en konto hos Clawco/ : /because you have a Clawco account/);
+    assert.match(m.tekst, sprog === 'da' ? /Svar på mailen/ : /Reply to this mail/);
+  }
+});
+
+test('KC-0230: the operator notice escapes markup in HTML and refuses a subject with a line break or a text that is empty, over-long or has control characters', () => {
+  const m = renderMail({ skabelon: 'driftsbesked', data: { titel: OND, tekst: OND } });
+  assert.doesNotMatch(m.html, /<script/);
+  assert.ok(m.tekst.includes(OND));
+  const nej = (data: Record<string, string>) => assert.throws(() => renderMail({ skabelon: 'driftsbesked', data }), /skabelon/i);
+  nej({ titel: 'a\r\nBcc: x@example.test', tekst: 'Tekst' });
+  nej({ titel: 'Emne', tekst: '' });
+  nej({ titel: 'Emne', tekst: '   ' });
+  nej({ titel: 'Emne', tekst: 'x'.repeat(4001) });
+  nej({ titel: 'Emne', tekst: 'a\u202Eb' });
+  nej({ titel: 'Emne', tekst: 'a\u0000b' });
+  nej({ titel: 'Emne', tekst: 'a\rb' });
+  nej({ titel: 'Emne' });
+  renderMail({ skabelon: 'driftsbesked', data: { titel: 'Emne', tekst: 'x'.repeat(4000) } });
 });

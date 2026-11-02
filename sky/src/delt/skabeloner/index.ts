@@ -6,7 +6,7 @@
 import fs from 'node:fs';
 import { esc } from '../html.ts';
 
-export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse', 'stoette-startet', 'alarm', 'betaling-fejlet', 'betaling-paamindelse', 'proeve-slut', 'velkomst', 'kom-i-gang', 'proeve-slutter'] as const;
+export const SKABELONER = ['maillink', 'invitation', 'konto-slettet', 'kvittering', 'fortrydelse', 'opsigelse', 'fornyelse', 'stoette-startet', 'alarm', 'betaling-fejlet', 'betaling-paamindelse', 'proeve-slut', 'velkomst', 'kom-i-gang', 'proeve-slutter', 'driftsbesked'] as const;
 export type Skabelon = (typeof SKABELONER)[number];
 export const SPROG = ['da', 'en'] as const;
 export type Sprog = (typeof SPROG)[number];
@@ -38,6 +38,9 @@ export type SkabelonData = {
   velkomst: { link: string; abonnement: string; hjaelp: string; svartid: string; konto: string; saelger: string };
   'kom-i-gang': { link: string; afmeld: string; hjaelp: string; saelger: string };
   'proeve-slutter': { dato: string; link: string; saelger: string };
+  // KC-0230: the operator's own notice to customers (sky/scripts/besked-til-kunder.ts): a one-line subject and a text
+  // that keeps its line breaks. The only mail whose words are not fixed here, so it is sent by a human's yes only.
+  driftsbesked: { titel: string; tekst: string };
 };
 
 export type Mail = { emne: string; tekst: string; html: string };
@@ -45,8 +48,9 @@ export type Mail = { emne: string; tekst: string; html: string };
 /** A template could not be filled (missing or unsafe data). The message names the field, never its value. */
 export class SkabelonFejl extends Error {}
 
-/** `linje`: one line of ordinary text, up to 300 characters (a price line, a date, the seller's identity). */
-type Felt = 'link' | 'navn' | 'tal' | 'linje';
+/** `linje`: one line of ordinary text, up to 300 characters (a price line, a date, the seller's identity).
+ *  `tekst` (KC-0230): several lines, up to 4000 characters, line breaks kept (the operator's notice). */
+type Felt = 'link' | 'navn' | 'tal' | 'linje' | 'tekst';
 const FELTER: { [K in Skabelon]: Record<keyof SkabelonData[K], Felt> } = {
   maillink: { link: 'link', minutter: 'tal' },
   invitation: { link: 'link', inviterer: 'navn', husstand: 'navn', dage: 'tal' },
@@ -63,12 +67,17 @@ const FELTER: { [K in Skabelon]: Record<keyof SkabelonData[K], Felt> } = {
   velkomst: { link: 'link', abonnement: 'linje', hjaelp: 'linje', svartid: 'linje', konto: 'link', saelger: 'linje' },
   'kom-i-gang': { link: 'link', afmeld: 'link', hjaelp: 'linje', saelger: 'linje' },
   'proeve-slutter': { dato: 'linje', link: 'link', saelger: 'linje' },
+  driftsbesked: { titel: 'linje', tekst: 'tekst' },
 };
 
 const MAKS_NAVN = 80;
 const MAKS_LINJE = 300;
+export const MAKS_TEKST = 4000;
 // C0/C1 controls, line/paragraph separators, and the bidi overrides/isolates that can disguise text.
 const FORBUDT = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202A-\u202E\u2066-\u2069]/;
+
+// The same, but a line break is allowed (a text keeps its paragraphs); a carriage return and the rest stay refused.
+const FORBUDT_TEKST = /[\u0000-\u0009\u000b-\u001f\u007f-\u009f\u2028\u2029\u202A-\u202E\u2066-\u2069]/;
 
 type Filer = { emne: string; tekst: string; html: string };
 const FILER = new Map<string, Filer>();
@@ -102,6 +111,10 @@ function tjek(skabelon: Skabelon, data: Record<string, string>): Record<string, 
     else if (felt === 'tal') {
       if (!/^[1-9]\d{0,3}$/.test(v)) throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} skal være et tal`);
       ud[navn] = v;
+    } else if (felt === 'tekst') {
+      const t = v.trim();
+      if (!t || t.length > MAKS_TEKST || FORBUDT_TEKST.test(t)) throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} skal være en tekst på 1-${MAKS_TEKST} tegn uden styretegn`);
+      ud[navn] = t;
     } else if (felt === 'linje') {
       const t = v.trim();
       if (!t || t.length > MAKS_LINJE || FORBUDT.test(t)) throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} skal være én linje på 1-${MAKS_LINJE} tegn`);

@@ -77,7 +77,7 @@ const kort = (out: string): string => out.slice(out.search(/<article data-id="ma
 
 test('KC-0059: a decision shows its pictogram and one headline, the sender and type as the small label', () => {
   const out = kort(String(renderMail(medVisuel(0, visuelRegning), [], NU)));
-  assert.match(out, /<span class="vis-ikon tilstand-kraever"><svg class="ikon"/);
+  assert.match(out, /<span class="vis-ikon tilstand-kraever" data-tone="adv"><svg class="ikon"/);
   assert.match(out, /<h3 class="vis-overskrift">Elregning 1\.240 kr\.<\/h3>/);
   assert.match(out, /<span class="vis-etiket">Skal besvares · Elektrikeren ApS<\/span>/);
 });

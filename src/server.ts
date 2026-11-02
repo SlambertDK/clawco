@@ -1578,10 +1578,11 @@ export function createApp(deps: AppDeps) {
     const aabne = new Set(kurator.kort.filter((k) => !udloebet(k, now())).map((k) => k.id));
     const regnskab = Object.entries(kurator.regnskab ?? {}).filter(([id, r]) => r.status === 'skrevet' && !aabne.has(id))
       .map(([id, r]) => ({ id, hvor: r.hvor, ...(r.leverandoer ? { leverandoer: r.leverandoer } : {}), ...(r.beloeb ? { beloeb: r.beloeb } : {}), ...(r.valuta ? { valuta: r.valuta } : {}) }));
+    const skrivIgen = Object.entries(kurator.regnskab ?? {}).filter(([, r]) => r.status === 'fortrudt').map(([id]) => id); // KC-0069
     const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
     const sit = await situationNu();
     const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
-    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
   }
 
   /**
@@ -2381,7 +2382,7 @@ export async function main(): Promise<void> {
   rumTik();
   helbredTik();
   // KC-0068: a device with the kc_test cookie gets the fictional test world (created on first use); timers above stay on the real app.
-  const lav = () => lavTestverden({ dataDir: testDataDir({ KC_TEST_DATA_DIR: env('KC_TEST_DATA_DIR', ''), KC_DATA_DIR: env('KC_DATA_DIR', './data') }), publicDir, ...(stemme ? { stemme } : {}) });
+  const lav = () => lavTestverden({ dataDir: testDataDir({ KC_TEST_DATA_DIR: env('KC_TEST_DATA_DIR', ''), KC_DATA_DIR: env('KC_DATA_DIR', './data') }), publicDir, rigtigDataDir: env('KC_DATA_DIR', './data'), ...(stemme ? { stemme } : {}) });
   // KC-0179: in konto mode only a signed request reaches the dispatcher (its test world answers by cookie alone).
   const dispatcher = medTesttilstand(app, lav);
   const fetch = konto ? kunSigneret(konto, () => new Date(), dispatcher, app) : dispatcher.fetch;

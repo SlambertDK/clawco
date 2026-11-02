@@ -148,6 +148,13 @@ test('KC-0064: the head tile is classed by state — adv is kraever, no tone is 
   assert.doesNotMatch(rolig, /tone-/);
 });
 
+test('KC-0069: visHoved names an explicit tone in data-tone, and a toneless head carries none (the test world\'s marker for tone:rolig)', () => {
+  for (const tone of ['god', 'adv', 'rolig'] as const) assert.match(String(visHoved({ ikon: 'umbrella', tone }, 'x')), new RegExp(`<span class="vis-ikon tilstand-[a-z]+" data-tone="${tone}">`));
+  const uden = String(visHoved({ ikon: 'umbrella' }, 'x'));
+  assert.match(uden, /vis-ikon tilstand-rolig/);
+  assert.doesNotMatch(uden, /data-tone/);
+});
+
 // KC-0074: on a phone the track is ~300 px wide, so points a couple of hours apart used to sit on top of each other.
 const lanes = (s: string): string[] => [...s.matchAll(/class="punkt( punkt-op)?" style="left:[^"]+"/g)].map((m) => (m[1] ? 'op' : 'ned'));
 

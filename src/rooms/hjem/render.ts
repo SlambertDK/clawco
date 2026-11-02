@@ -37,6 +37,8 @@ export type HjemData = {
   hermes: ({ tid: string; tekst: string; id?: string; handlingId?: string; fortryd?: string; fortrudt?: string; graense?: 'afvist' | 'kraever-ja' } & Zoneret)[];
   /** Handling ids (card handlings) that already ran and were not undone: the card shows "Gjort". */
   gjort?: string[];
+  /** KC-0069: card ids whose ledger line was undone (Fortryd): the write button is "skriv igen" and says so (`data-regnskab-igen`, the test world's marker). Absent = none known. */
+  skrivIgen?: readonly string[];
   now?: Date;
   /** KC-0088: the next appointment today (from Dagen); absent = nothing left, nothing shown. */
   naeste?: Naeste;
@@ -143,7 +145,7 @@ function beskedLinje(b: NonNullable<Kort['besked']>): Markup {
 }
 
 /** KC-0064 rule 6: `stor` is the one large card of the room view — its recommendation sits on the face. */
-function kortKasse(k: Kort, gjort: Set<string>, stor = false, senere?: { aften: boolean }): Markup {
+function kortKasse(k: Kort, gjort: Set<string>, stor = false, senere?: { aften: boolean }, skrivIgen?: ReadonlySet<string>): Markup {
   const t = hjemTekst();
   // KC-0046: only a card about one of Henrik's projects offers Send til Claude Code (any card can still go from the chat head).
   const udvikling = k.udvikling ? findProjekt(k.udvikling.projekt) : undefined;
@@ -157,7 +159,7 @@ function kortKasse(k: Kort, gjort: Set<string>, stor = false, senere?: { aften: 
   // KC-0064: at most one primary — the handling, else writing the bill, else Send til Claude Code.
   const handlingKnap = k.handling && !gjort.has(k.handling.id) ? knap({ label: k.handling.label, slags: 'primaer', attrs: { 'data-kort-handling': k.id } }) : undefined;
   // KC-0066: a bill whose line is not in a ledger (Henrik undid it) can be written again, to the ledger the line names.
-  const skrivKnap = k.regnskab && !k.skrevet && !k.regnskabUklart ? knap({ label: t.skrivI(t.hvorKnap[k.regnskab.hvor]), slags: handlingKnap ? 'normal' : 'primaer', attrs: { 'data-regnskab': k.regnskab.hvor } }) : undefined;
+  const skrivKnap = k.regnskab && !k.skrevet && !k.regnskabUklart ? knap({ label: t.skrivI(t.hvorKnap[k.regnskab.hvor]), slags: handlingKnap ? 'normal' : 'primaer', attrs: { 'data-regnskab': k.regnskab.hvor, ...(skrivIgen?.has(k.id) ? { 'data-regnskab-igen': '' } : {}) } }) : undefined;
   const ccKnap = udvikling ? knap({ label: t.sendTilClaude(udvikling.navn), slags: handlingKnap || skrivKnap ? 'normal' : 'primaer', attrs: { 'data-cc-kort': k.id, 'data-cc-titel': k.titel, 'data-cc-projekt': udvikling.id, 'data-cc-projekt-navn': udvikling.navn } }) : undefined;
   const primaer = handlingKnap ?? skrivKnap ?? ccKnap;
   const andre: Knap[] = [
@@ -289,6 +291,7 @@ function moedeNu(m: NonNullable<HjemData['moede']>): Markup {
 function kraeverGrupper(d: HjemData, nu: Date, unik: (id: string) => string): Gruppe[] {
   const { gjort, aabne, spoerger, parkerede, forbindelser, forslag, beta } = egneDele(d);
   const t = hjemTekst();
+  const igen = new Set(d.skrivIgen ?? []);
   const stor = aabne.find((k) => k.handling)?.id; // rule 6: the one large card
   const unikNoegle = unikIder(); // a waiting row's identity for counting: its room and its words, not its place in the list
   return [
@@ -301,7 +304,7 @@ function kraeverGrupper(d: HjemData, nu: Date, unik: (id: string) => string): Gr
     { titel: t.forbindelser, form: 'kort', elementer: kildeHelbredElementer(forbindelser, nu) },
     { titel: t.ccSpoerger, form: 'kort', elementer: spoerger.map((o) => ({ id: `cc:${o.id}`, html: spoergsmaalKort(o) })) },
     { titel: t.ccParkerede, form: 'raekker', elementer: parkerede.map(ccElement) },
-    { titel: t.ligeNu, form: 'kort', elementer: aabne.map((k) => ({ id: `kort:${k.id}`, html: kortKasse(k, gjort, k.id === stor, { aften: aftenMulig(nu) }) })), fold: { efter: SYNLIGE_KORT, navn: t.flereKort } },
+    { titel: t.ligeNu, form: 'kort', elementer: aabne.map((k) => ({ id: `kort:${k.id}`, html: kortKasse(k, gjort, k.id === stor, { aften: aftenMulig(nu) }, igen) })), fold: { efter: SYNLIGE_KORT, navn: t.flereKort } },
     { titel: t.venterPaaDig, form: 'raekker', elementer: d.venter.map((v) => { const f = d.gamle?.[RUM_SLAGS[v.roomId] ?? '']; return { id: unik(`venter:${v.roomId}`), noegle: unikNoegle(`venter:${v.roomId}:${v.tekst}`), html: venterRow(v, f ? { f, nu } : undefined) }; }), fold: { efter: 3, navn: t.alle(d.venter.length) } },
   ];
 }
@@ -317,6 +320,7 @@ export function renderHjem(d: HjemData): Markup {
   const cc = d.claudeCode ?? [];
   const nu = d.now ?? new Date();
   const t = hjemTekst();
+  const igen = new Set(d.skrivIgen ?? []);
   const unik = unikIder(); // venter rows (one per waiting thing) and id-less log entries can repeat
   const vis = new Set<string>(SITUATIONER[d.situation ?? 'dagen'].elementer);
   const fliser = vis.has('fliser') ? ROOMS.filter((r) => r.id !== 'hjem' && (!d.synlige || d.synlige.has(r.id))) : [];
@@ -330,7 +334,7 @@ export function renderHjem(d: HjemData): Markup {
     igangGruppe(d.igang ?? []),
   ];
   const ordnet: OrdnetGruppe[] = !vis.has('ordnet') ? [] : [
-    { titel: t.gjort, form: 'kort', elementer: rangeret.filter(erGjort).map((k) => ({ id: `kort:${k.id}`, html: kortKasse(k, gjort) })) },
+    { titel: t.gjort, form: 'kort', elementer: rangeret.filter(erGjort).map((k) => ({ id: `kort:${k.id}`, html: kortKasse(k, gjort, false, undefined, igen) })) },
     { titel: t.skrevetIRegnskab, form: 'raekker', elementer: kunSynlige(d.regnskab ?? [], d.person).map((r) => ({ id: `regnskab:${r.id}`, html: skrevetRaekke(r) })) },
     { titel: t.intetAtGoere, form: 'raekker', elementer: intet.map((i) => ({ id: `intet:${i.titel}`, html: html`<div class="row"><span class="row-main"><span class="row-title">${i.titel}</span>${i.hvorfor ? html`<span class="row-note">${i.hvorfor}</span>` : ''}</span></div>` })) },
     { titel: t.ccFaerdig, form: 'raekker', elementer: cc.filter((o) => o.status === 'faerdig').map(ccElement), note: html`${(d.ccTal ?? []).map(ccTalLinje)}` },

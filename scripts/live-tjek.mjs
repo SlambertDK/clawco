@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Usage: npm run live:tjek -- [path …] [--skaermbillede <dir>] [--sha <sha>] [--test | --kold]
+// Usage: npm run live:tjek -- [path | moment …] [--skaermbillede <dir>] [--sha <sha>] [--test | --kold]
 // KC-0054: the post-deploy live check (AGENTS.md §5.7), run headless from the
 // terminal. The app's in-app browser treats the Tailscale address as a private
 // network site and asks Henrik to approve every single action on it, whatever
@@ -9,7 +9,10 @@
 // Interactions beyond this: a scratch script that imports playwright-core from
 // this repo's node_modules, the same way.
 // --test (KC-0068): with the test cookie, start a clean test world and check
-// every moment instead of the paths (each page must carry the test band). The
+// every moment at the page its jump lands on (each page must carry the test band).
+// KC-0069: paths and moment ids limit it, as in the plain mode: `--test /viden`
+// checks /viden at every moment, `--test formiddag` only that moment, both together
+// that route at that moment (scripts/live-argumenter.ts reads the command line). The
 // real rum-lager is never touched, but the run resets the server's one shared
 // test world (a phone in test mode sees it change) and leaves it at the last moment.
 // --kold (KC-0131): never the tailnet — starts its own fresh dev server (fake agent,
@@ -22,12 +25,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright-core';
+import { parseLiveArgumenter, testPlan } from './live-argumenter.ts';
 
-const args = process.argv.slice(2);
-const flag = (name) => { const i = args.indexOf(name); return i < 0 ? undefined : args.splice(i, 2)[1]; };
-const skaermDir = flag('--skaermbillede');
-const kold = args.includes('--kold') && Boolean(args.splice(args.indexOf('--kold'), 1));
-const testtilstand = kold || (args.includes('--test') && Boolean(args.splice(args.indexOf('--test'), 1)));
+const arg = parseLiveArgumenter(process.argv.slice(2));
+if (arg.fejl.length) { for (const f of arg.fejl) console.error(`live:tjek: ${f}`); process.exit(2); }
+const { skaermDir, kold, test: testtilstand } = arg;
 
 /** KC-0131: a fresh dev server of this checkout on a free loopback port; its own empty data dir. */
 async function startKold() {
@@ -57,10 +59,10 @@ const gitAdresse = () => { try { return execFileSync('git', ['config', '--get', 
 const ADRESSE = koldServer?.adresse ?? process.env.KC_ADRESSE ?? gitAdresse();
 if (!ADRESSE) { console.error('Hvilken Clawco? Sæt KC_ADRESSE=https://… eller git config clawco.adresse https://…'); process.exit(2); }
 // Docs-only pushes to main are never deployed, so the expected sha is the newest code commit.
-const forventetSha = kold ? null : flag('--sha') ?? execFileSync('git', ['log', '-1', '--format=%h', 'origin/main', '--', '.', ':!docs'], { encoding: 'utf8' }).trim();
-const stier = args.length ? args : ['/rum/hjem'];
+const forventetSha = kold ? null : arg.sha ?? execFileSync('git', ['log', '-1', '--format=%h', 'origin/main', '--', '.', ':!docs'], { encoding: 'utf8' }).trim();
 
 let problemer = 0;
+let landing = null; // --test: where the last jump landed
 const fejl = (msg) => { problemer++; console.log(`FEJL ${msg}`); };
 
 const health = await fetch(`${ADRESSE}/health`, { signal: AbortSignal.timeout(8000) }).then((r) => r.json()).catch((e) => ({ fejl: String(e) }));
@@ -102,13 +104,22 @@ if (testtilstand) {
   const taend = await ctx.request.post(`${ADRESSE}/test/taend`);
   if (!taend.ok()) fejl(`/test/taend: HTTP ${taend.status()}`);
   const { momenter = [] } = taend.ok() ? await (await ctx.request.get(`${ADRESSE}/test/status`)).json() : {};
-  // --kold: the cold start's moments only, the fresh install (Start) first.
-  for (const mo of kold ? momenter.filter((m) => m.id.startsWith('kold')) : momenter) {
-    const hop = await ctx.request.post(`${ADRESSE}/test/moment/${mo.id}`);
-    if (hop.ok()) await tjek((await hop.json()).url, `test-${mo.id}`);
-    else fejl(`/test/moment/${mo.id}: HTTP ${hop.status()}`);
+  // --kold: the cold start's moments only, the fresh install (Start) first; paths and moment ids (KC-0069) limit the walk.
+  const { plan, fejl: planFejl } = testPlan(momenter, arg);
+  for (const f of planFejl) fejl(f);
+  let sidste = null;
+  let hopOk = false;
+  for (const trin of plan) {
+    if (trin.moment !== sidste) { // one jump per moment, then each of its pages
+      sidste = trin.moment;
+      const hop = await ctx.request.post(`${ADRESSE}/test/moment/${trin.moment}`);
+      hopOk = hop.ok();
+      if (hopOk) landing = (await hop.json()).url;
+      else fejl(`/test/moment/${trin.moment}: HTTP ${hop.status()}`);
+    }
+    if (hopOk) await tjek(trin.sti ?? landing, trin.navn);
   }
-} else for (const sti of stier) await tjek(sti);
+} else for (const sti of arg.stier) await tjek(sti);
 await browser.close();
 koldServer?.stop();
 console.log(problemer ? `${problemer} problem(er)` : kold ? 'kold start ok' : 'live ok');

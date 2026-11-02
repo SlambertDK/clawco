@@ -291,7 +291,7 @@ test('KC-0066: after Fortryd a bill Hermes was sure about shows its write button
     assert.equal((await t.post(`/api/rum/hjem/kort/${id}/regnskab/fortryd`, {})).status, 200);
     const frag = (await (await t.sut.app.request('/api/rum/hjem/fragment')).json()) as { html: string };
     const art = /<article[^>]*data-kort-id="regning:vercel-7"[\s\S]*?<\/article>/.exec(frag.html)?.[0] ?? '';
-    assert.match(art, /data-regnskab="shelfatlas">Skriv i ShelfAtlas</, 'the reverted card offers the write again');
+    assert.match(art, /data-regnskab="shelfatlas" data-regnskab-igen="">Skriv i ShelfAtlas</, 'the reverted card offers the write again, and says it is a write-again (KC-0069)');
 
     assert.equal((await t.post(`/api/rum/hjem/kort/${id}/regnskab/shelfatlas`, {})).status, 200);
     assert.match(await t.laes('shelfatlas'), /\| 2026-10-27 \| Vercel \| 20,00 \| USD \|[^\n]*<!-- kc:regning:vercel-7 -->/);

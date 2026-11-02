@@ -8,24 +8,12 @@ import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { DAEKNING } from '../../src/testtilstand/daekning.ts';
+import { AFLEDTE, DAEKNING, vises } from '../../src/testtilstand/daekning.ts';
 import { lavTestverden } from '../../src/testtilstand/verden.ts';
 import { ALLE_MOMENTER as MOMENTER } from '../../src/testtilstand/indhold.ts';
 import { ROOMS } from '../../src/rooms/registry.ts';
 import { ROOM_MODULES } from '../../src/rooms/modules.ts';
-import { BILLEDER, TONER, ZONER } from '../../src/shell/visuel.ts';
-import { ART, HVOR, TYPER } from '../../src/rooms/hjem/kort.ts';
-import { STATUSSER } from '../../src/udvikling/opgaver.ts';
-import { ROLLER } from '../../src/identitet/roller.ts';
-import { DATAZONER } from '../../src/identitet/zoner.ts';
-import { SITUATION_IDER } from '../../src/situation/regler.ts';
-import { BYGGET } from '../../src/shell/katalog.ts';
-import { KILDE_TILSTANDE } from '../../src/shell/kilder.ts';
-import { OMKOSTNING_SAMLET } from '../../src/shell/omkostninger.ts';
 import { alleTrin } from '../../src/rooms/start/trin.ts';
-import { TILSTANDE as FORESP_TILSTANDE } from '../../src/hushold/foresp.ts';
-import { TS_TILSTANDE } from '../../src/shell/tailscale.ts';
-import { FEEDBACK_DAGE } from '../../src/beta/tilstand.ts';
 
 const rod = await mkdtemp(path.join(tmpdir(), 'kc-daekning-'));
 after(() => rm(rod, { recursive: true, force: true }));
@@ -65,26 +53,25 @@ const sider: Promise<Map<string, string>> = (async () => {
   return ud;
 })();
 
-test('DAEKNING lists every value of every derived source, each once', () => {
+test('DAEKNING lists every value of every derived source, each once (compared with the real exported list, not a rebuilt one)', () => {
   const ider = DAEKNING.map((d) => d.id);
   assert.deepEqual(ider.filter((id, i) => ider.indexOf(id) !== i), [], 'no id twice');
-  const kilder: [string, readonly string[]][] = [
-    ['rum', [...ROOMS.filter((r) => r.built).map((r) => r.id), ...ROOM_MODULES.map((m) => m.id)]],
-    ['tone', TONER], ['zone', ZONER], ['billede', BILLEDER],
-    ['kort', TYPER], ['regnskab', HVOR], ['art', ART], ['opgave', STATUSSER], ['rolle', ROLLER], ['husstand-rolle', ROLLER], ['datazone', DATAZONER],
-    ['situation', SITUATION_IDER], ['blok', BYGGET], ['kilde-tilstand', KILDE_TILSTANDE], ['omkostninger', OMKOSTNING_SAMLET], ['foresp', FORESP_TILSTANDE], ['tailscale', TS_TILSTANDE], ['beta-feedback', FEEDBACK_DAGE.map(String)],
-  ];
-  for (const [praefiks, vaerdier] of kilder) {
+  const praefikser = AFLEDTE.map((a) => a.praefiks);
+  assert.deepEqual(praefikser.filter((p, i) => praefikser.indexOf(p) !== i), [], 'no source twice');
+  for (const { praefiks, vaerdier } of AFLEDTE) {
+    assert.ok(vaerdier.length > 0, `${praefiks}: a derived source with no values would check nothing`);
     for (const v of vaerdier) {
       const d = DAEKNING.find((x) => x.id === `${praefiks}:${v}`);
       assert.ok(d, `${praefiks}:${v} mangler i DAEKNING`);
       assert.equal(d.kilde, 'afledt', `${praefiks}:${v} er afledt af koden`);
     }
   }
-  // KC-0131: every step of Start's journey, open and Klaret.
-  for (const t of alleTrin()) {
-    for (const tilstand of ['aaben', 'klaret']) assert.equal(DAEKNING.find((x) => x.id === `start-trin-${t.id}-${tilstand}`)?.kilde, 'afledt', `start-trin-${t.id}-${tilstand} mangler i DAEKNING`);
-  }
+  // Nothing marked afledt falls outside the exported sources (and KC-0131's start steps, which have their own list).
+  const kendt = new Set([...AFLEDTE.flatMap((a) => a.vaerdier.map((v) => `${a.praefiks}:${v}`)), ...alleTrin().flatMap((t) => [`start-trin-${t.id}-aaben`, `start-trin-${t.id}-klaret`])]);
+  assert.deepEqual(DAEKNING.filter((d) => d.kilde === 'afledt' && !kendt.has(d.id)).map((d) => d.id), []);
+  assert.deepEqual(DAEKNING.filter((d) => d.kilde === 'haand' && kendt.has(d.id)).map((d) => d.id), [], 'a hand-kept item is never also derived');
+  // The one list built inside DAEKNING itself: the built rooms, compared with the registries it is read from.
+  assert.deepEqual(AFLEDTE.find((a) => a.praefiks === 'rum')?.vaerdier, [...new Set([...ROOMS.filter((r) => r.built).map((r) => r.id), ...ROOM_MODULES.map((m) => m.id)])]);
   assert.ok(DAEKNING.some((d) => d.kilde === 'haand'), 'the hand-kept situations are listed too');
   for (const d of DAEKNING) assert.ok(d.marker.length >= 4, `${d.id} has a real marker`);
 });
@@ -92,12 +79,13 @@ test('DAEKNING lists every value of every derived source, each once', () => {
 test('every item in DAEKNING is on screen in at least one moment', async () => {
   const alle = await sider;
   assert.ok(alle.size >= MOMENTER.length * ROOMS.filter((r) => r.built).length, 'every built room was rendered at every moment');
-  const mangler = DAEKNING.filter((d) => ![...alle.values()].some((h) => h.includes(d.marker))).map((d) => `${d.id} (${d.marker})`);
+  const mangler = DAEKNING.filter((d) => ![...alle.values()].some((h) => vises(d.marker, h))).map((d) => `${d.id} (${d.marker})`);
   assert.deepEqual(mangler, [], 'items no moment shows: add test data in src/testtilstand/indhold/');
 });
 
 test('the marker check can fail: a marker no page has is reported', async () => {
   const alle = await sider;
+  assert.ok(![...alle.values()].some((h) => vises('data-findes-ikke="', h)));
   assert.ok(![...alle.values()].some((h) => h.includes('data-findes-ikke="kc-0068"')));
 });
 

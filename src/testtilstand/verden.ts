@@ -16,6 +16,7 @@ import type { LiveBus } from '../live.ts';
 import { createFakeStemme } from '../stemme/fake.ts';
 import { DEFAULT_VOICE_ID } from '../stemme/agent.ts';
 import { StemmeError, type StemmeClient } from '../stemme/types.ts';
+import { createSettings } from '../settings.ts';
 import { ROOMS } from '../rooms/registry.ts';
 import { regnskabsfil, skrivRegnskab } from '../kurator/regnskab.ts';
 import type { KuratorState, Regnskabslinje } from '../rooms/hjem/kort.ts';
@@ -27,7 +28,7 @@ import { skrivFroe, testMailRunner } from './skriv.ts';
 import { ALLE_MOMENTER, froe as lavFroe, MOMENTER, svar } from './indhold.ts';
 import { erKold, KOLD_GOOGLE, modelTestUdfald } from './indhold/start.ts';
 import { falskTailscale, tailscaleLaptop } from './indhold/tailscale.ts'; // KC-0161
-import { fakta, momentNr, momentPlus, plusDag } from './indhold/fakta.ts';
+import { fakta, KOE, momentNr, momentPlus, plusDag } from './indhold/fakta.ts';
 import { familiekalender, TEST_EJER, testKanal } from './indhold/husstand.ts';
 import { lavReglerLager } from '../tillid/lager.ts';
 import { falskeKilder } from '../kilder/falsk/falsk.ts';
@@ -71,18 +72,30 @@ export type TestverdenOpts = {
   delayMs?: number;
   /** The scripted pipeline's delay per step, ms. */
   trinMs?: number;
+  /** KC-0069: how long each of the two runs of the moment "Kørsler i kø" stays with Hermes before it ends by itself, ms (default 8 s: long enough to look at, short enough that nothing stays stuck behind them). */
+  holdMs?: number;
+  /**
+   * KC-0069: the real installation's data dir. Only its settings file is read, and only for the voice Henrik chose
+   * (oplæsning then speaks with it); nothing is ever written there. Absent or unreadable = the premade default voice.
+   */
+  rigtigDataDir?: string;
 };
 
 /** The question the scripted Claude Code parks every opgave on. */
 const SPOERGSMAAL = { tekst: 'Skal ændringen gælde på telefonen med det samme, eller først når du har set den på computeren?', valg: ['Ja', 'Nej'] };
 const BEVIS = 'Typecheck og alle tests grønne. (Testverdenen: intet er ændret i et rigtigt projekt.)';
 
+/** KC-0069: the input of the two held runs of the moment "Kørsler i kø" (the scripted Hermes keeps those with it until their time is up or a jump aborts them). */
+const HOLD_INPUT = 'Testverdenen: en kørsel, der holdes i gang, så Kø-panelet kan vise "I kø".';
+const SPRUNGET = 'Testverdenen er sprunget til et andet tidspunkt';
+
 /**
  * The voice in the test world: `mode: 'fake'` so the page runs Samtale on the Hermes loop (never an ElevenLabs
  * agent); lyt and sig go to the real client — they only listen and speak. Never creates or changes anything on the
- * ElevenLabs account: no agent, no token, no library voice (the premade default stands in).
+ * ElevenLabs account: no agent, no token, no library voice. The voice is the world's own choice, else (KC-0069) the one
+ * `valgt` reads from the real settings, else the premade default.
  */
-export function testStemme(real?: StemmeClient): StemmeClient {
+export function testStemme(real?: StemmeClient, valgt?: () => Promise<string | undefined>): StemmeClient {
   if (!real) return createFakeStemme();
   return {
     mode: 'fake',
@@ -90,7 +103,7 @@ export function testStemme(real?: StemmeClient): StemmeClient {
     sig: (tekst, voiceId) => real.sig(tekst, voiceId),
     async samtaleToken() { throw new StemmeError('Samtale kører gennem Hermes i testtilstand', 503); },
     async ensureAgent(config) { return { agentId: 'test-agent', toolIds: Object.fromEntries(config.tools.map((t) => [t.name, `test-${t.name}`])) }; },
-    async ensureVoice(voiceId) { return voiceId || DEFAULT_VOICE_ID; },
+    async ensureVoice(voiceId) { return voiceId || (await valgt?.().catch(() => undefined)) || DEFAULT_VOICE_ID; },
   };
 }
 
@@ -133,6 +146,16 @@ function forankr(f: Froe, vaultInbox: string): { regnskab: { fil: string; id: st
       if (e.kilde === 'system' && !e.fortryd && e.tekst.startsWith('Gemte "') && e.tekst.includes(`(${navn})`)) e.fortryd = `lokal:${JSON.stringify({ slet: fil, hvis: md.length })}`;
     }
   }
+  // KC-0069: Nyheder's seeded "Gem til senere" is a line in the vault's Læs senere.md, as the room's own save writes it
+  // (its Fortryd removes that line again); the log line gets the absolute path the real save records.
+  const laesSenere = path.join(vaultInbox, 'Læs senere.md');
+  for (const e of f.rum['nyheder']?.log ?? []) {
+    if (!e.fortryd?.startsWith('lokal:')) continue;
+    const spec = JSON.parse(e.fortryd.slice(6)) as { nyhedId: string; linje: string; fil?: string };
+    if (typeof spec.linje !== 'string' || !spec.linje) continue;
+    e.fortryd = `lokal:${JSON.stringify({ ...spec, fil: laesSenere })}`;
+    noter.push({ fil: laesSenere, md: `# Læs senere\n\n${spec.linje}\n` });
+  }
   return { regnskab, noter };
 }
 
@@ -151,10 +174,12 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
 
   // The scripted Hermes. The generation is captured when a run starts and checked when its answer is ready.
   const startGen = new WeakMap<AgentRunRequest, number>();
+  /** KC-0069: the held runs of "Kørsler i kø" wait with this one; an abort (a jump) ends them at once. */
+  const holdFake = createFakeAgent({ delayMs: o.holdMs ?? 8000, answer: () => 'Opdateret.' });
   const fake = createFakeAgent({
     delayMs: o.delayMs ?? 1400,
     answer: (req) => {
-      if (startGen.get(req) !== gen) throw new Error('Testverdenen er sprunget til et andet tidspunkt');
+      if (startGen.get(req) !== gen) throw new Error(SPRUNGET);
       return svar(req, { moment: nu, dag });
     },
     // KC-0127: Start's live test passes, except in the moment where the key is rejected.
@@ -163,11 +188,12 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
   const hermes: AgentClient = {
     mode: 'fake',
     async run(req) {
+      if (req.input === HOLD_INPUT) return holdFake.run(req);
       const g = gen;
       startGen.set(req, g);
       const r = await fake.run(req);
       // A jump during the answer's last step: still nothing written.
-      if (g !== gen) throw new AgentError('Testverdenen er sprunget til et andet tidspunkt', r.runId);
+      if (g !== gen) throw new AgentError(SPRUNGET, r.runId);
       return r;
     },
     health: () => fake.health(),
@@ -219,16 +245,16 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     stoette: { slaaTil: '/api/stoette/start', slaaFra: '/api/stoette/slaa-fra' },
     // KC-0203: the closed beta is on in the moments whose folder carries beta.json (kunMedFil), nowhere else.
     beta: { samtykkeStart: false, kunMedFil: true },
-    // No run queue: the generation is captured when a run reaches Hermes, so a run queued before a jump must not
-    // wait until after it (it would carry the new generation and write into the new moment).
-    maxParallel: Number.MAX_SAFE_INTEGER,
+    // KC-0069: a real queue, one run with Hermes at a time, so Nu and the Kø panel can show "I kø". A jump settles
+    // everything queued or running at once (runs.annuller) and waits for writes in flight (runs.tomgang) before it wipes.
+    maxParallel: 1,
     sourceGlob: path.join(dir, 'avis_{date}.json'),
     mailStateDir: path.join(dir, 'hermes-state'),
     mailRunner: testMailRunner(() => froe),
     kalenderScript: '',
     vaultInbox,
     importTmp: path.join(dir, 'upload-tmp'), // KC-0129: raw uploads of Start's import live in the world's own dir
-    stemme: testStemme(o.stemme),
+    stemme: testStemme(o.stemme, o.rigtigDataDir ? async () => (await createSettings(o.rigtigDataDir!).read()).stemme.voiceId : undefined),
     // KC-0132: the fake connectors read the moment's story and are in the moment's state (KILDE_TILSTAND).
     // KC-0136: notes are the real connector over the world's own vault (home = the world's dir, so detection
     // finds that vault and nothing of the machine's).
@@ -291,12 +317,17 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
   // One jump at a time: seeding wipes and rewrites the data dir.
   let laas: Promise<unknown> = Promise.resolve();
   function saetMoment(m: Moment): Promise<{ url: string }> {
-    gen += 1;
+    const g = ++gen;
+    inner.runs.annuller(SPRUNGET); // at once: nothing queued or running outlives the moment it was started in
     repareret.clear();
     tailscaleDelt.clear();
     for (const t of timere) clearTimeout(t);
     timere.clear();
     const arbejde = laas.then(async () => {
+      // Again inside the lock (a jump made while an earlier one was seeding), then wait for an answer or a local save
+      // that is mid-write: the wipe must not run under it, and nothing of it may land in the new moment.
+      inner.runs.annuller(SPRUNGET);
+      await inner.runs.tomgang();
       dag = idagKbh(new Date());
       const f = lavFroe(m.id, dag);
       const { regnskab, noter } = forankr(f, vaultInbox);
@@ -327,11 +358,19 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
       if (f.regler !== undefined) await lavReglerLager({ vaultDir: path.dirname(vaultInbox), dataDir: dir }).skrivTekst(f.regler);
       froe = f;
       nu = m;
+      if (m.id === KOE && g === gen) startHoldte();
       for (const rum of new Set([...ROOMS.map((r) => r.id), ...Object.keys(f.rum)])) inner.live.notify(rum);
       return { url: m.url };
     });
     laas = arbejde.catch(() => undefined);
     return arbejde;
+  }
+
+  /** KC-0069: two room refreshes as the morning build starts them — the first is with Hermes, the second waits in the queue. Their answers change nothing. */
+  function startHoldte(): void {
+    for (const [room, label] of [['mail', 'Opdaterer Mail'], ['nyheder', 'Opdaterer Nyheder']] as const) {
+      inner.runs.start({ kind: 'opdater', room, label, spec: { input: HOLD_INPUT, instructions: 'Testverdenen: ingen opgave, intet ændres.' }, onDone: async () => ({ text: 'Opdateret.' }) });
+    }
   }
 
   const app = new Hono();

@@ -133,8 +133,16 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
   const runs = new Map<string, RunRecord & { events: RunEvent[]; listeners: Set<(e: RunEvent) => void> }>();
   const finishedListeners = new Set<(r: RunRecord) => void>();
   const waiting: { res: () => void; rej: (e: Error) => void }[] = [];
-  /** KC-0124: every run not yet settled, with the function that stops it now. */
-  const aktive = new Map<string, () => void>();
+  /** KC-0124: every run not yet settled, with the function that stops it now (`grund`: the error it ends with; default the pause). */
+  const aktive = new Map<string, (grund?: string) => void>();
+  /** KC-0069: answers being written (onDone) and local runs mid-write: the test world's jump waits for these before it wipes (tomgang). */
+  const skriver = new Set<Promise<unknown>>();
+  function skrivning<T>(p: Promise<T>): Promise<T> {
+    skriver.add(p);
+    const fjern = (): void => { skriver.delete(p); };
+    p.then(fjern, fjern);
+    return p;
+  }
   let inFlight = 0;
   let seq = 0;
   const order = new Map<string, number>();
@@ -199,7 +207,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
       emit(id, e);
     };
     const stop = new AbortController();
-    aktive.set(id, () => { stop.abort(); settle({ status: 'failed', error: STOPPET }, { type: 'error', text: STOPPET }); });
+    aktive.set(id, (grund = STOPPET) => { stop.abort(); settle({ status: 'failed', error: grund }, { type: 'error', text: grund }); });
 
     void (async () => {
       let fikPlads = false;
@@ -233,7 +241,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
         rec.hosHermes = false;
         let result: DoneResult;
         try {
-          result = await o.onDone(output);
+          result = await skrivning(o.onDone(output));
         } catch (err) {
           if (!(err instanceof SvarFejl)) throw err;
           // One correction, no tools: the answer goes back with the reason (KC-0050).
@@ -247,7 +255,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
           if (stoppet) throw new Error(stoppet);
           if (afgjort) return;
           rec.hosHermes = false;
-          result = await o.onDone(rettet.output);
+          result = await skrivning(o.onDone(rettet.output));
         }
         settle({ status: 'done', result }, { type: 'done', ...result });
       } catch (err) {
@@ -285,7 +293,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
     runs.set(id, rec); order.set(id, ++seq);
     void (async () => {
       try {
-        const result = await fn();
+        const result = await skrivning((async () => fn())());
         Object.assign(rec, { status: 'done', result });
         emit(id, { type: 'done', ...result });
       } catch (err) {
@@ -334,6 +342,21 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
     await skrevet;
     return stop.length;
   }
+  /**
+   * KC-0069: settles every queued and running agent run at once as failed with `grund` and aborts the ones with Hermes
+   * (the test world's jump to another moment: the old moment's queue must not outlive it). Not the kill switch: nothing
+   * is paused. A local run already going finishes. Returns how many runs it settled.
+   */
+  function annuller(grund: string): number {
+    const stop = [...aktive.values()];
+    for (const s of stop) s(grund);
+    for (const w of waiting.splice(0)) w.rej(new Error(grund));
+    return stop.length;
+  }
+  /** KC-0069: resolves when no answer is being written and no local run is mid-write (a write that throws counts as over). */
+  async function tomgang(): Promise<void> {
+    while (skriver.size) await Promise.allSettled([...skriver]);
+  }
   /** KC-0124: lifts the pause (the caller checks the role: nodstop.ts startIgen). */
   async function genoptag(person: string): Promise<void> { await pause.saet({ pause: false, tid: nu().toISOString(), person }); }
   const paaPause = (): boolean => pause.erPaaPause();
@@ -341,7 +364,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
   /** Re-reads pause.json (the test world reseeds it on a jump). */
   const genlaesPause = (): Promise<void> => pause.genlaes();
 
-  return { start, local, subscribe, get, list, igang, onFinished, setModels, getModels, stopAlle, genoptag, paaPause, pauseTilstand, genlaesPause };
+  return { start, local, subscribe, get, list, igang, onFinished, setModels, getModels, stopAlle, annuller, tomgang, genoptag, paaPause, pauseTilstand, genlaesPause };
 }
 
 export type RunRegistry = ReturnType<typeof createRunRegistry>;

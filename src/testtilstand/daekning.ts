@@ -4,12 +4,12 @@
 // the code's own lists, so a new kind fails the suite until it is seeded in
 // indhold/; situations with no list to derive from are kept by hand below
 // (AGENTS.md §4 rule 11). `marker` is a string the rendered HTML contains when
-// the item is on screen.
+// the item is on screen; `vises` is the one way to ask (KC-0069: an attribute
+// marker `data-…` counts only as a real attribute, with whitespace before it).
 
 import { ROOMS } from '../rooms/registry.ts';
 import { ROOM_MODULES } from '../rooms/modules.ts';
-import { BILLEDER, TONER, ZONER, type Tone } from '../shell/visuel.ts';
-import { tilstandFraTone } from '../shell/sprog.ts';
+import { BILLEDER, TONER, ZONER } from '../shell/visuel.ts';
 import { ART, HVOR, TYPER } from '../rooms/hjem/kort.ts';
 import { STATUSSER } from '../udvikling/opgaver.ts';
 import { ROLLER } from '../identitet/roller.ts';
@@ -28,8 +28,18 @@ import { FEEDBACK_DAGE } from '../beta/tilstand.ts';
 
 export type Daekning = { id: string; marker: string; kilde: 'afledt' | 'haand' };
 
+/** KC-0069: whether the rendered `html` shows the item with this `marker`. An attribute marker (`data-…`) must stand as an attribute: after whitespace, never glued onto another name or text. */
+export function vises(marker: string, html: string): boolean {
+  if (!/^data-[a-z]/.test(marker)) return html.includes(marker);
+  for (let i = html.indexOf(marker); i >= 0; i = html.indexOf(marker, i + 1)) if (i > 0 && /\s/.test(html[i - 1] ?? '')) return true;
+  return false;
+}
+
 const afledt = (praefiks: string, vaerdier: readonly string[], marker: (v: string) => string): Daekning[] =>
   vaerdier.map((v) => ({ id: `${praefiks}:${v}`, marker: marker(v), kilde: 'afledt' }));
+
+/** One derived source: the values the code itself lists (id = `<praefiks>:<value>`) and how a value shows on screen. */
+export type Afledt = { praefiks: string; vaerdier: readonly string[]; marker: (v: string) => string };
 
 const rum = [...new Set([...ROOMS.filter((r) => r.built).map((r) => r.id), ...ROOM_MODULES.map((m) => m.id)])];
 
@@ -49,6 +59,7 @@ const HAAND: [string, string][] = [
   ['senere-aften', 'data-senere="aften"'],                     // its choice "I aften", only before 17.00
   ['senere-morgen', 'data-senere="morgen"'],                   // its choice "I morgen"
   ['senere-i-log', 'Udsat til i morgen kl. 07: '],             // the log line of a card put away (its card is off screen: gone, not greyed out)
+  ['i-koe', '<span class="chip tilstand-rolig">I kø</span>'], // KC-0069: Nu's I gang row for a run waiting in the queue (the moment "Kørsler i kø")
   ['kopier-udkast-mail', 'data-kopier="Hej Clara\n\nTak for dagsordenen'], // Kopiér on a reply draft in Mail (KC-0091; marker = the seeded draft's start)
   ['kopier-udkast-skrive', 'data-kopier="Hej Clara. Tak for et godt'],     // Kopiér on the open document in Skrive (KC-0091; marker = the seeded text's start)
   ['faerdig-alle', 'data-aktion="faerdig-alle"'],
@@ -58,7 +69,7 @@ const HAAND: [string, string][] = [
   ['tillid', 'data-cc-tal="'],                                 // trust numbers (KC-0048)
   ['send-til-claude-code', 'data-cc-kort="'],                  // a card sent to Claude Code (KC-0046)
   ['kopier-prompt', 'data-kopier="'],                          // a prompt to copy
-  ['skriv-igen', 'class="btn btn-primary" data-regnskab="'],   // write a bill again after Fortryd (KC-0066)
+  ['skriv-igen', 'data-regnskab-igen=""'],                     // write a bill again after Fortryd (KC-0066; KC-0069: only a bill whose line was undone carries it — the moment "Aften" and on)
   ['fortryd-regnskab', 'data-regnskab="fortryd"'],             // undo a written ledger line
   ['flyt-regnskab', 'data-regnskab="flyt"'],                   // move a line to the other ledger
   ['skrive-forslag', 'class="card forslag"'],                  // Hermes' proposal in Skrive
@@ -92,6 +103,7 @@ const HAAND: [string, string][] = [
   ['kilde-helbred-snart-udloebet', 'data-kilde-helbred="snart-udloebet"'], // KC-0139: the card for an access that runs out soon (the moment "Adgangen udløber snart")
   ['kilde-helbred-ikke-opdateret', 'data-ikke-opdateret'],             // KC-0139: a room's elements labelled "ikke opdateret siden …" (Dagen at "Kalenderen er logget ud")
   ['chat', 'id="chat-form"'],                                 // the chat in the room
+  ['lyt', 'data-sig="'],                                       // Lyt: an element that can be read aloud (KC-0069; a chat answer or a Mail card)
   ['tale-ind', 'id="chat-mic"'],                               // the microphone (Lyt reads answers aloud)
   ['samtale', 'id="samtale-toggle"'],                          // Samtale
   ['naeste', 'data-naeste data-start="'],                      // Hjem: the next appointment today with its countdown (KC-0088)
@@ -162,32 +174,37 @@ const HAAND: [string, string][] = [
   // links, and nothing in the test world may point at the real world, so no moment shows it.
 ];
 
+/** KC-0069: the derived sources, exported so the guard test compares against this list itself (the tone of a head is named explicitly: a head without a tone is also "rolig" on screen). */
+export const AFLEDTE: readonly Afledt[] = [
+  { praefiks: 'rum', vaerdier: rum, marker: (id) => `<body data-room="${id}"` },
+  { praefiks: 'tone', vaerdier: TONER, marker: (t) => `data-tone="${t}"` },
+  { praefiks: 'zone', vaerdier: ZONER, marker: (z) => `zone zone-${z}` },
+  { praefiks: 'billede', vaerdier: BILLEDER, marker: (b) => `<div class="${b}` },
+  { praefiks: 'kort', vaerdier: TYPER, marker: (t) => `data-kort-type="${t}"` },
+  { praefiks: 'regnskab', vaerdier: HVOR, marker: (h) => `data-regnskab="${h}"` },
+  { praefiks: 'art', vaerdier: ART, marker: (a) => `data-regnskab-art="${a}"` },
+  { praefiks: 'opgave', vaerdier: STATUSSER, marker: (s) => `data-cc-status="${s}"` },
+  { praefiks: 'rolle', vaerdier: ROLLER, marker: (r) => `data-rolle="${r}"` },
+  { praefiks: 'husstand-rolle', vaerdier: ROLLER, marker: (r) => `data-medlem-rolle="${r}"` }, // KC-0148: Husstanden lists a member of every role
+  { praefiks: 'invitation', vaerdier: INVITATIONER, marker: (s) => `data-invitation="${s}"` }, // KC-0154: a pending invitation of each kind on the owner's Husstanden (indhold/husstand.ts)
+  { praefiks: 'datazone', vaerdier: DATAZONER, marker: (z) => `data-datazone="${z}"` },
+  { praefiks: 'blok', vaerdier: BYGGET, marker: (b) => `data-blok="${b}"` }, // KC-0119: every built block on screen somewhere
+  { praefiks: 'situation', vaerdier: SITUATION_IDER, marker: (s) => `data-situation="${s}"` }, // KC-0114: Nu (Hjem) and the meeting view carry it
+  { praefiks: 'kilde-tilstand', vaerdier: KILDE_TILSTANDE, marker: (t) => `data-kilde-tilstand="${t}"` }, // KC-0120: Kilder in the Kø panel (states seeded by KILDE_TILSTAND)
+  { praefiks: 'omkostninger', vaerdier: OMKOSTNING_SAMLET, marker: (s) => `data-omkostninger-samlet="${s}"` }, // KC-0212: the owner's cost card in Kø (seeded per moment by indhold/omkostninger.ts)
+  { praefiks: 'tailscale', vaerdier: TS_TILSTANDE, marker: (t) => `data-tailscale="${t}"` }, // KC-0161: Start's Tailscale card in every state (the moments "Tailscale: …", indhold/tailscale.ts)
+  { praefiks: 'beta-feedback', vaerdier: FEEDBACK_DAGE.map(String), marker: (d) => `data-beta-feedback="${d}"` }, // KC-0203: the feedback card of day 3, 7 and 14 (the moments "Beta: dag …", indhold/beta.ts)
+  { praefiks: 'foresp', vaerdier: FORESP_TILSTANDE, marker: (t) => `data-foresp-tilstand="${t}"` }, // KC-0149: a request in every state (indhold/husstand.ts)
+  { praefiks: 'ressource', vaerdier: RESSOURCE_SLAGS, marker: (s) => `data-ressource-slags="${s}"` }, // KC-0150: a resource of every kind (indhold/husstand.ts)
+  { praefiks: 'trin', vaerdier: TRIN.map((t) => String(t.trin)), marker: (t) => `data-regel-trin="${t}"` }, // KC-0143: a rule on every trin in Viden (indhold/tillid.ts)
+];
+
 export const DAEKNING: readonly Daekning[] = [
-  ...afledt('rum', rum, (id) => `<body data-room="${id}"`),
-  ...afledt('tone', TONER, (t) => `vis-ikon tilstand-${tilstandFraTone(t as Tone)}`),
-  ...afledt('zone', ZONER, (z) => `zone zone-${z}`),
-  ...afledt('billede', BILLEDER, (b) => `<div class="${b}`),
-  ...afledt('kort', TYPER, (t) => `data-kort-type="${t}"`),
-  ...afledt('regnskab', HVOR, (h) => `data-regnskab="${h}"`),
-  ...afledt('art', ART, (a) => `data-regnskab-art="${a}"`),
-  ...afledt('opgave', STATUSSER, (s) => `data-cc-status="${s}"`),
-  ...afledt('rolle', ROLLER, (r) => `data-rolle="${r}"`),
-  ...afledt('husstand-rolle', ROLLER, (r) => `data-medlem-rolle="${r}"`), // KC-0148: Husstanden lists a member of every role
-  ...afledt('invitation', INVITATIONER, (s) => `data-invitation="${s}"`), // KC-0154: a pending invitation of each kind on the owner's Husstanden (indhold/husstand.ts)
-  ...afledt('datazone', DATAZONER, (z) => `data-datazone="${z}"`),
-  ...afledt('blok', BYGGET, (b) => `data-blok="${b}"`), // KC-0119: every built block on screen somewhere
-  ...afledt('situation', SITUATION_IDER, (s) => `data-situation="${s}"`), // KC-0114: Nu (Hjem) and the meeting view carry it
-  ...afledt('kilde-tilstand', KILDE_TILSTANDE, (t) => `data-kilde-tilstand="${t}"`), // KC-0120: Kilder in the Kø panel (states seeded by KILDE_TILSTAND)
-  ...afledt('omkostninger', OMKOSTNING_SAMLET, (s) => `data-omkostninger-samlet="${s}"`), // KC-0212: the owner's cost card in Kø (seeded per moment by indhold/omkostninger.ts)
+  ...AFLEDTE.flatMap((a) => afledt(a.praefiks, a.vaerdier, a.marker)),
   // KC-0131: every step of Start's journey, open (not started) and Klaret — a new step fails until a moment seeds both.
   ...alleTrin().flatMap((t): Daekning[] => [
     { id: `start-trin-${t.id}-aaben`, marker: `data-trin="${t.id}" data-trin-status="ikke-startet"`, kilde: 'afledt' },
     { id: `start-trin-${t.id}-klaret`, marker: `data-trin="${t.id}" data-trin-status="klaret"`, kilde: 'afledt' },
   ]),
-  ...afledt('tailscale', TS_TILSTANDE, (t) => `data-tailscale="${t}"`), // KC-0161: Start's Tailscale card in every state (the moments "Tailscale: …", indhold/tailscale.ts)
-  ...afledt('beta-feedback', FEEDBACK_DAGE.map(String), (d) => `data-beta-feedback="${d}"`), // KC-0203: the feedback card of day 3, 7 and 14 (the moments "Beta: dag …", indhold/beta.ts)
-  ...afledt('foresp', FORESP_TILSTANDE, (t) => `data-foresp-tilstand="${t}"`), // KC-0149: a request in every state (indhold/husstand.ts)
-  ...afledt('ressource', RESSOURCE_SLAGS, (s) => `data-ressource-slags="${s}"`), // KC-0150: a resource of every kind (indhold/husstand.ts)
-  ...afledt('trin', TRIN.map((t) => String(t.trin)), (t) => `data-regel-trin="${t}"`), // KC-0143: a rule on every trin in Viden (indhold/tillid.ts)
   ...HAAND.map(([id, marker]): Daekning => ({ id, marker, kilde: 'haand' })),
 ];

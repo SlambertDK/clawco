@@ -105,8 +105,8 @@ test('KC-0059: the anbefaling pictogram falls back to a lightbulb', async () => 
   const uden = String(renderDagen(state, log, NU));
   const kolbe = String(ikon('lightbulb'));
   const ur = String(ikon('clock'));
-  assert.ok(medIkon.includes(`<span class="vis-ikon tilstand-kraever">${ur}`));
-  assert.ok(uden.includes(`<span class="vis-ikon tilstand-kraever">${kolbe}`));
+  assert.ok(medIkon.includes(`<span class="vis-ikon tilstand-kraever" data-tone="adv">${ur}`));
+  assert.ok(uden.includes(`<span class="vis-ikon tilstand-kraever" data-tone="adv">${kolbe}`));
 });
 
 test('KC-0059: the three lines sit behind a mere() tap, not in the open', async () => {

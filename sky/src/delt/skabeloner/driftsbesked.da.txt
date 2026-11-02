@@ -1,0 +1,6 @@
+{{titel}}
+
+{{tekst}}
+
+--
+Du får denne mail, fordi du har en konto hos Clawco. Svar på mailen, hvis du har spørgsmål.

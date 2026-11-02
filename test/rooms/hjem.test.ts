@@ -126,7 +126,7 @@ test('each card has its own Hvorfor, so opening one does not open the others', (
 test('KC-0059: a card is read from its pictogram, one headline and its picture; the title moves behind Hvorfor', () => {
   const visuel = { ikon: 'cloud-rain', tone: 'adv', overskrift: 'Løb kl. 12 — regn fra 16', billede: { art: 'dagslinje', fra: 6, til: 22, zoner: [{ fra: '16:00', til: '19:00', slags: 'regn' }], punkter: [{ tid: '12:00', ikon: 'footprints', tekst: 'Løb', flyttetFra: '17:00' }] } };
   const out = String(renderHjem({ hilsen: 'Hej', venter: [], hermes: [], kort: [kort({ id: 'k:regn', type: 'nyhed', titel: 'Regn kl. 16–19', visuel, handling: { id: 'k:regn:h', label: 'Flyt løbet', instruktion: 'x' } })], intet: [] }));
-  assert.match(out, /<span class="vis-ikon tilstand-kraever"><svg class="ikon"/);
+  assert.match(out, /<span class="vis-ikon tilstand-kraever" data-tone="adv"><svg class="ikon"/);
   assert.match(out, /<h3 class="vis-overskrift">Løb kl\. 12 — regn fra 16<\/h3>/);
   assert.match(out, /class="dagslinje"/);
   assert.ok(out.indexOf('class="dagslinje"') < out.indexOf('data-kort-handling="k:regn"'), 'the picture comes before the button');
@@ -256,6 +256,16 @@ test('KC-0066: a reverted bill (its line kept, no longer written) offers exactly
   assert.match(v, /btn btn-primary" data-regnskab="privat">Skriv i privat</);
   assert.equal(primaere(h), 1, 'the handling stays the one primary');
   assert.match(h, /<button type="button" class="btn" data-regnskab="shelfatlas">Skriv i ShelfAtlas<\/button>/);
+});
+
+test('KC-0069: only a bill whose ledger line was undone carries data-regnskab-igen on its write button (the test world\'s marker for "skriv igen")', () => {
+  const linje = { dato: '2026-10-27', leverandoer: 'Vercel', beloeb: '20', valuta: 'USD', art: 'abonnement', emne: 'x' };
+  const fortrudt = kort({ id: 'r:f', type: 'regning', regnskab: { ...linje, hvor: 'privat' } });
+  const foerste = kort({ id: 'r:n', type: 'regning', regnskab: { ...linje, hvor: 'privat' }, kraeverRegel: true });
+  const out = String(renderHjem({ hilsen: 'Hej', venter: [], hermes: [], kort: [fortrudt, foerste], intet: [], skrivIgen: ['r:f'] }));
+  assert.match(artikel(out, 'r:f'), /<button type="button" class="btn btn-primary" data-regnskab="privat" data-regnskab-igen="">Skriv i privat<\/button>/);
+  assert.doesNotMatch(artikel(out, 'r:n'), /data-regnskab-igen/);
+  assert.doesNotMatch(String(renderHjem({ hilsen: 'Hej', venter: [], hermes: [], kort: [fortrudt], intet: [] })), /data-regnskab-igen/, 'no undone bills known = never the marker');
 });
 
 test('KC-0143: a bill not written because no rule covers it asks which rule should, and offers Henrik\'s own write as the one primary', () => {

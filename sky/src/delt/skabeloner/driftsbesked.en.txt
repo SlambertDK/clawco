@@ -1,0 +1,6 @@
+{{titel}}
+
+{{tekst}}
+
+--
+You are getting this mail because you have a Clawco account. Reply to this mail if you have questions.
