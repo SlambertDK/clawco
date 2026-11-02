@@ -110,7 +110,7 @@ function gemtDel(v: Viden): Markup {
   if (tom) return html`<section class="card" data-viden-del="gemt"><h2 class="eyebrow">Gemt</h2><p class="muted">${PRODUKT} har ikke gemt noget.</p></section>`;
   return html`<section class="card" data-viden-del="gemt"><h2 class="eyebrow">Gemt</h2>
     ${g.rum.length ? html`<ul class="card-list">${g.rum.map((r) => html`<li class="row" data-viden-rum="${r.id}"><span class="row-main"><span class="row-title">${rumNavn(r.id)}</span><span class="row-note">${flertal(r.log, 'linje', 'linjer')} i loggen · ${flertal(r.chat, 'besked', 'beskeder')} · ${stoerrelse(r.bytes)}</span></span></li>`)}</ul>` : ''}
-    ${g.clawco.length ? html`<p class="row-note">${flertal(g.clawco.length, 'fil', 'filer')} i Clawco-mappen i din vault: ${g.clawco.map((s) => s.replace(/^vault\/Clawco\//, '')).join(', ')}.</p>` : ''}
+    ${g.clawco.length ? html`<p class="row-note">${flertal(g.clawco.length, 'fil', 'filer')} i Clawco-mappen i din vault: ${g.clawco.map((s, i) => html`${i ? ', ' : ''}<span class="mono">${s.replace(/^vault\/Clawco\//, '')}</span>`)}.</p>` : ''}
     ${g.andre ? html`<p class="row-note">${flertal(g.andre, 'anden fil', 'andre filer')}: forbindelser, indstillinger og hvad ${PRODUKT} har gjort.</p>` : ''}
     ${g.noegler ? html`<p class="row-note">${flertal(g.noegler, 'fil', 'filer')} med nøgler og logins til dine kilder. De kommer ikke med i Hent alt.</p>` : ''}
     <p class="row-note">I alt ${stoerrelse(g.bytes)}.</p></section>`;

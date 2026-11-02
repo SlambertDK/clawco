@@ -26,7 +26,7 @@ h1, h2, h3, p { margin: 0; }
 h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; }
 h2 { font-size: 16px; font-weight: 600; }
 .eyebrow { font-size: 12px; font-weight: 600; color: var(--muted); letter-spacing: 0.04em; text-transform: uppercase; }
-.muted { color: var(--muted); } .mono { font-family: var(--mono); font-size: 12px; }
+.muted { color: var(--muted); } .mono { font-family: var(--mono); font-size: 12px; overflow-wrap: anywhere; } /* KC-0240: a path is one token; it wraps instead of widening a phone */
 
 /* Skeleton: nav · main · aside; stacks at phone width */
 .frame { min-height: 100vh; display: flex; flex-wrap: wrap; }

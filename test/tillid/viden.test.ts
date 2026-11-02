@@ -131,3 +131,26 @@ test('KC-0147: no data at all, or no data given: the section says so calmly / is
   assert.match(String(renderViden(fuld({ ugetal: tom }))), /Tallet kommer, når Clawco har talt en dag\./);
   assert.doesNotMatch(String(renderViden(fuld())), /data-viden-del="ugetal"/);
 });
+
+// KC-0240: with an empty data folder the page showed a data-folder path that is one 400 px token on a 375 px phone.
+// A path has no break opportunity, so the invariant is two-sided: every long path in the markup sits in a `.mono`
+// element, and the stylesheet lets `.mono` wrap anywhere (a path is the one thing that has no spaces).
+test('KC-0240: a long path anywhere on the page sits in a .mono element, so the stylesheet can wrap it', async () => {
+  const { readFileSync } = await import('node:fs');
+  const lang = '/private/tmp/claude-501/-Users-slambert-projects-Clawco-work/8f8d5873-df7f-49a7-b7fa-7ab805a47e8f/data/clawco/regler.md';
+  const toem = (o: Partial<Viden> = {}) => fuld({
+    kilder: [],
+    regler: { fil: lang, laest: { tilstand: 'ok', saet: parseRegler('naeste-id: R-0001\n'), aendretUdenfor: false } },
+    personer: { dir: lang, liste: [] },
+    gemt: { rum: [], clawco: [lang], andre: 0, noegler: 0, bytes: 0 },
+    ...o,
+  });
+  for (const side of [String(renderViden(toem())), String(renderSletAlt(toem()))]) {
+    const stier = [...side.matchAll(/<(\w+)([^>]*)>([^<]*\/private\/tmp[^<]*)</g)];
+    assert.ok(stier.length >= 1, 'the long path is rendered');
+    for (const [, tag, attrs, tekst] of stier) assert.match(`${tag}${attrs}`, /class="[^"]*\bmono\b/, `path "${tekst!.slice(0, 40)}…" is not in a .mono element`);
+  }
+  const css = readFileSync(new URL('../../public/app.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const mono = [...css.matchAll(/(?:^|\})\s*([^{}]*)\{([^{}]*)\}/g)].filter((m) => m[1]!.split(',').map((x) => x.trim()).includes('.mono')).map((m) => m[2]).join(';');
+  assert.match(mono, /overflow-wrap:\s*anywhere/, '.mono must be able to wrap inside a 375 px phone');
+});
