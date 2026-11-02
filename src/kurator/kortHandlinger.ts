@@ -16,13 +16,14 @@ import { buildKortFortrydRun, buildKortHandlingRun, buildLaerRun } from './kortp
 import { FORTRYD_SENERE, senereTekst, senereTid, type Senere } from './senere.ts';
 import { extractForslagBlok } from '../tillid/forslag.ts';
 import { gemRegelforslag, kanForeslaa } from './regelforslag.ts';
+import { kuratorTekst } from './tekster.ts';
 
 type Hvor = Regnskabslinje['hvor'];
 export type Udfald = { ok: true; run?: RunRecord } | { ok: false; status: 404 | 409 | 503; error: string };
 
-const HVOR_TEKST = { shelfatlas: 'ShelfAtlas-regnskabet', privat: 'det private regnskab' } as const;
-const ukendt: Udfald = { ok: false, status: 404, error: 'Kortet findes ikke' };
-const ingenVault: Udfald = { ok: false, status: 503, error: 'Ingen vault sat op' };
+// The refusals are read at call time (never at module load): they speak the language of the request.
+const ukendt = (): Udfald => ({ ok: false, status: 404, error: kuratorTekst().kortFindesIkke });
+const ingenVault = (): Udfald => ({ ok: false, status: 503, error: kuratorTekst().ingenVault });
 const konflikt = (error: string): Udfald => ({ ok: false, status: 409, error });
 const anden = (hvor: Hvor): Hvor => (hvor === 'shelfatlas' ? 'privat' : 'shelfatlas');
 
@@ -36,7 +37,7 @@ async function gem<T>(d: RoomDeps, fn: (s: KuratorState) => [KuratorState, T] | 
 
 /** The ledger row's status carries the card's zone and owner (KC-0117), so it is shown only to who may see the card. */
 const status = (l: Regnskabslinje, k: Kort): RegnskabsStatus => ({ hvor: l.hvor, status: 'skrevet', leverandoer: l.leverandoer, beloeb: l.beloeb, valuta: l.valuta, ...zoneFelter(k) });
-const tabt = (): Udfald => konflikt('Linjen står ikke længere i regnskabet');
+const tabt = (): Udfald => konflikt(kuratorTekst().linjenTabt);
 
 function medKort(s: KuratorState, id: string, fn: (k: Kort) => Kort): Kort[] {
   return s.kort.map((k) => (k.id === id ? fn(k) : k));
@@ -58,8 +59,8 @@ export async function udsaet(d: RoomDeps, id: string, til: Senere): Promise<Udfa
     if (!tid) return [s, 'for-sent'];
     return [{ ...s, kort: medKort(s, id, (c) => ({ ...c, udsatTil: tid })) }, k];
   });
-  if (!k) return ukendt;
-  if (k === 'for-sent') return konflikt('I aften kan kun vælges før kl. 17');
+  if (!k) return ukendt();
+  if (k === 'for-sent') return konflikt(kuratorTekst().forSent);
   await d.store.appendLog(HJEM, { kilde: 'henrik', tekst: senereTekst(til, k.titel), handlingId: `senere:${id}`, fortryd: FORTRYD_SENERE });
   return { ok: true };
 }
@@ -72,8 +73,8 @@ export async function luk(d: RoomDeps, id: string, grund: string, personer?: str
     const lukket = [{ id, titel: k.titel, grund, dato, ...zoneFelter(k) }, ...(s.lukket ?? [])].slice(0, MAX_LUKKET);
     return [{ ...s, kort: s.kort.filter((x) => x.id !== id), afvist: [...new Set([...s.afvist, id])], lukket }, k];
   });
-  if (!k) return ukendt;
-  await d.store.appendLog(HJEM, { kilde: 'henrik', tekst: `Lukkede "${k.titel}"${grund ? `: ${grund}` : ''}` });
+  if (!k) return ukendt();
+  await d.store.appendLog(HJEM, { kilde: 'henrik', tekst: kuratorTekst().logLukkede(k.titel, grund) });
   // KC-0130: Luk is the app's Ikke relevant — Start's first-Ret step listens (src/rooms/rethaendelse.ts).
   await d.retBus?.meld(d, { art: 'ikke-relevant', tid: dato, titel: k.titel, kortId: id, ...(grund ? { tekst: grund } : {}) });
   if (!grund) return { ok: true };
@@ -83,11 +84,11 @@ export async function luk(d: RoomDeps, id: string, grund: string, personer?: str
   const run = d.runs.start({
     kind: 'laer',
     room: HJEM,
-    label: 'Nu: lærer af dit svar',
+    label: kuratorTekst().labelLaerer,
     spec: buildLaerRun(k, grund, d.now(), personer, forslag ? { regler } : undefined),
     onDone: async (output) => {
       const { tekst, blok } = forslag ? extractForslagBlok(output) : { tekst: output, blok: undefined };
-      const text = tekst.trim().slice(0, 600) || 'Noteret.';
+      const text = tekst.trim().slice(0, 600) || kuratorTekst().noteret;
       await d.store.appendLog(HJEM, { kilde: 'hermes', tekst: text });
       // A pending proposal only: the rules file changes with Henrik's own Ja (server.ts), never here.
       if (forslag) await gemRegelforslag(d, { kort: k, art: 'ikke-relevant', blok }).catch((err: unknown) => console.error('regelforslag:', err instanceof Error ? err.message : err));
@@ -99,16 +100,16 @@ export async function luk(d: RoomDeps, id: string, grund: string, personer?: str
 
 export async function startKortHandling(d: RoomDeps, id: string): Promise<Udfald> {
   const k = (await laesKurator(d.store)).kort.find((x) => x.id === id);
-  if (!k) return ukendt;
+  if (!k) return ukendt();
   const h = k.handling;
-  if (!h) return { ok: false, status: 404, error: 'Kortet har ingen handling' };
+  if (!h) return { ok: false, status: 404, error: kuratorTekst().kortHarIngenHandling };
   const run = d.runs.start({
     kind: 'handling',
     room: HJEM,
-    label: `Nu: ${h.label}`,
+    label: kuratorTekst().labelHandling(h.label),
     spec: buildKortHandlingRun(k, h, d.now()),
     onDone: async (output) => {
-      const text = output.trim().slice(0, 600) || `${h.label}: gjort.`;
+      const text = output.trim().slice(0, 600) || kuratorTekst().gjort(h.label);
       await d.store.appendLog(HJEM, { kilde: 'hermes', tekst: text, handlingId: h.id, ...(h.fortryd ? { fortryd: h.fortryd } : {}) });
       return { text };
     },
@@ -124,7 +125,6 @@ async function markerFortrudt(d: RoomDeps, id: string): Promise<void> {
   }
 }
 
-const logTekst = (verbum: string, l: Pick<Regnskabslinje, 'leverandoer' | 'beloeb' | 'valuta'>, hvor: Hvor): string => `${verbum} ${l.leverandoer} ${l.beloeb} ${l.valuta} ${verbum === 'Skrev' ? 'ind i' : 'til'} ${HVOR_TEKST[hvor]}`;
 
 /**
  * Inside a state step: removes the row of card `id` from the ledger `hvor` and returns the state that records
@@ -144,10 +144,10 @@ export async function regnskabFortryd(d: RoomDeps, id: string): Promise<Udfald> 
   const u = await gem(d, async (s): Promise<[KuratorState, Udfald]> => {
     const k = s.kort.find((x) => x.id === id);
     const r = s.regnskab?.[id];
-    if (!k && !r) return [s, ukendt];
-    if (!d.vaultRod) return [s, ingenVault];
+    if (!k && !r) return [s, ukendt()];
+    if (!d.vaultRod) return [s, ingenVault()];
     const hvor = k ? k.skrevet?.hvor : r?.status === 'skrevet' ? r.hvor : undefined;
-    if (!hvor) return [s, konflikt(k ? 'Kortet er ikke skrevet i et regnskab' : 'Linjen står ikke længere i et regnskab')];
+    if (!hvor) return [s, konflikt(k ? kuratorTekst().kortIkkeSkrevet : kuratorTekst().linjeIkkeIRegnskab)];
     const ny = await fjernRaekke(d, s, id, hvor);
     return ny ? [ny, { ok: true }] : [s, tabt()];
   });
@@ -163,9 +163,9 @@ export async function regnskabFortryd(d: RoomDeps, id: string): Promise<Udfald> 
 export async function regnskabFlyt(d: RoomDeps, id: string, til?: Hvor): Promise<Udfald> {
   const ud = await gem(d, async (s): Promise<[KuratorState, { u: Udfald; linje?: Regnskabslinje }]> => {
     const k = s.kort.find((x) => x.id === id);
-    if (!k) return [s, { u: ukendt }];
-    if (!d.vaultRod) return [s, { u: ingenVault }];
-    if (!k.skrevet || !k.regnskab) return [s, { u: konflikt('Kortet er ikke skrevet i et regnskab') }];
+    if (!k) return [s, { u: ukendt() }];
+    if (!d.vaultRod) return [s, { u: ingenVault() }];
+    if (!k.skrevet || !k.regnskab) return [s, { u: konflikt(kuratorTekst().kortIkkeSkrevet) }];
     const fra = k.skrevet.hvor;
     if (til === fra) return [s, { u: { ok: true } }];
     if (!(await harRegnskab(d.regnskabsfil(fra), id))) return [s, { u: tabt() }];
@@ -176,7 +176,7 @@ export async function regnskabFlyt(d: RoomDeps, id: string, til?: Hvor): Promise
     await fjernRegnskab(d.regnskabsfil(fra), id);
     return [{ ...s, kort: medKort(s, id, (c) => ({ ...c, regnskab: linje, skrevet: { hvor: maal, fil } })), regnskab: { ...s.regnskab, [id]: status(linje, k) } }, { u: { ok: true }, linje }];
   });
-  if (ud.linje) await d.store.appendLog(HJEM, { kilde: 'henrik', tekst: logTekst('Flyttede', ud.linje, ud.linje.hvor), handlingId: `regnskab:${id}`, fortryd: FORTRYD_FLYT });
+  if (ud.linje) await d.store.appendLog(HJEM, { kilde: 'henrik', tekst: kuratorTekst().logFlyttede(ud.linje.leverandoer, ud.linje.beloeb, ud.linje.valuta, ud.linje.hvor), handlingId: `regnskab:${id}`, fortryd: FORTRYD_FLYT });
   return ud.u;
 }
 
@@ -189,22 +189,22 @@ function linjeForUklart(k: Kort, hvor: Hvor, now: Date): Regnskabslinje {
   if (k.regnskab) return { ...k.regnskab, hvor };
   if (k.regnskabForslag) return { ...k.regnskabForslag, hvor };
   const dato = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Copenhagen' }).format(now);
-  return { hvor, dato, leverandoer: k.titel, beloeb: 'se mail', valuta: '', art: 'koeb', emne: k.betyder.slice(0, 200) };
+  return { hvor, dato, leverandoer: k.titel, beloeb: kuratorTekst().seMail, valuta: '', art: 'koeb', emne: k.betyder.slice(0, 200) };
 }
 
 /** Henrik chose the ledger for an unclear bill, or wrote a bill back after undoing its row (KC-0066). */
 export async function regnskabVaelg(d: RoomDeps, id: string, hvor: Hvor): Promise<Udfald> {
   const ud = await gem(d, async (s): Promise<[KuratorState, { u: Udfald; linje?: Regnskabslinje }]> => {
     const k = s.kort.find((x) => x.id === id);
-    if (!k) return [s, { u: ukendt }];
-    if (!d.vaultRod) return [s, { u: ingenVault }];
-    if (k.skrevet || !(k.regnskabUklart || k.regnskab)) return [s, { u: konflikt('Kortet venter ikke på et valg af regnskab') }];
+    if (!k) return [s, { u: ukendt() }];
+    if (!d.vaultRod) return [s, { u: ingenVault() }];
+    if (k.skrevet || !(k.regnskabUklart || k.regnskab)) return [s, { u: konflikt(kuratorTekst().venterIkkePaaValg) }];
     const linje = linjeForUklart(k, hvor, d.now());
     const fil = d.regnskabsfil(hvor);
     await skrivRegnskab(fil, id, linje);
     return [{ ...s, kort: medKort(s, id, (c) => { const { kraeverRegel: _svaret, ...uden } = c; const ny: Kort = { ...uden, regnskab: linje, skrevet: { hvor, fil }, regnskabUklart: false }; return ny; }), regnskab: { ...s.regnskab, [id]: status(linje, k) } }, { u: { ok: true }, linje }];
   });
-  if (ud.linje) await d.store.appendLog(HJEM, { kilde: 'henrik', tekst: logTekst('Skrev', ud.linje, hvor), handlingId: `regnskab:${id}`, fortryd: FORTRYD_FJERN });
+  if (ud.linje) await d.store.appendLog(HJEM, { kilde: 'henrik', tekst: kuratorTekst().logSkrev(ud.linje.leverandoer, ud.linje.beloeb, ud.linje.valuta, hvor), handlingId: `regnskab:${id}`, fortryd: FORTRYD_FJERN });
   return ud.u;
 }
 
@@ -217,13 +217,13 @@ export async function regnskabVaelg(d: RoomDeps, id: string, hvor: Hvor): Promis
  */
 export async function fortrydLog(d: RoomDeps, logId: string): Promise<Udfald> {
   const e = (await d.store.readLog(HJEM, 1000)).find((x) => x.id === logId);
-  if (!e) return { ok: false, status: 404, error: 'Linjen findes ikke' };
-  if (e.fortrudt) return konflikt('Allerede fortrudt');
+  if (!e) return { ok: false, status: 404, error: kuratorTekst().linjenFindesIkke };
+  if (e.fortrudt) return konflikt(kuratorTekst().alleredeFortrudt);
   if (e.fortryd === FORTRYD_SENERE && e.handlingId?.startsWith('senere:')) {
     const id = e.handlingId.slice('senere:'.length);
     const u = await gem(d, (s): [KuratorState, Udfald] => {
       const k = s.kort.find((x) => x.id === id);
-      if (!k) return [s, konflikt('Kortet er væk, så der er intet at hente tilbage')];
+      if (!k) return [s, konflikt(kuratorTekst().kortVaekIntetHent)];
       return k.udsatTil ? [{ ...s, kort: medKort(s, id, (c) => uden(c, 'udsatTil')) }, { ok: true }] : [s, { ok: true }]; // already back by itself: only the line is marked
     });
     if (u.ok) await d.store.updateLog(HJEM, logId, { fortrudt: d.now().toISOString() });
@@ -231,12 +231,12 @@ export async function fortrydLog(d: RoomDeps, logId: string): Promise<Udfald> {
   }
   const raekke = e.handlingId?.startsWith('regnskab:') ? e.handlingId.slice('regnskab:'.length) : null;
   if (raekke !== null) {
-    if (!d.vaultRod) return ingenVault;
+    if (!d.vaultRod) return ingenVault();
     if (e.fortryd === FORTRYD_FLYT) {
       // A read for the message only: regnskabFlyt checks again inside the chain.
       const s = await laesKurator(d.store);
-      if (s.regnskab?.[raekke]?.status !== 'skrevet') return konflikt('Linjen står ikke længere i et regnskab');
-      if (!s.kort.some((x) => x.id === raekke)) return konflikt('Kortet er væk, så linjen kan ikke flyttes; fortryd linjen i stedet');
+      if (s.regnskab?.[raekke]?.status !== 'skrevet') return konflikt(kuratorTekst().linjeIkkeIRegnskab);
+      if (!s.kort.some((x) => x.id === raekke)) return konflikt(kuratorTekst().kortVaekKanIkkeFlyttes);
       const u = await regnskabFlyt(d, raekke);
       if (!u.ok) return u;
       await d.store.updateLog(HJEM, logId, { fortrudt: d.now().toISOString() });
@@ -244,7 +244,7 @@ export async function fortrydLog(d: RoomDeps, logId: string): Promise<Udfald> {
     }
     const u = await gem(d, async (s): Promise<[KuratorState, Udfald]> => {
       const nu = s.regnskab?.[raekke];
-      if (nu && nu.status !== 'skrevet') return [s, konflikt('Linjen står ikke længere i et regnskab')];
+      if (nu && nu.status !== 'skrevet') return [s, konflikt(kuratorTekst().linjeIkkeIRegnskab)];
       let hvor: Hvor | undefined = nu?.hvor;
       // No entry (a write that was never recorded): the marker says which ledger holds the row.
       for (const h of ['shelfatlas', 'privat'] as const) if (!hvor && (await harRegnskab(d.regnskabsfil(h), raekke))) hvor = h;
@@ -256,16 +256,16 @@ export async function fortrydLog(d: RoomDeps, logId: string): Promise<Udfald> {
     return u;
   }
   const fortryd = e.fortryd;
-  if (!fortryd) return { ok: false, status: 404, error: 'Kan ikke fortrydes' };
+  if (!fortryd) return { ok: false, status: 404, error: kuratorTekst().kanIkkeFortrydes };
   // An undo only the app itself knows (server.ts) is never handed to Hermes as an instruction.
-  if (fortryd.startsWith('lokal:')) return { ok: false, status: 404, error: 'Kan ikke fortrydes her' };
+  if (fortryd.startsWith('lokal:')) return { ok: false, status: 404, error: kuratorTekst().kanIkkeFortrydesHer };
   const run = d.runs.start({
     kind: 'fortryd',
     room: HJEM,
-    label: 'Nu: fortryder',
+    label: kuratorTekst().labelFortryder,
     spec: buildKortFortrydRun(fortryd, d.now()),
     onDone: async (output) => {
-      const text = output.trim().slice(0, 600) || 'Fortrudt.';
+      const text = output.trim().slice(0, 600) || kuratorTekst().fortrudt;
       await d.store.updateLog(HJEM, logId, { fortrudt: d.now().toISOString() });
       await d.store.appendLog(HJEM, { kilde: 'hermes', tekst: text });
       return { text };

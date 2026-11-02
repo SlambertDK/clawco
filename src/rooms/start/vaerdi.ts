@@ -13,8 +13,10 @@ import { kan } from '../../identitet/roller.ts';
 import type { DataZone } from '../../identitet/zoner.ts';
 import { synligFor } from '../../identitet/zoner.ts';
 import { dagStr } from '../../shell/friskhed.ts';
+import { tekst } from '../../shell/tekster.ts';
 import { parseStartState, type StartState } from './schema.ts';
 import { byggForhaandsvisning, type Forhaandsvisning, type KildeNavn, type RaaLaesning } from './forhaandsvisning.ts';
+import { startTekst } from './tekster.ts';
 import { alleTrin, flereKilderKoe, FOERSTE_SLAGS, utenPakke, type KildeTrin, type TrinKontekst } from './trin.ts';
 import type { KildeVisning } from './kilderender.ts';
 
@@ -23,7 +25,7 @@ const RUM = 'start';
 export const KILDE_RUM: Readonly<Record<string, string>> = { kalender: 'dagen', mail: 'mail', nyheder: 'nyheder' };
 
 const laes = async (deps: RoomDeps): Promise<StartState> => parseStartState(await deps.store.readState(RUM)) ?? { startet: deps.now().toISOString(), trin: {}, afvist: {} };
-const varighed = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString('da-DK', { maximumFractionDigits: 1 })} s`);
+const varighed = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(tekst().lokale, { maximumFractionDigits: 1 })} s`);
 
 /** Stores the preview of a first read. Returns the room to rebuild for it (none for notes and messages). */
 export async function modtagFoersteLaesning(deps: RoomDeps, h: { kilde: KildeNavn; laesning: RaaLaesning; zone: DataZone; ejer: string; forbundet: string }): Promise<{ rum?: string }> {
@@ -36,7 +38,7 @@ export async function modtagFoersteLaesning(deps: RoomDeps, h: { kilde: KildeNav
   const trin = FOERSTE_SLAGS.includes(h.kilde.slags) && s.trin['foerste-kilde']?.status !== 'klaret' ? { ...s.trin, 'foerste-kilde': { status: 'klaret' as const, tid: nu.toISOString() } } : s.trin;
   const kilder = { ...(s.kilder ?? {}), [h.kilde.id]: { foersteVaerdiMs: ms, tid: nu.toISOString(), forhaandsvisning: f, ...(rum ? { rum } : {}) } };
   await deps.store.writeState(RUM, { ...s, trin, kilder });
-  await deps.store.appendLog(RUM, { kilde: 'system', zone: h.zone, ejer: h.ejer, tekst: `Første kig fra ${h.kilde.navn} efter ${varighed(ms)}: ${f.titel}.` });
+  await deps.store.appendLog(RUM, { kilde: 'system', zone: h.zone, ejer: h.ejer, tekst: startTekst().fv.logFoersteKig(h.kilde.navn, varighed(ms), f.titel) });
   deps.live.notify(RUM);
   return rum ? { rum } : {};
 }
@@ -89,12 +91,12 @@ export async function kildeVisning(deps: RoomDeps, s: StartState | null, ctx: Tr
 export async function springOver(deps: RoomDeps, kildeId: string, ctx: TrinKontekst): Promise<string> {
   const s = await laes(deps);
   const k = flereKilderKoe(s, ctx).find((x) => x.id === kildeId);
-  if (!k) throw new ActionError('Kilden er ikke tilbudt i rummet');
+  if (!k) throw new ActionError(startTekst().akt.kildeIkkeTilbudt);
   const tid = deps.now().toISOString();
   const ny: StartState = { ...s, sprunget: { ...(s.sprunget ?? {}), [kildeId]: tid } };
   const flere = alleTrin().find((t) => t.id === 'flere-kilder');
   if (flereKilderKoe(ny, ctx).length === 0 && flere && !flere.erKlaret(ny, ctx)) ny.trin = { ...ny.trin, 'flere-kilder': { status: 'sprunget-over', tid } };
   await deps.store.writeState(RUM, ny);
-  await deps.store.appendLog(RUM, { kilde: 'henrik', zone: 'privat', ejer: deps.person.id, tekst: `Sprang ${k.navn} over.` });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', zone: 'privat', ejer: deps.person.id, tekst: startTekst().akt.sprangKilde(k.navn) });
   return k.navn;
 }

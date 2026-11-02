@@ -10,6 +10,8 @@ import type { RoomDeps } from '../../module.ts';
 import { ActionError } from '../../module.ts';
 import { kan } from '../../../identitet/roller.ts';
 import type { DataZone } from '../../../identitet/zoner.ts';
+import { medSprog, sprogNu } from '../../../shell/tekster.ts';
+import { startTekst, START_TEKSTER } from '../tekster.ts';
 import type { DoneResult, RunRecord } from '../../../runs.ts';
 import type { LogEntry } from '../../../store/types.ts';
 import { dagStr } from '../../../shell/friskhed.ts';
@@ -24,8 +26,9 @@ import type { Kvittering, ImportSkriver, Opdateret } from './skriver.ts';
 import { fjernUpload, modtagUpload, rydTmp, TMP_LEVETID_MS, type Upload } from './upload.ts';
 
 export const IMPORT_RUM = 'start';
-/** The label of the proposal run: the view tells "Hermes læser" from it. */
-export const IMPORT_LABEL = 'Start: læser importen';
+/** The label of the proposal run (Danish): the view tells "Hermes læser" from it, in whichever language the run was started. */
+export const IMPORT_LABEL = START_TEKSTER.da.label.importLaes;
+export const erImportLabel = (label: string | undefined): boolean => label === START_TEKSTER.da.label.importLaes || label === START_TEKSTER.en.label.importLaes;
 const TEKST_MAKS = 100_000;
 
 /** What the room hands the import (its own state helpers; this file imports nothing from room.ts). */
@@ -45,13 +48,11 @@ export const rydGamleUploads = (deps: RoomDeps): Promise<number> => rydTmp(tmpBa
 
 const str = (v: unknown, maks: number): string => (typeof v === 'string' ? v.trim().slice(0, maks) : '');
 
-function ejerOgSkriver(deps: RoomDeps, hvad: string): ImportSkriver {
-  if (!kan(deps.person.rolle, 'aendre-indstillinger')) throw new ActionError(`Kun ejeren kan ${hvad}.`);
-  if (!deps.importSkriver) throw new ActionError('Clawco har ingen notemappe, så importen kan ikke gemme noget.');
+function ejerOgSkriver(deps: RoomDeps, kunEjeren: string): ImportSkriver {
+  if (!kan(deps.person.rolle, 'aendre-indstillinger')) throw new ActionError(kunEjeren);
+  if (!deps.importSkriver) throw new ActionError(startTekst().akt.ingenNotemappe);
   return deps.importSkriver;
 }
-
-const MAPPE_TOM = 'Vælg først en mappe til dine noter. Importen gemmer sine filer dér.';
 
 /** The pieces of one upload by kind: contacts (vcf, csv) and notes (md, txt, html). */
 function laesFiler(filer: { navn: string; tekst: string }[]): { kontakter: Kontakt[]; noter: ReturnType<typeof parseNoter>; typer: Set<'kontakter' | 'noter'> } {
@@ -69,38 +70,40 @@ function laesFiler(filer: { navn: string; tekst: string }[]): { kontakter: Konta
 function filerAf(raa: unknown): unknown {
   if (typeof raa !== 'string') return raa;
   if (!raa.trim()) return undefined;
-  try { return JSON.parse(raa) as unknown; } catch { throw new ActionError('Filerne kunne ikke læses.'); }
+  try { return JSON.parse(raa) as unknown; } catch { throw new ActionError(startTekst().akt.filerUlaeselige); }
 }
 
 async function laes(deps: RoomDeps, body: Record<string, unknown>, h: Hjaelp): Promise<RunRecord> {
-  const skriver = ejerOgSkriver(deps, 'tage noget med');
-  if (!(await skriver.klar())) throw new ActionError(MAPPE_TOM);
+  const T = startTekst().akt;
+  const sprog = sprogNu(); // the run may finish in another request's context: its answer is written in this one's language
+  const skriver = ejerOgSkriver(deps, T.kunEjeren.tageMed);
+  if (!(await skriver.klar())) throw new ActionError(T.mappeTom);
   const tekst = str(body['tekst'], TEKST_MAKS);
   const assistent = (ASSISTENTER as readonly unknown[]).includes(body['assistent']) ? String(body['assistent']) : 'andet';
   const raaFiler = filerAf(body['filer']);
   const harFiler = Array.isArray(raaFiler) ? raaFiler.length > 0 : raaFiler !== undefined && raaFiler !== null;
-  if (!tekst && !harFiler) throw new ActionError('Indsæt en tekst, eller vælg mindst én fil.');
+  if (!tekst && !harFiler) throw new ActionError(T.indsaetTekstEllerFil);
   await rydGamleUploads(deps).catch(() => 0);
   const upload: Upload | undefined = harFiler ? await modtagUpload(tmpBase(deps), deps.now(), raaFiler) : undefined;
   try {
     const l = laesFiler(upload?.filer ?? []);
-    if (!tekst && !l.kontakter.length && !l.noter.length) throw new ActionError('Der stod ingen kontakter eller noter i filerne.');
+    if (!tekst && !l.kontakter.length && !l.noter.length) throw new ActionError(T.ingenKontakter);
     const slags = tekst && !harFiler ? assistent : tekst || l.typer.size > 1 ? 'flere' : [...l.typer][0] ?? 'noter';
     const [eksisterende, profil] = await Promise.all([skriver.personer().catch(() => []), skriver.profil().catch(() => null)]);
     const run = deps.runs.start({
-      kind: 'forslag', room: IMPORT_RUM, label: IMPORT_LABEL,
+      kind: 'forslag', room: IMPORT_RUM, label: startTekst().label.importLaes,
       spec: byggImportRun({ slags, ...(tekst ? { tekst } : {}), ...(l.kontakter.length ? { kontakter: l.kontakter } : {}), ...(l.noter.length ? { noter: l.noter } : {}) }),
-      onDone: async (output) => {
+      onDone: (output) => medSprog(sprog, async () => {
         try {
           const bunke = parseImportOutput(output, { slags, eksisterende, profil, nu: deps.now() });
           await h.enAdGangen(deps, async () => {
             const s = (await h.laesState(deps)) ?? h.ny(deps.now());
             await deps.store.writeState(IMPORT_RUM, { ...s, import: { ...s.import, bunke } });
-            await deps.store.appendLog(IMPORT_RUM, { kilde: 'hermes', zone: h.korsel, ejer: deps.person.id, tekst: `Læste ${slagsNavn(slags)} og lavede ${bunke.forslag.length} forslag. Intet er gemt, før du trykker Gem.` });
+            await deps.store.appendLog(IMPORT_RUM, { kilde: 'hermes', zone: h.korsel, ejer: deps.person.id, tekst: T.laesteLog(slagsNavn(slags), bunke.forslag.length) });
           });
         } finally { if (upload) await fjernUpload(upload.dir); }
-        return h.faerdigt(deps, 'Her er forslagene. Intet er gemt endnu.');
-      },
+        return h.faerdigt(deps, T.herErForslagene);
+      }),
     });
     if (upload) void run.finished.then(() => fjernUpload(upload.dir));
     return run;
@@ -118,7 +121,8 @@ const krop = (t: string | undefined): string | undefined => {
   return linjer.length ? `## Vigtige fakta\n${linjer.map((l) => `- ${l}`).join('\n')}` : undefined;
 };
 
-const profilFil = (tekst: string, slags: string, dato: string): string => `# Om mig\n\n_Taget med fra ${slagsNavn(slags)}, ${dato}. Ret eller slet frit: det er din fil._\n\n${tekst.trim()}\n`;
+// The file the user keeps is in the vault's own (Danish) format whatever the screen language: the notes writers look for these headings.
+const profilFil = (tekst: string, slags: string, dato: string): string => `# Om mig\n\n_Taget med fra ${slagsNavn(slags, 'da')}, ${dato}. Ret eller slet frit: det er din fil._\n\n${tekst.trim()}\n`;
 
 /** The writer's diff as the pile shows it: only the fields a person may differ in; the import's own bookkeeping fields never count. */
 const visDiff = (diff: ImportDiff[], art: 'person' | 'profil'): ImportDiff[] => diff.filter((d) => (art === 'profil' ? d.felt === 'tekst' : ['relation', 'org', 'foedselsdag'].includes(d.felt)));
@@ -126,19 +130,20 @@ const visDiff = (diff: ImportDiff[], art: 'person' | 'profil'): ImportDiff[] => 
 type Kvit = { art: 'person' | 'profil'; navn: string } & Kvittering;
 
 async function gem(deps: RoomDeps, alle: boolean, forslagId: string, h: Hjaelp): Promise<RunRecord> {
-  const skriver = ejerOgSkriver(deps, 'gemme importen');
+  const T = startTekst().akt;
+  const skriver = ejerOgSkriver(deps, T.kunEjeren.gemme);
   const bunke0 = (await h.laesState(deps))?.import?.bunke;
-  if (alle) { if (!bunke0?.forslag.some((f) => f.status === 'nyt')) throw new ActionError('Der er intet at gemme.', 404); }
+  if (alle) { if (!bunke0?.forslag.some((f) => f.status === 'nyt')) throw new ActionError(T.intetAtGemme, 404); }
   else {
     const f = bunke0?.forslag.find((x) => x.id === forslagId);
-    if (!f) throw new ActionError('Forslaget findes ikke i rummet', 404);
-    if (f.status !== 'nyt') throw new ActionError('Den findes allerede i din mappe, og Clawco ændrer ikke en fil, du har.');
+    if (!f) throw new ActionError(T.forslagFindesIkke, 404);
+    if (f.status !== 'nyt') throw new ActionError(T.findesAlleredeFil);
   }
   return deps.runs.local('gem', async () => h.faerdigt(deps, await h.enAdGangen(deps, async () => {
     const s = (await h.laesState(deps)) ?? h.ny(deps.now());
     const bunke = s.import?.bunke;
     const naa = bunke?.forslag.filter((f) => f.status === 'nyt' && (alle || f.id === forslagId)) ?? [];
-    if (!bunke || !naa.length) return 'Allerede gemt.'; // a second tap that raced the first writes nothing
+    if (!bunke || !naa.length) return T.alleredeGemt; // a second tap that raced the first writes nothing
     const kilde = `import-${bunke.slags}`;
     const dato = dagStr(deps.now());
     const kvit: Kvit[] = [];
@@ -156,17 +161,16 @@ async function gem(deps: RoomDeps, alle: boolean, forslagId: string, h: Hjaelp):
           const diff = visDiff(r.diff, f.art);
           if (diff.length) kollision.set(f.id, diff); else gemte.add(f.id);
         }
-      } catch (err) { fejl.push(`${f.navn}: ${err instanceof Error ? err.message : 'kunne ikke gemmes'}`); }
+      } catch (err) { fejl.push(`${f.navn}: ${err instanceof Error ? err.message : T.kunneIkkeGemmes}`); }
     }
     const rest: ImportForslag[] = bunke.forslag.filter((f) => !gemte.has(f.id)).map((f) => (kollision.has(f.id) ? { ...f, status: 'findes' as const, diff: kollision.get(f.id) as ImportDiff[] } : f));
     let gemt = s.import?.gemt ?? [];
     if (kvit.length) {
       const stier = kvit.map((k) => k.sti);
-      const vist = stier.length > 8 ? `${stier.slice(0, 8).join(', ')} og ${stier.length - 8} flere` : stier.join(', ');
       const post = await deps.store.appendLog(IMPORT_RUM, {
         kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, handlingId: 'import-gem',
         fortryd: `lokal:${JSON.stringify({ import: { personer: kvit.filter((k) => k.art === 'person').map(({ sti, sha256, forrige }) => ({ sti, sha256, ...(forrige !== undefined ? { forrige } : {}) })), ...(kvit.find((k) => k.art === 'profil') ? { profil: (({ sti, sha256, forrige }) => ({ sti, sha256, ...(forrige !== undefined ? { forrige } : {}) }))(kvit.find((k) => k.art === 'profil') as Kvit) } : {}) } })}`,
-        tekst: `Gemte ${kvit.length} ${kvit.length === 1 ? 'fil' : 'filer'} fra ${slagsNavn(bunke.slags)} (kilde: ${kilde}): ${vist}.`,
+        tekst: T.gemtLog(kvit.length, slagsNavn(bunke.slags), kilde, stier),
       });
       gemt = [...gemt, { logId: post.id, tid: deps.now().toISOString(), slags: bunke.slags, antal: kvit.length }];
     }
@@ -176,9 +180,9 @@ async function gem(deps: RoomDeps, alle: boolean, forslagId: string, h: Hjaelp):
       ...udenImport, ...(imp.bunke || imp.gemt ? { import: imp } : {}),
       trin: kvit.length ? { ...s.trin, import: { status: 'klaret' as const, tid: deps.now().toISOString() } } : s.trin,
     });
-    const tekst = kvit.length ? `Gemte ${kvit.length} ${kvit.length === 1 ? 'fil' : 'filer'}.` : 'Intet nyt at gemme.';
-    return [tekst, kollision.size ? `${kollision.size} findes allerede og er ikke ændret.` : '', ...fejl.map((f) => `Kunne ikke gemme ${f}.`)].filter(Boolean).join(' ');
-  })), { room: IMPORT_RUM, label: 'Start: gemmer importen' });
+    const tekst = kvit.length ? T.gemteFiler(kvit.length) : T.intetNytAtGemme;
+    return [tekst, kollision.size ? T.findesAlleredeAntal(kollision.size) : '', ...fejl.map((f) => T.kunneIkkeGemme(f))].filter(Boolean).join(' ');
+  })), { room: IMPORT_RUM, label: startTekst().label.importGem });
 }
 
 // ---------- Opdater (KC-0219) ----------
@@ -190,96 +194,101 @@ async function gem(deps: RoomDeps, alle: boolean, forslagId: string, h: Hjaelp):
  * put it back exactly (§4 r5, r10). A person Hermes only hears about in the import is never created here.
  */
 async function opdater(deps: RoomDeps, forslagId: string, h: Hjaelp): Promise<RunRecord> {
-  const skriver = ejerOgSkriver(deps, 'opdatere en fil');
+  const T = startTekst().akt;
+  const skriver = ejerOgSkriver(deps, T.kunEjeren.opdatere);
   const f0 = (await h.laesState(deps))?.import?.bunke?.forslag.find((x) => x.id === forslagId);
-  if (!f0) throw new ActionError('Forslaget findes ikke i rummet', 404);
-  if (f0.art !== 'person' || f0.status !== 'findes') throw new ActionError('Kun en person, der allerede findes i din mappe, kan opdateres.');
+  if (!f0) throw new ActionError(T.forslagFindesIkke, 404);
+  if (f0.art !== 'person' || f0.status !== 'findes') throw new ActionError(T.kunPersonDerFindes);
   return deps.runs.local('gem', async () => h.faerdigt(deps, await h.enAdGangen(deps, async () => {
     const s = (await h.laesState(deps)) ?? h.ny(deps.now());
     const bunke = s.import?.bunke;
     const f = bunke?.forslag.find((x) => x.id === forslagId && x.art === 'person' && x.status === 'findes');
-    if (!bunke || !f) return 'Allerede opdateret.'; // a second tap that raced the first writes nothing
+    if (!bunke || !f) return T.alleredeOpdateret; // a second tap that raced the first writes nothing
     const diff = visDiff(f.diff ?? [], 'person');
     let r: Opdateret;
-    try { r = await skriver.opdaterPerson({ navn: f.navn, diff }); } catch (err) { return `Kunne ikke opdatere ${f.navn}: ${err instanceof Error ? err.message : 'kunne ikke gemmes'}`; }
-    if (r.udfald === 'forandret') return `${f.navn} er ændret, siden forslaget blev lavet, så Clawco har ikke rørt filen. Behold din fil, eller læs importen igen.`;
+    try { r = await skriver.opdaterPerson({ navn: f.navn, diff }); } catch (err) { return T.kunneIkkeOpdatere(f.navn, err instanceof Error ? err.message : T.kunneIkkeGemmes); }
+    if (r.udfald === 'forandret') return T.forandret(f.navn);
     const rest = bunke.forslag.filter((x) => x.id !== f.id);
     let gemt = s.import?.gemt ?? [];
     let trin = s.trin;
-    let tekst = `${f.navn} står allerede, som importen siger.`;
+    let tekst = T.staarAllerede(f.navn);
     if (r.udfald === 'opdateret') {
       const kilde = `import-${bunke.slags}`;
-      const hvad = diff.filter((d) => r.felter.includes(d.felt)).map((d) => `${d.felt} ${d.nu ? `»${d.nu}«` : 'stod ikke i filen'} → »${d.ny}«`);
+      const hvad = diff.filter((d) => r.felter.includes(d.felt)).map((d) => T.hvadFelt(startTekst().imp.felt(d.felt), d.nu, d.ny));
       const post = await deps.store.appendLog(IMPORT_RUM, {
         kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, handlingId: 'import-opdater',
         fortryd: `lokal:${JSON.stringify({ import: { personer: [], opdateret: [r.kvittering] } })}`,
-        tekst: `Opdaterede ${f.navn} (${r.sti}) med det nye fra ${slagsNavn(bunke.slags)} (kilde: ${kilde}): ${hvad.join('; ')}.${r.sprunget.length ? ` ${r.sprunget.join(', ')} er ikke ændret, fordi du har rettet ${r.sprunget.length === 1 ? 'den' : 'dem'} siden.` : ''}`,
+        tekst: T.opdateretLog(f.navn, r.sti, slagsNavn(bunke.slags), kilde, hvad, r.sprunget),
       });
       gemt = [...gemt, { logId: post.id, tid: deps.now().toISOString(), slags: bunke.slags, antal: 1 }];
       trin = { ...s.trin, import: { status: 'klaret' as const, tid: deps.now().toISOString() } };
-      tekst = `Opdaterede ${f.navn}.`;
+      tekst = T.opdateret(f.navn);
     }
     const { import: _gammel, ...udenImport } = s;
     await deps.store.writeState(IMPORT_RUM, { ...udenImport, ...(rest.length || gemt.length ? { import: { ...(rest.length ? { bunke: { ...bunke, forslag: rest } } : {}), ...(gemt.length ? { gemt } : {}) } } : {}), trin });
     return tekst;
-  })), { room: IMPORT_RUM, label: 'Start: opdaterer en person' });
+  })), { room: IMPORT_RUM, label: startTekst().label.importOpdater });
 }
 
 // ---------- Spring over, Annuller, mappe ----------
 
 async function springForslag(deps: RoomDeps, forslagId: string, h: Hjaelp): Promise<RunRecord> {
-  if (!kan(deps.person.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan vælge, hvad der tages med.');
+  const T = startTekst().akt;
+  if (!kan(deps.person.rolle, 'aendre-indstillinger')) throw new ActionError(T.kunEjerenVaelger);
   const f = (await h.laesState(deps))?.import?.bunke?.forslag.find((x) => x.id === forslagId);
-  if (!f) throw new ActionError('Forslaget findes ikke i rummet', 404);
+  if (!f) throw new ActionError(T.forslagFindesIkke, 404);
   return deps.runs.local('afvis', async () => h.faerdigt(deps, await h.enAdGangen(deps, async () => {
     const s = (await h.laesState(deps)) ?? h.ny(deps.now());
     const bunke = s.import?.bunke;
-    if (!bunke?.forslag.some((x) => x.id === forslagId)) return 'Allerede væk.';
+    if (!bunke?.forslag.some((x) => x.id === forslagId)) return T.alleredeVaek;
     const rest = bunke.forslag.filter((x) => x.id !== forslagId);
     const { import: _gammel, ...udenImport } = s;
     const gemt = s.import?.gemt;
     await deps.store.writeState(IMPORT_RUM, { ...udenImport, ...(rest.length || gemt?.length ? { import: { ...(rest.length ? { bunke: { ...bunke, forslag: rest } } : {}), ...(gemt?.length ? { gemt } : {}) } } : {}) });
-    await deps.store.appendLog(IMPORT_RUM, { kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, tekst: f.status === 'findes' ? `Beholdt din fil for ${f.navn}.` : `Sprang ${f.navn} over: det bliver ikke gemt.` });
-    return 'Sprunget over.';
-  })), { room: IMPORT_RUM, label: 'Start: springer et forslag over' });
+    await deps.store.appendLog(IMPORT_RUM, { kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, tekst: f.status === 'findes' ? T.beholdtFil(f.navn) : T.sprangForslag(f.navn) });
+    return T.sprunget;
+  })), { room: IMPORT_RUM, label: startTekst().label.importSpring });
 }
 
 async function annuller(deps: RoomDeps, h: Hjaelp): Promise<RunRecord> {
-  if (!kan(deps.person.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan vælge, hvad der tages med.');
+  const T = startTekst().akt;
+  if (!kan(deps.person.rolle, 'aendre-indstillinger')) throw new ActionError(T.kunEjerenVaelger);
   return deps.runs.local('afvis', async () => h.faerdigt(deps, await h.enAdGangen(deps, async () => {
     const s = (await h.laesState(deps)) ?? h.ny(deps.now());
     await rydTmp(tmpBase(deps), { alle: true });
-    if (!s.import?.bunke) return 'Der var intet at smide væk.';
+    if (!s.import?.bunke) return T.intetAtSmide;
     const { import: _gammel, ...udenImport } = s;
     const gemt = s.import.gemt;
     await deps.store.writeState(IMPORT_RUM, { ...udenImport, ...(gemt?.length ? { import: { gemt } } : {}) });
-    await deps.store.appendLog(IMPORT_RUM, { kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, tekst: 'Smed forslagene væk. Intet blev gemt, og det du uploadede er slettet.' });
-    return 'Forslagene er væk.';
-  })), { room: IMPORT_RUM, label: 'Start: smider forslagene væk' });
+    await deps.store.appendLog(IMPORT_RUM, { kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, tekst: T.smedForslag });
+    return T.forslageneVaek;
+  })), { room: IMPORT_RUM, label: startTekst().label.importAnnuller });
 }
 
 async function springTrinOver(deps: RoomDeps, trinStatus: string | undefined, titel: string, h: Hjaelp): Promise<RunRecord> {
-  if (!kan(deps.person.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan springe trinnet over.');
-  if (trinStatus === 'klaret') throw new ActionError('Trinnet er allerede klaret.');
-  if (trinStatus === 'sprunget-over') throw new ActionError('Trinnet er allerede sprunget over.');
+  const T = startTekst().akt;
+  if (!kan(deps.person.rolle, 'aendre-indstillinger')) throw new ActionError(T.kunEjerenSpringerOver);
+  if (trinStatus === 'klaret') throw new ActionError(T.trinKlaret);
+  if (trinStatus === 'sprunget-over') throw new ActionError(T.trinSprunget);
   return deps.runs.local('afvis', async () => {
     const s = (await h.laesState(deps)) ?? h.ny(deps.now());
     await deps.store.writeState(IMPORT_RUM, { ...s, trin: { ...s.trin, import: { status: 'sprunget-over', tid: deps.now().toISOString() } } });
-    await deps.store.appendLog(IMPORT_RUM, { kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, tekst: `Sprang »${titel}« over.` });
-    return h.faerdigt(deps, 'Sprunget over.');
-  }, { room: IMPORT_RUM, label: 'Start: springer et trin over' });
+    await deps.store.appendLog(IMPORT_RUM, { kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, tekst: T.sprangTrin(titel) });
+    return h.faerdigt(deps, T.sprunget);
+  }, { room: IMPORT_RUM, label: startTekst().label.trin });
 }
 
 async function lavMappe(deps: RoomDeps, h: Hjaelp): Promise<RunRecord> {
-  const skriver = ejerOgSkriver(deps, 'lave notemappen');
-  if (!skriver.lavMappe) throw new ActionError('Forbind Noter under Kilder først; så ligger importen dér.');
-  if (await skriver.klar()) throw new ActionError('Der er allerede en notemappe.');
+  const T = startTekst().akt;
+  const skriver = ejerOgSkriver(deps, T.kunEjeren.lave);
+  if (!skriver.lavMappe) throw new ActionError(T.forbindNoterFoerst);
+  if (await skriver.klar()) throw new ActionError(T.alleredeMappe);
   const lav = skriver.lavMappe;
   return deps.runs.local('gem', async () => {
     await lav();
-    await deps.store.appendLog(IMPORT_RUM, { kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, tekst: 'Lavede en mappe til dine noter.' });
-    return h.faerdigt(deps, 'Mappen er lavet.');
-  }, { room: IMPORT_RUM, label: 'Start: laver notemappen' });
+    await deps.store.appendLog(IMPORT_RUM, { kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, tekst: T.lavedeMappe });
+    return h.faerdigt(deps, T.mappenLavet);
+  }, { room: IMPORT_RUM, label: startTekst().label.importMappe });
 }
 
 /** The import's actions; null when `name` is not one of them. `trin`: step 5's status and title, for Spring over. */
@@ -319,6 +328,7 @@ export function importKvitteringer(fortryd: string | undefined): ImportKvitterin
 
 /** Fortryd of one saved import: removes exactly the files written and puts back the files updated (those still holding what was written), nothing else. */
 export function importFortryd(deps: RoomDeps, entry: LogEntry, k: ImportKvitteringer, h: Hjaelp): RunRecord | null {
+  const T = startTekst().akt;
   const skriver = deps.importSkriver;
   if (!skriver || entry.fortrudt || !kan(deps.person.rolle, 'aendre-indstillinger')) return null;
   return deps.runs.local('fortryd', async () => {
@@ -338,8 +348,8 @@ export function importFortryd(deps: RoomDeps, entry: LogEntry, k: ImportKvitteri
     });
     await deps.store.appendLog(IMPORT_RUM, {
       kilde: 'henrik', zone: h.korsel, ejer: deps.person.id,
-      tekst: `Fortrød importen: ${[...(!k.opdateret?.length || k.personer.length || k.profil ? [`fjernede ${fjernet.length} ${fjernet.length === 1 ? 'fil' : 'filer'}`] : []), ...(k.opdateret?.length ? [`satte ${gendannet.length} ${gendannet.length === 1 ? 'fil' : 'filer'} tilbage`] : [])].join(' og ')}${beholdt.length ? `; beholdt ${beholdt.join(', ')}, fordi du har rettet ${beholdt.length === 1 ? 'den' : 'dem'}` : ''}.`,
+      tekst: T.fortrydImport(!k.opdateret?.length || k.personer.length || k.profil ? fjernet.length : null, k.opdateret?.length ? gendannet.length : null, beholdt),
     });
-    return h.faerdigt(deps, 'Fortrudt.');
-  }, { room: IMPORT_RUM, label: 'Start: fortryder importen' });
+    return h.faerdigt(deps, T.fortrudt);
+  }, { room: IMPORT_RUM, label: startTekst().label.importFortryd });
 }

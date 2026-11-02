@@ -3,7 +3,7 @@
 // module's env-file writer, KC-0127) is injected by the composition root.
 // Node built-ins and packages are fine. The one standing exception is the
 // prompt builder (KC-0118, spec D4: prompts are built on the app's side of the
-// seam), held to exactly the imports it has, so nothing new slips in.
+// seam) and the language table (KC-0170), each held to exactly the imports it has, so nothing new slips in.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,6 +16,8 @@ const UNDTAGET: Record<string, string[]> = {
   'prompt.ts': ['../identitet/zoner.ts', '../shell/katalog.ts', '../graenser/verber.ts'],
   // KC-0123: the untrusted-data wrapper tags every segment with its zone.
   'udtroet.ts': ['../identitet/zoner.ts'],
+  // KC-0170: the language of the request (src/store/sprog.ts, the seam below the shell) picks the words of a failed connection.
+  'tekster.ts': ['../store/sprog.ts'],
 };
 
 /** Every module specifier a file imports or re-exports (static and dynamic). */

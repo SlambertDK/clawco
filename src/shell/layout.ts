@@ -189,7 +189,7 @@ ${stoetteBaand(o)}
     <div class="aside-head"><h2>${T.spoergHermes}</h2><span class="aside-knapper"><button type="button" class="btn btn-ghost" id="cc-chat" title="${T.tilClaudeTitel}">Claude Code</button><button type="button" class="btn btn-ghost aside-close" id="chat-close" aria-label="${T.lukChatten}">${T.luk}</button></span><span class="kontekst-wrap"${o.kontekst ? '' : html` hidden`} id="kontekst-wrap"><span class="chip chip-accent" id="kontekst">${T.om}${o.kontekst ?? ''}</span><button type="button" class="chip-x" id="kontekst-ryd" aria-label="${T.fjernMarkering}">×</button></span></div>
     <p class="row-note" id="kontekst-hint"><span class="kun-touch">${T.tryk}</span><span class="kun-mus">${T.klik}</span>${T.kontekstHint}</p>
     <div class="chat" id="chat">${o.chat.map((c) => html`<div class="msg msg-${c.fra}"${c.fra === 'hermes' && o.stemme ? html` data-sig="${c.tekst}"` : ''}><span class="mono msg-time">${klokke(c.tid)}</span><span class="msg-text">${c.tekst}</span></div>`)}</div>
-    ${T.chatSaetninger && forslagTil(o.roomId).length > 0 ? html`<div class="forslag" id="chat-forslag" role="group" aria-label="${T.forslag}">${forslagTil(o.roomId).map((f) => html`<button type="button" class="btn btn-forslag" data-forslag="${f}">${f}</button>`)}</div>` : ''}
+    ${forslagTil(o.roomId).length > 0 ? html`<div class="forslag" id="chat-forslag" role="group" aria-label="${T.forslag}">${forslagTil(o.roomId).map((f) => html`<button type="button" class="btn btn-forslag" data-forslag="${f}">${f}</button>`)}</div>` : ''}
     <details class="rum-liste" data-rum-liste>
       <summary class="btn btn-ghost">${T.rumEtiket}</summary>
       <ul>${ROOMS.filter((r) => r.built && (!o.synlige || o.synlige.has(r.id))).map((r) => html`<li><a href="/rum/${r.id}"${r.id === o.roomId ? html` aria-current="page"` : ''}>${rumNavn(r.id, r.navn)}</a></li>`)}</ul>
@@ -210,9 +210,9 @@ ${stoetteBaand(o)}
       <dt><kbd>Esc</kbd></dt><dd>${T.lukVindue}</dd>
       <dt><kbd>?</kbd></dt><dd>${T.visGenveje}</dd>
     </dl>
-    ${T.chatSaetninger ? html`<h3 class="eyebrow">${T.iChattenKan}</h3>
+    <h3 class="eyebrow">${T.iChattenKan}</h3>
     <ul class="genveje-sige">${hvadKanJegSige(o.univers ?? [], { husstand: o.synlige?.has(HUSSTAND) === true }).map((e) => html`<li>${e.saet}</li>`)}<li>${T.hvadKanJegSige}</li></ul>
-    ` : ''}<p class="row-note">${T.altAndet}</p>
+    <p class="row-note">${T.altAndet}</p>
     <button class="btn" type="submit">${T.luk}</button>
   </form>
 </dialog>

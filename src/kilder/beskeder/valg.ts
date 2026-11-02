@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { DATAZONER, ZONE_NAVN, erDataZone, type DataZone } from '../../identitet/zoner.ts';
 import type { Felt } from '../types.ts';
 import type { Kanal, RaaBesked } from './jsonl.ts';
+import { beskederTekst } from './tekster.ts';
 
 export const IKKE = 'nej';
 export const KANAL_NAVN: Record<Kanal, string> = { telegram: 'Telegram', whatsapp: 'WhatsApp', signal: 'Signal' };
@@ -19,7 +20,7 @@ export const samtaleNoegle = (kanal: Kanal, samtale: string): string => `s-${cre
 /** A name that is really an id: digits and phone punctuation, a handle, or a platform address. Never shown. */
 export const erId = (navn: string): boolean => /^[+\d\s().-]{5,}$/.test(navn) || /^@/.test(navn) || /@[\w.-]+\.\w+$/.test(navn) || /^-?\d+$/.test(navn);
 
-export const standardNavn = (kanal: Kanal, gruppe: boolean): string => `${gruppe ? 'Gruppe' : 'Samtale'} på ${KANAL_NAVN[kanal]}`;
+export const standardNavn = (kanal: Kanal, gruppe: boolean): string => beskederTekst().standardNavn(gruppe, KANAL_NAVN[kanal]);
 
 /** The chosen conversations and their zone. Anything not a key with a zone is not chosen. */
 export function valgte(valg: Readonly<Record<string, string>>): Map<string, DataZone> {
@@ -46,9 +47,10 @@ export function samtaler(poster: readonly RaaBesked[]): Samtale[] {
 
 /** One select per conversation, "Læs ikke" first. */
 export function felter(liste: readonly Samtale[]): Felt[] {
-  const muligheder = [{ vaerdi: IKKE, etiket: 'Læs ikke' }, ...DATAZONER.map((z) => ({ vaerdi: z, etiket: `Læs, ${ZONE_NAVN[z].toLowerCase()}` }))];
+  const t = beskederTekst();
+  const muligheder = [{ vaerdi: IKKE, etiket: t.laesIkke }, ...DATAZONER.map((z) => ({ vaerdi: z, etiket: t.laesZone(t.zone[z] ?? ZONE_NAVN[z].toLowerCase()) }))];
   return liste.map((s) => ({
-    navn: s.noegle, etiket: `${s.navn} (${s.gruppe ? 'gruppe' : 'samtale'} på ${KANAL_NAVN[s.kanal]})`, type: 'tekst', paakraevet: false, muligheder,
+    navn: s.noegle, etiket: t.felt(s.navn, s.gruppe, KANAL_NAVN[s.kanal]), type: 'tekst', paakraevet: false, muligheder,
   }));
 }
 

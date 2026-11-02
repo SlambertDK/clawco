@@ -19,6 +19,7 @@ import { kan, erRolle, type Rolle } from '../identitet/roller.ts';
 import type { Person } from '../identitet/husstand.ts';
 import { erKanal, gyldigHandle, KANAL_NAVN, maaSende, neutral, sendJaId, type Kanal, type Kanalmedlem } from './kanal.ts';
 import type { Medlem } from './schema.ts';
+import { husstandTekst } from './tekster.ts';
 
 export const INVITATIONER = ['egen', 'telefon'] as const;
 export type InvitationSlags = (typeof INVITATIONER)[number];
@@ -50,7 +51,7 @@ const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 /** A name for the screen and the message: 1–80 characters, no control characters. Throws InvitationFejl. */
 export function navnFra(v: unknown): string {
   const n = str(v).replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ');
-  if (!n || n.length > 80) throw new InvitationFejl('Skriv personens navn (højst 80 tegn).');
+  if (!n || n.length > 80) throw new InvitationFejl(husstandTekst().fejl.skrivPersonNavn);
   return n;
 }
 
@@ -58,27 +59,27 @@ export function navnFra(v: unknown): string {
 export function parseInvitation(body: Record<string, unknown>): NyInvitation {
   const navn = navnFra(body['navn']);
   const rolle = body['rolle'] ?? 'medlem';
-  if (!erRolle(rolle) || !INVITER_ROLLER.includes(rolle)) throw new InvitationFejl('Vælg medlem, barn eller gæst.');
+  if (!erRolle(rolle) || !INVITER_ROLLER.includes(rolle)) throw new InvitationFejl(husstandTekst().fejl.vaelgRolle);
   if (body['slags'] === 'egen') {
     const login = str(body['login']).toLowerCase();
-    if (!LOGIN.test(login)) throw new InvitationFejl('Skriv den e-mail, hun logger ind i Tailscale med.');
+    if (!LOGIN.test(login)) throw new InvitationFejl(husstandTekst().fejl.skrivEmail);
     return { slags: 'egen', navn, rolle, login };
   }
   if (body['slags'] === 'telefon') {
     const kanal = body['kanal'];
-    if (!erKanal(kanal)) throw new InvitationFejl('Vælg Telegram, WhatsApp eller Signal.');
+    if (!erKanal(kanal)) throw new InvitationFejl(husstandTekst().fejl.vaelgKanal);
     const handle = gyldigHandle(kanal, str(body['handle']));
-    if (!handle) throw new InvitationFejl(kanal === 'telegram' ? 'Skriv hendes Telegram-id (kun tal).' : 'Skriv hendes nummer med landekode, fx +45 …');
+    if (!handle) throw new InvitationFejl(kanal === 'telegram' ? husstandTekst().fejl.skrivTelegramId : husstandTekst().fejl.skrivNummer);
     return { slags: 'telefon', navn, rolle, kanal, handle };
   }
-  throw new InvitationFejl('Vælg, hvordan hun skal være med.');
+  throw new InvitationFejl(husstandTekst().fejl.vaelgHvordan);
 }
 
 /** The new person: an id from her name (unique), her login or none. A login already here or a seventh person → 409. */
 export function nyPerson(personer: readonly Person[], ny: NyInvitation): Person {
-  if (personer.length >= MAX_PERSONER) throw new InvitationFejl(`Husstanden kan højst have ${MAX_PERSONER} personer.`, 409);
+  if (personer.length >= MAX_PERSONER) throw new InvitationFejl(husstandTekst().hoejstPersoner(MAX_PERSONER), 409);
   const login = ny.slags === 'egen' ? ny.login : null;
-  if (login && personer.some((p) => p.login?.trim().toLowerCase() === login)) throw new InvitationFejl('Den e-mail er allerede med i husstanden.', 409);
+  if (login && personer.some((p) => p.login?.trim().toLowerCase() === login)) throw new InvitationFejl(husstandTekst().fejl.emailMed, 409);
   const grund = slug(ny.navn, 'person');
   let id = grund;
   for (let i = 2; personer.some((p) => p.id === id); i++) id = `${grund.slice(0, 36)}-${i}`;
@@ -96,13 +97,11 @@ export function nytMedlem(p: Person, ny: NyInvitation, nu: Date): Medlem {
 /**
  * The one message before her "ja", built by the app (never by Hermes): who invites, what Clawco is, that she installs
  * nothing, and the three answers. Names are neutralised the same way as a request's message (no Hermes directives).
+ * It goes out in the language of the request that builds it (the owner's: the one who sees it and taps Send); her
+ * reply is read in either language (svar.ts).
  */
 export function invitationTekst(fraNavn: string, tilNavn: string): string {
-  return neutral([
-    `Hej ${tilNavn}. ${fraNavn} vil gerne have dig med i husstanden i Clawco.`,
-    'Clawco er jeres fælles overblik over aftaler og ting, I deler. Du skal ikke installere noget: når nogen i husstanden spørger dig om noget, kommer det her som en besked.',
-    'Svar ja, hvis du vil være med, eller nej, hvis ikke. Skriv stop, hvis du ikke vil have flere beskeder fra Clawco.',
-  ].join('\n'));
+  return neutral(husstandTekst().besked.invitation(fraNavn, tilNavn).join('\n'));
 }
 
 /** The id the red Send asks a yes for: the member, the kind and the hash of the exact text shown (KC-0153's sendJaId). */
@@ -117,13 +116,14 @@ export type InvitationVurdering =
  * layer and again inside the store's queue; the card shows a Send only when it says ok — one rule for both.
  */
 export function vurderInvitation(medlemmer: readonly Medlem[], id: string, af: Person): InvitationVurdering {
-  if (!kan(af.rolle, 'aendre-husstand')) return { ok: false, hvorfor: 'Kun ejeren kan invitere.', status: 403 };
+  const T = husstandTekst();
+  if (!kan(af.rolle, 'aendre-husstand')) return { ok: false, hvorfor: T.fejl.kunEjerInvitere, status: 403 };
   const m = medlemmer.find((x) => x.id === id);
-  if (!m) return { ok: false, hvorfor: 'Personen findes ikke (længere).', status: 404 };
-  if (!m.kanal) return { ok: false, hvorfor: `${m.navn} har ingen kanal at få beskeder på.`, status: 409 };
-  if (m.kanal.status === 'stoppet') return { ok: false, hvorfor: `${m.navn} har bedt Clawco om ikke at sende flere beskeder.`, status: 409 };
-  if (m.kanal.status === 'aktiv') return { ok: false, hvorfor: `${m.navn} har allerede sagt ja.`, status: 409 };
-  if (!maaSende(m.kanal, 'invitation')) return { ok: false, hvorfor: `Invitationen er allerede sendt til ${m.navn}.`, status: 409 };
+  if (!m) return { ok: false, hvorfor: T.fejl.personFindesIkke, status: 404 };
+  if (!m.kanal) return { ok: false, hvorfor: T.fejl.ingenKanal(m.navn), status: 409 };
+  if (m.kanal.status === 'stoppet') return { ok: false, hvorfor: T.fejl.stoppetBeskeder(m.navn), status: 409 };
+  if (m.kanal.status === 'aktiv') return { ok: false, hvorfor: T.fejl.alleredeJa(m.navn), status: 409 };
+  if (!maaSende(m.kanal, 'invitation')) return { ok: false, hvorfor: T.fejl.invAlleredeSendt(m.navn), status: 409 };
   const fraNavn = medlemmer.find((x) => x.id === af.id)?.navn ?? af.navn;
   const tekst = invitationTekst(fraNavn, m.navn);
   return { ok: true, til: { medlemId: m.id, kanal: m.kanal.kanal, handle: m.kanal.handle }, tekst, jaId: invitationJaId(m.id, tekst), kanalNavn: KANAL_NAVN[m.kanal.kanal], navn: m.navn };
@@ -143,16 +143,16 @@ export function aktiverIndgang(m: Medlem, nu: Date): Medlem | null {
 }
 
 function ejerAf(personer: readonly Person[], af: Person, id: string): Person {
-  if (!kan(af.rolle, 'aendre-husstand')) throw new InvitationFejl('Kun ejeren kan ændre, hvem der er med.', 403);
+  if (!kan(af.rolle, 'aendre-husstand')) throw new InvitationFejl(husstandTekst().fejl.kunEjerAendre, 403);
   const p = personer.find((x) => x.id === id);
-  if (!p) throw new InvitationFejl('Personen findes ikke (længere).', 404);
-  if (p.id === af.id) throw new InvitationFejl('Det kan du ikke gøre med dig selv.', 409);
+  if (!p) throw new InvitationFejl(husstandTekst().fejl.personFindesIkke, 404);
+  if (p.id === af.id) throw new InvitationFejl(husstandTekst().fejl.ikkeDigSelv, 409);
   return p;
 }
 
 /** The owner gives another person a role. The household always keeps an owner (he never changes his own). */
 export function skiftRolle(personer: readonly Person[], af: Person, id: string, rolle: Rolle): Person[] {
-  if (!erRolle(rolle)) throw new InvitationFejl('Ukendt rolle.');
+  if (!erRolle(rolle)) throw new InvitationFejl(husstandTekst().fejl.ukendtRolle);
   ejerAf(personer, af, id);
   return personer.map((p) => (p.id === id ? { ...p, rolle } : p));
 }

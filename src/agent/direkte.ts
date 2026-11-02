@@ -14,6 +14,7 @@ import { AFBRUDT, AgentError } from './types.ts';
 import type { AgentClient, AgentEvent, AgentRunRequest, AgentRunResult, AgentStatus, NoegleSvar } from './types.ts';
 import type { NoegleLager } from './noeglelager.ts';
 import { parseSseChunks } from './sse.ts';
+import { agentTekst } from './tekster.ts';
 
 /** How a provider is called directly; no url = the saved local address + /chat/completions. */
 export type DirekteApi = { api: 'anthropic-messages' | 'openai-chat'; url?: string };
@@ -23,8 +24,6 @@ export type DirekteFejlArt = 'model-noegle' | 'kun-hermes' | 'noegle' | 'kredit'
 
 /** Appended to every run's system text: the model has no tools and must say so rather than claim it did something. */
 export const UDEN_VAERKTOEJ = 'Du kører uden værktøjer: du kan ikke læse filer eller mails, hente websider, køre kommandoer eller ændre noget nogen steder. Brug kun det, der står her og i beskeden. Kræver opgaven et værktøj, så sig kort, at det ikke kan gøres herfra, og påstå aldrig, at du har gjort noget.';
-/** The agent's own timer (not Start's 20-second test); classified as `tid` by modelfejl.ts. */
-export const TID = 'Modellen svarede ikke i tide.';
 
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 const DEFAULT_MAX_TOKENS = 8192;
@@ -96,7 +95,7 @@ export function createDirekte(o: {
     const afbryd = (): void => { afbrudt = true; controller.abort(); };
     req.signal?.addEventListener('abort', afbryd, { once: true });
 
-    // A failed fetch or read leaves as AFBRUDT, TID or a fixed sentence: never the underlying error, which may name the URL.
+    // A failed fetch or read leaves as AFBRUDT, the timer sentence or a fixed sentence: never the underlying error, which may name the URL.
     try {
       let res: Response;
       try {
@@ -166,7 +165,7 @@ export function createDirekte(o: {
 
     function stoppetFejl(): AgentError | undefined {
       if (afbrudt) return new AgentError(AFBRUDT, runId);
-      if (timedOut) { emit({ type: 'run.failed', error: TID }); return new AgentError(TID, runId); }
+      if (timedOut) { const tid = agentTekst().modelTid; emit({ type: 'run.failed', error: tid }); return new AgentError(tid, runId); }
       return undefined;
     }
   }

@@ -14,6 +14,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { KildeFejl, type Felt, type Helbred, type Kilde, type KildeKontekst, type KildeKort, type NoterData } from '../types.ts';
 import { laesPersoner } from './personer.ts';
+import { noterTekst } from './tekster.ts';
 import { NOTER_ID } from './stier.ts';
 import { adopterVault, findVaults, kandidatRoedder, lavNyVault, NY_VAULT, STRUKTUR } from './vault.ts';
 
@@ -22,7 +23,6 @@ const MAKS_NOTER = 50;
 const MAKS_POSTER = 20_000;
 const MAKS_DYBDE = 8;
 const FUND_LEVETID_MS = 60_000;
-const MANGLER = 'Mappen kan ikke findes.';
 
 export type KortTilstand = 'ikke-valgt' | 'ny' | 'eksisterende' | 'mangler';
 
@@ -37,12 +37,12 @@ const erMappe = async (p: string): Promise<boolean> => (await stat(p).catch(() =
 /** A path in card text: the card is text, never HTML (the conformance suite holds it to no < or >). */
 const vis = (p: string): string => p.replace(/[<>]/g, '');
 /** "a", "a og b", "a, b og c". */
-const opremsning = (l: string[]): string => (l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} og ${l.at(-1)}`);
+const opremsning = (l: string[]): string => (l.length < 2 ? l.join('') : `${l.slice(0, -1).join(', ')} ${noterTekst().og} ${l.at(-1)}`);
 const posix = (p: string): string => p.split(path.sep).join('/');
 
 async function helbredFor(rod: string): Promise<Helbred> {
-  if (!rod || !(await erMappe(rod))) return { status: 'nede', tekst: MANGLER };
-  try { await access(rod, constants.W_OK); } catch { return { status: 'nede', tekst: 'Clawco kan ikke skrive i mappen.' }; }
+  if (!rod || !(await erMappe(rod))) return { status: 'nede', tekst: noterTekst().mappenFindesIkke };
+  try { await access(rod, constants.W_OK); } catch { return { status: 'nede', tekst: noterTekst().kanIkkeSkrive }; }
   return { status: 'ok' };
 }
 
@@ -71,7 +71,7 @@ async function noteliste(rod: string, personer: string): Promise<NoterData['note
 }
 
 async function laesVault(rod: string, personer: string, ctx: KildeKontekst): Promise<NoterData> {
-  if (!rod || !(await erMappe(rod))) throw new KildeFejl(502, MANGLER);
+  if (!rod || !(await erMappe(rod))) throw new KildeFejl(502, noterTekst().mappenFindesIkke);
   const folk = (await laesPersoner(personer, { zone: ctx.zone })).filter((p) => p.zone === ctx.zone).slice(0, MAKS_PERSONER);
   return {
     personer: folk.map((p) => {
@@ -111,44 +111,42 @@ export function noterKilde(o: { hjem?: string; platform?: NodeJS.Platform | stri
   const udvid = (p: string): string => (p === '~' ? hjem : p.startsWith('~/') ? path.join(hjem, p.slice(2)) : p);
 
   async function felter(): Promise<Felt[]> {
+    const t = noterTekst().felt;
     return [
-      { navn: 'opsaetning', etiket: 'Hvor skal dine noter ligge?', type: 'tekst', paakraevet: true, muligheder: [{ vaerdi: 'ny', etiket: 'Lav en ny mappe til mig' }, { vaerdi: 'eksisterende', etiket: 'Jeg har allerede en Obsidian-vault' }] },
-      { navn: 'mappe', etiket: 'Mappe', type: 'mappe', paakraevet: false, forslag: await fundne() },
+      { navn: 'opsaetning', etiket: t.opsaetning, type: 'tekst', paakraevet: true, muligheder: [{ vaerdi: 'ny', etiket: t.ny }, { vaerdi: 'eksisterende', etiket: t.eksisterende }] },
+      { navn: 'mappe', etiket: t.mappe, type: 'mappe', paakraevet: false, forslag: await fundne() },
     ];
   }
 
   return {
-    id: NOTER_ID, navn: 'Noter', slags: 'noter', zone: 'privat', auth: 'local', tillid: 'uklar',
+    id: NOTER_ID, get navn() { return noterTekst().navn; }, slags: 'noter', zone: 'privat', auth: 'local', tillid: 'uklar',
     ...laeser({ rod, personer: (ctx) => path.join(rod(ctx), ...STRUKTUR.personer.split('/')) }),
 
     async kort(ctx): Promise<KildeKort> {
       const valgt = ctx.valg['mappe'] ?? '';
       const t = noterKortTilstand(ctx, valgt ? await erMappe(valgt) : false);
       const f = await felter();
+      const m = noterTekst();
       if (t === 'ikke-valgt') {
         const n = f[1]?.forslag?.length ?? 0;
-        return {
-          titel: 'Noter', handling: 'Vælg mappe', felter: f,
-          tekst: 'Et sted til det, du vil huske: gemte tekster, et kartotek med én fil pr. menneske, du kender, og en note om dig. Alt er almindelige tekstfiler, du selv kan åbne og rette. '
-            + 'En ny mappe lægger Clawco i Clawco/Vault i din hjemmemappe. Vælger du din Obsidian-vault, tilføjer Clawco kun mapperne 00-Indbakke, 40-Mennesker/People og Clawco, hvis de mangler, og rører ikke dine noter.'
-            + (n ? ` Clawco fandt ${n} Obsidian-${n === 1 ? 'vault' : 'vaults'} på maskinen.` : ''),
-        };
+        return { titel: m.navn, handling: m.handling.vaelgMappe, felter: f, tekst: m.ikkeValgtTekst + (n ? m.fundet(n) : '') };
       }
-      if (t === 'mangler') return { titel: 'Noter', handling: 'Vælg mappen igen', felter: f, tekst: `Mappen kan ikke findes: ${vis(valgt)}. Er drevet koblet fra, så sæt det i igen. Ellers vælg mappen igen.` };
-      if (t === 'ny') return { titel: 'Noter', handling: 'Skift mappe', felter: f, tekst: `Dine noter ligger i din nye mappe ${vis(valgt)}. Det er almindelige tekstfiler, du selv kan åbne og rette.` };
-      return { titel: 'Noter', handling: 'Skift mappe', felter: f, tekst: `Clawco bruger din Obsidian-vault ${vis(valgt)}: gemte tekster i 00-Indbakke, kartoteket i 40-Mennesker/People og Clawcos egne filer i Clawco.` };
+      if (t === 'mangler') return { titel: m.navn, handling: m.handling.vaelgIgen, felter: f, tekst: m.manglerTekst(vis(valgt)) };
+      if (t === 'ny') return { titel: m.navn, handling: m.handling.skiftMappe, felter: f, tekst: m.nyTekst(vis(valgt)) };
+      return { titel: m.navn, handling: m.handling.skiftMappe, felter: f, tekst: m.eksisterendeTekst(vis(valgt)) };
     },
 
     async opsaet(ctx) {
       const opsaetning = ctx.valg['opsaetning'] === 'ny' ? 'ny' : 'eksisterende';
       const skrevet = udvid((ctx.valg['mappe'] ?? '').trim());
-      if (!skrevet && opsaetning === 'eksisterende') throw new KildeFejl(400, 'Vælg din vault, eller skriv stien til den.');
+      if (!skrevet && opsaetning === 'eksisterende') throw new KildeFejl(400, noterTekst().vaelgVault);
       const mappe = skrevet || standard;
-      if (!path.isAbsolute(mappe)) throw new KildeFejl(400, 'Skriv hele stien til mappen.');
+      if (!path.isAbsolute(mappe)) throw new KildeFejl(400, noterTekst().skrivHeleStien);
       const r = path.resolve(mappe);
       const lagt = opsaetning === 'ny' ? await lavNyVault(r) : await adopterVault(r);
-      const tekst = !lagt.length ? `Bruger ${r}; der manglede ingen mapper.`
-        : opsaetning === 'ny' ? `Lavede ${r} med ${opremsning(lagt)}.` : `Tilføjede ${opremsning(lagt)} i ${r}.`;
+      const m = noterTekst();
+      const tekst = !lagt.length ? m.brugerMappe(r)
+        : opsaetning === 'ny' ? m.lavede(r, opremsning(lagt)) : m.tilfoejede(opremsning(lagt), r);
       return { tekst, valg: { opsaetning, mappe: r } };
     },
   };
@@ -156,10 +154,9 @@ export function noterKilde(o: { hjem?: string; platform?: NodeJS.Platform | stri
 
 /** Henrik's NAS vault from the env (KC_VAULT_DIR / KC_VAULT_INBOX, KC_PEOPLE_DIR): read-only, connected by the host. */
 export function kiraNoter(o: { rod: string; personer: string }): Kilde {
-  const navn = 'Noter i din vault';
   return {
-    id: 'kira-noter', navn, slags: 'noter', zone: 'privat', auth: 'local', tillid: 'uklar', standard: 'forbundet',
+    id: 'kira-noter', get navn() { return noterTekst().kiraNavn; }, slags: 'noter', zone: 'privat', auth: 'local', tillid: 'uklar', standard: 'forbundet',
     ...laeser({ rod: () => o.rod, personer: () => o.personer }),
-    kort: async () => ({ titel: navn, tekst: 'Obsidian-vaulten, Clawco allerede gemmer i: indbakken og kartoteket over mennesker.', felter: [], handling: 'Forbind' }),
+    kort: async () => ({ titel: noterTekst().kiraNavn, tekst: noterTekst().kiraTekst, felter: [], handling: noterTekst().handling.forbind }),
   };
 }

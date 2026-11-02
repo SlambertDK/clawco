@@ -8,10 +8,11 @@
 import { html, type Markup } from '../../shell/html.ts';
 import { tilstandChip } from '../../shell/sprog.ts';
 import type { KildeKortSyn } from '../module.ts';
-import { DATAZONER, type DataZone } from '../../identitet/zoner.ts';
+import { DATAZONER } from '../../identitet/zoner.ts';
 import { renderForhaandsvisning, type Forhaandsvisning } from './forhaandsvisning.ts';
 import { FOERSTE_SLAGS, erPakkeKilde } from './trin.ts';
 import type { TrinStatus } from './schema.ts';
+import { startTekst } from './tekster.ts';
 
 export type KildeVisning = {
   kort: KildeKortSyn[];
@@ -24,8 +25,6 @@ export type KildeVisning = {
   /** KC-0160: laptop mode — one person: the zone choice leaves out the household's. */
   laptop?: boolean;
 };
-
-const ZONE_TEKST: Record<DataZone, string> = { privat: 'privat', arbejde: 'arbejde', husstand: 'husstandens' };
 
 function felt(f: KildeKortSyn['kort']['felter'][number], formId: string): Markup {
   const krav = f.paakraevet ? html` required` : '';
@@ -49,13 +48,14 @@ function opsaetTrin(k: KildeKortSyn): Markup {
   const trin = k.kort.trin ?? [];
   if (!trin.length) return html``;
   const navn = `kilde-trin-${k.id}`;
-  return html`<div class="stack kilde-trin" data-kilde-trin="${k.id}">${trin.map((t, i) => html`<details class="kilde-trin-et" name="${navn}"${i === 0 ? html` open` : ''}><summary class="row-note">Trin ${String(i + 1)} af ${String(trin.length)}</summary><p>${t.tekst}</p>${t.kopier ? html`<p class="mono row-note">${t.kopier}</p><div class="actions"><button type="button" class="btn btn-ghost" data-kopier="${t.kopier}">Kopiér adressen</button></div>` : ''}</details>`)}</div>`;
+  const T = startTekst();
+  return html`<div class="stack kilde-trin" data-kilde-trin="${k.id}">${trin.map((t, i) => html`<details class="kilde-trin-et" name="${navn}"${i === 0 ? html` open` : ''}><summary class="row-note">${T.trinAf(i + 1, trin.length)}</summary><p>${t.tekst}</p>${t.kopier ? html`<p class="mono row-note">${t.kopier}</p><div class="actions"><button type="button" class="btn btn-ghost" data-kopier="${t.kopier}">${T.kopierAdressen}</button></div>` : ''}</details>`)}</div>`;
 }
 
 /** One source's connect card. `efter`: where the browser goes once connected (step 3 → Nu, where the first value stands). */
 export function forbindKort(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean; ikkeNu?: string }): Markup {
   const form = forbindForm(k, o);
-  return html`<div class="kilde-kort" data-kilde-kort="${k.id}" data-kilde-slags="${k.slags}" data-element="Kilde: ${k.kort.titel}">
+  return html`<div class="kilde-kort" data-kilde-kort="${k.id}" data-kilde-slags="${k.slags}" data-element="${startTekst().kildeElement(k.kort.titel)}">
     <p class="row-title">${k.kort.titel}</p><p class="row-note">${k.kort.tekst}</p>${opsaetTrin(k)}${form}
   </div>`;
 }
@@ -63,13 +63,14 @@ export function forbindKort(k: KildeKortSyn, o: { spring: boolean; efter?: strin
 /** The card's form: its fields, the zone choice and the button (Spring over in step 4). */
 function forbindForm(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean; ikkeNu?: string }): Markup {
   const formId = `kilde-form-${k.id}`;
-  const zone = html`<label class="field kilde-zone"><span class="row-note">Det her er</span><select name="zone">${DATAZONER.filter((z) => !(o.laptop && z === 'husstand')).map((z) => html`<option value="${z}"${z === k.zone ? html` selected` : ''}>${ZONE_TEKST[z]}</option>`)}</select></label>`;
-  const spring = o.spring ? html`<button type="button" class="btn btn-ghost" data-aktion="kilde-spring-over" data-arg="${JSON.stringify({ kildeId: k.id })}" data-status="springer over">Spring over</button>` : '';
+  const T = startTekst();
+  const zone = html`<label class="field kilde-zone"><span class="row-note">${T.detHerEr}</span><select name="zone">${DATAZONER.filter((z) => !(o.laptop && z === 'husstand')).map((z) => html`<option value="${z}"${z === k.zone ? html` selected` : ''}>${T.zoneTekst[z]}</option>`)}</select></label>`;
+  const spring = o.spring ? html`<button type="button" class="btn btn-ghost" data-aktion="kilde-spring-over" data-arg="${JSON.stringify({ kildeId: k.id })}" data-status="${T.springerOver}">${T.springOver}</button>` : '';
   // KC-0236: a pack card is put away for a while, not skipped for good (the handling named here; Start's own state is not touched).
-  const ikkeNu = o.ikkeNu ? html`<button type="button" class="btn btn-ghost" data-aktion="${o.ikkeNu}" data-status="lægger væk">Ikke nu</button>` : '';
+  const ikkeNu = o.ikkeNu ? html`<button type="button" class="btn btn-ghost" data-aktion="${o.ikkeNu}" data-status="${T.laeggerVaekKort}">${T.ikkeNu}</button>` : '';
   return html`<form id="${formId}" class="nyt-form" onsubmit="return false" autocomplete="off">
       ${k.kort.felter.filter((f) => !f.skjult).map((f) => felt(f, formId))}${zone}
-      <div class="actions"><button type="button" class="btn btn-primary" data-kilde-forbind="${k.id}" data-form="${formId}"${o.efter ? html` data-efter="${o.efter}"` : ''} data-status="forbinder">${o.igen ? 'Prøv igen' : k.kort.handling}</button>${spring}${ikkeNu}</div>
+      <div class="actions"><button type="button" class="btn btn-primary" data-kilde-forbind="${k.id}" data-form="${formId}"${o.efter ? html` data-efter="${o.efter}"` : ''} data-status="${T.forbinder}">${o.igen ? T.proevIgen : k.kort.handling}</button>${spring}${ikkeNu}</div>
     </form>`;
 }
 
@@ -78,21 +79,23 @@ function forbundetKort(k: KildeKortSyn, v: KildeVisning, now: Date, spring: bool
   const f = v.forhaandsvisninger.find((x) => x.kildeId === k.id);
   if (f) return renderForhaandsvisning(f, now);
   const fejl = k.helbred && k.helbred.status !== 'ok' && k.helbred.status !== 'snart-udloebet';
+  const T = startTekst();
   if (fejl) {
-    return html`<div class="kilde-kort" data-kilde-fejl="${k.id}" data-element="Kilde: ${k.kort.titel}"><div class="kort-head">${tilstandChip('kraever', 'Virker ikke')}<span class="row-title">${k.kort.titel}</span></div><p class="row-note">${k.helbred?.tekst ?? 'Kilden virker ikke lige nu.'}</p>${v.kanForbinde ? forbindForm(k, { spring, igen: true, ...(v.laptop ? { laptop: true } : {}) }) : ''}</div>`;
+    return html`<div class="kilde-kort" data-kilde-fejl="${k.id}" data-element="${T.kildeElement(k.kort.titel)}"><div class="kort-head">${tilstandChip('kraever', T.virkerIkke)}<span class="row-title">${k.kort.titel}</span></div><p class="row-note">${k.helbred?.tekst ?? T.kildeVirkerIkke}</p>${v.kanForbinde ? forbindForm(k, { spring, igen: true, ...(v.laptop ? { laptop: true } : {}) }) : ''}</div>`;
   }
-  return html`<p class="row-note" data-kilde-forbundet="${k.id}">${k.kort.titel} er forbundet.</p>`;
+  return html`<p class="row-note" data-kilde-forbundet="${k.id}">${T.erForbundet(k.kort.titel)}</p>`;
 }
 
 /** The content of step 3 (foerste-kilde) or step 4 (flere-kilder) for its status. */
 export function kildeIndhold(trinId: string, status: TrinStatus, v: KildeVisning, now: Date): Markup {
+  const T = startTekst();
   if (trinId === 'foerste-kilde') {
     // KC-0236: a source of the Danmark-pakke has its own place (the pack's group) and is not a first source.
     const kort = v.kort.filter((k) => FOERSTE_SLAGS.includes(k.slags) && !erPakkeKilde(k.id));
     if (status === 'klaret') {
-      return html`${kort.filter((k) => k.forbundet).map((k) => forbundetKort(k, v, now, false))}<p class="row-note"><a href="/rum/hjem">Se det i Nu</a></p>`;
+      return html`${kort.filter((k) => k.forbundet).map((k) => forbundetKort(k, v, now, false))}<p class="row-note"><a href="/rum/hjem">${T.seINu}</a></p>`;
     }
-    if (!v.kanForbinde) return html`<p class="row-note">Ejeren forbinder den første kilde.</p>`;
+    if (!v.kanForbinde) return html`<p class="row-note">${T.ejerenForbinder}</p>`;
     return html`<div class="stack kilde-valg">${kort.map((k) => (k.forbundet ? forbundetKort(k, v, now, false) : forbindKort(k, { spring: false, efter: '/rum/hjem', ...(v.laptop ? { laptop: true } : {}) })))}</div>`;
   }
   // Step 4: the previews of the further kinds (a second calendar/mail shows under step 3), then the next source on offer.

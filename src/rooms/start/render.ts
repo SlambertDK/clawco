@@ -24,8 +24,8 @@ import type { PostStartVisning } from './digitalpost.ts';
 import { renderDanmarkPakke, type AulaStartVisning } from './danmarkpakke.ts';
 import { startTekst } from './tekster.ts';
 import { sprogNu, tekst } from '../../shell/tekster.ts';
+import { klokkeIso } from '../../shell/friskhed.ts';
 
-const TZ = 'Europe/Copenhagen';
 const FORTRYD_TIMER = 24;
 
 export type StartVisning = {
@@ -59,7 +59,7 @@ export type StartVisning = {
   foersteRet?: { punkt: { titel: string | null } | null; ret?: StartRet; forslag?: Regelforslag[]; kanSpringeOver: boolean };
 };
 
-const sek = (ms: number): string => (ms / 1000).toLocaleString(tekst().lokale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+export const sek = (ms: number): string => (ms / 1000).toLocaleString(tekst().lokale, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 /** One test's result in one line: "Virker · 0,8 s" or the fixed reason, in the language being rendered. */
 export function testTekst(t: { ok: boolean; ms: number; fejl?: string }): string {
@@ -137,11 +137,7 @@ function modelIndhold(status: TrinStatus, v: StartVisning): Markup {
   return html`${noegleLinje(m)}${raekker}${modelForm(m)}`;
 }
 
-function klokke(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('da-DK', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d).replace(':', '.');
-}
+const klokke = klokkeIso;
 
 function valg<T extends string>(navn: string, etiket: string, tekster: Record<T, string>, valgt: T): Markup {
   return html`<label class="field"><span class="row-note">${etiket}</span><select name="${navn}">${(Object.keys(tekster) as T[]).map((v) => html`<option value="${v}"${v === valgt ? html` selected` : ''}>${tekster[v]}</option>`)}</select></label>`;

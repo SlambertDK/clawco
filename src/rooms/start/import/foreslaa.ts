@@ -12,10 +12,13 @@ import { SvarFejl } from '../../../svarfejl.ts';
 import { IMPORT_MAPPER, type ImportBunke, type ImportDiff, type ImportForslag, type ImportMappe } from '../schema.ts';
 import type { Kontakt } from './typer.ts';
 import type { NoteTekst } from './parse-noter.ts';
+import { startTekst } from '../tekster.ts';
 
 export const PERSONER_MAKS = 200;
 export const PROFIL_MAKS = 8000;
 export const IMPORT_ZONE = 'privat' as const;
+/** The stored name of the profile line (data; the pile shows it in the language being rendered, Start's table `imp.dinProfil`). */
+export const PROFIL_NAVN = 'Din profil';
 /** The line the scripted agent of the test world recognises the run by. */
 export const IMPORT_MARKOER = 'Du læser det, en bruger tager med fra andre assistenter, og foreslår hvad Clawco skal gemme';
 
@@ -82,11 +85,10 @@ function diffPerson(nu: EksisterendePerson, ny: { relation?: string; org?: strin
   return ud;
 }
 
-/** The diff in plain Danish, one line per field. */
+/** The diff in plain words (the language being rendered), one line per field. */
 export function forskelTekst(diff: ImportDiff[]): string[] {
-  return diff.map((d) => (d.felt === 'tekst'
-    ? 'tekst: din profil har allerede en tekst, som Clawco ikke ændrer'
-    : `${d.felt}: ${d.nu ? `nu »${d.nu}«` : 'står ikke i din fil'}, importen siger »${d.ny}«`));
+  const T = startTekst().imp;
+  return diff.map((d) => (d.felt === 'tekst' ? T.forskelTekst : T.forskel(T.felt(d.felt), d.nu, d.ny)));
 }
 
 /**
@@ -109,7 +111,7 @@ export function parseImportSvar(raa: unknown, o: { slags: string; eksisterende: 
     set.add(noegle(navn));
     n += 1;
     const mappe: ImportMappe = erMappe(p['mappe']) ? p['mappe'] : 'andre';
-    const relation = linje(p['relation'], 80) || 'kontakt';
+    const relation = linje(p['relation'], 80) || startTekst().imp.standardRelation;
     const org = linje(p['org'], 200);
     const foedselsdag = linje(p['foedselsdag'], 40);
     const noter = Array.isArray(p['noter']) ? p['noter'].map((x) => tekst(x, 400)).filter(Boolean).join('\n').slice(0, 2000) : tekst(p['noter'], 2000);
@@ -126,7 +128,7 @@ export function parseImportSvar(raa: unknown, o: { slags: string; eksisterende: 
   const profilTekst = erObj(pr) ? tekst(pr['tekst'], PROFIL_MAKS) : '';
   if (profilTekst) {
     forslag.push({
-      id: `p${forslag.length + 1}`, art: 'profil', status: o.profil ? 'findes' : 'nyt', navn: 'Din profil', tekst: profilTekst,
+      id: `p${forslag.length + 1}`, art: 'profil', status: o.profil ? 'findes' : 'nyt', navn: PROFIL_NAVN, tekst: profilTekst,
       ...(o.profil ? { diff: [{ felt: 'tekst', nu: o.profil.slice(0, 600), ny: profilTekst.slice(0, 600) }] } : {}),
     });
   }

@@ -23,10 +23,11 @@ export const MODEL_FEJL: Record<ModelFejlArt, string> = {
 
 export const erModelFejlArt = (v: unknown): v is ModelFejlArt => typeof v === 'string' && Object.hasOwn(MODEL_FEJL, v);
 
+// The agent's own connection errors come in the screen language (src/agent), so both are matched.
 // Checked in this order: Clawco's own link to Hermes first, then time, then what the provider said.
 const REGLER: [ModelFejlArt, RegExp][] = [
-  ['agent-noegle', /ingen nøgle til Hermes/i],
-  ['agent-afvist', /^Hermes afviste kørslen: HTTP 40[13]\b/],
+  ['agent-noegle', /ingen nøgle til Hermes|no key to Hermes/i],
+  ['agent-afvist', /^Hermes (?:afviste kørslen|rejected the run): HTTP 40[13]\b/],
   ['tid', /timed? ?out|svarede ikke i tide|ETIMEDOUT|deadline exceeded/i],
   ['noegle', /\b40[13]\b|unauthori[sz]ed|forbidden|invalid[ _-]?(?:x-)?api[ _-]?key|incorrect api key|authentication|permission denied/i],
   ['kredit', /\b402\b|insufficient|credit|quota|billing|payment required/i],

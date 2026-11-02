@@ -7,7 +7,8 @@
 // half-applied; a file that is not a rules file at all throws ReglerFejl (the
 // caller fails closed to trin 0).
 
-import { erTrin, TRIN, type Trin } from './trin.ts';
+import { ULAESELIG, tillidTekst } from './tekster.ts';
+import { erTrin, trinNavn, TRIN, type Trin } from './trin.ts';
 
 /** 0 see · 1 sort · 2 book-keep · 3 prepare · 4 execute with undo (the ladder lives in trin.ts, KC-0143). */
 export type { Trin };
@@ -114,9 +115,9 @@ export function parseRegler(md: string): Regelsaet {
   const foerste = linjer.findIndex((l) => OVERSKRIFT.test(l));
   const hoved = foerste === -1 ? linjer : linjer.slice(0, foerste);
   const naeste = hoved.map((l) => NAESTE.exec(l)).filter((m) => m !== null);
-  if (naeste.length !== 1) throw new ReglerFejl(naeste.length === 0 ? 'linjen "naeste-id: R-…" mangler øverst i filen' : 'linjen "naeste-id" står mere end én gang');
+  if (naeste.length !== 1) throw new ReglerFejl(naeste.length === 0 ? ULAESELIG.naesteMangler : ULAESELIG.naesteFlere);
   const nr = ID.exec(naeste[0]?.[1] ?? '');
-  if (!nr) throw new ReglerFejl('linjen "naeste-id" skal have formen R-0001');
+  if (!nr) throw new ReglerFejl(ULAESELIG.naesteForm);
 
   const afsnit: Afsnit[] = [];
   if (foerste !== -1) {
@@ -140,7 +141,8 @@ export function parseRegler(md: string): Regelsaet {
   return { naesteId: Math.max(Number(nr[1]), ...ider.map((id) => idNr(id) + 1)), regler, ugyldige };
 }
 
-const INDLEDNING = `Det, Hermes må gøre af sig selv. Én regel pr. afsnit: overskriften har reglens faste nummer, så trin (${TRIN.map((t) => `${t.trin} ${t.navn}`).join(', ')}), hvad den gælder for, hvor den kom fra og om den er aktiv eller på pause; derefter din egen tekst. Du må rette i filen. En regel, der er skrevet forkert, bliver ikke fulgt. Rør ikke linjen naeste-id: den sørger for, at et nummer aldrig bruges to gange.`;
+/** The file's introduction, in the language of the request; the step names are the ladder's (trin.ts), named in that language. */
+const indledning = (): string => tillidTekst().indledning(TRIN.map((t) => `${t.trin} ${trinNavn(t.trin)}`).join(', '));
 
 function regelTekst(r: Regel): string {
   const g = r.gaelder.slags ? `${r.gaelder.kilde} / ${r.gaelder.slags}` : r.gaelder.kilde;
@@ -150,7 +152,7 @@ function regelTekst(r: Regel): string {
 
 /** The file for `s`: valid rules first, then every invalid section exactly as Henrik wrote it (the app never drops his text). */
 export function serialiserRegler(s: Regelsaet): string {
-  const dele = ['# Regler for Clawco', `naeste-id: ${regelId(s.naesteId)}`, INDLEDNING, ...s.regler.map(regelTekst), ...s.ugyldige.map((u) => u.raa)];
+  const dele = [tillidTekst().reglerTitel, `naeste-id: ${regelId(s.naesteId)}`, indledning(), ...s.regler.map(regelTekst), ...s.ugyldige.map((u) => u.raa)];
   return `${dele.join('\n\n')}\n`;
 }
 

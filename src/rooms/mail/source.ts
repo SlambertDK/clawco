@@ -5,6 +5,7 @@
 import { execFile } from 'node:child_process';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { mailTekst } from './tekster.ts';
 
 export type Envelope = { id: string; emne: string; fra: string; fraEmail?: string; modtaget: string; laest: boolean; flag: boolean; vedhaeftning: boolean; /** The mail's Message-ID (stable across folders); for Kuratoren's dedupe only, never shown or sent. */ messageId?: string };
 export type OrdnetPost = { mailId: string; til: string; hvorfor: string; tid: string };
@@ -39,8 +40,8 @@ export function parseAll(json: unknown): Envelope[] {
     const fraEmail = isObj(from) ? s(from['email'], 200) : '';
     const env: Envelope = {
       id,
-      emne: s(e['subject'], 300) || '(uden emne)',
-      fra: (isObj(from) ? s(from['name'], 120) : '') || fraEmail || '(ukendt afsender)',
+      emne: s(e['subject'], 300) || mailTekst().udenEmne,
+      fra: (isObj(from) ? s(from['name'], 120) : '') || fraEmail || mailTekst().ukendtAfsender,
       modtaget: s(e['date'], 40),
       laest: has('seen'),
       flag: has('flagged'),

@@ -6,12 +6,13 @@
 
 import type { Kuvert } from '../kilder/types.ts';
 import { erKendtDomaene, genkendDigitalPost, GENERISK_EMNE, KENDTE_DOMAENER, kandidatAfsendere, tilfoejSet, type Notits } from '../kilder/danmark/digital-post.ts';
+import { danmarkTekst } from './tekster.ts';
 import { erViser, VISERE, type DanmarkLager, type Viser } from './tilstand.ts';
 
 /** What the mail seam answers: is a mail source connected into the person's own zone, and its envelopes — null = every one of them failed to read. */
 export type MailSyn = { forbundet: boolean; kuverter: Kuvert[] | null };
 
-/** A refusal with a plain Danish sentence and the status a route answers. */
+/** A refusal with a plain sentence (Danish or English, per request: ./tekster.ts) and the status a route answers. */
 export class DanmarkAfvist extends Error {
   readonly status: 400 | 409 | 503;
   constructor(status: 400 | 409 | 503, besked: string) { super(besked); this.name = 'DanmarkAfvist'; this.status = status; }
@@ -27,7 +28,8 @@ export type PostStart = { kandidater: string[]; laeser: 'ok' | 'kan-ikke-se'; vi
 const DAG_MS = 86_400_000;
 /** How long "Ikke nu" puts Start's step away. */
 const UDSAT_DAGE = 30;
-export const AFSENDER_AFVIST = `Det er ikke en adresse, Digital Post sender fra. Skriv adressen i notifikationsmailen (den slutter på ${KENDTE_DOMAENER.join(', ')}), eller vælg en fra listen.`;
+/** The refusal of an address that is not one Digital Post sends from; read per call so it follows the request's language. */
+export const afsenderAfvist = (): string => danmarkTekst().afsenderAfvist(KENDTE_DOMAENER.join(', '));
 
 export function lavDanmark(o: { lager: DanmarkLager; laesMail: () => Promise<MailSyn>; nu: () => Date; domaener?: readonly string[]; cacheMs?: number }) {
   const domaener = o.domaener ?? KENDTE_DOMAENER;
@@ -73,9 +75,9 @@ export function lavDanmark(o: { lager: DanmarkLager; laesMail: () => Promise<Mai
     /** The person confirms the notification sender (and the viewer). Only an address on a hint domain. */
     async gem(afsender: string, viser: string): Promise<void> {
       const adresse = String(afsender ?? '').trim().toLowerCase();
-      if (!erKendtDomaene(adresse, domaener)) throw new DanmarkAfvist(400, AFSENDER_AFVIST);
-      if (!erViser(viser)) throw new DanmarkAfvist(400, 'Vælg, hvor du læser din Digital Post: mit.dk, e-Boks eller borger.dk.');
-      if (!(await mail()).forbundet) throw new DanmarkAfvist(409, 'Forbind først den mail, Digital Post sender notifikationen til.');
+      if (!erKendtDomaene(adresse, domaener)) throw new DanmarkAfvist(400, afsenderAfvist());
+      if (!erViser(viser)) throw new DanmarkAfvist(400, danmarkTekst().vaelgViser);
+      if (!(await mail()).forbundet) throw new DanmarkAfvist(409, danmarkTekst().forbindMailFoerst);
       await o.lager.aendre((s) => { const { afvist: _afvist, ...rest } = s; return { ...rest, afsendere: [adresse], viser }; });
       cache = null;
     },
@@ -100,21 +102,21 @@ export function lavDanmark(o: { lager: DanmarkLager; laesMail: () => Promise<Mai
     async setAlle(): Promise<void> {
       const s = await o.lager.laes();
       const m = await mail();
-      if (!s.afsendere.length || !m.forbundet) throw new DanmarkAfvist(400, 'Der er ingen besked at sætte.');
-      if (m.kuverter === null) throw new DanmarkAfvist(503, 'Clawco kan ikke læse din mail lige nu. Prøv igen om lidt.');
+      if (!s.afsendere.length || !m.forbundet) throw new DanmarkAfvist(400, danmarkTekst().ingenBeskedAtSaette);
+      if (m.kuverter === null) throw new DanmarkAfvist(503, danmarkTekst().kanIkkeLaeseMail);
       const ider = notitser(m.kuverter, s.afsendere, s.set).map((n) => n.id);
-      if (!ider.length) throw new DanmarkAfvist(400, 'Der er ingen besked at sætte.');
+      if (!ider.length) throw new DanmarkAfvist(400, danmarkTekst().ingenBeskedAtSaette);
       await o.lager.aendre((x) => ({ ...x, set: ider.reduce(tilfoejSet, x.set) }));
     },
 
     /** "Set den": the notice (by its id, which must be one of the notices now) is marked seen. */
     async set(id: string): Promise<void> {
       const s = await o.lager.laes();
-      if (!s.afsendere.length || typeof id !== 'string' || !id) throw new DanmarkAfvist(400, 'Den besked findes ikke længere.');
+      if (!s.afsendere.length || typeof id !== 'string' || !id) throw new DanmarkAfvist(400, danmarkTekst().beskedFindesIkke);
       const m = await mail();
-      if (!m.forbundet) throw new DanmarkAfvist(400, 'Den besked findes ikke længere.');
-      if (m.kuverter === null) throw new DanmarkAfvist(503, 'Clawco kan ikke læse din mail lige nu. Prøv igen om lidt.');
-      if (!notitser(m.kuverter, s.afsendere, s.set).some((n) => n.id === id)) throw new DanmarkAfvist(400, 'Den besked findes ikke længere.');
+      if (!m.forbundet) throw new DanmarkAfvist(400, danmarkTekst().beskedFindesIkke);
+      if (m.kuverter === null) throw new DanmarkAfvist(503, danmarkTekst().kanIkkeLaeseMail);
+      if (!notitser(m.kuverter, s.afsendere, s.set).some((n) => n.id === id)) throw new DanmarkAfvist(400, danmarkTekst().beskedFindesIkke);
       await o.lager.aendre((x) => ({ ...x, set: tilfoejSet(x.set, id) }));
     },
   };

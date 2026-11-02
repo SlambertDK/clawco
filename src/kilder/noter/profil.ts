@@ -11,6 +11,7 @@ import path from 'node:path';
 import { KildeFejl } from '../types.ts';
 import { sha256, type Kvittering, type Skrevet } from './personer.ts';
 import { iRod } from './sti.ts';
+import { noterTekst } from './tekster.ts';
 import { PROFIL, PROFIL_SKABELON } from './vault.ts';
 
 const MAKS = 50_000;
@@ -30,7 +31,7 @@ export async function laesProfil(rod: string): Promise<string | null> {
 }
 
 export async function skrivProfil(rod: string, tekst: string): Promise<Skrevet> {
-  if (typeof tekst !== 'string' || !tekst.trim() || tekst.length > MAKS || tekst.includes('\u0000')) throw new KildeFejl(400, 'Ugyldig profiltekst.');
+  if (typeof tekst !== 'string' || !tekst.trim() || tekst.length > MAKS || tekst.includes('\u0000')) throw new KildeFejl(400, noterTekst().ugyldigProfiltekst);
   const fil = await iRod(rod, PROFIL);
   const nu = await laesProfil(rod);
   if (nu === tekst) return { udfald: 'uaendret', sti: PROFIL };
@@ -49,7 +50,7 @@ export async function skrivProfil(rod: string, tekst: string): Promise<Skrevet> 
 
 /** Fortryd: puts back what was there (the template) or removes the file — only while it holds what was written. */
 export async function fjernProfil(rod: string, k: Kvittering): Promise<boolean> {
-  if (k.sti !== PROFIL) throw new KildeFejl(400, 'Kun profilen kan fjernes her.');
+  if (k.sti !== PROFIL) throw new KildeFejl(400, noterTekst().kunProfilen);
   const fil = await iRod(rod, PROFIL);
   const nu = await laesProfil(rod);
   if (nu === null || sha256(nu) !== k.sha256) return false;

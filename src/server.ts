@@ -33,6 +33,7 @@ import { findRoom } from './rooms/registry.ts';
 import { UNIVERS, findUnivers, laesIndeks, laesUnivers, universRum } from './rooms/univers/lager.ts';
 import { synligUnivers, universRoom } from './rooms/univers/room.ts';
 import { renderMoedeVisning } from './rooms/univers/render.ts';
+import { universStatus, universTekst } from './rooms/univers/tekster.ts';
 import { koerMoedeTik, startMoedeTik } from './rooms/univers/moedetik.ts';
 import { getRoomModule, ROOM_MODULES } from './rooms/modules.ts';
 import { ActionError, type RoomDeps } from './rooms/module.ts';
@@ -64,7 +65,8 @@ import { modtagRet } from './rooms/start/ret.ts';
 import { lavRetBus } from './rooms/rethaendelse.ts';
 import { forhaandsvisningerNu, koerselFaerdig, modtagFoersteLaesning } from './rooms/start/vaerdi.ts';
 import { forhaandsvisningId, renderForhaandsvisning } from './rooms/start/forhaandsvisning.ts';
-import { lavProfilLager } from './store/profil.ts';
+import { lavProfilLager, type Sprog } from './store/profil.ts';
+import { laesInstallation } from './store/installation.ts';
 import { medTesttilstand, testDataDir } from './testtilstand/kontakt.ts';
 import { lavTestverden } from './testtilstand/verden.ts';
 import { rumFraBesked, erHjaelp, erInviterBesked, erVidenBesked, hjaelpSvar } from './shell/aabn.ts';
@@ -75,7 +77,7 @@ import { gemRegelforslag, kanForeslaa } from './kurator/regelforslag.ts';
 import { fortrydLog, luk, regnskabFlyt, regnskabFortryd, regnskabVaelg, startKortHandling, udsaet, type Udfald } from './kurator/kortHandlinger.ts';
 import { SENERE, synligeKort, type Senere } from './kurator/senere.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { ENEBRUGER, erAfvist, HUSSTAND_ULAESELIG, INGEN, kunSigneret, peerAf, vaelgKigger, type Identitetsvalg, type Person } from './identitet/identitet.ts';
+import { ENEBRUGER, erAfvist, husstandUlaeselig, INGEN, kunSigneret, peerAf, vaelgKigger, type Identitetsvalg, type Person } from './identitet/identitet.ts';
 import { kontoFraMiljoe } from './identitet/konto.ts';
 import { nonceLager, verificerKontrol } from './identitet/kontrol.ts';
 import { INTERN_MAKS_BYTES, INTERN_STI, parseIntern } from './hushold/intern.ts';
@@ -95,7 +97,7 @@ import { laptopFraMiljoe } from './identitet/laptop.ts';
 import { delPaaTailnet, laesTailscale, lavTsKoerer, type TsKoerer, type TsSyn } from './shell/tailscale.ts';
 import { HusstandFejl, laesHusstand, skrivHusstand } from './identitet/husstand.ts';
 import { renderIngenAdgang } from './shell/adgang.ts';
-import { lavPause, NodstopNaegtet, PauseFejl, PAUSE_TEKST, startIgen, stopAlt } from './graenser/nodstop.ts';
+import { lavPause, NodstopNaegtet, PauseFejl, pauseTekst, startIgen, stopAlt } from './graenser/nodstop.ts';
 import { erNej, lavRevisionslog, type Revisionslinje } from './graenser/revisionslog.ts';
 import { renderRevision } from './shell/revision.ts';
 import { renderKilder } from './shell/kilder.ts';
@@ -192,6 +194,8 @@ export type AppDeps = {
   maxParallel?: number;
   kalenderScript?: string;
   dataDir?: string;
+  /** KC-0170: the screen's language before a profile exists — the installation's record (main reads store/installation.ts); absent = Danish, as on an installation from before the language. */
+  standardSprog?: Sprog;
   now?: () => Date;
   sha?: string;
   publicDir?: string;
@@ -267,13 +271,13 @@ function synligRevision(p: Person, e: Revisionslinje): boolean {
 }
 const START = Date.now();
 
-/** What a run says it is doing, by kind (KC-0100: also the fallback in the Kø panel for runs no room tagged). */
-const LABELS: Record<string, string> = { opdater: 'bygger rummet', handling: 'udfører en handling', fortryd: 'fortryder', chat: 'svarer i chatten', nyt: 'skriver udkast', forslag: 'laver forslag', brug: 'bruger forslag', afvis: 'afviser forslag', vaelg: 'skifter udkast', gem: 'gemmer', faerdig: 'rydder op', kladde: 'gemmer kladde', baggrund: 'flytter i baggrunden', frontload: 'bygger rummet (planlagt)', univers: 'svarer i universet', forbered: 'forbereder mødet', nytUnivers: 'opretter univers', placerMoede: 'lægger mødet i univers', skjulMoede: 'skjuler mødet', opgaveStatus: 'flytter opgaven', nytMoede: 'tilføjer mødet', arkiver: 'arkiverer universet', kurator: 'ordner kortene', laer: 'lærer af dit valg', send: 'sender et svar', afmeld: 'afmelder', analyse: 'analyserer' };
+/** What a run says it is doing, by kind (KC-0100: also the fallback in the Kø panel for runs no room tagged). KC-0170: the words are the shell table's, read per request (a Proxy so every use site stays as it was). */
+const LABELS: Record<string, string | undefined> = new Proxy({}, { get: (_maal, noegle) => (typeof noegle === 'string' ? tekst().koerLabels[noegle] : undefined) });
 
-/** Nu's greeting: by the hour, to the profile's name (the reference installation has no profile: Henrik). */
-function hilsen(now: Date, navn: string | undefined): string {
+/** Nu's greeting: by the hour, to the profile's name. No profile = the reference installation (Henrik's, from before the language), unless the installation is new (KC-0170: English by default) and nobody has a name yet. */
+function hilsen(now: Date, navn: string | undefined, ny: boolean): string {
   const h = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Copenhagen', hour: '2-digit', hour12: false }).format(now));
-  return tekst().hilsen(h, navn ?? 'Henrik');
+  return tekst().hilsen(h, navn ?? (ny ? undefined : 'Henrik'));
 }
 
 export function createApp(deps: AppDeps) {
@@ -281,6 +285,10 @@ export function createApp(deps: AppDeps) {
   // KC-0124: the kill switch's pause and the audit log live on the data dir (none without one: in memory / off).
   // KC-0126: the profile from Start's step 1 (none without a data dir); every run is told it.
   const profil = deps.dataDir ? lavProfilLager(deps.dataDir) : undefined;
+  // KC-0170: the language of a request or a tick — the profile's, else the installation's (English for a new one, Danish for one from before the language).
+  const sprogNuFor = (): Sprog => profil?.laesNu()?.sprog ?? deps.standardSprog ?? STANDARD_SPROG;
+  // What runs outside any request (clocks, planned rebuilds, the Sunday sample) speaks that language too, read afresh each time.
+  const iProfilSprog = <T>(fn: () => T): T => medSprog(sprogNuFor(), fn);
   // KC-0136: the inbox and the people register come from the vault chosen on the notes card (kilder.json);
   // vaultInbox / personer (KC_VAULT_INBOX / KC_PEOPLE_DIR) still win.
   const stier = lavVaultStier({ ...(deps.dataDir ? { dataDir: deps.dataDir } : {}), env: { KC_VAULT_DIR: deps.vaultDir, KC_VAULT_INBOX: deps.vaultInbox, KC_PEOPLE_DIR: deps.personer }, ...(deps.vaultInboxStandard ? { standardIndbakke: deps.vaultInboxStandard } : {}) });
@@ -306,6 +314,7 @@ export function createApp(deps: AppDeps) {
   const laptopNu = (): boolean => (deps.tailscale?.laptop ? deps.tailscale.laptop() : deps.laptop === true);
   const d: RoomDeps = {
     laptop: laptopNu,
+    standardSprog: () => deps.standardSprog ?? STANDARD_SPROG,
     get person(): Person { return hvemNu.getStore() ?? INGEN; },
     live,
     store: deps.store, hermes: deps.hermes, runs, now,
@@ -693,7 +702,7 @@ export function createApp(deps: AppDeps) {
     }
     try {
       let raw: unknown;
-      try { raw = JSON.parse(krop.toString('utf8')); } catch { throw new InvitationFejl('Ugyldig forespørgsel.'); }
+      try { raw = JSON.parse(krop.toString('utf8')); } catch { throw new InvitationFejl(tekst().srv.ugyldig); }
       const r = await internMedlem(d, parseIntern(raw));
       return c.json({ ok: true, aendret: r.aendret });
     } catch (err) {
@@ -718,7 +727,7 @@ export function createApp(deps: AppDeps) {
     try { t = await betaLager!.laes(); } catch (err) {
       if (!(err instanceof BetaFejl)) throw err;
       console.error('beta:', err.message);
-      return c.json({ error: 'Betaens tilstand kan ikke læses.' }, 503);
+      return c.json({ error: tekst().srv.betaUlaeselig }, 503);
     }
     if (!t) return c.json({ error: 'Findes ikke' }, 404);
     c.header('Cache-Control', 'no-store');
@@ -735,11 +744,14 @@ export function createApp(deps: AppDeps) {
   const stoetteLager = deps.stoette && deps.dataDir ? lavStoetteLager(deps.dataDir) : undefined;
   app.use('/*', async (c, next) => {
     if (c.req.path === '/health') return next();
+    // KC-0170: the screen's language for everything this request renders, the refusal page included — the profile's
+    // (Start step 1), else the standard. A refusal is a Response of its own; it must come back out of the wrapper.
+    return medSprog(sprogNuFor(), async () => {
     let husstand;
     try { husstand = await laesHusstand(husstandDir); } catch (err) {
       if (!(err instanceof HusstandFejl)) throw err;
       console.error('identitet:', err.message);
-      return afvis(c, 503, HUSSTAND_ULAESELIG);
+      return afvis(c, 503, husstandUlaeselig());
     }
     // An unreadable record is no grant (fail closed): a support identity is refused, and no band is shown.
     let stoetteNu: StoetteAdgang | null | 'ulaeselig' = null;
@@ -759,15 +771,15 @@ export function createApp(deps: AppDeps) {
     c.set('husstand', husstand?.personer ?? []);
     c.set('stoette', stoetteNu === 'ulaeselig' ? null : stoetteNu);
     if (stoetteNu && stoetteNu !== 'ulaeselig') await noterStoetteUdloeb(stoetteNu);
-    // KC-0170: the screen's language for everything this request renders — the profile's (Start step 1), else the standard.
-    await medSprog(profil?.laesNu()?.sprog ?? STANDARD_SPROG, () => hvemNu.run(hvem, async () => {
+    await hvemNu.run(hvem, async () => {
       // KC-0154: her first request through this path activates a member the owner pre-created (once; never a static file).
       // KC-0188: support only looks; its visit activates nobody.
       if (hvem.rolle !== 'stoette' && (husstand?.personer.length ?? 0) > 1 && !/\.[a-z0-9]+$/i.test(c.req.path)) {
         try { await vedBesoeg(d); } catch (err) { console.error('husstand: indgangen kunne ikke markeres:', err); }
       }
       await next();
-    }));
+    });
+    });
   });
   function afvis(c: Context<Env>, status: 401 | 403 | 503, hvorfor: string): Response {
     if (c.req.path === '/api' || c.req.path.startsWith('/api/')) return c.json({ error: hvorfor }, status);
@@ -778,7 +790,6 @@ export function createApp(deps: AppDeps) {
   // the owner-only checks refuse it again behind this). Each support session's start and every page it opens (the route
   // template: never a query string, never content) goes to the audit log with the staff account's id; an /api read is
   // logged once per session. The owner reads it in "Hvad Clawco har gjort".
-  const KUN_SE = 'Support kan kun se med og kan ikke ændre noget. Det kan kun ejeren.';
   const stoetteLogget = new Set<string>();
   const stoetteLinje = (verb: string, rum: string, hvorfor: string, person: string, adgang: string, udfald: 'tillad' | 'afvist' = 'tillad') =>
     revision?.skriv({ person, kanal: 'stoette', rum: rum.slice(0, 80), verb, udfald, hvorfor, handlingId: `adgang:${adgang}`, zoner: [], kilde: 'stoette' });
@@ -787,12 +798,12 @@ export function createApp(deps: AppDeps) {
     if (!stoetteLager || a.tilbagekaldt || a.udloebLogget || !(now().getTime() >= slut) || stoetteLogget.has(`udloeb:${a.id}`)) return;
     stoetteLogget.add(`udloeb:${a.id}`);
     await stoetteLager.skriv({ ...a, udloebLogget: now().toISOString() });
-    await stoetteLinje('stoette-udloeb', 'stoette', `Supportadgangen sluttede af sig selv kl. ${klokkeKbh(new Date(a.udloeber))}.`, 'stoette', a.id);
+    await stoetteLinje('stoette-udloeb', 'stoette', tekst().srv.supportUdloeb(klokkeKbh(new Date(a.udloeber))), 'stoette', a.id);
   }
   app.use('/*', async (c, next) => {
     const p = c.get('person');
     if (p?.rolle !== 'stoette' || !p.stoette) return next();
-    if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return afvis(c, 403, KUN_SE);
+    if (c.req.method !== 'GET' && c.req.method !== 'HEAD') return afvis(c, 403, tekst().srv.kunSe);
     const s = p.stoette;
     const hvem = stoettePersonId(s.personale);
     const sessionNoegle = `${s.adgang}:${s.session}`;
@@ -815,7 +826,7 @@ export function createApp(deps: AppDeps) {
     }
     // A page support was refused (an owner-only page, a missing one) is logged as a no, so the owner sees the attempt too.
     if (c.res.status >= 400) await stoetteLinje('stoette-aabnet', sti, 'Support fik nej til en side.', hvem, s.adgang, 'afvist');
-    else await stoetteLinje('stoette-aabnet', sti, 'Support åbnede en side.', hvem, s.adgang);
+    else await stoetteLinje('stoette-aabnet', sti, tekst().srv.supportAabnede, hvem, s.adgang);
   });
   // KC-0154: the shell names the household only to whom may see who is in it (rettigheder.ts; not a guest).
   // KC-0188: the band and the owner's card come from the record (shell/layout.ts), on every page that has the skeleton.
@@ -967,7 +978,7 @@ export function createApp(deps: AppDeps) {
     } catch (err) {
       if (!(err instanceof KonfigFejl)) throw err;
       console.error('kilder:', err.message);
-      return String(html`<p class="muted row" data-kilder="fejl">Forbindelserne kunne ikke læses. Ejeren skal rette kilder.json.</p>`);
+      return String(html`<p class="muted row" data-kilder="fejl">${tekst().srv.kilderUlaeselige}</p>`);
     }
   }
 
@@ -996,7 +1007,7 @@ export function createApp(deps: AppDeps) {
 
   // KC-0124: the audit log (owner and members; never a guest). ?nej=1 = only what Clawco said no to.
   app.get('/api/revision', async (c) => {
-    if (c.get('person').rolle === 'gaest') return c.json({ error: 'En gæst kan ikke se, hvad Clawco har gjort.' }, 403);
+    if (c.get('person').rolle === 'gaest') return c.json({ error: tekst().srv.gaestRevision }, 403);
     const linjer = await revisionFor(c.get('person'), 50, c.req.query('nej') === '1');
     return c.json({ linjer, kaede: revision ? await revision.tjekKaede() : { ok: true } });
   });
@@ -1014,7 +1025,7 @@ export function createApp(deps: AppDeps) {
   });
   // KC-0124: while paused nothing new starts — every room route that would ask Hermes or act answers 503 at the door.
   app.use('/api/rum/*', async (c, next) => {
-    if (c.req.method === 'POST' && runs.paaPause()) return c.json({ error: PAUSE_TEKST }, 503);
+    if (c.req.method === 'POST' && runs.paaPause()) return c.json({ error: pauseTekst() }, 503);
     await next();
   });
 
@@ -1026,7 +1037,7 @@ export function createApp(deps: AppDeps) {
     if (err instanceof NodstopNaegtet) return c.json({ error: err.message }, 403);
     // KC-0132: a connector refusal carries its status (fail closed); a kilder.json that cannot be read is 503, never "none".
     if (err instanceof KildeFejl) return c.json({ error: err.message }, err.status);
-    if (err instanceof KonfigFejl) { console.error('kilder:', err.message); return c.json({ error: 'Forbindelserne kunne ikke læses. Ejeren skal rette kilder.json.' }, 503); }
+    if (err instanceof KonfigFejl) { console.error('kilder:', err.message); return c.json({ error: tekst().srv.kilderUlaeselige }, 503); }
     console.error(err);
     deps.fejlrapport?.rapporter(err, { rute: c.req.routePath, status: 500 });
     return c.text('Internal Server Error', 500);
@@ -1048,9 +1059,9 @@ export function createApp(deps: AppDeps) {
     // KC-0153: Send on a request in Husstanden (id = request:kind:hash of the text shown) is a tap too; KC-0154: so is
     // Send on an invitation (id = member:invitation:hash of the first message shown).
     const kanalSend = rum === 'husstand' && (slags === 'send' || slags === 'invitation');
-    if (!videnRegel && !hjemForslag && !hjemBeta && !hjemPost && !kanalSend &&((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: 'Ukendt knap' }, 400);
+    if (!videnRegel && !hjemForslag && !hjemBeta && !hjemPost && !kanalSend &&((!getRoomModule(rum) && rum !== HJEM) || !['handling', 'aktion', 'fortryd', 'kort'].includes(slags))) return c.json({ error: tekst().srv.ukendtKnap }, 400);
     const id = slags === 'aktion' ? aktionId(typeof b['id'] === 'string' ? b['id'] : '', typeof b['body'] === 'object' && b['body'] !== null ? b['body'] as Record<string, unknown> : {}) : typeof b['id'] === 'string' ? b['id'] : '';
-    if (!id) return c.json({ error: 'Ukendt knap' }, 400);
+    if (!id) return c.json({ error: tekst().srv.ukendtKnap }, 400);
     return c.json({ ja: TEGN.udsted({ person: c.get('person').id, rum, slags, id }) });
   });
 
@@ -1060,7 +1071,7 @@ export function createApp(deps: AppDeps) {
   app.post('/api/kilder/:id/forbind', async (c) => {
     const nej = ejerKun(c); if (nej) return nej;
     let b: unknown;
-    try { b = await c.req.json(); } catch { return c.json({ error: 'Ugyldig forespørgsel' }, 400); }
+    try { b = await c.req.json(); } catch { return c.json({ error: tekst().srv.ugyldigKort }, 400); }
     return c.json(await kilder.forbind(c.req.param('id'), b, c.get('person')));
   });
   app.post('/api/kilder/:id/frakobl', async (c) => {
@@ -1070,10 +1081,9 @@ export function createApp(deps: AppDeps) {
   });
   // KC-0222: the user's own news sources after the connection. The connector checks and changes the list, the registry
   // writes it; the account of it goes in Nyheder's log (the way back for a removal is adding the same address again).
-  const FEED_BODY = 'Send {"adresse": "…"} med adressen på én nyhedskilde.';
   async function aendrFeeds(c: Context<Env>, fn: (k: NyhederRssKilde) => (ctx: KildeKontekst) => Promise<{ tekst: string; valg: Record<string, string> }>): Promise<Response> {
     const nej = ejerKun(c); if (nej) return nej;
-    if (fremmed(c)) return c.json({ error: 'Kilderne kan kun ændres fra Clawco selv.' }, 403);
+    if (fremmed(c)) return c.json({ error: tekst().srv.kunFraClawco }, 403);
     const rss = rssKilde();
     if (!rss) return c.json({ error: 'Ukendt forbindelse' }, 404);
     const person = c.get('person');
@@ -1084,29 +1094,28 @@ export function createApp(deps: AppDeps) {
   }
   app.post('/api/kilder/nyheder-rss/feeds', async (c) => {
     let b: unknown;
-    try { b = await c.req.json(); } catch { return c.json({ error: FEED_BODY }, 400); }
+    try { b = await c.req.json(); } catch { return c.json({ error: tekst().srv.feedBody }, 400); }
     const adresse = typeof b === 'object' && b !== null && !Array.isArray(b) && Object.keys(b).every((n) => n === 'adresse') ? (b as Record<string, unknown>)['adresse'] : undefined;
-    if (typeof adresse !== 'string' || !adresse.trim() || adresse.length > 2000) return c.json({ error: FEED_BODY }, 400);
+    if (typeof adresse !== 'string' || !adresse.trim() || adresse.length > 2000) return c.json({ error: tekst().srv.feedBody }, 400);
     return aendrFeeds(c, (k) => (ctx) => k.tilfoejFeed(adresse, ctx));
   });
   app.delete('/api/kilder/nyheder-rss/feeds/:id', async (c) => {
     const id = c.req.param('id');
-    if (!/^f-[0-9a-f]{12}$/.test(id)) return c.json({ error: 'Den kilde findes ikke længere.' }, 404);
+    if (!/^f-[0-9a-f]{12}$/.test(id)) return c.json({ error: tekst().srv.kildeVaek }, 404);
     return aendrFeeds(c, (k) => (ctx) => k.fjernFeed(id, ctx));
   });
   // KC-0224: which conversations Clawco may read, after the connection. The whole set is sent (what is not in it is
   // un-chosen and forgotten at once); the connector checks it, the registry writes it and logs it (counts only).
-  const VALG_BODY = 'Send {"valgte": ["…"]} med de samtaler, Clawco må læse.';
   app.put('/api/kilder/beskeder/valg', async (c) => {
     const nej = ejerKun(c); if (nej) return nej;
-    if (fremmed(c)) return c.json({ error: 'Kilderne kan kun ændres fra Clawco selv.' }, 403);
+    if (fremmed(c)) return c.json({ error: tekst().srv.kunFraClawco }, 403);
     const besked = beskedKilde();
     if (!besked) return c.json({ error: 'Ukendt forbindelse' }, 404);
     let b: unknown;
-    try { b = await c.req.json(); } catch { return c.json({ error: VALG_BODY }, 400); }
+    try { b = await c.req.json(); } catch { return c.json({ error: tekst().srv.valgBody }, 400); }
     const o = typeof b === 'object' && b !== null && !Array.isArray(b) ? (b as Record<string, unknown>) : null;
     const valgte = o && Object.keys(o).every((n) => n === 'valgte') ? o['valgte'] : undefined;
-    if (!Array.isArray(valgte) || valgte.length > 500 || !valgte.every((v) => typeof v === 'string' && /^s-[0-9a-f]{12}$/.test(v))) return c.json({ error: VALG_BODY }, 400);
+    if (!Array.isArray(valgte) || valgte.length > 500 || !valgte.every((v) => typeof v === 'string' && /^s-[0-9a-f]{12}$/.test(v))) return c.json({ error: tekst().srv.valgBody }, 400);
     const svar = await kilder.aendreValg(BESKEDER_ID, c.get('person'), (ctx) => besked.vaelgSamtaler(valgte as string[], ctx));
     live.notify(HJEM);
     return c.json({ samtaler: svar.samtaler, tekst: svar.tekst });
@@ -1121,7 +1130,6 @@ export function createApp(deps: AppDeps) {
   // the export hold the whole household's data. Slet alt is not a handling — no room, chat phrase, voice id or Hermes
   // answer reaches it; only this route, with the typed word. The work is done by plain functions (src/tillid/), so Sky
   // (KC-0206) can run the export and the delete inside a tenant without this app.
-  const KUN_EJER = `Kun ejeren kan se og ændre, hvad ${PRODUKT} har gemt.`;
   const erEjer = (c: Context<Env>): boolean => c.get('person').rolle === 'ejer';
   /** The user's folder (D7): the data dir and the vault's Clawco/; the vault, people register and inbox are the user's own notes. */
   const brugermappe = (): Brugermappe => {
@@ -1157,17 +1165,17 @@ export function createApp(deps: AppDeps) {
   const fremmed = (c: Context<Env>): boolean => { const s = c.req.header('sec-fetch-site'); return !!s && s !== 'same-origin' && s !== 'none'; };
 
   app.get('/viden', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, KUN_EJER);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerViden);
     const v = await videnNu();
     const tom = !v.gemt.rum.length && !v.gemt.clawco.length && !v.gemt.andre && !v.gemt.noegler;
     return videnSide(c, renderViden({ ...v, slettet: c.req.query('slettet') === '1' && tom }), `Hvad ${PRODUKT} ved om dig`);
   });
   app.get('/viden/slet-alt', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, KUN_EJER);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerViden);
     return videnSide(c, renderSletAlt(await videnNu()), 'Slet alt');
   });
   app.get('/api/tillid/eksport', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, KUN_EJER);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerViden);
     const p = await personerListe();
     const zip = await eksporter(brugermappe(), p ? { personer: { dir: p.dir, filer: p.liste.map((x) => x.sti) } } : {}, now());
     return c.body(new Uint8Array(zip), 200, { 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="clawco-${copenhagenDate(now())}.zip"`, 'Cache-Control': 'no-store' });
@@ -1176,14 +1184,13 @@ export function createApp(deps: AppDeps) {
   // KC-0203: the closed beta's own routes — all the owner's, all from Clawco itself, all 404 without KC_BETA. An answer and
   // the consent switch are human taps (the one-time yes of jaFraTryk, for exactly that answer); closing the plain card and
   // "Ikke nu" change nothing that leaves the machine. Nothing here reaches Sky: Sky pulls (GET /api/beta/maal above).
-  const KUN_EJER_BETA = 'Kun ejeren kan svare for betaen.';
   type BetaAdgang = { t: NonNullable<Awaited<ReturnType<typeof betaNu>>> } | Response;
   const betaAdgang = async (c: Context<Env>): Promise<BetaAdgang> => {
-    if (!betaPaa()) return c.json({ error: 'Findes ikke' }, 404);
-    if (!erEjer(c)) return afvis(c, 403, KUN_EJER_BETA);
+    if (!betaPaa()) return c.json({ error: tekst().srv.findesIkke }, 404);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerBeta);
     if (c.req.method !== 'GET' && fremmed(c)) return c.json({ error: SAMME_SIDE }, 403);
     const t = await betaNu();
-    return t ? { t } : c.json({ error: 'Betaens tilstand kan ikke læses.' }, 503);
+    return t ? { t } : c.json({ error: tekst().srv.betaUlaeselig }, 503);
   };
   const betaLog = (tekst: string) => deps.store.appendLog(HJEM, { kilde: 'henrik', tekst, zone: 'privat' });
 
@@ -1212,7 +1219,7 @@ export function createApp(deps: AppDeps) {
     if (a instanceof Response) return a;
     const b = await body(c);
     const due = kortDue(a.t, now());
-    if (due === null || b['dag'] !== due) return c.json({ error: 'Det spørgsmål venter ikke på dig lige nu.' }, 409);
+    if (due === null || b['dag'] !== due) return c.json({ error: tekst().srv.spoergsmaalVenterIkke }, 409);
     await betaLager!.aendre((s) => ({ ...s, udsat: { dag: due, dato: utcDato(now()) } }));
     live.notify(HJEM);
     return c.json({ ok: true });
@@ -1226,7 +1233,7 @@ export function createApp(deps: AppDeps) {
     if (!u.ok) return c.json({ error: u.fejl }, u.status);
     const { svar } = u;
     const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: HJEM, slags: 'beta', id: `feedback:${svar.dag}` });
-    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    if (!ja) return c.json({ error: tekst().srv.trykIgen }, 403);
     // The card may have been answered between the check and the write (a double tap): the write checks again, once.
     let gemt = false;
     await betaLager!.aendre((s) => {
@@ -1236,7 +1243,7 @@ export function createApp(deps: AppDeps) {
       const { udsat: _udsat, ...rest } = s;
       return { ...rest, svaret: { ...s.svaret, [svar.dag]: tid }, feedback: [...s.feedback, { ...svar, tid }] };
     });
-    if (!gemt) return c.json({ error: 'Det spørgsmål venter ikke på dig lige nu.' }, 409);
+    if (!gemt) return c.json({ error: tekst().srv.spoergsmaalVenterIkke }, 409);
     await betaLog(`Feedback dag ${svar.dag} sendt til Henrik`);
     live.notify(HJEM);
     return c.json({ ok: true });
@@ -1247,13 +1254,13 @@ export function createApp(deps: AppDeps) {
     if (a instanceof Response) return a;
     const b = await body(c);
     const v = b['samtykke'];
-    if (v !== 'ja' && v !== 'nej') return c.json({ error: 'Ugyldig forespørgsel.' }, 400);
+    if (v !== 'ja' && v !== 'nej') return c.json({ error: tekst().srv.ugyldig }, 400);
     const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: HJEM, slags: 'beta', id: `samtykke:${v}` });
-    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    if (!ja) return c.json({ error: tekst().srv.trykIgen }, 403);
     const til = v === 'ja';
     if (a.t.samtykke !== til) {
       await betaLager!.aendre((s) => ({ ...s, samtykke: til }));
-      await betaLog(til ? 'Deling af beta-tal slået til' : 'Deling af beta-tal slået fra');
+      await betaLog(tekst().srv.betaDeling(til));
     }
     live.notify(HJEM);
     return c.json({ samtykke: til });
@@ -1263,15 +1270,15 @@ export function createApp(deps: AppDeps) {
   // Clawco itself, a human tap (the one-time yes of jaFraTryk, for exactly this notice or for "all"). It writes one id into
   // danmark/digital-post.json; nothing reaches the mail, Hermes or any other service. 404 without a data dir.
   app.post('/api/danmark/post/set', async (c) => {
-    if (!danmark) return c.json({ error: 'Findes ikke' }, 404);
-    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan sætte Digital Post.');
-    if (fremmed(c)) return c.json({ error: 'Det kan kun gøres fra Clawco selv.' }, 403);
+    if (!danmark) return c.json({ error: tekst().srv.findesIkke }, 404);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerDigitalPost);
+    if (fremmed(c)) return c.json({ error: tekst().srv.kunFraClawcoGoeres }, 403);
     const b = await body(c);
     const alle = b['alle'] === true;
     const id = typeof b['id'] === 'string' ? b['id'] : '';
-    if (alle === (id !== '') || id.length > 300) return c.json({ error: 'Ugyldig forespørgsel.' }, 400);
+    if (alle === (id !== '') || id.length > 300) return c.json({ error: tekst().srv.ugyldig }, 400);
     const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: HJEM, slags: 'post', id: alle ? 'set:*' : `set:${id}` });
-    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    if (!ja) return c.json({ error: tekst().srv.trykIgen }, 403);
     try {
       if (alle) await danmark.setAlle(); else await danmark.set(id);
     } catch (err) {
@@ -1287,11 +1294,11 @@ export function createApp(deps: AppDeps) {
   // KC-0188: support on (only from Sky, with its signed bevis, for the owner) and off (the owner). Neither is a
   // handling: no room, chat phrase, voice id, rule or clock reaches these routes, and startStoette is called only here.
   app.post('/api/stoette/start', async (c) => {
-    if (!stoetteLager) return c.json({ error: 'Findes ikke' }, 404);
+    if (!stoetteLager) return c.json({ error: tekst().srv.findesIkke }, 404);
     const b = erForm(c) ? {} : await body(c);
     try {
       const a = await startStoette(stoetteLager, { person: c.get('person'), bevis: b['bevis'], konto: deps.identitet && 'konto' in deps.identitet ? deps.identitet.konto : undefined, nu: now() });
-      await stoetteLinje('stoette-givet', 'stoette', `Ejeren lod support se med til kl. ${klokkeKbh(new Date(a.udloeber))}.`, c.get('person').id, a.id);
+      await stoetteLinje('stoette-givet', 'stoette', tekst().srv.ejerLodSupport(klokkeKbh(new Date(a.udloeber))), c.get('person').id, a.id);
       for (const r of ROOMS) live.notify(r.id);
       return c.json({ aktiv: true });
     } catch (err) {
@@ -1300,11 +1307,11 @@ export function createApp(deps: AppDeps) {
     }
   });
   app.post('/api/stoette/slaa-fra', async (c) => {
-    if (!stoetteLager) return c.json({ error: 'Findes ikke' }, 404);
+    if (!stoetteLager) return c.json({ error: tekst().srv.findesIkke }, 404);
     try {
       const a = await slaaStoetteFra(stoetteLager, { person: c.get('person'), nu: now() });
       if (a) {
-        await stoetteLinje('stoette-slut', 'stoette', 'Ejeren slog support fra.', c.get('person').id, a.id);
+        await stoetteLinje('stoette-slut', 'stoette', tekst().srv.ejerSlogSupportFra, c.get('person').id, a.id);
         for (const r of ROOMS) live.notify(r.id);
       }
     } catch (err) {
@@ -1314,11 +1321,12 @@ export function createApp(deps: AppDeps) {
     return erForm(c) ? c.redirect('/', 303) : c.json({ aktiv: false });
   });
   app.post('/api/tillid/slet-alt', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan slette alt.');
-    if (fremmed(c)) return c.json({ error: 'Slet alt kan kun bestilles fra Clawco selv.' }, 403);
-    if ((await formFelt(c, 'bekraeft')).trim() !== 'SLET') {
-      const fejl = 'Skriv SLET med store bogstaver for at slette alt.';
-      return erForm(c) ? videnSide(c, renderSletAlt(await videnNu(), { fejl }), 'Slet alt', 400) : c.json({ error: fejl }, 400);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerSletAlt);
+    if (fremmed(c)) return c.json({ error: tekst().srv.sletAltKunFraClawco }, 403);
+    // KC-0170: the typed word is the Danish SLET or the English DELETE, whichever language the page showed.
+    if (!['SLET', 'DELETE'].includes((await formFelt(c, 'bekraeft')).trim())) {
+      const fejl = tekst().srv.skrivSlet;
+      return erForm(c) ? videnSide(c, renderSletAlt(await videnNu(), { fejl }), tekst().srv.sletAlt, 400) : c.json({ error: fejl }, 400);
     }
     const person = c.get('person');
     // Nothing may run or start while the folder is emptied: stop every run (the pause goes with the folder).
@@ -1341,14 +1349,14 @@ export function createApp(deps: AppDeps) {
   });
   // A rule's Slå fra / Slå til igen: the rules file changes only with a fresh human tap (KC-0123), redeemed here.
   app.post('/api/tillid/regler/:id/:status', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, KUN_EJER);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerViden);
     const status = c.req.param('status');
     if ((status !== 'pause' && status !== 'aktiv') || !regler) return c.json({ error: 'Ukendt regel' }, 404);
     const b = await body(c);
     const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: 'viden', slags: 'regel', id: `${c.req.param('id')}:${status}` });
-    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    if (!ja) return c.json({ error: tekst().srv.trykIgen }, 403);
     const l = await regler.laes();
-    if (l.tilstand !== 'ok') return c.json({ error: 'Reglerne kan ikke læses; ret filen først.' }, 409);
+    if (l.tilstand !== 'ok') return c.json({ error: tekst().srv.reglerUlaeselige }, 409);
     const id = c.req.param('id');
     if (!l.saet.regler.some((r) => r.id === id)) return c.json({ error: 'Ukendt regel' }, 404);
     await regler.skriv({ ...l.saet, regler: l.saet.regler.map((r) => (r.id === id ? { ...r, status } : r)) });
@@ -1362,14 +1370,14 @@ export function createApp(deps: AppDeps) {
   type ForslagUdfald = { status: 200; regelId?: string; igen?: true; forslag?: Regelforslag } | { status: 404 | 409 | 503; error: string };
 
   app.post('/api/tillid/forslag/:id/godkend', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan gøre noget til en regel.');
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerRegel);
     if (fremmed(c)) return c.json({ error: SAMME_SIDE }, 403);
     const id = c.req.param('id');
     if (!regler) return c.json({ error: 'Der er ingen regelfil at gemme i.' }, 503);
     if (!synligKurator(await laesKurator(deps.store), d.person).regelforslag?.some((f) => f.id === id)) return c.json({ error: 'Forslaget findes ikke' }, 404);
     const b = await body(c);
     const ja = jaFraTryk(TEGN, typeof b['ja'] === 'string' ? b['ja'] : undefined, { person: c.get('person').id, rum: HJEM, slags: 'forslag', id });
-    if (!ja) return c.json({ error: 'Tryk på knappen igen.' }, 403);
+    if (!ja) return c.json({ error: tekst().srv.trykIgen }, 403);
     let u = { status: 404, error: 'Forslaget findes ikke' } as ForslagUdfald; // set inside the chain step below
     // One chain step: the rules file and the proposal's state change together, so a second tap sees the first.
     await endreKurator(deps.store, async (s) => {
@@ -1378,17 +1386,17 @@ export function createApp(deps: AppDeps) {
       if (f.status === 'godkendt') { u = { status: 200, ...(f.regelId ? { regelId: f.regelId } : {}), igen: true }; return s; }
       if (f.status === 'afvist') { u = { status: 409, error: 'Du har allerede sagt nej tak til det forslag.' }; return s; }
       const l = await regler.laes();
-      if (l.tilstand === 'ulaeselig') { u = { status: 409, error: 'Reglerne kan ikke læses; ret filen først.' }; return s; }
+      if (l.tilstand === 'ulaeselig') { u = { status: 409, error: tekst().srv.reglerUlaeselige }; return s; }
       // KC-0145: a pause only (the Sunday sample): the rule is paused, nothing is added.
       if (f.kunPause) {
         const pauset = l.tilstand === 'ok' && f.pauser ? saetStatus(l.saet, f.pauser, 'pause') : null;
-        if (!pauset) { u = { status: 409, error: 'Reglen står ikke længere i filen' }; return s; }
+        if (!pauset) { u = { status: 409, error: tekst().srv.regelVaek }; return s; }
         await regler.skriv(pauset);
         u = { status: 200, ...(f.pauser ? { regelId: f.pauser } : {}), forslag: f };
         return { ...s, regelforslag: afgoerForslag(s.regelforslag ?? [], id, 'godkendt', now(), f.pauser) };
       }
       // The cap is checked again against the file as it is now: it may have changed since the card was made.
-      if (f.trin > maksTrinForForslag(l, f.gaelder)) { u = { status: 409, error: 'Reglerne er ændret, siden forslaget blev lavet. Tryk Ret reglen.' }; return s; }
+      if (f.trin > maksTrinForForslag(l, f.gaelder)) { u = { status: 409, error: tekst().srv.reglerAendret }; return s; }
       const saet = l.tilstand === 'ok' ? l.saet : { naesteId: 1, regler: [], ugyldige: [] };
       // A rule from this very proposal already in the file (a crash between the write and the state): adopt it, write nothing more.
       const findes = saet.regler.find((r) => r.oprindelse.kortId === f.kortId && r.oprindelse.art === f.art && r.titel === f.titel);
@@ -1416,7 +1424,7 @@ export function createApp(deps: AppDeps) {
   });
 
   app.post('/api/tillid/forslag/:id/afvis', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan svare på et forslag til en regel.');
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerForslag);
     if (fremmed(c)) return c.json({ error: SAMME_SIDE }, 403);
     const id = c.req.param('id');
     if (!synligKurator(await laesKurator(deps.store), d.person).regelforslag?.some((f) => f.id === id)) return c.json({ error: 'Forslaget findes ikke' }, 404);
@@ -1440,9 +1448,9 @@ export function createApp(deps: AppDeps) {
   // third clean week asks the stop question.
   const FORTRYD_SOENDAG = 'lokal:{"soendagstjek":"til"}';
   app.post('/api/tillid/stikproeve/:uge/:id', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren svarer på søndagstjekket.');
-    if (fremmed(c)) return c.json({ error: 'Søndagstjekket kan kun besvares fra Clawco selv.' }, 403);
-    if (!stikbog) return c.json({ error: 'Søndagstjekket er ikke sat op.' }, 503);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerSoendag);
+    if (fremmed(c)) return c.json({ error: tekst().srv.soendagKunFraClawco }, 403);
+    if (!stikbog) return c.json({ error: tekst().srv.soendagIkkeSatOp }, 503);
     const svar = (await body(c))['svar'];
     if (svar !== 'rigtigt' && svar !== 'forkert') return c.json({ error: 'svar skal være rigtigt eller forkert' }, 400);
     let r: ReturnType<typeof besvar> | undefined;
@@ -1451,16 +1459,16 @@ export function createApp(deps: AppDeps) {
       return r.udfald === 'ok' ? medStopTilbud(r.bog, now()) : b;
     });
     if (!r || r.udfald === 'ukendt') return c.json({ error: 'Linjen findes ikke' }, 404);
-    if (r.udfald === 'allerede' || !r.post) return c.json({ error: 'Du har allerede svaret på den.' }, 409);
+    if (r.udfald === 'allerede' || !r.post) return c.json({ error: tekst().srv.alleredeSvaret }, 409);
     const run = svar === 'forkert' ? await skulleVises(d, r.post) : undefined;
     live.notify(HJEM);
     return c.json({ ok: true, ...(run ? { runId: run.id } : {}) });
   });
 
   app.post('/api/tillid/soendagstjek/stop', async (c) => {
-    if (!erEjer(c)) return afvis(c, 403, 'Kun ejeren kan stoppe søndagstjekket.');
-    if (fremmed(c)) return c.json({ error: 'Søndagstjekket kan kun stoppes fra Clawco selv.' }, 403);
-    if (!stikbog) return c.json({ error: 'Søndagstjekket er ikke sat op.' }, 503);
+    if (!erEjer(c)) return afvis(c, 403, tekst().srv.kunEjerStopSoendag);
+    if (fremmed(c)) return c.json({ error: tekst().srv.soendagStopKunFraClawco }, 403);
+    if (!stikbog) return c.json({ error: tekst().srv.soendagIkkeSatOp }, 503);
     const svar = (await body(c))['svar'];
     if (svar !== 'ja' && svar !== 'nej') return c.json({ error: 'svar skal være ja eller nej' }, 400);
     let ok = false;
@@ -1472,7 +1480,7 @@ export function createApp(deps: AppDeps) {
     if (!ok) return c.json({ error: 'Der er ikke spurgt.' }, 409);
     if (svar === 'ja') {
       await settings.setSoendagstjek(false);
-      await deps.store.appendLog(HJEM, { kilde: 'henrik', tekst: 'Stoppede søndagstjekket', handlingId: 'soendagstjek:stop', fortryd: FORTRYD_SOENDAG, zone: 'privat' });
+      await deps.store.appendLog(HJEM, { kilde: 'henrik', tekst: tekst().srv.stoppedeSoendag, handlingId: 'soendagstjek:stop', fortryd: FORTRYD_SOENDAG, zone: 'privat' });
     }
     live.notify(HJEM);
     return c.json({ ok: true });
@@ -1498,10 +1506,10 @@ export function createApp(deps: AppDeps) {
       if (!e) return s;
       if (e.fortrudt) { u = { ok: false, status: 409, error: 'Allerede fortrudt' }; return s; }
       const l = await regler.laes();
-      if (l.tilstand !== 'ok') { u = { ok: false, status: 409, error: 'Reglerne kan ikke læses; ret filen først.' }; return s; }
+      if (l.tilstand !== 'ok') { u = { ok: false, status: 409, error: tekst().srv.reglerUlaeselige }; return s; }
       const uden = r.fjernRegel ? fjernRegel(l.saet, r.fjernRegel) : l.saet;
       const igen = uden && r.genoptag ? saetStatus(uden, r.genoptag, 'aktiv') : uden;
-      if (!igen) { u = { ok: false, status: 409, error: 'Reglen står ikke længere i filen' }; return s; }
+      if (!igen) { u = { ok: false, status: 409, error: tekst().srv.regelVaek }; return s; }
       await regler.skriv(igen);
       await deps.store.updateLog(HJEM, logId, { fortrudt: now().toISOString() });
       u = { ok: true };
@@ -1550,7 +1558,7 @@ export function createApp(deps: AppDeps) {
 
   /** Planned rebuilds (frontloading). Returns a stop function. */
   function frontload(spec: string): () => void {
-    return startScheduler(parseFrontload(spec), (roomId) => { void bygPlanlagt(roomId).catch(() => {}); }, undefined, () => !runs.paaPause()); // KC-0124: no planned rebuild while paused
+    return startScheduler(parseFrontload(spec), (roomId) => { void iProfilSprog(() => bygPlanlagt(roomId)).catch(() => {}); }, undefined, () => !runs.paaPause()); // KC-0124: no planned rebuild while paused
   }
 
   /** Today's Nyheder lines with their stamp, unless Kuratoren already saw that stamp (state.nyhederSet); else null (= nothing new). */
@@ -1586,7 +1594,8 @@ export function createApp(deps: AppDeps) {
    * owed, only that memory gates it (not `sidst`): the first tick after the run in flight runs it.
    */
   let sidstTjek: string | undefined;
-  async function kuratorTik(plan: KuratorPlan): Promise<RunRecord | null> {
+  const kuratorTik = (plan: KuratorPlan): Promise<RunRecord | null> => iProfilSprog(() => kuratorTikNu(plan));
+  async function kuratorTikNu(plan: KuratorPlan): Promise<RunRecord | null> {
     if (runs.paaPause()) return null; // KC-0124: nothing planned runs while paused (and nothing is stamped)
     // A run in flight: nothing to try, and nothing stamped (the next tick after it may be the deep run).
     if (runs.list().some((r) => r.kind === 'kurator' && (r.status === 'queued' || r.status === 'running'))) return null;
@@ -1676,7 +1685,7 @@ export function createApp(deps: AppDeps) {
     const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
     const sit = await situationNu();
     const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
-    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(digitalPost ? { digitalPost } : {}), ...(aula ? { aula } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn, deps.standardSprog === 'en'), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(digitalPost ? { digitalPost } : {}), ...(aula ? { aula } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
   }
 
   /**
@@ -1715,7 +1724,7 @@ export function createApp(deps: AppDeps) {
     const mod = getRoomModule(c.req.param('id'));
     if (!mod) return c.json({ error: 'Rummet er ikke bygget' }, 404);
     const view = await mod.view(d);
-    if (view.status) return c.json({ error: 'Findes ikke' }, view.status);
+    if (view.status) return c.json({ error: tekst().srv.findesIkke }, view.status);
     return c.json({ html: String(view.main), venter: await venter(), hermesStatus: view.hermesStatus, version: live.version(mod.id) });
   });
 
@@ -1750,14 +1759,14 @@ export function createApp(deps: AppDeps) {
    * <iframe>) gets plain text instead: a whole skeleton inside it would only be noise.
    */
   async function ikkeFundet(c: Context<Env>, slags: IkkeFundetSlags): Promise<Response> {
-    if (c.req.header('sec-fetch-dest') === 'iframe') return c.text('Findes ikke', 404);
+    if (c.req.header('sec-fetch-dest') === 'iframe') return c.text(tekst().srv.findesIkke, 404);
     const { venter: v, univers, synlige: syn } = await navData(HJEM);
     const main = renderIkkeFundet(slags);
     return c.html(String(shell({ ...hvem(c), roomId: HJEM, hermesStatus: tekst().klar, venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: ikkeFundetOverskrift(slags) })), 404);
   }
   app.notFound((c) => {
     const p = new URL(c.req.url).pathname;
-    if (p === '/api' || p.startsWith('/api/')) return c.json({ error: 'Findes ikke' }, 404);
+    if (p === '/api' || p.startsWith('/api/')) return c.json({ error: tekst().srv.findesIkke }, 404);
     return ikkeFundet(c, 'side');
   });
 
@@ -1786,13 +1795,13 @@ export function createApp(deps: AppDeps) {
     const state = info && !info.arkiveret ? await laesUnivers(deps.store, slugNavn) : null;
     const moede = state?.moeder.find((m) => m.id === c.req.param('moedeId'));
     if (!info || !state || !moede) {
-      const main = html`<header class="room-head"><div><a class="muted" href="/rum/dagen">Til Dagen</a><h1>Mødet findes ikke</h1><p class="muted">Det er enten flyttet, slettet eller aldrig oprettet. Gå til Dagen for at se, hvad der er i kalenderen.</p></div></header>`;
-      return c.html(String(shell({ ...hvem(c), roomId: 'hjem', hermesStatus: tekst().klar, venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: 'Mødet findes ikke' })), 404);
+      const main = html`<header class="room-head"><div><a class="muted" href="/rum/dagen">${tekst().srv.tilDagen}</a><h1>${tekst().srv.moedetFindesIkke}</h1><p class="muted">${tekst().srv.moedetVaekTekst}</p></div></header>`;
+      return c.html(String(shell({ ...hvem(c), roomId: 'hjem', hermesStatus: tekst().klar, venter: v, main, chat: [], stemme: stemmeNiveau, univers, synlige: syn, titel: tekst().srv.moedetFindesIkke })), 404);
     }
     const rum = universRum(slugNavn);
     return c.html(String(shell({
-      ...hvem(c), roomId: rum, hermesStatus: state.hermesStatus ?? tekst().klar, venter: v, main: renderMoedeVisning(info, moede, synligUnivers(state, d.person), now()), chat: await deps.store.readChat(rum),
-      stemme: stemmeNiveau, univers, synlige: syn, titel: moede.titel, kontekst: `Mødet: ${moede.titel}`.slice(0, 200),
+      ...hvem(c), roomId: rum, hermesStatus: state.hermesStatus ? universStatus(state.hermesStatus) : tekst().klar, venter: v, main: renderMoedeVisning(info, moede, synligUnivers(state, d.person), now()), chat: await deps.store.readChat(rum),
+      stemme: stemmeNiveau, univers, synlige: syn, titel: moede.titel, kontekst: universTekst().elMoedet(moede.titel).slice(0, 200),
       bodyData: { situation: 'moede', 'moede-slut': moede.slut, 'moede-id': moede.id },
     })));
   });
@@ -1947,7 +1956,7 @@ export function createApp(deps: AppDeps) {
     const lid = c.req.param('lid');
     const ja = await jaFra(c);
     const run = await enGang(`${mod.id}|fortryd|${lid}`, () => mod.fortryd(d, lid, { kanal: 'knap', ...ja }));
-    return run ? accepted(c, tag(run, mod.id)) : c.json({ error: 'Kan ikke fortrydes' }, 404);
+    return run ? accepted(c, tag(run, mod.id)) : c.json({ error: tekst().srv.kanIkkeFortrydes }, 404);
   });
 
   app.post('/api/rum/:id/aktion/:name', async (c) => {
@@ -1969,7 +1978,7 @@ export function createApp(deps: AppDeps) {
   // voice, never on its own); then sent once inside the store's queue. Nothing in the body is sent.
   app.post('/api/hushold/foresp/:id/send', async (c) => {
     const kanal = deps.kanal;
-    if (!kanal) return c.json({ error: 'Clawco kan ikke sende beskeder herfra.' }, 503);
+    if (!kanal) return c.json({ error: tekst().srv.ingenKanal }, 503);
     const b = await body(c);
     const slags = b['slags'] === 'paamindelse' ? 'paamindelse' : 'foresp';
     const id = c.req.param('id');
@@ -1990,7 +1999,7 @@ export function createApp(deps: AppDeps) {
   // (verb send-til-andre: never by voice, never on its own); then sent once inside the store's queue.
   app.post('/api/hushold/medlem/:id/inviter', async (c) => {
     const kanal = deps.kanal;
-    if (!kanal) return c.json({ error: 'Clawco kan ikke sende beskeder herfra.' }, 503);
+    if (!kanal) return c.json({ error: tekst().srv.ingenKanal }, 503);
     const b = await body(c);
     const id = c.req.param('id');
     try {
@@ -2171,7 +2180,7 @@ export function createApp(deps: AppDeps) {
 
   // KC-0124: while paused the voice offers and runs nothing.
   app.post('/api/stemme/samtale', async (c) => {
-    if (runs.paaPause()) return c.json({ error: PAUSE_TEKST }, 409);
+    if (runs.paaPause()) return c.json({ error: pauseTekst() }, 409);
     const b = await body(c);
     const rum = typeof b['rum'] === 'string' ? b['rum'] : 'hjem';
     try {
@@ -2184,7 +2193,7 @@ export function createApp(deps: AppDeps) {
 
   /** A choice from the overview, by its spoken id "rum:valgId". Only ids in the current overview run. */
   app.post('/api/stemme/udfoer', async (c) => {
-    if (runs.paaPause()) return c.json({ error: PAUSE_TEKST }, 409);
+    if (runs.paaPause()) return c.json({ error: pauseTekst() }, 409);
     const b = await body(c);
     const id = typeof b['id'] === 'string' ? b['id'].trim() : '';
     const sep = id.indexOf(':');
@@ -2199,7 +2208,7 @@ export function createApp(deps: AppDeps) {
     let run: RunRecord | null = null;
     if (valgId.startsWith('aktion:')) {
       const [, name, arg] = valgId.split(':');
-      if (name !== 'faerdig' || !mod.aktion) return c.json({ error: 'Det kan ikke gøres med stemmen' }, 400);
+      if (name !== 'faerdig' || !mod.aktion) return c.json({ error: tekst().srv.ikkeMedStemmen }, 400);
       try { run = await mod.aktion(d, name, { mailId: arg ?? '' }, { kanal: 'stemme' }); } catch (err) { if (err instanceof ActionError) return c.json({ error: err.message }, 400); throw err; }
     } else {
       run = await mod.handling(d, valgId, { kanal: 'stemme' });
@@ -2211,7 +2220,7 @@ export function createApp(deps: AppDeps) {
 
   app.get('/api/runs/:runId/events', (c) => {
     const id = c.req.param('runId');
-    if (!runs.get(id)) return c.text('Kørslen findes ikke', 404);
+    if (!runs.get(id)) return c.text(tekst().srv.koerslenFindesIkke, 404);
     return streamSSE(c, async (stream) => {
       let n = 0;
       let finished!: () => void;
@@ -2230,14 +2239,14 @@ export function createApp(deps: AppDeps) {
   /** The calendar poller (Univers: new meetings). Returns a stop function; off without a calendar script. */
   const moedeTik = (): (() => void) => startMoedeTik(d, undefined, () => !runs.paaPause());
   // KC-0149: the rooms' clocks (a request's reminders and expiry), outside any request; nothing while paused.
-  const tikNu = async (): Promise<void> => { for (const m of ROOM_MODULES) await m.tik?.(d); };
+  const tikNu = (): Promise<void> => iProfilSprog(async () => { for (const m of ROOM_MODULES) await m.tik?.(d); });
   const rumTik = (): (() => void) => startTik(tikNu, undefined, () => !runs.paaPause());
 
   // KC-0152: the Saturday conflict — Tuesdays from the plan's time Husstanden looks at the coming weekend (once per weekend,
   // the room remembers); null when it is not due or Clawco is paused. `spec` "07:30"; empty or "fra" = off.
   const konfliktTik = async (plan: KonfliktPlan): Promise<Awaited<ReturnType<typeof weekendTjek>> | null> => {
     if (runs.paaPause() || !konfliktDue(plan, now())) return null;
-    return weekendTjek(d);
+    return iProfilSprog(() => weekendTjek(d));
   };
   const konflikt = (spec: string): (() => void) => {
     const plan = parseKonfliktPlan(spec);
@@ -2248,7 +2257,7 @@ export function createApp(deps: AppDeps) {
   // KC-0145: the Sunday sample — Sunday from 18:00 the week is drawn once (the ledger remembers); nothing while paused.
   const soendagTik = async (): Promise<Awaited<ReturnType<typeof soendagsTjek>> | null> => {
     if (runs.paaPause() || !skjulte || !stikbog) return null;
-    const r = await soendagsTjek({ skjulte, bog: stikbog, til: async () => (await settings.read()).soendagstjek !== false, now: now() });
+    const r = await iProfilSprog(() => soendagsTjek({ skjulte, bog: stikbog, til: async () => (await settings.read()).soendagstjek !== false, now: now() }));
     if (r === 'oprettet') live.notify(HJEM);
     return r;
   };
@@ -2256,7 +2265,7 @@ export function createApp(deps: AppDeps) {
 
   // KC-0139: every connected source's health once now and then every 30 minutes (and right after a failed read, see the registry); nothing while paused.
   const helbredTik = (): (() => void) => {
-    const tik = (): Promise<void> => helbred.pollAlle();
+    const tik = (): Promise<void> => iProfilSprog(() => helbred.pollAlle());
     void tik().catch((err: unknown) => console.error('helbred:', err instanceof Error ? err.message : err));
     return startTik(tik, 30 * 60_000, () => !runs.paaPause());
   };
@@ -2439,6 +2448,7 @@ export async function main(): Promise<void> {
     himalaya: env('KC_HIMALAYA', 'himalaya'),
     kalenderScript,
     dataDir: env('KC_DATA_DIR', './data'),
+    standardSprog: laesInstallation(env('KC_DATA_DIR', './data')).standardSprog, // KC-0170: English for a new installation, Danish for one from before the language
     vaultInbox: env('KC_VAULT_INBOX'),
     // KC-0136: in dev the old scratch inbox until a vault is chosen on the notes card.
     ...(mode === 'fake' ? { vaultInboxStandard: path.join(env('KC_DATA_DIR', './data'), 'dev-vault-indbakke') } : {}),

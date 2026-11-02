@@ -6,6 +6,7 @@
 // and the errors the routes answer with — those stay Danish.
 
 import { sprogNu } from '../../shell/tekster.ts';
+import { statusISprog } from '../status.ts';
 import { PRODUKT } from '../../shell/navn.ts';
 import { ROOMS } from '../registry.ts';
 import { ikkeEndnu } from '../../graenser/afgoer.ts';
@@ -47,6 +48,8 @@ const da = {
   gjort: 'Gjort',
   skrevetIRegnskab: 'Skrevet i regnskab',
   intetAtGoere: 'Intet at gøre',
+  /** The reason Nu gives for a card that did not fit on the screen (stored with the "nothing to do" line; shown in the language of the request). */
+  pladsHvorfor: 'plads',
   ccFaerdig: 'Claude Code færdig',
   hermesHarGjort: 'Hermes har gjort',
 
@@ -184,6 +187,7 @@ const en: HjemTekster = {
   gjort: 'Done',
   skrevetIRegnskab: 'Written in the ledger',
   intetAtGoere: 'Nothing to do',
+  pladsHvorfor: 'no room',
   ccFaerdig: 'Claude Code finished',
   hermesHarGjort: 'Hermes has done',
 
@@ -277,3 +281,6 @@ export const HJEM_TEKSTER: { da: HjemTekster; en: HjemTekster } = { da, en };
 
 /** Nu's strings in the language being rendered. Call it at render time, never at module load. */
 export const hjemTekst = (): HjemTekster => HJEM_TEKSTER[sprogNu()];
+
+/** A "nothing to do" reason as shown: the app's own overflow reason, stored in either language, reads in the language of the request; Hermes' words stay as they are. */
+export const intetHvorfor = (hvorfor: string): string => statusISprog(hvorfor, [{ da: da.pladsHvorfor, en: en.pladsHvorfor }], sprogNu());

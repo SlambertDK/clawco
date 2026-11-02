@@ -4,6 +4,7 @@
 // cut to its declared keys — so a body can never reach a room or a prompt,
 // whatever a connector returns.
 
+import { kilderTekst } from './tekster.ts';
 import { KildeFejl, type Kilde, type Kuvert, type Laesning } from './types.ts';
 
 /** The keys a mail envelope may carry — nothing else (never a body). */
@@ -17,7 +18,7 @@ function renKuvert(raw: unknown): Kuvert {
 }
 
 export function renLaesning(k: Kilde, raw: unknown): Laesning {
-  if (!erObj(raw) || raw['slags'] !== k.slags) throw new KildeFejl(502, `${k.navn} svarede med noget andet end ${k.slags}`);
+  if (!erObj(raw) || raw['slags'] !== k.slags) throw new KildeFejl(502, kilderTekst().forkertSlags(k.navn, k.slags));
   const hentet = typeof raw['hentet'] === 'string' ? raw['hentet'] : '';
   const l = { ...raw, hentet, uklar: true } as Laesning;
   if (l.slags === 'mail') return { ...l, data: Array.isArray(l.data) ? l.data.map(renKuvert) : [] };

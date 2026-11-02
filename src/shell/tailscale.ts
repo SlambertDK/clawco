@@ -11,6 +11,7 @@
 //    reads as `ukendt` (the card says so; no guessing).
 
 import { execFile as nodeExecFile } from 'node:child_process';
+import { tekst } from './tekster.ts';
 
 /** The states of the card. `laptop` = a laptop install with no Tailscale (KC-0160); `slukket` = installed and logged in but switched off. */
 export const TS_TILSTANDE = ['mangler', 'ikke-logget-ind', 'slukket', 'klar', 'delt', 'laptop', 'ukendt'] as const;
@@ -185,8 +186,6 @@ export class TsFejl extends Error {
 
 const LOGIN_LINK = /https:\/\/login\.tailscale\.com\/[A-Za-z0-9/_?=&.%-]+/;
 
-const HAR_IKKE_SLAAET_TIL = (link: string): string => `Tailscale vil først have, at du slår deling til for dit net. Åbn ${link}, tryk på knappen dér, og tryk så på Del igen.`;
-
 /**
  * Shares the app port on the tailnet (`tailscale serve --bg <port>`) and returns the new state. Throws TsFejl with a
  * plain sentence; Tailscale's own text is never passed on, except its login link when Serve has to be switched on first.
@@ -196,12 +195,12 @@ export async function delPaaTailnet(koerer: TsKoerer, o: { port: number; laptop:
   let svar: TsSvar;
   try { svar = await sikker(delArgv(o.port)); } catch (err) {
     const link = err instanceof TsTid ? LOGIN_LINK.exec(`${err.stderr}\n${err.stdout}`)?.[0] : undefined;
-    throw new TsFejl(link ? HAR_IKKE_SLAAET_TIL(link) : 'Tailscale svarede ikke. Prøv igen om lidt, eller kør kommandoen selv.');
+    throw new TsFejl(link ? tekst().tailscale.harIkkeSlaaetTil(link) : tekst().tailscale.svarerIkke);
   }
-  if (!svar.fundet) throw new TsFejl('Tailscale er ikke installeret på denne maskine.');
+  if (!svar.fundet) throw new TsFejl(tekst().tailscale.ikkeInstalleret);
   if (svar.kode !== 0) {
     const link = LOGIN_LINK.exec(`${svar.stderr}\n${svar.stdout}`)?.[0];
-    throw new TsFejl(link ? HAR_IKKE_SLAAET_TIL(link) : 'Tailscale kunne ikke dele Clawco. Se i Tailscale, hvad der mangler, og prøv igen.');
+    throw new TsFejl(link ? tekst().tailscale.harIkkeSlaaetTil(link) : tekst().tailscale.kunneIkkeDele);
   }
   return laesTailscale(koerer, o);
 }

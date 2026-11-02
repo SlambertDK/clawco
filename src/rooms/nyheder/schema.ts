@@ -4,6 +4,7 @@ import { SchemaError, type Handling } from '../dagen/schema.ts';
 import type { KildeStatus, Nyhedsbrev } from './source.ts';
 import { zoneFra, ZoneFejl, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import { agentGulv, verbFra } from '../../graenser/verber.ts';
+import { nyhederTekst } from './tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -111,7 +112,7 @@ export function parseNyhederState(raw: unknown, facts: NyhederFacts, now: Date, 
     nyhedsbreve: facts.nyhedsbreve,
     kilder: facts.kilder,
     gemt: [...new Set(gemt)],
-    hermesStatus: str(raw['hermesStatus'], 80) || 'Følger nyhederne',
+    hermesStatus: str(raw['hermesStatus'], 80) || nyhederTekst().foelger,
   };
 }
 

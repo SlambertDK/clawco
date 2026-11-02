@@ -10,6 +10,7 @@ import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import type { Dirent } from 'node:fs';
 import path from 'node:path';
 import { KildeFejl } from '../types.ts';
+import { noterTekst } from './tekster.ts';
 import { iRod } from './sti.ts';
 
 /** The folders Clawco needs in a vault, relative to its root. */
@@ -45,10 +46,10 @@ async function tilfoej(rod: string): Promise<string[]> {
  */
 export async function lavNyVault(rod: string): Promise<string[]> {
   const findes = await stat(rod).catch(() => null);
-  if (findes && !findes.isDirectory()) throw new KildeFejl(409, 'Der ligger en fil, hvor mappen skal være.');
+  if (findes && !findes.isDirectory()) throw new KildeFejl(409, noterTekst().filHvorMappen);
   if (findes) {
     const indhold = (await readdir(rod)).filter((n) => !STOEJ.has(n));
-    if (indhold.length && !(await erMappe(path.join(rod, STRUKTUR.clawco)))) throw new KildeFejl(409, 'Mappen er ikke tom. Vælg en tom mappe, eller vælg den som din eksisterende vault.');
+    if (indhold.length && !(await erMappe(path.join(rod, STRUKTUR.clawco)))) throw new KildeFejl(409, noterTekst().mappenIkkeTom);
   } else {
     await mkdir(rod, { recursive: true });
   }
@@ -64,7 +65,7 @@ export async function lavNyVault(rod: string): Promise<string[]> {
 
 /** Setup 2, an existing vault at `rod`: adds only the missing structure folders and returns them. Missing folder → 409. */
 export async function adopterVault(rod: string): Promise<string[]> {
-  if (!(await erMappe(rod))) throw new KildeFejl(409, 'Mappen kan ikke findes.');
+  if (!(await erMappe(rod))) throw new KildeFejl(409, noterTekst().mappenFindesIkke);
   return tilfoej(rod);
 }
 

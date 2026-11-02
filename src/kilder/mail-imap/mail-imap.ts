@@ -13,33 +13,32 @@
 
 import { KildeFejl, type Felt, type Helbred, type Kilde, type KildeKontekst, type KildeKort, type Resultat, type VerbSpec } from '../types.ts';
 import { FEJLTEKST, klassificer, type Klassifikation } from './fejl.ts';
+import { imapTekst } from './tekster.ts';
 import { flytMail, gemKladde, hentCertifikat, laesKonto, type Konto, type Tal } from './imap.ts';
 import { erLoopback, forbindelse, normalFingeraftryk, PRESETS, TJENESTER, type Forbindelse } from './presets.ts';
 
 export const MAIL_IMAP_ID = 'mail-imap';
-const NAVN = 'Mail';
 /** How long a successful read vouches for the account's health before helbred() logs in again. */
 const STANDARD_LEVETID_MS = 5 * 60_000;
 
-const FELTER: Felt[] = [
-  { navn: 'tjeneste', etiket: 'Din mailtjeneste', type: 'tekst', paakraevet: true, muligheder: TJENESTER.map((t) => ({ vaerdi: t, etiket: PRESETS[t].navn })) },
-  { navn: 'adresse', etiket: 'Din mailadresse', type: 'tekst', paakraevet: true, maks: 200 },
-  { navn: 'adgangskode', etiket: 'App-adgangskode (med Proton: adgangskoden, Bridge viser, ikke din Proton-adgangskode)', type: 'hemmelig', paakraevet: true },
-  { navn: 'server', etiket: 'Serveradresse (kun ved Anden mailudbyder)', type: 'tekst', paakraevet: false, maks: 253 },
-  { navn: 'sikkerhed', etiket: 'Kryptering (kun ved Anden mailudbyder)', type: 'tekst', paakraevet: false, muligheder: [{ vaerdi: 'tls', etiket: 'TLS (port 993)' }, { vaerdi: 'starttls', etiket: 'STARTTLS (port 143)' }] },
-  { navn: 'port', etiket: 'Port (kun hvis din udbyder eller Bridge bruger en anden)', type: 'tekst', paakraevet: false, maks: 5 },
-  { navn: 'fingeraftryk', etiket: 'Bridge-certifikatets fingeraftryk (Clawco udfylder det selv første gang)', type: 'tekst', paakraevet: false, maks: 100 },
-];
-
-const INTRO = 'Clawco læser afsender, emne og dato på dine nyeste mails, aldrig selve brevene. '
-  + 'Når du trykker, kan Clawco flytte en mail til en anden mappe i kontoen og gemme et svar som kladde; Clawco sender og sletter aldrig noget. '
-  + 'Vælg din mailtjeneste, skriv din mailadresse og en app-adgangskode, som du laver hos din mailudbyder. '
-  + 'Bruger du Proton, skal Proton Mail Bridge køre på maskinen, og adgangskoden er den, Bridge viser, ikke din Proton-adgangskode.';
+/** The card's fields; their labels are read in the language of the request each time the card is made (KC-0170). */
+function felter(): Felt[] {
+  const t = imapTekst().felt;
+  return [
+    { navn: 'tjeneste', etiket: t.tjeneste, type: 'tekst', paakraevet: true, muligheder: TJENESTER.map((s) => ({ vaerdi: s, etiket: PRESETS[s].navn })) },
+    { navn: 'adresse', etiket: t.adresse, type: 'tekst', paakraevet: true, maks: 200 },
+    { navn: 'adgangskode', etiket: t.adgangskode, type: 'hemmelig', paakraevet: true },
+    { navn: 'server', etiket: t.server, type: 'tekst', paakraevet: false, maks: 253 },
+    { navn: 'sikkerhed', etiket: t.sikkerhed, type: 'tekst', paakraevet: false, muligheder: [{ vaerdi: 'tls', etiket: t.tls }, { vaerdi: 'starttls', etiket: t.starttls }] },
+    { navn: 'port', etiket: t.port, type: 'tekst', paakraevet: false, maks: 5 },
+    { navn: 'fingeraftryk', etiket: t.fingeraftryk, type: 'tekst', paakraevet: false, maks: 100 },
+  ];
+}
 
 /** KC-0214: the two verbs (KC-0122 ladder: sort and prepare). Never send, never delete. */
 const VERBER: Readonly<Record<'flyt' | 'kladde', VerbSpec>> = {
-  flyt: { verb: 'sorter', tekst: 'Flytter en mail til en anden mappe i din mailkonto, fx arkivet. Aldrig til papirkurven eller spam.' },
-  kladde: { verb: 'forbered', tekst: 'Gemmer et svar som kladde i din kladdemappe. Clawco sender det aldrig.' },
+  flyt: { verb: 'sorter', get tekst() { return imapTekst().verber.flyt; } },
+  kladde: { verb: 'forbered', get tekst() { return imapTekst().verber.kladde; } },
 };
 /** The longest draft text accepted. */
 export const MAKS_KLADDE = 20_000;
@@ -49,22 +48,22 @@ const KONTROLTEGN = /[\u0000-\u001f\u007f]/;
 
 /** A plain object with every `kraevet` key and no key outside `kraevet` and `valgfri`; else a 400 (before any login). */
 function tjekArgs(args: unknown, kraevet: string[], valgfri: string[]): Record<string, unknown> {
-  if (typeof args !== 'object' || args === null || Array.isArray(args)) throw new KildeFejl(400, 'Handlingen mangler sine oplysninger.');
+  if (typeof args !== 'object' || args === null || Array.isArray(args)) throw new KildeFejl(400, imapTekst().handlingenMangler);
   const a = args as Record<string, unknown>;
-  for (const n of Object.keys(a)) if (!kraevet.includes(n) && !valgfri.includes(n)) throw new KildeFejl(400, `Ukendt oplysning: ${n.slice(0, 40)}.`);
-  for (const n of kraevet) if (a[n] === undefined) throw new KildeFejl(400, `Oplysningen ${n} mangler.`);
+  for (const n of Object.keys(a)) if (!kraevet.includes(n) && !valgfri.includes(n)) throw new KildeFejl(400, imapTekst().ukendtOplysning(n.slice(0, 40)));
+  for (const n of kraevet) if (a[n] === undefined) throw new KildeFejl(400, imapTekst().oplysningenMangler(n));
   return a;
 }
 const uid = (v: unknown): number => {
-  if (typeof v !== 'string' || !UID.test(v)) throw new KildeFejl(400, 'Mailens id er ugyldigt.');
+  if (typeof v !== 'string' || !UID.test(v)) throw new KildeFejl(400, imapTekst().mailIdUgyldigt);
   return Number(v);
 };
 const mappe = (v: unknown): string => {
-  if (typeof v !== 'string' || !v.trim() || v.length > 200 || KONTROLTEGN.test(v)) throw new KildeFejl(400, 'Mappens navn er ugyldigt.');
+  if (typeof v !== 'string' || !v.trim() || v.length > 200 || KONTROLTEGN.test(v)) throw new KildeFejl(400, imapTekst().mappenavnUgyldigt);
   return v;
 };
 const tekst = (v: unknown): string => {
-  if (typeof v !== 'string' || !v.trim() || v.length > MAKS_KLADDE) throw new KildeFejl(400, `Kladden skal have en tekst på højst ${MAKS_KLADDE} tegn.`);
+  if (typeof v !== 'string' || !v.trim() || v.length > MAKS_KLADDE) throw new KildeFejl(400, imapTekst().kladdeTekstKrav(MAKS_KLADDE));
   return v;
 };
 
@@ -73,12 +72,12 @@ type Tilstand = { ok?: { tid: number; tal: Tal; flag: number }; fejl?: { tid: nu
 /** The card is text: anything typed by the user is shown without < or >. */
 const vis = (v: string): string => v.replace(/[<>]/g, '');
 const noegle = (f: Forbindelse): string => `${f.tjeneste}|${f.vaert}|${f.port}|${f.bruger}`;
-const ulaeste = (n: number): string => `${n} ${n === 1 ? 'ulæst' : 'ulæste'}`;
+const ulaeste = (n: number): string => imapTekst().ulaeste(n);
 
 function alder(ms: number): string {
   const min = Math.floor(ms / 60_000);
-  if (min < 1) return 'Sidst læst for under et minut siden.';
-  return `Sidst læst for ${min} ${min === 1 ? 'minut' : 'minutter'} siden.`;
+  if (min < 1) return imapTekst().sidstLaestUnderMinut;
+  return imapTekst().sidstLaest(min);
 }
 
 /** `tidsgraenseMs`: per connection step (default 15 s); `levetidMs`: how long a good read keeps health ok. */
@@ -97,7 +96,7 @@ export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } 
   };
   const kode = async (ctx: KildeKontekst): Promise<string> => {
     const k = (await ctx.hemmelighed())?.['adgangskode'];
-    if (!k) throw new KildeFejl(409, 'Adgangskoden mangler. Forbind mailen igen.');
+    if (!k) throw new KildeFejl(409, imapTekst().adgangskodenMangler);
     return k;
   };
 
@@ -126,7 +125,7 @@ export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } 
     (t?.fejl && (!t.ok || t.fejl.tid >= t.ok.tid) ? t.fejl.k : undefined);
 
   return {
-    id: MAIL_IMAP_ID, navn: NAVN, slags: 'mail', zone: 'privat', auth: 'apikey', tillid: 'uklar',
+    id: MAIL_IMAP_ID, get navn() { return imapTekst().navn; }, slags: 'mail', zone: 'privat', auth: 'apikey', tillid: 'uklar',
 
     async read(ctx) {
       const f = forbindelse(ctx.valg);
@@ -145,7 +144,7 @@ export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } 
         const pin = ctx.valg['fingeraftryk'];
         const r = await udfoer(f, ctx, () => flytMail(f, adgangskode, { ...o, ...(pin ? { pin } : {}), ...tid }));
         return {
-          ok: true, tekst: `Mailen er flyttet til ${vis(r.til)}.`,
+          ok: true, tekst: imapTekst().mailenFlyttet(vis(r.til)),
           ...(r.nyUid ? { fortryd: { navn: 'flyt', args: { id: String(r.nyUid), fra: r.til, til: r.fra } } } : {}),
         };
       }
@@ -156,14 +155,14 @@ export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } 
         const adgangskode = await kode(ctx);
         const pin = ctx.valg['fingeraftryk'];
         const r = await udfoer(f, ctx, () => gemKladde(f, adgangskode, { ...o, nu: ctx.nu, ...(pin ? { pin } : {}), ...tid }));
-        return { ok: true, tekst: `Kladden ligger i ${vis(r.mappe)}. Clawco har ikke sendt den.` };
+        return { ok: true, tekst: imapTekst().kladdenLigger(vis(r.mappe)) };
       }
-      throw new KildeFejl(400, `Mail kan ikke ${String(navn).slice(0, 40)}.`);
+      throw new KildeFejl(400, imapTekst().mailKanIkke(String(navn).slice(0, 40)));
     },
 
     async helbred(ctx): Promise<Helbred> {
       let f: Forbindelse;
-      try { f = forbindelse(ctx.valg); } catch { return { status: 'nede', tekst: 'Mailkontoen er ikke sat op.' }; }
+      try { f = forbindelse(ctx.valg); } catch { return { status: 'nede', tekst: imapTekst().ikkeSatOp }; }
       const t = tilstand.get(noegle(f));
       const fejl = sidsteFejl(t);
       if (fejl?.status === 'log-ind-igen') return { status: 'log-ind-igen', tekst: fejl.tekst };
@@ -181,31 +180,32 @@ export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } 
 
     async kort(ctx): Promise<KildeKort> {
       let f: Forbindelse;
-      try { f = forbindelse(ctx.valg); } catch { return { titel: NAVN, tekst: INTRO, felter: FELTER, handling: 'Forbind' }; }
+      const m = imapTekst();
+      try { f = forbindelse(ctx.valg); } catch { return { titel: m.navn, tekst: m.intro, felter: felter(), handling: m.handling.forbind }; }
       const t = tilstand.get(noegle(f));
       const fejl = sidsteFejl(t);
       if (fejl?.status === 'log-ind-igen') {
-        return { titel: NAVN, tekst: `${fejl.tekst} Skriv adgangskoden igen, og tryk Forbind igen.`, felter: FELTER, handling: 'Forbind igen' };
+        return { titel: m.navn, tekst: m.loginIgen(fejl.tekst), felter: felter(), handling: m.handling.forbindIgen };
       }
-      const dele = [`Mailkontoen ${vis(f.bruger)} hos ${PRESETS[f.tjeneste].navn}.`];
-      if (t?.ok) dele.push(`${ulaeste(t.ok.tal.ulaeste)} i indbakken; ${t.ok.flag} af de nyeste er markeret med flag.`);
+      const dele = [m.kontoen(vis(f.bruger), PRESETS[f.tjeneste].navn)];
+      if (t?.ok) dele.push(m.talIndbakke(ulaeste(t.ok.tal.ulaeste), t.ok.flag));
       const fp = normalFingeraftryk(ctx.valg['fingeraftryk'] ?? '');
-      if (fp && erLoopback(f.vaert)) dele.push(`Bridge-certifikatets fingeraftryk: ${fp}.`);
-      dele.push('Clawco læser kun afsender, emne og dato. Når du trykker, flytter Clawco en mail eller gemmer et svar som kladde; Clawco sender og sletter aldrig noget.');
-      return { titel: NAVN, tekst: dele.join(' '), felter: FELTER, handling: 'Skift konto' };
+      if (fp && erLoopback(f.vaert)) dele.push(m.fingeraftrykTekst(fp));
+      dele.push(m.kunLaes);
+      return { titel: m.navn, tekst: dele.join(' '), felter: felter(), handling: m.handling.skiftKonto };
     },
 
     async opsaet(ctx) {
       const f = forbindelse(ctx.valg);
       const adgangskode = (await ctx.hemmelighed())?.['adgangskode'];
-      if (!adgangskode) throw new KildeFejl(400, 'Skriv din app-adgangskode.');
+      if (!adgangskode) throw new KildeFejl(400, imapTekst().skrivAdgangskode);
       const valg: Record<string, string> = { tjeneste: f.tjeneste, adresse: f.bruger };
       if (f.tjeneste === 'anden') Object.assign(valg, { server: f.vaert, sikkerhed: f.sikkerhed });
       if (ctx.valg['port']) valg['port'] = String(f.port);
       let pin: string | undefined;
       if (erLoopback(f.vaert)) {
         const skrevet = ctx.valg['fingeraftryk'] ?? '';
-        if (skrevet && !normalFingeraftryk(skrevet)) throw new KildeFejl(400, 'Fingeraftrykket er ugyldigt.');
+        if (skrevet && !normalFingeraftryk(skrevet)) throw new KildeFejl(400, imapTekst().fingeraftrykUgyldigt);
         let fundet: string;
         try { fundet = (await hentCertifikat(f, tid)).fingeraftryk; } catch (err) {
           const k = huskFejl(f, ctx.nu, err);
@@ -217,8 +217,8 @@ export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } 
         valg['fingeraftryk'] = pin;
       }
       const konto = await laes(f, ctx, adgangskode, pin);
-      const tekst = `Forbundet til ${PRESETS[f.tjeneste].navn} som ${vis(f.bruger)}: ${ulaeste(konto.tal.ulaeste)} i indbakken.`
-        + (pin ? ` Bridge-certifikatets fingeraftryk ${pin} er gemt.` : '');
+      const tekst = imapTekst().forbundetTil(PRESETS[f.tjeneste].navn, vis(f.bruger), ulaeste(konto.tal.ulaeste))
+        + (pin ? imapTekst().pinGemt(pin) : '');
       return { tekst, valg };
     },
   };

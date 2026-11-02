@@ -7,13 +7,14 @@
 // stays away for 30 days. Mail is only read when a trigger could fire.
 
 import type { Forslag } from './schema.ts';
+import { startTekst } from './tekster.ts';
 
 /** A registered source as Start sees it. */
 export type KildeSyn = { id: string; navn: string; slags: string; forbundet: boolean };
 /** A mail the connected mail sources read: subject and time only, never a body. */
 export type MailSyn = { emne: string; modtaget: string };
 export type ForslagKontekst = { kilder: KildeSyn[]; mail: () => Promise<MailSyn[]>; nu: Date; afvist: Record<string, string> };
-/** A trigger: the Danish reason when it fires for a source of its slags, else null. */
+/** A trigger: the reason (in the language being rendered) when it fires for a source of its slags, else null. */
 export type Trigger = (ctx: { mail: () => Promise<MailSyn[]>; nu: Date }) => Promise<string | null>;
 
 const DAG_MS = 86_400_000;
@@ -40,7 +41,7 @@ registrerTrigger('kalender', async ({ mail, nu }) => {
     const t = Date.parse(m.modtaget);
     return erInvitation(m.emne) && !Number.isNaN(t) && t >= fra && t <= nu.getTime() + DAG_MS;
   }).length;
-  return n >= INVITATIONER_MIN ? `Du har fået ${n} invitationer i mailen de sidste ${INVITATION_DAGE} dage. Med kalenderen kan Hermes se, hvornår du er optaget.` : null;
+  return n >= INVITATIONER_MIN ? startTekst().akt.invitationer(n, INVITATION_DAGE) : null;
 });
 
 /** The sources worth adding now: one per kind with no connected source, not dismissed in the last 30 days, whose trigger fires. */

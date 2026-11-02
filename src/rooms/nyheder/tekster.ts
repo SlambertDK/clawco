@@ -1,10 +1,13 @@
 // KC-0170: the Nyheder room's strings (render.ts and the Nu line in room.ts), Danish and English, in the shape of
 // src/shell/tekster.ts (which also says which language is being rendered). Plain text or small functions: render.ts
 // escapes all of it. English must have exactly Danish's keys (the type and test/rooms/nyheder-tekster.test.ts hold
-// that). Not here (follow-up): the ActionError messages and the log lines in room.ts, the prompt, the schema, the
-// merge and the voice (stemme.ts); the freshness phrase and the zone names come from src/shell/.
+// that). The refusals (toasts), the log lines, the status fallback and the Read-later note are here too (slice 3):
+// said in the language of the request that causes them. Not here, on purpose: the prompt and the schema's errors
+// (addressed to Hermes, Danish), the merge and the voice (stemme.ts); the freshness phrase and the zone names come
+// from src/shell/.
 
 import { sprogNu } from '../../shell/tekster.ts';
+import { statusISprog, type StatusArt } from '../status.ts';
 import type { RelevansFor } from './schema.ts';
 
 const da = {
@@ -48,6 +51,28 @@ const da = {
 
   // The Nu line (what waits on you, reported to Nu)
   nuForslag: (tekst: string): string => `Nyheder: ${tekst}`,
+
+  // Refusals (the toast)
+  fejlIngenMappe: 'Ingen Obsidian-mappe sat op (KC_VAULT_INBOX)',
+  fejlNyhedFindesIkke: 'Nyheden findes ikke i rummet',
+
+  // What a finished run says, and its empty answers
+  gemtTilSenere: 'Gemt til senere.',
+  fjernetFraLaesSenere: 'Fjernet fra Læs senere.',
+  gjort: (label: string): string => `${label}: gjort.`,
+  fortrudt: 'Fortrudt.',
+  intetSvar: '(intet svar)',
+
+  // The room's log (in the language of the request that caused the line)
+  logUdvalgte: (nyheder: number, baner: number, fraKilder: number, kilder: number): string => `Hermes udvalgte nyhederne (${nyheder} i ${baner} baner, ${fraKilder} fra ${kilder} kilder).`,
+  logGemte: (titel: string): string => `Gemte "${titel}" til senere i Obsidian.`,
+  logFjernede: 'Fjernede nyheden fra Læs senere igen.',
+
+  // The Read-later note in the vault inbox, and the status the room stores when Hermes gave none
+  laesSenereFil: 'Læs senere.md',
+  laesSenereTitel: 'Læs senere',
+  ukendtKilde: 'ukendt kilde',
+  foelger: 'Følger nyhederne',
 };
 
 export type NyhederTekster = typeof da;
@@ -86,9 +111,33 @@ const en: NyhederTekster = {
   hentAvisen: 'Ask Hermes to fetch the paper',
 
   nuForslag: (tekst: string): string => `News: ${tekst}`,
+
+  fejlIngenMappe: 'No Obsidian folder is set up (KC_VAULT_INBOX)',
+  fejlNyhedFindesIkke: 'The story is not in the room',
+
+  gemtTilSenere: 'Saved for later.',
+  fjernetFraLaesSenere: 'Removed from Read later.',
+  gjort: (label: string): string => `${label}: done.`,
+  fortrudt: 'Undone.',
+  intetSvar: '(no answer)',
+
+  logUdvalgte: (nyheder: number, baner: number, fraKilder: number, kilder: number): string => `Hermes picked the stories (${nyheder} in ${baner} ${baner === 1 ? 'lane' : 'lanes'}, ${fraKilder} from ${kilder} ${kilder === 1 ? 'source' : 'sources'}).`,
+  logGemte: (titel: string): string => `Saved "${titel}" for later in Obsidian.`,
+  logFjernede: 'Removed the story from Read later again.',
+
+  laesSenereFil: 'Read later.md',
+  laesSenereTitel: 'Read later',
+  ukendtKilde: 'unknown source',
+  foelger: 'Following the news',
 };
 
 export const NYHEDER_TEKSTER = { da, en };
 
 /** The strings of the language being rendered (read at render time, never at module load). */
 export const nyhederTekst = (): NyhederTekster => NYHEDER_TEKSTER[sprogNu()];
+
+/** The status kinds the room stores (a stored Danish one still reads in English, and the other way round). */
+const STATUS: StatusArt[] = [{ da: da.foelger, en: en.foelger }];
+
+/** A stored status in the language of the request. */
+export const nyhederStatus = (lagret: string): string => statusISprog(lagret, STATUS, sprogNu());

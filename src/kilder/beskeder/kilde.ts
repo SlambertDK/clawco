@@ -14,6 +14,7 @@ import { GENFORBIND_KANAL } from '../helbred-tekst.ts';
 import { KildeFejl, type Besked, type Helbred, type Kilde, type KildeKontekst, type KildeKort } from '../types.ts';
 import { tilBesked, type Kontakt } from './besked.ts';
 import { laesLog, laesStatus, type Kanal, type RaaBesked } from './jsonl.ts';
+import { beskederTekst } from './tekster.ts';
 import { felter, KANAL_NAVN, nytValg, samtaleNoegle, samtaler, valgte, type Samtale } from './valg.ts';
 
 export const BESKEDER_ID = 'beskeder';
@@ -23,26 +24,23 @@ const MAKS_CACHE = 1000;
 
 export const cacheFil = (dataDir: string): string => path.join(dataDir, 'beskeder-clawco', 'laest.json');
 
-const INGEN_KANAL = 'Clawco kan læse de beskeder, der når Hermes på Telegram, WhatsApp eller Signal, og vise dem, der kræver noget af dig, i Nu. '
-  + 'Hermes skriver ingen beskeder til Clawco endnu: Hermes skal have en beskedkanal, og Clawcos beskedkrog skal være sat op hos Hermes. '
-  + 'Clawco læser kun og svarer aldrig selv.';
-const ERLIG = 'Clawco læser kun de samtaler, du vælger, og svarer aldrig selv. Andre samtaler ser hverken Hermes eller Clawco.';
-
 const erObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 const vis = (s: string): string => s.replace(/[<>]/g, '');
 
 function opremsning(navne: string[]): string {
+  const t = beskederTekst();
   const n = navne.map(vis);
-  if (n.length <= 3) return n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} og ${n.at(-1)}`;
+  if (n.length <= 3) return n.length < 2 ? n.join('') : `${n.slice(0, -1).join(', ')} ${t.og} ${n.at(-1)}`;
   const rest = n.length - 3;
-  return `${n.slice(0, 3).join(', ')} og ${rest} ${rest === 1 ? 'anden' : 'andre'}`;
+  return `${n.slice(0, 3).join(', ')} ${t.og} ${rest} ${rest === 1 ? t.anden : t.andre}`;
 }
 
 function siden(iso: string, nu: Date): string {
+  const w = beskederTekst();
   const min = Math.max(0, Math.round((nu.getTime() - Date.parse(iso)) / 60_000));
-  if (min < 60) return `${min} min`;
+  if (min < 60) return w.min(min);
   const t = Math.round(min / 60);
-  return t < 48 ? `${t} ${t === 1 ? 'time' : 'timer'}` : `${Math.round(t / 24)} dage`;
+  return t < 48 ? w.timer(t) : w.dage(Math.round(t / 24));
 }
 
 async function laesCache(fil: string): Promise<Besked[]> {
@@ -103,7 +101,7 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
   });
 
   const loggen = async (): Promise<RaaBesked[] | null> => {
-    try { return await laesLog(logDir); } catch { throw new KildeFejl(502, 'Hermes’ beskedlog kunne ikke læses.'); }
+    try { return await laesLog(logDir); } catch { throw new KildeFejl(502, beskederTekst().loggenKunneIkkeLaeses); }
   };
 
   /** The channel of a chosen conversation that was missing at the last gateway start (no status file = unknown, not missing). */
@@ -114,11 +112,12 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
   }
 
   function kortTekst(liste: Samtale[], valg: Map<string, DataZone>): string {
+    const t = beskederTekst();
     const valgteNavn = liste.filter((s) => valg.has(s.noegle)).map((s) => s.navn);
     const kanaler = [...new Set(liste.map((s) => KANAL_NAVN[s.kanal]))];
-    const ser = `Hermes kan se ${liste.length} ${liste.length === 1 ? 'samtale' : 'samtaler'} på ${opremsning(kanaler)}: ${opremsning(liste.map((s) => s.navn))}.`;
-    const laeser = valgteNavn.length ? `Clawco læser ${valgteNavn.length} af ${liste.length} samtaler: ${opremsning(valgteNavn)}.` : 'Vælg, hvilke Clawco må læse; grupper er fra, til du vælger dem.';
-    return `${ser} ${laeser} ${ERLIG}`;
+    const ser = t.ser(liste.length, opremsning(kanaler), opremsning(liste.map((s) => s.navn)));
+    const laeser = valgteNavn.length ? t.laeser(valgteNavn.length, liste.length, opremsning(valgteNavn)) : t.vaelg;
+    return t.kortSamlet(ser, laeser, t.erlig);
   }
 
   const visning = (liste: Samtale[], v: Map<string, DataZone>): SamtaleVisning[] => liste.map((s) => {
@@ -127,12 +126,12 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
   });
 
   return {
-    id: BESKEDER_ID, navn: 'Beskeder', slags: 'beskeder', zone: 'privat', auth: 'bridge', tillid: 'uklar',
+    id: BESKEDER_ID, get navn() { return beskederTekst().navn; }, slags: 'beskeder', zone: 'privat', auth: 'bridge', tillid: 'uklar',
 
     async read(ctx: KildeKontekst) {
       const valg = valgte(ctx.valg);
       const log = await loggen();
-      if (!log) throw new KildeFejl(502, 'Hermes skriver ingen beskeder til Clawco endnu.');
+      if (!log) throw new KildeFejl(502, beskederTekst().ingenBeskederEndnu);
       // A chosen conversation whose channel did not come up at the last gateway start is not being read: say so, never "ok".
       const mistet = await mistetKanal(log, valg);
       if (mistet) throw new KildeFejl(502, GENFORBIND_KANAL[mistet]);
@@ -150,20 +149,21 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
 
     async kort(ctx): Promise<KildeKort> {
       const log = await loggen().catch(() => null);
-      if (!log) return { titel: 'Beskeder', tekst: INGEN_KANAL, felter: [], handling: 'Forbind' };
+      const t = beskederTekst();
+      if (!log) return { titel: t.navn, tekst: t.ingenKanal, felter: [], handling: t.handling.forbind };
       const liste = samtaler(log);
-      if (!liste.length) return { titel: 'Beskeder', tekst: `Hermes har ikke modtaget nogen beskeder endnu. Skriv til Hermes på en af dine kanaler, så står samtalen her. ${ERLIG}`, felter: [], handling: 'Forbind' };
-      return { titel: 'Beskeder', tekst: kortTekst(liste, valgte(ctx.valg)), felter: felter(liste), handling: 'Gem valget' };
+      if (!liste.length) return { titel: t.navn, tekst: t.ingenBeskeder(t.erlig), felter: [], handling: t.handling.forbind };
+      return { titel: t.navn, tekst: kortTekst(liste, valgte(ctx.valg)), felter: felter(liste), handling: t.handling.gemValget };
     },
 
     async opsaet(ctx) {
       const log = await loggen();
-      if (!log) throw new KildeFejl(400, 'Hermes skriver ingen beskeder til Clawco endnu. Sæt Clawcos beskedkrog op hos Hermes først.');
+      if (!log) throw new KildeFejl(400, beskederTekst().saetKrogOp);
       const valg = valgte(ctx.valg);
       gaeldende = valg;
       await ryd(valg, ctx.nu); // un-chosen conversations are forgotten at once, not at the next read
       const navne = samtaler(log).filter((s) => valg.has(s.noegle)).map((s) => s.navn);
-      const tekst = navne.length ? `Clawco læser nu ${opremsning(navne)}.` : 'Clawco læser ingen samtaler endnu.';
+      const tekst = navne.length ? beskederTekst().laeserNu(opremsning(navne)) : beskederTekst().laeserIngen;
       return { tekst, valg: Object.fromEntries(valg) };
     },
 
@@ -175,26 +175,26 @@ export function beskederKilde(o: { dataDir: string; logDir?: string; kontakter?:
     /** KC-0224: the choice after the connection. An unknown key is a 400; an un-chosen conversation is forgotten at once (the same purge as the card's). */
     async vaelgSamtaler(noegler, ctx) {
       const log = await loggen();
-      if (!log) throw new KildeFejl(502, 'Hermes skriver ingen beskeder til Clawco endnu.');
+      if (!log) throw new KildeFejl(502, beskederTekst().ingenBeskederEndnu);
       const liste = samtaler(log);
       const nyt = nytValg(liste, valgte(ctx.valg), noegler, ctx.zone);
-      if (!nyt) throw new KildeFejl(400, 'Den samtale kender Clawco ikke. Prøv igen.');
+      if (!nyt) throw new KildeFejl(400, beskederTekst().ukendtSamtale);
       gaeldende = nyt;
       await ryd(nyt, ctx.nu);
-      const tekst = `Clawco læser nu ${nyt.size} af ${liste.length} ${liste.length === 1 ? 'samtale' : 'samtaler'}.`;
+      const tekst = beskederTekst().laeserNuAf(nyt.size, liste.length);
       return { tekst, valg: Object.fromEntries(nyt), samtaler: visning(liste, nyt) };
     },
 
     async helbred(ctx): Promise<Helbred> {
       const log = await laesLog(logDir).catch(() => null);
-      if (!log) return { status: 'nede', tekst: 'Hermes skriver ingen beskeder til Clawco endnu.' };
+      if (!log) return { status: 'nede', tekst: beskederTekst().ingenBeskederEndnu };
       const valg = valgte(ctx.valg);
       const valgteSamtaler = samtaler(log).filter((s) => valg.has(s.noegle));
-      if (!valgteSamtaler.length) return { status: 'ok', tekst: 'Ingen samtaler er valgt.' };
+      if (!valgteSamtaler.length) return { status: 'ok', tekst: beskederTekst().ingenValgt };
       const mistet = await mistetKanal(log, valg);
       if (mistet) return { status: 'log-ind-igen', tekst: GENFORBIND_KANAL[mistet] };
       const sidst = valgteSamtaler.map((s) => s.sidst).sort().at(-1);
-      return { status: 'ok', ...(sidst ? { tekst: `Seneste besked for ${siden(sidst, ctx.nu)} siden.` } : {}) };
+      return { status: 'ok', ...(sidst ? { tekst: beskederTekst().seneste(siden(sidst, ctx.nu)) } : {}) };
     },
 
     async frakobl(): Promise<void> {

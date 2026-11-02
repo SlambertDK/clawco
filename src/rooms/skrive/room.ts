@@ -11,7 +11,7 @@ import { brugForslag, dokumentTilMarkdown, KORSEL, parseForslag, parseNytDokumen
 import { buildForslagRun, buildNytRun, buildSkriveChatRun } from './prompt.ts';
 import { renderSkrive } from './render.ts';
 import { stemmeSkrive } from './stemme.ts';
-import { skriveTekst } from './tekster.ts';
+import { skriveStatus, skriveTekst } from './tekster.ts';
 
 export const RUM = 'skrive';
 const JSON_BLOCK = /```(?:json)?\s*[\s\S]*?```/i;
@@ -26,7 +26,7 @@ async function rendered(deps: RoomDeps, extra: Partial<DoneResult> = {}): Promis
   deps.live.notify(RUM);
   const [state, log] = await Promise.all([load(deps), deps.store.readLog(RUM)]);
   const n = venterSkrive(state);
-  return { html: String(renderSkrive(state, log, deps.now(), deps.runs.igang(RUM))), venter: n ? { [RUM]: n } : {}, hermesStatus: state.hermesStatus, ...extra };
+  return { html: String(renderSkrive(state, log, deps.now(), deps.runs.igang(RUM))), venter: n ? { [RUM]: n } : {}, hermesStatus: skriveStatus(state.hermesStatus), ...extra };
 }
 
 function aktivt(s: SkriveState): Dokument | null {
@@ -34,13 +34,13 @@ function aktivt(s: SkriveState): Dokument | null {
 }
 function dokOrThrow(s: SkriveState, id: string): Dokument {
   const d = s.dokumenter.find((x) => x.id === id);
-  if (!d) throw new ActionError('Udkastet findes ikke');
+  if (!d) throw new ActionError(skriveTekst().fejlUdkastFindesIkke);
   return d;
 }
 
 async function view(deps: RoomDeps): Promise<RoomView> {
   const [state, log] = await Promise.all([load(deps), deps.store.readLog(RUM)]);
-  return { main: renderSkrive(state, log, deps.now(), deps.runs.igang(RUM)), hermesStatus: state.hermesStatus };
+  return { main: renderSkrive(state, log, deps.now(), deps.runs.igang(RUM)), hermesStatus: skriveStatus(state.hermesStatus) };
 }
 
 function startNyt(deps: RoomDeps, titel: string, brief: string): RunRecord {
@@ -53,9 +53,9 @@ function startNyt(deps: RoomDeps, titel: string, brief: string): RunRecord {
       const s = await load(deps);
       s.dokumenter.unshift(dok);
       s.aktivt = dok.id;
-      s.hermesStatus = `Skriver med på "${dok.titel.slice(0, 40)}"`;
+      s.hermesStatus = skriveTekst().skriverMed(dok.titel.slice(0, 40));
       await save(deps, s);
-      await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: `Skrev udkastet "${dok.titel}" (${dok.afsnit.length} afsnit).` });
+      await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: skriveTekst().logSkrev(dok.titel, dok.afsnit.length) });
       return rendered(deps);
     },
   });
@@ -72,7 +72,7 @@ function startForslag(deps: RoomDeps, dok: Dokument, afsnitId: string | null, ty
 async function gemForslag(deps: RoomDeps, dokId: string, output: string, text: string | undefined): Promise<DoneResult> {
   const s = await load(deps);
   const dok = s.dokumenter.find((d) => d.id === dokId);
-  if (!dok) throw new Error('Udkastet findes ikke længere');
+  if (!dok) throw new Error(skriveTekst().fejlUdkastVaek);
   const raw = text === undefined ? kraevJson(output) : extractJson(output);
   if (raw === null) return { text: text ?? '' };
   const nye = parseForslag(raw, dok, deps.now());
@@ -85,14 +85,14 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
   switch (name) {
     case 'nyt': {
       const brief = str(body['brief']);
-      if (!brief) throw new ActionError('Skriv hvad Hermes skal skrive (brief mangler)');
+      if (!brief) throw new ActionError(skriveTekst().fejlBriefMangler);
       return startNyt(deps, str(body['titel'], 120), brief);
     }
     case 'forslag': {
       const s = await load(deps);
       const dok = dokOrThrow(s, str(body['dokId'], 40));
       const afsnitId = str(body['afsnitId'], 20) || null;
-      if (afsnitId && !dok.afsnit.some((a) => a.id === afsnitId)) throw new ActionError('Afsnittet findes ikke');
+      if (afsnitId && !dok.afsnit.some((a) => a.id === afsnitId)) throw new ActionError(skriveTekst().fejlAfsnitFindesIkke);
       const type = str(body['type'], 20) || 'stram';
       return startForslag(deps, dok, afsnitId, type);
     }
@@ -101,15 +101,16 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
       return deps.runs.local('brug', async () => {
         const s = await load(deps);
         const f = s.forslag.find((x) => x.id === forslagId);
-        if (!f) throw new ActionError('Forslaget findes ikke længere');
+        if (!f) throw new ActionError(skriveTekst().fejlForslagVaek);
         const dok = dokOrThrow(s, f.dokId);
         const { gammel } = brugForslag(dok, f, deps.now());
         s.forslag = s.forslag.filter((x) => x.id !== forslagId);
         await save(deps, s);
-        const hvor = f.afsnitId === null ? 'nyt afsnit' : `afsnit ${dok.afsnit.findIndex((a) => a.id === f.afsnitId) + 1}`;
+        const T = skriveTekst();
+        const hvor = f.afsnitId === null ? T.hvorNytAfsnit : T.hvorAfsnitNr(dok.afsnit.findIndex((a) => a.id === f.afsnitId) + 1);
         const fortryd = JSON.stringify(gammel === null ? { dokId: dok.id, fjern: f.ny } : { dokId: dok.id, afsnitId: f.afsnitId, tekst: gammel });
-        await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Brugte Hermes' forslag til ${hvor} i "${dok.titel}".`, handlingId: `brug-${forslagId}`, fortryd: `lokal:${fortryd}` });
-        return rendered(deps, { text: 'Forslaget er brugt.' });
+        await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.logBrugte(hvor, dok.titel), handlingId: `brug-${forslagId}`, fortryd: `lokal:${fortryd}` });
+        return rendered(deps, { text: T.forslagBrugt });
       });
     }
     case 'afvis': {
@@ -134,7 +135,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     case 'gem': {
       const dokId = str(body['dokId'], 40);
       return deps.runs.local('gem', async () => {
-        if (!deps.vaultInbox) throw new ActionError('Ingen Obsidian-mappe sat op (KC_VAULT_INBOX)');
+        if (!deps.vaultInbox) throw new ActionError(skriveTekst().fejlIngenMappe);
         const s = await load(deps);
         const dok = dokOrThrow(s, dokId);
         await mkdir(deps.vaultInbox, { recursive: true });
@@ -145,8 +146,8 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
         await writeFile(fil, md, 'utf8');
         dok.gemtSom = fil;
         await save(deps, s);
-        await deps.store.appendLog(RUM, { kilde: 'system', tekst: `Gemte "${dok.titel}" i Obsidian-indbakken (${navn}).`, fortryd: `lokal:${JSON.stringify({ slet: fil, hvis: md.length })}` });
-        return rendered(deps, { text: `Gemt som ${navn}` });
+        await deps.store.appendLog(RUM, { kilde: 'system', tekst: skriveTekst().logGemte(dok.titel, navn), fortryd: `lokal:${JSON.stringify({ slet: fil, hvis: md.length })}` });
+        return rendered(deps, { text: skriveTekst().gemtSom(navn) });
       });
     }
     default:
@@ -162,22 +163,23 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
   if (!spec) return null;
   return deps.runs.local('fortryd', async () => {
     const s = await load(deps);
-    let tekst = 'Fortrudt.';
+    const T = skriveTekst();
+    let tekst = T.fortrudt;
     if (typeof spec['slet'] === 'string') {
       const fil = spec['slet'];
       const nu = await readFile(fil, 'utf8').catch(() => null);
-      if (nu !== null && nu.length === spec['hvis']) { await unlink(fil); tekst = 'Fjernede noten fra Obsidian-indbakken igen.'; }
-      else tekst = 'Noten er ændret eller væk; lod den være.';
+      if (nu !== null && nu.length === spec['hvis']) { await unlink(fil); tekst = T.fjernedeNoten; }
+      else tekst = T.notenAendret;
       for (const d of s.dokumenter) if (d.gemtSom === fil) delete d.gemtSom;
     } else {
       const dok = s.dokumenter.find((d) => d.id === spec['dokId']);
-      if (!dok) throw new Error('Udkastet findes ikke længere');
+      if (!dok) throw new Error(T.fejlUdkastVaek);
       if (typeof spec['fjern'] === 'string') {
         dok.afsnit = dok.afsnit.filter((a) => a.tekst !== spec['fjern']);
-        tekst = 'Fjernede det indsatte afsnit igen.';
+        tekst = T.fjernedeAfsnit;
       } else {
         const a = dok.afsnit.find((x) => x.id === spec['afsnitId']);
-        if (a) { a.tekst = String(spec['tekst'] ?? a.tekst); tekst = 'Satte afsnittet tilbage.'; }
+        if (a) { a.tekst = String(spec['tekst'] ?? a.tekst); tekst = T.satteTilbage; }
       }
       dok.aendret = deps.now().toISOString();
     }
@@ -198,7 +200,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
     onDone: async (output) => {
       // Validated before anything is written, so an unusable answer can go back to Hermes (KC-0050).
       if (dok && JSON_BLOCK.test(output)) parseForslag(kraevJson(output), dok, deps.now());
-      const text = output.replace(JSON_BLOCK, '').trim() || '(intet svar)';
+      const text = output.replace(JSON_BLOCK, '').trim() || skriveTekst().intetSvar;
       await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
       if (dok && JSON_BLOCK.test(output)) return gemForslag(deps, dok.id, output, text);
       return { text };

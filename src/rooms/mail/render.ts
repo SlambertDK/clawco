@@ -13,7 +13,7 @@ import { afvistLinje, baand, handlinger, igangGruppe, knap, spoerg, tilstandChip
 import { kraeverJa } from '../../graenser/verber.ts';
 import { aldrigTilladt } from '../../graenser/afgoer.ts';
 import { handlingensVerb } from '../dagen/schema.ts';
-import { mailTekst } from './tekster.ts';
+import { mailEmne, mailFra, mailTekst } from './tekster.ts';
 
 const FORTRYD_TIMER = 24;
 
@@ -31,8 +31,10 @@ const TYPE_IKON: Record<Beslutning['type'], IkonNavn> = { svar: 'message-circle'
  * `kanSende`: false when the room was built from the mail connector (KC-0214) — IMAP cannot send, so no Send button.
  * `laeseKun` (KC-0223): the connection can only read — the card is the question and what it means, nothing that moves or writes.
  */
-function beslutning(b: Beslutning, resultater: Map<string, LogEntry>, kanSende = true, laeseKun = false): Markup {
+function beslutning(lagret: Beslutning, resultater: Map<string, LogEntry>, kanSende = true, laeseKun = false): Markup {
   const t = mailTekst();
+  // A stored placeholder subject or sender ("(uden emne)") reads in the language of the request.
+  const b: Beslutning = { ...lagret, emne: mailEmne(lagret.emne), fra: mailFra(lagret.fra) };
   const label = t.mailen(b.emne);
   const arg = (o: Record<string, unknown>): string => JSON.stringify(o);
   const spoergKnap = spoerg(label);

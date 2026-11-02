@@ -14,6 +14,7 @@ import { isIP } from 'node:net';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import type { Readable } from 'node:stream';
 import { AdresseFejl, tjekAdresse, tjekIp, type Oprindelse } from './adresse.ts';
+import { rssTekst } from './tekster.ts';
 
 export type Opslag = (vaert: string) => Promise<{ address: string; family: 4 | 6 }[]>;
 export type Svar = { status: 'ny'; tekst: string; etag?: string; sidstRettet?: string; endeligAdresse: string } | { status: 'uaendret' };
@@ -104,11 +105,11 @@ export function lavHenter(o: HenterValg = {}): Henter {
         let timer: ReturnType<typeof setTimeout> | undefined;
         const forLangsomt = new Promise<never>((_res, rej) => { timer = setTimeout(() => rej(new Error('opslag')), tidMs); });
         try { svar = await Promise.race([opslag(vaert), forLangsomt]); } finally { clearTimeout(timer); }
-      } catch { throw new HentFejl('net', 'Adressen findes ikke eller kan ikke slås op.'); }
+      } catch { throw new HentFejl('net', rssTekst().findesIkke); }
     }
-    if (!svar.length) throw new HentFejl('net', 'Adressen findes ikke eller kan ikke slås op.');
+    if (!svar.length) throw new HentFejl('net', rssTekst().findesIkke);
     for (const a of svar) {
-      try { tjekIp(a.address, { oprindelse: op }); } catch (err) { throw new HentFejl('afvist', err instanceof Error ? err.message : 'Adressen er afvist.'); }
+      try { tjekIp(a.address, { oprindelse: op }); } catch (err) { throw new HentFejl('afvist', err instanceof Error ? err.message : rssTekst().afvist); }
     }
     return svar[0] as { address: string; family: 4 | 6 };
   }
@@ -116,7 +117,7 @@ export function lavHenter(o: HenterValg = {}): Henter {
   function en(u: URL, ip: { address: string; family: 4 | 6 }, hoveder: Record<string, string>, signal: AbortSignal): Promise<Hop> {
     return new Promise<Hop>((resolve, reject) => {
       const slut = (err: HentFejl | null, hop?: Hop): void => { if (err) reject(err); else resolve(hop as Hop); };
-      const tid = (): HentFejl => new HentFejl('tid', 'Kilden svarede ikke i tide.');
+      const tid = (): HentFejl => new HentFejl('tid', rssTekst().ikkeITide);
       if (signal.aborted) { slut(tid()); return; }
       const mod = u.protocol === 'https:' ? https : http;
       const req = mod.request({
@@ -128,7 +129,7 @@ export function lavHenter(o: HenterValg = {}): Henter {
       const afbryd = (): void => { req.destroy(); slut(tid()); };
       signal.addEventListener('abort', afbryd, { once: true });
       const faerdig = (err: HentFejl | null, hop?: Hop): void => { signal.removeEventListener('abort', afbryd); slut(err, hop); };
-      req.on('error', () => faerdig(signal.aborted ? tid() : new HentFejl('net', 'Kilden kunne ikke nås.')));
+      req.on('error', () => faerdig(signal.aborted ? tid() : new HentFejl('net', rssTekst().kanIkkeNaas)));
       req.on('response', (res) => {
         const status = res.statusCode ?? 0;
         const h = res.headers;
@@ -138,20 +139,20 @@ export function lavHenter(o: HenterValg = {}): Henter {
           return;
         }
         if (status === 304) { res.resume(); faerdig(null, { status }); return; }
-        if (status < 200 || status >= 300) { res.destroy(); faerdig(new HentFejl('status', `Kilden svarede ${status}.`, status)); return; }
+        if (status < 200 || status >= 300) { res.destroy(); faerdig(new HentFejl('status', rssTekst().svarede(status), status)); return; }
         const kodning = String(h['content-encoding'] ?? 'identity').toLowerCase().trim();
         const laengde = Number(h['content-length']);
-        if (kodning === 'identity' && Number.isFinite(laengde) && laengde > maksBytes) { res.destroy(); faerdig(new HentFejl('stor', 'Kilden er for stor.')); return; }
+        if (kodning === 'identity' && Number.isFinite(laengde) && laengde > maksBytes) { res.destroy(); faerdig(new HentFejl('stor', rssTekst().forStor)); return; }
         let strom: Readable = res;
         if (kodning === 'gzip' || kodning === 'x-gzip') strom = res.pipe(createGunzip());
         else if (kodning === 'deflate') strom = res.pipe(createInflate());
         else if (kodning === 'br') strom = res.pipe(createBrotliDecompress());
-        else if (kodning !== 'identity') { res.destroy(); faerdig(new HentFejl('net', 'Kilden bruger en ukendt komprimering.')); return; }
+        else if (kodning !== 'identity') { res.destroy(); faerdig(new HentFejl('net', rssTekst().ukendtKomprimering)); return; }
         const dele: Buffer[] = [];
         let n = 0;
         strom.on('data', (c: Buffer) => {
           n += c.length;
-          if (n > maksBytes) { strom.destroy(); res.destroy(); faerdig(new HentFejl('stor', 'Kilden er for stor.')); return; }
+          if (n > maksBytes) { strom.destroy(); res.destroy(); faerdig(new HentFejl('stor', rssTekst().forStor)); return; }
           dele.push(c);
         });
         strom.on('end', () => {
@@ -161,8 +162,8 @@ export function lavHenter(o: HenterValg = {}): Henter {
             ...(typeof h.etag === 'string' ? { etag: h.etag } : {}), ...(typeof h['last-modified'] === 'string' ? { sidstRettet: h['last-modified'] } : {}),
           });
         });
-        strom.on('error', () => faerdig(signal.aborted ? tid() : new HentFejl('net', 'Svaret kunne ikke læses.')));
-        res.on('error', () => faerdig(signal.aborted ? tid() : new HentFejl('net', 'Svaret kunne ikke læses.')));
+        strom.on('error', () => faerdig(signal.aborted ? tid() : new HentFejl('net', rssTekst().svarKunneIkkeLaeses)));
+        res.on('error', () => faerdig(signal.aborted ? tid() : new HentFejl('net', rssTekst().svarKunneIkkeLaeses)));
       });
       req.end();
     });
@@ -173,8 +174,8 @@ export function lavHenter(o: HenterValg = {}): Henter {
     let signal: AbortSignal | undefined;
     let u: URL;
     let op: Oprindelse = p.oprindelse;
-    try { u = tjekAdresse(adresse, { oprindelse: oprindelseFor(op) }); } catch (err) { throw new HentFejl('afvist', err instanceof Error ? err.message : 'Adressen er afvist.'); }
-    if (o.tilladtVaert && !o.tilladtVaert(u.hostname)) throw new HentFejl('afvist', 'Adressen hører ikke til den tjeneste, kilden må tale med.');
+    try { u = tjekAdresse(adresse, { oprindelse: oprindelseFor(op) }); } catch (err) { throw new HentFejl('afvist', err instanceof Error ? err.message : rssTekst().afvist); }
+    if (o.tilladtVaert && !o.tilladtVaert(u.hostname)) throw new HentFejl('afvist', rssTekst().hoererIkkeTil);
     for (let hop = 0; ; hop += 1) {
       const ip = await vaelgIp(u, oprindelseFor(op));
       const hoveder: Record<string, string> = { 'user-agent': agent, accept, 'accept-encoding': 'gzip, deflate, br' };
@@ -183,12 +184,12 @@ export function lavHenter(o: HenterValg = {}): Henter {
       const r = await iAlt(() => vaertPlads(`${u.hostname}:${u.port}`)(() => en(u, ip, hoveder, (signal ??= AbortSignal.timeout(tidMs)))));
       if (r.status === 304) return { status: 'uaendret' };
       if (r.status >= 300 && r.status < 400) {
-        if (hop >= maksOmd) throw new HentFejl('omdirigering', 'Kilden sender dig videre for mange gange.');
-        if (!r.location) throw new HentFejl('net', 'Kilden sender dig videre uden at sige hvorhen.');
+        if (hop >= maksOmd) throw new HentFejl('omdirigering', rssTekst().forMangeOmdirigeringer);
+        if (!r.location) throw new HentFejl('net', rssTekst().omdirigeringUdenMaal);
         try { u = tjekAdresse(new URL(r.location, u).href, { oprindelse: oprindelseFor('ekstern') }); } catch (err) {
-          throw new HentFejl('afvist', err instanceof AdresseFejl ? err.message : 'Kilden sender dig videre til en adresse, der ikke kan bruges.');
+          throw new HentFejl('afvist', err instanceof AdresseFejl ? err.message : rssTekst().omdirigeringIkkeBrugbar);
         }
-        if (o.tilladtVaert && !o.tilladtVaert(u.hostname)) throw new HentFejl('afvist', 'Kilden sender dig videre til en tjeneste, den ikke må tale med.');
+        if (o.tilladtVaert && !o.tilladtVaert(u.hostname)) throw new HentFejl('afvist', rssTekst().omdirigeringForbudt);
         op = 'ekstern';
         continue;
       }

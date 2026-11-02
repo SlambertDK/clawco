@@ -10,7 +10,7 @@ import type { RunRecord } from '../runs.ts';
 import type { RumLager } from '../store/types.ts';
 import { kortTypeFra, type Kort, type KortType, type KuratorState } from '../rooms/hjem/kort.ts';
 import { KORSEL, kunSynlige, mergeKort, parseKuratorSvar, zoneFelter } from '../rooms/hjem/kort.ts';
-import { ZONE_NAVN, synligFor, zoneAf, type DataZone } from '../identitet/zoner.ts';
+import { synligFor, zoneAf, type DataZone } from '../identitet/zoner.ts';
 import type { Person } from '../identitet/husstand.ts';
 import { extractJson } from '../rooms/dagen/schema.ts';
 import { copenhagenDate } from '../rooms/dagen/source.ts';
@@ -23,6 +23,7 @@ import type { Intet } from '../rooms/hjem/kort.ts';
 import type { ReglerLaest } from '../tillid/lager.ts';
 import type { Skjult } from '../tillid/skjulte.ts';
 import { createHash } from 'node:crypto';
+import { kuratorTekst, zoneOrd } from './tekster.ts';
 
 export const HJEM = 'hjem';
 
@@ -80,8 +81,6 @@ export function endreKurator(store: RumLager, fn: (s: KuratorState) => KuratorSt
 
 const iFlugt = (d: RoomDeps): boolean => d.runs.list().some((r) => r.kind === 'kurator' && (r.status === 'queued' || r.status === 'running'));
 
-const HVOR_TEKST = { shelfatlas: 'ShelfAtlas-regnskabet', privat: 'det private regnskab' } as const;
-
 /** What a ledger row is about, for Henrik's rules (the reference install's R-0002 is "mail / regning", trin 2). */
 const REGNING = { kilde: 'mail', slags: 'regning' } as const;
 
@@ -122,7 +121,7 @@ async function skrivRegninger(d: RoomDeps, merged: KuratorState, fraSvar: Set<st
     const fil = d.regnskabsfil(l.hvor);
     const resultat = await skrivRegnskab(fil, k.id, l);
     if (resultat === 'skrevet' || !(await d.store.readLog(HJEM, 1000)).some((e) => e.handlingId === handlingId)) {
-      await d.store.appendLog(HJEM, { kilde: 'hermes', tekst: `Skrev ${l.leverandoer} ${l.beloeb} ${l.valuta} ind i ${HVOR_TEKST[l.hvor]}`, handlingId, fortryd: FORTRYD_FJERN });
+      await d.store.appendLog(HJEM, { kilde: 'hermes', tekst: kuratorTekst().logSkrev(l.leverandoer, l.beloeb, l.valuta, l.hvor), handlingId, fortryd: FORTRYD_FJERN });
     }
     regnskab[k.id] = { hvor: l.hvor, status: 'skrevet', leverandoer: l.leverandoer, beloeb: l.beloeb, valuta: l.valuta, ...zoneFelter(k) };
     const { kraeverRegel: _ny, ...uden } = k;
@@ -217,7 +216,7 @@ function startPrivat(
     kind: 'kurator',
     room: HJEM,
     zone: 'privat',
-    label: dyb ? 'Kuratoren tænker grundigt' : 'Kuratoren tænker',
+    label: dyb ? kuratorTekst().labelKuratorGrundigt : kuratorTekst().labelKurator,
     spec,
     onDone: async (output) => {
       let skjulte: Skjult[] = [];
@@ -242,7 +241,7 @@ function startPrivat(
       // KC-0145: what this run kept off the screen, as the app's own record (the Sunday sample counts these).
       if (d.skjulte && skjulte.length) await d.skjulte.noter(skjulte).catch((err: unknown) => console.error('skjulte:', err instanceof Error ? err.message : err));
       d.live.notify(HJEM);
-      return { text: `${ny.kort.length} kort` };
+      return { text: kuratorTekst().kortTal(ny.kort.length) };
     },
   });
 }
@@ -262,7 +261,7 @@ function startZone(d: RoomDeps, zone: DataZone, beskeder: KuratorBesked[], state
     kind: 'kurator',
     room: HJEM,
     zone,
-    label: `Kuratoren tænker (${ZONE_NAVN[zone].toLowerCase()})`,
+    label: kuratorTekst().labelKuratorZone(zoneOrd(zone).toLowerCase()),
     spec,
     onDone: async (output) => {
       const raa = parseKuratorSvar(extractJson(output), zone); // an element naming another zone is a SvarFejl: corrected once, else the run fails and nothing is written
@@ -277,13 +276,13 @@ function startZone(d: RoomDeps, zone: DataZone, beskeder: KuratorBesked[], state
         return { ...merged, beskederSete: seteEfter(nu.beskederSete ?? [], beskeder) };
       });
       // The room log (only when a card came out of it: a quiet zone adds no line) and the audit line both name the zone.
-      if (lagt > 0) await d.store.appendLog(HJEM, { kilde: 'hermes', zone, tekst: `Kuratoren (${ZONE_NAVN[zone]}): ${lagt === 1 ? 'et kort' : `${lagt} kort`} fra beskeder er lagt øverst.` });
+      if (lagt > 0) await d.store.appendLog(HJEM, { kilde: 'hermes', zone, tekst: kuratorTekst().logZoneKort(zoneOrd(zone), lagt) });
       await d.revision?.skriv({
         person: d.person.id, kanal: 'planlagt', rum: HJEM, verb: 'laes', udfald: 'tillad', ...(run ? { runId: run.id } : {}), zoner: [zone], kilde: 'kurator',
         hvorfor: `Kuratoren læste ${beskeder.length === 1 ? 'én besked' : `${beskeder.length} beskeder`} i zonen ${zone}.`,
       }).catch((err: unknown) => console.error('kurator: revisionslinjen kunne ikke skrives:', err instanceof Error ? err.message : err));
       d.live.notify(HJEM);
-      return { text: `${ny.kort.length} kort` };
+      return { text: kuratorTekst().kortTal(ny.kort.length) };
     },
   });
   return run;

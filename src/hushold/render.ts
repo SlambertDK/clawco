@@ -30,8 +30,8 @@ function plusDag(dato: string, n: number): string {
 }
 
 /**
- * "I dag", "I morgen", "Lørdag 7. nov". Danish unless `sprog` says otherwise: the log lines and the channel's messages,
- * which stay Danish, call it without one; a screen passes the language being rendered (KC-0170).
+ * "I dag", "I morgen", "Lørdag 7. nov". Danish unless `sprog` says otherwise: Hermes' prompt calls it without one;
+ * everything a person reads (screens, log lines, titles) passes the language being served (KC-0170, `datoVis`).
  */
 export function datoLinje(dato: string, now: Date, sprog: Sprog = 'da'): string {
   const T = HUSSTAND_TEKSTER[sprog];

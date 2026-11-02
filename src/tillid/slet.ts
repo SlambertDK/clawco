@@ -16,6 +16,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import type { Revision } from '../graenser/revisionslog.ts';
 import { clawcoMappe, type Brugermappe } from './brugermappe.ts';
+import { tillidTekst } from './tekster.ts';
 
 export type SletValg = {
   person: string;
@@ -56,7 +57,7 @@ async function ryd(dir: string, beskyt: readonly string[], vent: (navn: string) 
 
 function tjekRod(dataDir: string): void {
   const r = dataDir.trim() ? path.resolve(dataDir) : '';
-  if (!r || r === path.parse(r).root || r === path.resolve(homedir())) throw new Error(`Slet alt sletter kun i en datamappe, ikke ${r || '(ingen mappe)'}`);
+  if (!r || r === path.parse(r).root || r === path.resolve(homedir())) throw new Error(tillidTekst().sletRod(r || tillidTekst().ingenMappe));
 }
 
 export async function sletAlt(m: Brugermappe, o: SletValg): Promise<{ filer: number }> {
@@ -68,11 +69,11 @@ export async function sletAlt(m: Brugermappe, o: SletValg): Promise<{ filer: num
   if (!findesData && !clawco) return { filer: 0 };
   const beskyt = await Promise.all([m.vaultDir, ...(m.beskyt ?? [])].filter((p): p is string => !!p?.trim()).map(aegte));
   // A vault (or another protected folder) that IS the data dir: its contents are the user's notes — refuse.
-  if (findesData && beskyt.includes(data)) throw new Error('Datamappen er også din vault; Slet alt sletter ikke dine noter');
+  if (findesData && beskyt.includes(data)) throw new Error(tillidTekst().dataErVault);
 
   await o.revision?.skriv({
     person: o.person, kanal: o.kanal, rum: 'viden', verb: 'slet', udfald: 'tillad',
-    hvorfor: 'Slet alt: ejeren bekræftede med SLET', zoner: [], kilde: 'viden',
+    hvorfor: tillidTekst().sletRevision, zoner: [], kilde: 'viden',
   });
 
   let filer = 0;

@@ -13,6 +13,7 @@ import { skjulAdresser, zoneFelter } from '../rooms/hjem/kort.ts';
 import type { Zoneret } from '../identitet/zoner.ts';
 import type { ReglerLaest } from './lager.ts';
 import type { Regel, Regelsaet } from './regler.ts';
+import { tillidTekst } from './tekster.ts';
 import { erTrin, maksTrinForForslag, type Trin } from './trin.ts';
 
 export type Art = 'ret' | 'ikke-relevant';
@@ -143,8 +144,8 @@ export function afgoerForslag(liste: readonly Regelforslag[], id: string, status
  * vist mig det" on the Sunday sample). Pending like any proposal; only his Ja pauses the rule.
  */
 export function pauseForslag(regel: Regel, o: { kort: { id: string; titel: string } & Zoneret; nu: Date }): Regelforslag {
-  const titel = linje(`Sæt «${regel.titel}» på pause`, MAX_TITEL);
-  const tekst = linje(`Reglen ${regel.id} skjulte «${o.kort.titel}», som du ville have set. På pause følger Hermes den ikke, før du tænder den igen.`, MAX_TEKST);
+  const titel = linje(tillidTekst().pauseTitel(regel.titel), MAX_TITEL);
+  const tekst = linje(tillidTekst().pauseTekst(regel.id, o.kort.titel), MAX_TEKST);
   return { ...lavForslag({ titel, tekst, trin: regel.trin, gaelder: { ...regel.gaelder } }, { kort: o.kort, art: 'ret', nu: o.nu }), pauser: regel.id, kunPause: true };
 }
 

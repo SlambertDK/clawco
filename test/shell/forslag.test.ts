@@ -7,6 +7,7 @@ import { rumFraBesked, erHjaelp } from '../../src/shell/aabn.ts';
 import { ROOMS } from '../../src/rooms/registry.ts';
 import { shell } from '../../src/shell/layout.ts';
 import { html } from '../../src/shell/html.ts';
+import { medSprog } from '../../src/store/sprog.ts';
 
 const side = (roomId: string, chat: { id: string; tid: string; fra: 'henrik' | 'hermes'; tekst: string }[] = []): string => String(shell({
   roomId, hermesStatus: 'Klar', venter: {}, main: html`<p>x</p>`, chat,
@@ -61,4 +62,27 @@ test('KC-0098: "Hvad kan jeg sige?" is the last suggestion in every room, after 
   }
   assert.equal(forslagTil('univers-havvind-nord').at(-1), 'Hvad kan jeg sige?');
   assert.equal(erHjaelp('Hvad kan jeg sige?'), true);
+});
+
+// KC-0170: the chips come in the request's language; the Danish ones stay as they were.
+test('KC-0170: English chips per room, each two to four and short, the help last, and the chat reads the ones that are phrases', () => {
+  for (const r of ROOMS.map((x) => x.id).concat(['univers-havvind-nord'])) {
+    const f = medSprog('en', () => forslagTil(r));
+    assert.ok(f.length >= 2 && f.length <= 4, `${r}: ${f.length}`);
+    for (const s of f) assert.ok(s.length > 0 && s.length <= 40, `${r}: "${s}" is short`);
+    assert.equal(f.at(-1), 'What can I say?', r);
+    assert.notDeepEqual(f, forslagTil(r), `${r}: not the Danish chips`);
+  }
+  assert.deepEqual(medSprog('en', () => forslagTil('hjem')), ['What is waiting for me?', 'What is happening today?', 'I want to write', 'What can I say?']);
+  assert.deepEqual(medSprog('en', () => forslagTil('findes-ikke')), []);
+  assert.equal(medSprog('en', () => rumFraBesked('I want to write', [])?.id), 'skrive');
+  assert.equal(medSprog('en', () => erHjaelp('What can I say?')), true);
+  assert.deepEqual(forslagTil('hjem'), ['Hvad venter på mig?', 'Hvad sker der i dag?', 'Jeg vil skrive', 'Hvad kan jeg sige?'], 'Danish unchanged, read at call time');
+});
+
+test('KC-0170: an English page shows the chips as buttons, and the Danish page keeps its own', () => {
+  const en = medSprog('en', () => side('hjem'));
+  const knapper = [...en.matchAll(/<button type="button" class="btn btn-forslag" data-forslag="([^"]*)">([^<]*)<\/button>/g)].map((m) => m[2]);
+  assert.deepEqual(knapper, ['What is waiting for me?', 'What is happening today?', 'I want to write', 'What can I say?']);
+  assert.match(en, /id="chat-forslag" role="group" aria-label="Suggestions"/);
 });

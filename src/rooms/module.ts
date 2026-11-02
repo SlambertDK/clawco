@@ -2,6 +2,7 @@
 // the server looks a room up by id (modules.ts) and calls these.
 
 import type { AgentClient } from '../agent/types.ts';
+import type { Sprog } from '../store/profil.ts';
 import type { RumLager } from '../store/types.ts';
 import type { RunRegistry, RunRecord } from '../runs.ts';
 import type { Markup } from '../shell/html.ts';
@@ -104,6 +105,8 @@ export type RoomDeps = {
   importSkriver?: ImportSkriver;
   /** KC-0160: laptop mode now (one person on this machine only): Start leaves the household question out. */
   laptop?: () => boolean;
+  /** KC-0170: the screen's language before a profile exists (the installation's record, store/installation.ts); absent = Danish. */
+  standardSprog?: () => Sprog;
   /** KC-0161: Start's window on the local Tailscale (read-only state, and the one share command on a tap), wired by the composition root. Absent = no card (Sky, no wiring). */
   tailscale?: TailscaleVindue;
   /** KC-0233: Start's Danmark-pakke step (Digital Post), wired by the composition root over src/danmark/vindue.ts. Absent = no step (no data dir). */

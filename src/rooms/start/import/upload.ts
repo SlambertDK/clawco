@@ -8,6 +8,7 @@ import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { ActionError } from '../../module.ts';
+import { startTekst } from '../tekster.ts';
 
 export const UPLOAD_MAKS = 10 * 1024 * 1024;
 export const TMP_LEVETID_MS = 3_600_000;
@@ -20,19 +21,20 @@ export type Upload = { dir: string; filer: { navn: string; tekst: string }[] };
 const MAPPE = /^(\d{1,16})-[0-9a-f]{8,}$/;
 
 function tjek(filer: unknown): { navn: string; tekst: string; type: string }[] {
-  if (!Array.isArray(filer) || !filer.length) throw new ActionError('Vælg mindst én fil, eller indsæt en tekst.');
-  if (filer.length > FILER_MAKS) throw new ActionError(`Højst ${FILER_MAKS} filer ad gangen.`);
+  const T = startTekst().akt;
+  if (!Array.isArray(filer) || !filer.length) throw new ActionError(T.vaelgMindstEn);
+  if (filer.length > FILER_MAKS) throw new ActionError(T.hoejstFiler(FILER_MAKS));
   let bytes = 0;
   const ud: { navn: string; tekst: string; type: string }[] = [];
   for (const f of filer as unknown[]) {
     const o = typeof f === 'object' && f !== null ? (f as Record<string, unknown>) : null;
-    if (!o || typeof o['navn'] !== 'string' || typeof o['tekst'] !== 'string') throw new ActionError('Filen kunne ikke læses.');
+    if (!o || typeof o['navn'] !== 'string' || typeof o['tekst'] !== 'string') throw new ActionError(T.filKanIkkeLaeses);
     const navn = o['navn'];
-    if (!navn || navn.length > 200 || /[\u0000-\u001f\u007f/\\]/.test(navn) || navn === '.' || navn === '..' || navn.includes('..')) throw new ActionError('Filnavnet kan ikke bruges.');
+    if (!navn || navn.length > 200 || /[\u0000-\u001f\u007f/\\]/.test(navn) || navn === '.' || navn === '..' || navn.includes('..')) throw new ActionError(T.filnavnKanIkke);
     const type = (/\.([A-Za-z0-9]{1,5})$/.exec(navn)?.[1] ?? '').toLowerCase();
-    if (!(TILLADTE_TYPER as readonly string[]).includes(type) || navn.startsWith('.')) throw new ActionError(`Filtypen på »${navn.slice(0, 60)}« kan ikke læses. Tag .vcf, .csv, .md, .txt eller .html.`);
+    if (!(TILLADTE_TYPER as readonly string[]).includes(type) || navn.startsWith('.')) throw new ActionError(T.filtypeKanIkke(navn.slice(0, 60)));
     bytes += Buffer.byteLength(o['tekst'], 'utf8');
-    if (bytes > UPLOAD_MAKS) throw new ActionError('Filerne er for store: højst 10 MB i alt.');
+    if (bytes > UPLOAD_MAKS) throw new ActionError(T.forStore);
     ud.push({ navn, tekst: o['tekst'], type });
   }
   return ud;

@@ -9,6 +9,7 @@ import { parseVisuel, type Visuel } from '../../shell/visuel.ts';
 import { ZoneFejl, zoneFra, synligFor, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import type { Person } from '../../identitet/husstand.ts';
 import { agentGulv, verbFra } from '../../graenser/verber.ts';
+import { mailTekst } from './tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -119,8 +120,8 @@ export function parseMailState(raw: unknown, facts: MailFacts, now: Date, previo
     const post: Beslutning = {
       zone,
       mailId,
-      emne: str(b['emne'], 200) || '(uden emne)',
-      fra: str(b['fra'], 120) || '(ukendt afsender)',
+      emne: str(b['emne'], 200) || mailTekst().udenEmne,
+      fra: str(b['fra'], 120) || mailTekst().ukendtAfsender,
       modtaget: str(b['modtaget'], 40),
       type,
       resume: str(b['resume'], 400),
@@ -146,7 +147,7 @@ export function parseMailState(raw: unknown, facts: MailFacts, now: Date, previo
     tal: { ...facts.tal },
     beslutninger,
     ordnet,
-    hermesStatus: str(raw['hermesStatus'], 80) || 'Holder øje med Handling',
+    hermesStatus: str(raw['hermesStatus'], 80) || mailTekst().foelger,
   };
 }
 

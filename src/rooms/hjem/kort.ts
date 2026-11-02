@@ -10,6 +10,7 @@ import { idagKbh, koebenhavnTilIso } from '../../shell/tid.ts';
 import { ZoneFejl, synligFor, zoneAf, zoneFra, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import type { Person } from '../../identitet/husstand.ts';
 import type { Regelforslag } from '../../tillid/forslag.ts';
+import { hjemTekst } from './tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -306,7 +307,7 @@ export function mergeKort(state: KuratorState, svar: KuratorSvar, now: Date, kor
   // Array.prototype.sort is stable, so kept cards stay ahead of new ones on equal prioritet.
   levende.sort((a, b) => a.prioritet - b.prioritet);
   const kort = levende.slice(0, MAX_KORT);
-  const overskud: Intet[] = levende.slice(MAX_KORT).map((k) => ({ titel: k.titel, hvorfor: 'plads', ...zoneFelter(k) }));
+  const overskud: Intet[] = levende.slice(MAX_KORT).map((k) => ({ titel: k.titel, hvorfor: hjemTekst().pladsHvorfor, ...zoneFelter(k) }));
 
   return {
     ...state,

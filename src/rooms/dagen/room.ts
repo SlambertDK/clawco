@@ -11,7 +11,7 @@ import { dagFraUge, readDagenSource } from './source.ts';
 import { trimUge } from './uge.ts';
 import { buildChatRun, buildFortrydRun, buildHandlingRun, buildHentRun, buildRefreshRun } from './prompt.ts';
 import { renderDagen, renderDagenEmpty } from './render.ts';
-import { dagenTekst, ventendeLinjer } from './tekster.ts';
+import { dagenStatus, dagenTekst, ventendeLinjer } from './tekster.ts';
 import { tekst } from '../../shell/tekster.ts';
 import { stemmeDagen } from './stemme.ts';
 import { naesteAftale } from './naeste.ts';
@@ -35,13 +35,13 @@ async function rendered(deps: DagenDeps, extra: Partial<DoneResult> = {}): Promi
   deps.live.notify(RUM);
   const { state, log } = await synlig(deps);
   const html = state ? String(renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender'))) : String(renderDagenEmpty(dagenTekst().ingenDataIDagEndnu));
-  return { html, venter: { [RUM]: venterDagen(state, log, deps.now()) }, hermesStatus: state?.hermesStatus ?? tekst().klar, ...extra };
+  return { html, venter: { [RUM]: venterDagen(state, log, deps.now()) }, hermesStatus: state ? dagenStatus(state.hermesStatus) : tekst().klar, ...extra };
 }
 
 export async function viewDagen(deps: DagenDeps): Promise<RoomView> {
   const { state, log } = await synlig(deps);
   const main = state ? renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender')) : renderDagenEmpty(dagenTekst().ingenDataIDagEndnu);
-  return { main, hermesStatus: state?.hermesStatus ?? tekst().klar };
+  return { main, hermesStatus: state ? dagenStatus(state.hermesStatus) : tekst().klar };
 }
 
 export async function startOpdater(deps: DagenDeps, mode: string): Promise<RunRecord | null> {
@@ -64,7 +64,7 @@ export async function startOpdater(deps: DagenDeps, mode: string): Promise<RunRe
       const raw = kraevJson(output);
       const state = parseDagenState(raw, deps.now());
       await deps.store.writeState(RUM, state);
-      await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: `Hermes byggede Dagen (${state.kalender.length} aftaler, ${state.morgenavis.length} nyheder).` });
+      await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: dagenTekst().logByggede(state.kalender.length, state.morgenavis.length) });
       return rendered(deps);
     },
   });
@@ -79,7 +79,7 @@ export async function startHandling(deps: DagenDeps, id: string): Promise<RunRec
     kind: 'handling',
     spec: buildHandlingRun(h, state),
     onDone: async (output) => {
-      const tekst = output.trim().slice(0, 600) || `${h.label}: gjort.`;
+      const tekst = output.trim().slice(0, 600) || dagenTekst().gjort(h.label);
       const entry = h.fortryd ? { kilde: 'hermes' as const, tekst, handlingId: h.id, fortryd: h.fortryd } : { kilde: 'hermes' as const, tekst, handlingId: h.id };
       await deps.store.appendLog(RUM, entry);
       return rendered(deps, { text: tekst });
@@ -97,7 +97,7 @@ export async function startFortryd(deps: DagenDeps, logId: string): Promise<RunR
     spec: buildFortrydRun(fortryd, state),
     onDone: async (output) => {
       await deps.store.updateLog(RUM, logId, { fortrudt: deps.now().toISOString() });
-      await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: output.trim().slice(0, 600) || 'Fortrudt.' });
+      await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: output.trim().slice(0, 600) || dagenTekst().fortrudt });
       return rendered(deps, { text: output.trim() });
     },
   });
@@ -134,11 +134,11 @@ export async function startChat(deps: DagenDeps, besked: string, kontekst: strin
       const opdater = raw && typeof raw === 'object' && 'opdater' in raw ? (raw as { opdater: unknown }).opdater : null;
       // Validated before anything is written, so an unusable answer can go back to Hermes (KC-0050).
       const merged = opdater && typeof opdater === 'object' && state && fuld ? flet(fuld, state, opdater as Record<string, unknown>, deps) : null;
-      const text = output.replace(JSON_BLOCK, '').trim() || '(intet svar)';
+      const text = output.replace(JSON_BLOCK, '').trim() || dagenTekst().intetSvar;
       await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
       if (merged) {
         await deps.store.writeState(RUM, merged);
-        await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: 'Opdaterede rummet fra chatten.' });
+        await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: dagenTekst().logOpdaterede });
         return rendered(deps, { text });
       }
       return { text };

@@ -1,9 +1,12 @@
 // KC-0170: the Dagen room's strings, Danish and English, in the shape of src/rooms/start/tekster.ts (which says how the
 // language is chosen): plain text or small functions, escaped by render.ts. English must have exactly Danish's keys (the
 // type and test/rooms/dagen-tekster.test.ts hold that). Render code calls dagenTekst() at render time, never at load.
-// Not here (follow-up): ActionError messages, log texts, the prompts, the week's source and the spoken view.
+// The log lines, the empty answers and the status fallback are here too (slice 3): said in the language of the request
+// that causes them. Not here, on purpose: the prompts and the schema's errors (addressed to Hermes, Danish), the
+// week's source and the spoken view.
 
 import { sprogNu } from '../../shell/tekster.ts';
+import { statusISprog, type StatusArt } from '../status.ts';
 import { dagenGammel, type DagenState, type KalenderPost } from './schema.ts';
 import type { LogEntry } from '../../store/types.ts';
 
@@ -57,6 +60,18 @@ const da = {
   // The "not built yet" card
   ikkeByggetTekst: 'Morgenbygningen har ikke lavet dagen for i dag. Hermes kan bygge den nu; det tager et par minutter.',
   bygNu: 'Byg Dagen nu',
+
+  // What a finished run says, and its empty answers
+  gjort: (label: string): string => `${label}: gjort.`,
+  fortrudt: 'Fortrudt.',
+  intetSvar: '(intet svar)',
+
+  // The room's log (in the language of the request that caused the line)
+  logByggede: (aftaler: number, nyheder: number): string => `Hermes byggede Dagen (${aftaler} aftaler, ${nyheder} nyheder).`,
+  logOpdaterede: 'Opdaterede rummet fra chatten.',
+
+  // The status the room stores when Hermes gave none
+  klar: 'Klar',
 };
 
 export type DagenTekster = typeof da;
@@ -102,12 +117,27 @@ const en: DagenTekster = {
 
   ikkeByggetTekst: "The morning build has not produced today's overview. Hermes can build it now; it takes a couple of minutes.",
   bygNu: 'Build today now',
+
+  gjort: (label) => `${label}: done.`,
+  fortrudt: 'Undone.',
+  intetSvar: '(no answer)',
+
+  logByggede: (aftaler, nyheder) => `Hermes built Today (${aftaler === 1 ? '1 appointment' : `${aftaler} appointments`}, ${nyheder === 1 ? '1 news item' : `${nyheder} news items`}).`,
+  logOpdaterede: 'Updated the room from the chat.',
+
+  klar: 'Ready',
 };
 
 export const DAGEN_TEKSTER = { da, en };
 
 /** The Dagen strings of the language being rendered (Danish when none is chosen). */
 export const dagenTekst = (): DagenTekster => DAGEN_TEKSTER[sprogNu()];
+
+/** The status kinds the room stores (a stored Danish one still reads in English, and the other way round). */
+const STATUS: StatusArt[] = [{ da: da.klar, en: en.klar }];
+
+/** A stored status in the language of the request. */
+export const dagenStatus = (lagret: string): string => statusISprog(lagret, STATUS, sprogNu());
 
 /**
  * What in Dagen waits on the person, one line each, in the language being rendered: ventendeDagen's list (schema.ts)

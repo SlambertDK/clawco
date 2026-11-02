@@ -10,15 +10,16 @@
 //
 // Invariant (§0 r2/r7): the connector can never write to the calendar — scope
 // calendar.readonly, no verbs, no act(). Missing client keys, an unknown
-// return address or a failed exchange fail closed with a Danish explanation.
+// return address or a failed exchange fail closed with an explanation in the language of the request (tekster.ts).
 
 import { KildeFejl, type Helbred, type Kilde, type KildeKontekst, type KildeKort } from '../types.ts';
 import { googleOpsaetTrin } from '../google/opsaet.ts';
+import { googleTekst } from '../google/tekster.ts';
+import { kalenderTekst } from './tekster.ts';
 import { laesUge } from './laes.ts';
 import { byttKode, forny, GoogleFejl, KALENDER_KRAV, lavVerifier, samtykkeUrl, tilbagekald, udfordring, type Hent, type Klient } from '../google/oauth.ts';
 
 export const GOOGLE_KALENDER_ID = 'google-kalender';
-const NAVN = 'Google Kalender';
 const SKEW_MS = 60_000;
 const STATE_LEVETID_MS = 10 * 60_000;
 
@@ -44,7 +45,7 @@ export function googleKalender(o: { env?: Record<string, string | undefined>; ad
   };
   const kraevKlient = (): Klient => {
     const k = klient();
-    if (!k) throw new KildeFejl(409, 'Google-appen er ikke sat op endnu: klient-id og klienthemmelighed mangler. Følg trinene på kortet.');
+    if (!k) throw new KildeFejl(409, googleTekst().appIkkeSat);
     return k;
   };
 
@@ -52,8 +53,8 @@ export function googleKalender(o: { env?: Record<string, string | undefined>; ad
   async function adgang(ctx: KildeKontekst, ny: boolean): Promise<string> {
     const k = kraevKlient();
     const refresh = (await ctx.hemmelighed())?.['refresh_token'] ?? '';
-    if (!refresh) throw new GoogleFejl('afvist', 'Clawco har ingen adgang til kalenderen. Log ind med Google igen.');
-    if (refresh === afvist) throw new GoogleFejl('afvist', 'Google har trukket adgangen tilbage eller ladet den udløbe. Log ind med Google igen.');
+    if (!refresh) throw new GoogleFejl('afvist', kalenderTekst().ingenAdgang);
+    if (refresh === afvist) throw new GoogleFejl('afvist', googleTekst().adgangenTrukketTilbage);
     const nu = ctx.nu.getTime();
     if (!ny && cache?.refresh === refresh && cache.udloeber - SKEW_MS > nu) return cache.adgang;
     try {
@@ -67,7 +68,7 @@ export function googleKalender(o: { env?: Record<string, string | undefined>; ad
   }
 
   return {
-    id: GOOGLE_KALENDER_ID, navn: NAVN, slags: 'kalender', zone: 'privat', auth: 'oauth', tillid: 'uklar',
+    id: GOOGLE_KALENDER_ID, get navn() { return kalenderTekst().navn; }, slags: 'kalender', zone: 'privat', auth: 'oauth', tillid: 'uklar',
 
     async read(ctx) {
       const data = await laesUge({ hent, adgang: (ny) => adgang(ctx, Boolean(ny)), nu: ctx.nu });
@@ -75,38 +76,35 @@ export function googleKalender(o: { env?: Record<string, string | undefined>; ad
     },
 
     async kort(): Promise<KildeKort> {
-      if (klient()) {
-        return {
-          titel: NAVN, felter: [], handling: 'Log ind med Google',
-          tekst: 'Log ind med din Google-konto, så står alle dine kalendere de næste syv dage i Dagen og i Nu. Clawco kan kun læse kalenderen, aldrig ændre den.',
-        };
-      }
+      const t = kalenderTekst();
+      if (klient()) return { titel: t.navn, felter: [], handling: t.handlingLogInd, tekst: t.kortTekst };
       const tilbage = o.adresse && absolut(o.adresse) ? tilbageAdresse(o.adresse) : null;
+      const g = googleTekst();
       return {
-        titel: NAVN, handling: 'Gem og log ind med Google', trin: googleOpsaetTrin({ tilbage, api: 'Google Calendar API' }),
-        tekst: 'Første gang laver du din egen lille Google-app, så din kalender går direkte fra Google til Clawco. Det tager fem minutter, ét trin ad gangen. Clawco kan kun læse kalenderen, aldrig ændre den.',
+        titel: t.navn, handling: t.handlingGemOgLogInd, trin: googleOpsaetTrin({ tilbage, api: 'Google Calendar API' }),
+        tekst: t.kortTekstOpsaet,
         felter: [
-          { navn: 'klient_id', etiket: 'Klient-id', type: 'tekst', paakraevet: true, maks: 300, miljoe: 'KC_GOOGLE_CLIENT_ID' },
-          { navn: 'klient_hemmelighed', etiket: 'Klienthemmelighed', type: 'hemmelig', paakraevet: true, maks: 300, miljoe: 'KC_GOOGLE_CLIENT_SECRET' },
+          { navn: 'klient_id', etiket: g.klientIdEtiket, type: 'tekst', paakraevet: true, maks: 300, miljoe: 'KC_GOOGLE_CLIENT_ID' },
+          { navn: 'klient_hemmelighed', etiket: g.klientHemmelighedEtiket, type: 'hemmelig', paakraevet: true, maks: 300, miljoe: 'KC_GOOGLE_CLIENT_SECRET' },
         ],
       };
     },
 
     async helbred(ctx): Promise<Helbred> {
-      if (!klient()) return { status: 'nede', tekst: 'Google-appen mangler klient-id eller klienthemmelighed.' };
+      if (!klient()) return { status: 'nede', tekst: googleTekst().appMangler };
       try {
         await adgang(ctx, false);
         return { status: 'ok' };
       } catch (err) {
         if (err instanceof GoogleFejl && err.art === 'afvist') return { status: 'log-ind-igen', tekst: err.message };
-        return { status: 'nede', tekst: err instanceof KildeFejl ? err.message : 'Google svarer ikke.' };
+        return { status: 'nede', tekst: err instanceof KildeFejl ? err.message : kalenderTekst().googleSvarerIkke };
       }
     },
 
     oauth: {
       async start(state, tilbage) {
         const k = kraevKlient();
-        if (!absolut(tilbage)) throw new KildeFejl(409, 'Clawco kender ikke sin egen adresse (KC_ADRESSE), så Google ikke kan sende dig tilbage. Ejeren skal sætte den først.');
+        if (!absolut(tilbage)) throw new KildeFejl(409, googleTekst().ingenAdresse);
         const nu = ur().getTime();
         for (const [s, v] of venter) if (v.udloeber < nu) venter.delete(s);
         const verifier = lavVerifier();
@@ -116,7 +114,7 @@ export function googleKalender(o: { env?: Record<string, string | undefined>; ad
       async tilbage(kode, ctx, state) {
         const v = venter.get(state);
         venter.delete(state);
-        if (!v || v.udloeber < ur().getTime()) throw new KildeFejl(400, 'Login med Google kunne ikke bekræftes. Prøv igen.');
+        if (!v || v.udloeber < ur().getTime()) throw new KildeFejl(400, googleTekst().loginIkkeBekraeftet);
         const t = await byttKode({ hent, klient: kraevKlient(), kode, verifier: v.verifier, tilbage: v.tilbage, krav: KALENDER_KRAV });
         cache = { refresh: t.refresh, adgang: t.adgang, udloeber: ctx.nu.getTime() + t.udloeberMs };
         afvist = null;

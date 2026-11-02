@@ -20,7 +20,8 @@ import { KORSEL, isOpgaveStatus, parseForberedelse, parseNytUnivers, parseUniver
 import { buildForberedRun, buildOversigtChatRun, buildUniversChatRun } from './prompt.ts';
 import { renderOversigt, renderUnivers, venterUnivers } from './render.ts';
 import { koebenhavnTilIso } from './tid.ts';
-import { universTekst } from './tekster.ts';
+import { erMoedeKontekst, universStatus, universTekst } from './tekster.ts';
+import { klokkeIso } from '../../shell/friskhed.ts';
 import { tekst } from '../../shell/tekster.ts';
 
 const JSON_BLOCK = /```(?:json)?\s*[\s\S]*?```/i;
@@ -28,29 +29,23 @@ const TZ = 'Europe/Copenhagen';
 const str = (v: unknown, max = 2000): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 const lokalFortryd = (f: Fortryd): string => `lokal:${JSON.stringify(f)}`;
 
-function klokke(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return new Intl.DateTimeFormat('da-DK', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d).replace(':', '.');
-}
+/** The clock of an instant in the language of the request: "11.00" in Danish, "11:00" in English ('' when unusable). */
+const klokke = klokkeIso;
 const dagNoegle = (d: Date): string => new Intl.DateTimeFormat('sv-SE', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 
-const TYPE_NAVN: Record<ElementType, [string, string]> = { dokument: ['dokument', 'dokumenter'], note: ['note', 'noter'], opgave: ['opgave', 'opgaver'] };
-
-/** "Hermes lavede 1 note og 1 opgave og opdaterede 1 dokument: A, B." */
+/** "Hermes lavede 1 note og 1 opgave og opdaterede 1 dokument: A, B." (in English: "Hermes made 1 note and 1 task and updated 1 document: …") */
 export function beskrivAendring(beroert: Beroert[]): string {
+  const T = universTekst();
   const optael = (ny: boolean): string => {
     const dele: string[] = [];
     for (const t of ['dokument', 'note', 'opgave'] as const) {
       const n = beroert.filter((b) => b.type === t && b.ny === ny).length;
-      if (n) dele.push(`${n} ${TYPE_NAVN[t][n === 1 ? 0 : 1]}`);
+      if (n) dele.push(`${n} ${T.elementNavn[t][n === 1 ? 0 : 1]}`);
     }
-    return dele.join(' og ');
+    return dele.join(T.og);
   };
-  const nye = optael(true);
-  const gamle = optael(false);
-  const titler = beroert.slice(0, 3).map((b) => `"${b.titel}"`).join(', ') + (beroert.length > 3 ? ` og ${beroert.length - 3} til` : '');
-  return `Hermes ${[nye ? `lavede ${nye}` : '', gamle ? `opdaterede ${gamle}` : ''].filter(Boolean).join(' og ')}: ${titler}.`;
+  const titler = beroert.slice(0, 3).map((b) => `"${b.titel}"`).join(', ') + (beroert.length > 3 ? T.ogNTil(beroert.length - 3) : '');
+  return T.aendring(optael(true), optael(false), titler);
 }
 
 // ---------- Who may see what (KC-0117) ----------
@@ -83,7 +78,7 @@ async function oversigtRendered(deps: RoomDeps, extra: Partial<DoneResult> = {})
 
 async function opretFraInput(deps: RoomDeps, navn: string, om: string, kilde: 'henrik' | 'hermes'): Promise<UniversInfo> {
   const info = await opretUnivers(deps.store, { navn, om }, deps.now());
-  await deps.store.appendLog(UNIVERS, { kilde, tekst: `Oprettede universet "${info.navn}".` });
+  await deps.store.appendLog(UNIVERS, { kilde, tekst: universTekst().logOprettede(info.navn) });
   return info;
 }
 
@@ -92,12 +87,12 @@ async function oversigtAction(deps: RoomDeps, name: string, body: Record<string,
     case 'nytUnivers': {
       const navn = typeof body['navn'] === 'string' ? body['navn'].trim() : '';
       const om = typeof body['om'] === 'string' ? body['om'].trim() : '';
-      if (!navn) throw new ActionError('Giv universet et navn');
-      if (navn.length > 60) throw new ActionError('Navnet må højst være 60 tegn');
-      if (om.length > 300) throw new ActionError('Beskrivelsen må højst være 300 tegn');
+      if (!navn) throw new ActionError(universTekst().fejlGivNavn);
+      if (navn.length > 60) throw new ActionError(universTekst().fejlNavnLangt);
+      if (om.length > 300) throw new ActionError(universTekst().fejlOmLang);
       return deps.runs.local('nytUnivers', async () => {
         const info = await opretFraInput(deps, navn, om, 'henrik');
-        return oversigtRendered(deps, { text: `Universet "${info.navn}" er oprettet.`, url: `/rum/${universRum(info.id)}` });
+        return oversigtRendered(deps, { text: universTekst().resOprettet(info.navn), url: `/rum/${universRum(info.id)}` });
       });
     }
     case 'placerMoede': {
@@ -105,25 +100,25 @@ async function oversigtAction(deps: RoomDeps, name: string, body: Record<string,
       const slugNavn = str(body['slug'], 40);
       const indeks = await laesIndeks(deps.store);
       const kandidat = indeks.nyeMoeder.find((k) => k.eventId === eventId);
-      if (!kandidat) throw new ActionError('Mødet er ikke blandt de nye møder (længere)');
+      if (!kandidat) throw new ActionError(universTekst().fejlMoedeIkkeNyt);
       const info = findUnivers(indeks, slugNavn);
-      if (!info || info.arkiveret) throw new ActionError('Universet findes ikke');
+      if (!info || info.arkiveret) throw new ActionError(universTekst().fejlUniversFindesIkke);
       return deps.runs.local('placerMoede', async () => {
         const moede = await placerMoedeIUnivers(deps.store, eventId, slugNavn);
-        if (!moede) throw new Error('Mødet kunne ikke lægges i universet (er det flyttet allerede?)');
-        await deps.store.appendLog(UNIVERS, { kilde: 'henrik', tekst: `Lagde mødet "${moede.titel}" i universet "${info.navn}".` });
+        if (!moede) throw new Error(universTekst().fejlKanIkkeLaegges);
+        await deps.store.appendLog(UNIVERS, { kilde: 'henrik', tekst: universTekst().logLagde(moede.titel, info.navn) });
         deps.live.notify(universRum(slugNavn));
-        return oversigtRendered(deps, { text: `Mødet ligger nu i "${info.navn}".` });
+        return oversigtRendered(deps, { text: universTekst().resMoedeLagt(info.navn) });
       });
     }
     case 'skjulMoede': {
       const eventId = str(body['eventId'], 200);
       const indeks = await laesIndeks(deps.store);
       const kandidat = indeks.nyeMoeder.find((k) => k.eventId === eventId);
-      if (!kandidat) throw new ActionError('Mødet er ikke blandt de nye møder (længere)');
+      if (!kandidat) throw new ActionError(universTekst().fejlMoedeIkkeNyt);
       return deps.runs.local('skjulMoede', async () => {
         await endreIndeks(deps.store, (i) => skjulMoede(i, eventId));
-        await deps.store.appendLog(UNIVERS, { kilde: 'henrik', tekst: `Skjulte mødet "${kandidat.titel}" (ikke et møde for Henrik).` });
+        await deps.store.appendLog(UNIVERS, { kilde: 'henrik', tekst: universTekst().logSkjulte(kandidat.titel) });
         return oversigtRendered(deps);
       });
     }
@@ -141,7 +136,7 @@ async function oversigtChat(deps: RoomDeps, besked: string, kontekst: string | u
     onDone: async (output) => {
       // Validated before anything is written, so an unusable answer can go back to Hermes (KC-0050).
       const ny = JSON_BLOCK.test(output) ? parseNytUnivers(kraevJson(output)) : null;
-      const text = output.replace(JSON_BLOCK, '').trim() || '(intet svar)';
+      const text = output.replace(JSON_BLOCK, '').trim() || universTekst().intetSvar;
       await deps.store.appendChat(UNIVERS, { fra: 'hermes', tekst: text });
       if (!ny) return { text };
       await opretFraInput(deps, ny.navn, ny.om, 'hermes');
@@ -183,7 +178,7 @@ function ikkeFundet(): Markup {
 function moedeFraKontekst(state: UniversState, kontekst: string | undefined): Moede | null {
   const k = (kontekst ?? '').trim();
   if (!k) return null;
-  const hits = state.moeder.filter((m) => [`Møde: ${m.titel}`, `Mødet: ${m.titel}`].some((c) => c.slice(0, 200) === k));
+  const hits = state.moeder.filter((m) => erMoedeKontekst(k, m.titel));
   return hits.length === 1 ? (hits[0] as Moede) : null;
 }
 
@@ -192,7 +187,7 @@ export function universRoom(slugNavn: string): RoomModule {
 
   async function kraev(deps: RoomDeps): Promise<UniversInfo> {
     const info = findUnivers(await laesIndeks(deps.store), slugNavn);
-    if (!info) throw new ActionError('Universet findes ikke');
+    if (!info) throw new ActionError(universTekst().fejlUniversFindesIkke);
     return info;
   }
 
@@ -200,7 +195,7 @@ export function universRoom(slugNavn: string): RoomModule {
     const info = findUnivers(await laesIndeks(deps.store), slugNavn);
     if (!info) return { main: ikkeFundet(), hermesStatus: tekst().klar, titel: universTekst().findesIkke, status: 404 };
     const [state, log] = await Promise.all([laesSynlig(deps, slugNavn), deps.store.readLog(RUM, 20).then((l) => synligUniversLog(l, deps.person))]);
-    return { main: html`${renderUnivers(info, state, deps.now(), { log, igang: deps.runs.igang(RUM) })}${bund(info)}`, hermesStatus: state.hermesStatus ?? tekst().klar, titel: info.navn };
+    return { main: html`${renderUnivers(info, state, deps.now(), { log, igang: deps.runs.igang(RUM) })}${bund(info)}`, hermesStatus: state.hermesStatus ? universStatus(state.hermesStatus) : tekst().klar, titel: info.navn };
   }
 
   async function rendered(deps: RoomDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {
@@ -226,11 +221,11 @@ export function universRoom(slugNavn: string): RoomModule {
         const raw = JSON_BLOCK.test(output) ? kraevJson(output) : null;
         const forberedelse = typeof raw === 'object' && raw !== null && 'forberedelse' in raw ? parseForberedelse(raw) : null;
         const elementer = raw !== null && !forberedelse ? parseUniversSvar(raw) : null;
-        const text = output.replace(JSON_BLOCK, '').trim() || '(intet svar)';
+        const text = output.replace(JSON_BLOCK, '').trim() || universTekst().intetSvar;
         await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
         if (forberedelse) {
           const moede = moedeFraKontekst(await laesUnivers(deps.store, slugNavn), kontekst);
-          if (!moede) throw new Error('Hermes svarede med en forberedelse, men det er ikke klart, hvilket møde den gælder (peg på et møde først)');
+          if (!moede) throw new Error(universTekst().fejlForberedelseUklar);
           return gemForberedelse(deps, moede.id, moede.titel, forberedelse, text);
         }
         if (!elementer) return { text };
@@ -249,11 +244,12 @@ export function universRoom(slugNavn: string): RoomModule {
     await endreUnivers(deps.store, RUM, (s) => {
       const r = anvendForberedelse(s, moedeId, svar, now, standardId);
       fortryd = r.fortryd;
-      return { ...r.state, hermesStatus: `Forberedte "${titel.slice(0, 40)}"` };
+      return { ...r.state, hermesStatus: universTekst().statusForberedte(titel.slice(0, 40)) };
     });
-    const dele = [`${svar.talepunkter.length} talepunkter`, svar.opgaver.length ? `${svar.opgaver.length} opgaver` : '', svar.praesentation ? 'en præsentation' : ''].filter(Boolean).join(', ');
-    await logAendring(deps, `Hermes forberedte mødet "${titel}": ${dele}.`, fortryd, 'hermes', `forbered-${moedeId}`);
-    return rendered(deps, { text: text ?? `Mødet "${titel}" er forberedt.` });
+    const T = universTekst();
+    const dele = [T.taleTal(svar.talepunkter.length), svar.opgaver.length ? T.opgaveTal(svar.opgaver.length) : '', svar.praesentation ? T.enPraesentation : ''].filter(Boolean).join(', ');
+    await logAendring(deps, T.logForberedte(titel, dele), fortryd, 'hermes', `forbered-${moedeId}`);
+    return rendered(deps, { text: text ?? T.resForberedt(titel) });
   }
 
   async function startAction(deps: RoomDeps, name: string, body: Record<string, unknown>): Promise<RunRecord | null> {
@@ -262,7 +258,7 @@ export function universRoom(slugNavn: string): RoomModule {
         const info = await kraev(deps);
         const state = await laesSynlig(deps, slugNavn);
         const moede = state.moeder.find((m) => m.id === str(body['moedeId'], 40));
-        if (!moede) throw new ActionError('Mødet findes ikke');
+        if (!moede) throw new ActionError(universTekst().fejlMoedeFindesIkke);
         const onske = str(body['onske'], 400);
         return deps.runs.start({
           kind: 'forbered',
@@ -276,8 +272,8 @@ export function universRoom(slugNavn: string): RoomModule {
         await kraev(deps);
         const opgaveId = str(body['opgaveId'], 40);
         const status = body['status'];
-        if (!isOpgaveStatus(status)) throw new ActionError('Ukendt status');
-        if (!(await laesUnivers(deps.store, slugNavn)).opgaver.some((o) => o.id === opgaveId)) throw new ActionError('Opgaven findes ikke');
+        if (!isOpgaveStatus(status)) throw new ActionError(universTekst().fejlUkendtStatus);
+        if (!(await laesUnivers(deps.store, slugNavn)).opgaver.some((o) => o.id === opgaveId)) throw new ActionError(universTekst().fejlOpgaveFindesIkke);
         return deps.runs.local('opgaveStatus', async () => {
           await endreUnivers(deps.store, RUM, (s) => saetOpgaveStatus(s, opgaveId, status));
           return rendered(deps);
@@ -286,26 +282,26 @@ export function universRoom(slugNavn: string): RoomModule {
       case 'nytMoede': {
         await kraev(deps);
         const titel = str(body['titel'], 200);
-        if (!titel) throw new ActionError('Giv mødet en titel');
+        if (!titel) throw new ActionError(universTekst().fejlGivMoedeTitel);
         const start = koebenhavnTilIso(str(body['start'], 40));
-        if (!start) throw new ActionError('Starttidspunktet kan ikke læses');
+        if (!start) throw new ActionError(universTekst().fejlStartIkkeLaeses);
         const v = typeof body['varighed'] === 'string' || typeof body['varighed'] === 'number' ? Number(body['varighed']) : NaN;
         const varighedMinutter = Number.isFinite(v) && String(body['varighed']).trim() !== '' ? Math.min(Math.max(Math.round(v), 5), 600) : 60;
         const moede = nytMoedeFraInput({ titel, start, varighedMinutter, deltagere: str(body['deltagere'], 500) }, standardId);
         return deps.runs.local('nytMoede', async () => {
           await endreUnivers(deps.store, RUM, (s) => tilfoejMoede(s, moede));
-          await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Tilføjede mødet "${moede.titel}" (${klokke(moede.start)}).` });
-          return rendered(deps, { text: `Mødet "${moede.titel}" er tilføjet.` });
+          await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: universTekst().logTilfoejede(moede.titel, klokke(moede.start)) });
+          return rendered(deps, { text: universTekst().resMoedeTilfoejet(moede.titel) });
         });
       }
       case 'arkiver': {
         const info = await kraev(deps);
         return deps.runs.local('arkiver', async () => {
           const ny = await arkiverUnivers(deps.store, slugNavn, deps.now());
-          if (!ny) throw new Error('Universet findes ikke længere');
-          await deps.store.appendLog(UNIVERS, { kilde: 'henrik', tekst: `Arkiverede universet "${info.navn}".` });
+          if (!ny) throw new Error(universTekst().fejlUniversVaek);
+          await deps.store.appendLog(UNIVERS, { kilde: 'henrik', tekst: universTekst().logArkiverede(info.navn) });
           deps.live.notify(UNIVERS);
-          return rendered(deps, { text: `Universet "${info.navn}" er arkiveret.`, url: `/rum/${UNIVERS}` });
+          return rendered(deps, { text: universTekst().resArkiveret(info.navn), url: `/rum/${UNIVERS}` });
         });
       }
       default:
@@ -322,8 +318,8 @@ export function universRoom(slugNavn: string): RoomModule {
     return deps.runs.local('fortryd', async () => {
       await endreUnivers(deps.store, RUM, (s) => fortrydElementer(s, trin));
       await deps.store.updateLog(RUM, logId, { fortrudt: deps.now().toISOString() });
-      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Fortrudt: ${entry.tekst}` });
-      return rendered(deps, { text: 'Fortrudt.' });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: universTekst().logFortrudt(entry.tekst) });
+      return rendered(deps, { text: universTekst().resFortrudt });
     });
   }
 
@@ -346,7 +342,7 @@ export function universRoom(slugNavn: string): RoomModule {
       const naeste = (await laesSynlig(deps, slugNavn)).moeder
         .filter((m) => m.forberedelse && dagNoegle(new Date(m.start)) === i_dag && Date.parse(m.slut) > nu.getTime())
         .sort((a, b) => a.start.localeCompare(b.start))[0];
-      return naeste ? [{ roomId: RUM, tekst: `Mødet "${naeste.titel}" kl. ${klokke(naeste.start)} er forberedt (${info.navn})` }] : [];
+      return naeste ? [{ roomId: RUM, tekst: universTekst().nuForberedt(naeste.titel, klokke(naeste.start), info.navn) }] : [];
     },
     fil: async (deps, name) => {
       const m = /^(dok-[a-z0-9]+)\.html$/.exec(name);

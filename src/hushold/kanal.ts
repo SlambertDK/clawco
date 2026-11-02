@@ -18,6 +18,7 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import type { Forespoergsel } from './foresp.ts';
 import type { Medlem } from './schema.ts';
+import { husstandTekst } from './tekster.ts';
 
 export const KANALER = ['telegram', 'whatsapp', 'signal'] as const;
 export type Kanal = (typeof KANALER)[number];
@@ -75,19 +76,36 @@ export function maaSende(f: Kanalforbindelse | undefined, slags: 'invitation' | 
 const FORBUDT = /MEDIA:|\[\[/i;
 export const neutral = (t: string): string => t.replace(/MEDIA:/gi, 'MEDIA ').replace(/\[\[/g, '[ [');
 
-const DAG = new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', weekday: 'long', day: 'numeric', month: 'long' });
-const KL = new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit', hour12: false });
-const kl = (iso: string): string => KL.format(new Date(iso)).replace(':', '.');
+// The day and the clock of a message, in the locale of the language being served (the table's `lokale`): "torsdag 5.
+// november" and "16.30" in Danish, "Thursday 5 November" and "16:30" in English. Built once per locale.
+const formater = new Map<string, { dag: Intl.DateTimeFormat; kl: Intl.DateTimeFormat }>();
+function formaterFor(lokale: string): { dag: Intl.DateTimeFormat; kl: Intl.DateTimeFormat } {
+  let f = formater.get(lokale);
+  if (!f) {
+    f = {
+      dag: new Intl.DateTimeFormat(lokale, { timeZone: 'Europe/Copenhagen', weekday: 'long', day: 'numeric', month: 'long' }),
+      kl: new Intl.DateTimeFormat(lokale, { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit', hour12: false }),
+    };
+    formater.set(lokale, f);
+  }
+  return f;
+}
 
 /**
  * The message she receives, built by the app from the request alone (KC-0153): who asks, what, when (an absolute day,
  * so the text cannot change between the screen and the tap) and the reply words. Never free text from Hermes.
+ *
+ * KC-0170: it goes out in the language of the request that builds it, which is the asker's (the owner's, who sees this
+ * very text on the Send card and taps it): the household's words follow the install, not the recipient. Her reply is
+ * read in either language whatever it is (svar.ts), since a member may answer in hers.
  */
 export function beskedTekst(f: Pick<Forespoergsel, 'titel' | 'tid'>, fraNavn: string, slags: 'foresp' | 'paamindelse' = 'foresp'): string {
-  const hoved = slags === 'paamindelse' ? `Påmindelse fra ${fraNavn}: ${f.titel}` : `${fraNavn} spørger: ${f.titel}`;
-  const naar = f.tid ? `${DAG.format(new Date(f.tid.start))} kl. ${kl(f.tid.start)}–${kl(f.tid.slut)}` : null;
-  const svar = f.tid ? 'Svar ja, nej eller fx kl 17 (et andet tidspunkt).' : 'Svar ja eller nej.';
-  return neutral([hoved, ...(naar ? [naar] : []), `${svar} Skriv stop, hvis du ikke vil have flere beskeder fra Clawco.`].join('\n'));
+  const T = husstandTekst();
+  const fm = formaterFor(T.lokale);
+  const kl = (iso: string): string => fm.kl.format(new Date(iso)).replace(':', T.klTegn);
+  const hoved = T.besked.hoved(slags, fraNavn, f.titel);
+  const naar = f.tid ? T.besked.naar(fm.dag.format(new Date(f.tid.start)), kl(f.tid.start), kl(f.tid.slut)) : null;
+  return neutral([hoved, ...(naar ? [naar] : []), T.besked.stop(T.besked.svar(Boolean(f.tid)))].join('\n'));
 }
 
 /**
@@ -109,28 +127,29 @@ export type SendVurdering =
  * when it says ok — so what is on screen and what the route allows are one rule.
  */
 export function vurderSend(s: { forespoergsler: readonly Forespoergsel[]; medlemmer: readonly Medlem[] }, id: string, slags: SendSlags, person: string): SendVurdering {
+  const T = husstandTekst();
   const f = s.forespoergsler.find((x) => x.id === id);
-  if (!f) return { ok: false, hvorfor: 'Forespørgslen findes ikke (længere).', status: 404 };
-  if (f.fra !== person) return { ok: false, hvorfor: 'Kun den, der spurgte, kan sende forespørgslen.', status: 403 };
+  if (!f) return { ok: false, hvorfor: T.fejl.foresp404, status: 404 };
+  if (f.fra !== person) return { ok: false, hvorfor: T.fejl.kunAskerSender, status: 403 };
   const m = s.medlemmer.find((x) => x.id === f.til);
-  const navn = m?.navn ?? 'Personen';
-  if (f.tilstand !== 'spurgt') return { ok: false, hvorfor: 'Forespørgslen er allerede besvaret eller afsluttet.', status: 409 };
-  if (!m?.kanal) return { ok: false, hvorfor: `${navn} kan ikke nås på en kanal fra Clawco.`, status: 409 };
-  if (m.kanal.status === 'stoppet') return { ok: false, hvorfor: `${navn} har bedt Clawco om ikke at sende flere beskeder.`, status: 409 };
-  if (!maaSende(m.kanal, 'besked')) return { ok: false, hvorfor: `${navn} har ikke sagt ja til beskeder fra Clawco endnu.`, status: 409 };
+  const navn = m?.navn ?? T.fejl.personen;
+  if (f.tilstand !== 'spurgt') return { ok: false, hvorfor: T.fejl.besvaretAfsluttet, status: 409 };
+  if (!m?.kanal) return { ok: false, hvorfor: T.fejl.ikkeNaaes(navn), status: 409 };
+  if (m.kanal.status === 'stoppet') return { ok: false, hvorfor: T.fejl.stoppetBeskeder(navn), status: 409 };
+  if (!maaSende(m.kanal, 'besked')) return { ok: false, hvorfor: T.fejl.ikkeSagtJa(navn), status: 409 };
   const sendt = f.kanal?.sendt ?? [];
   const kanalNavn = KANAL_NAVN[m.kanal.kanal];
   if (slags === 'foresp') {
-    if (sendt.some((x) => x.slags === 'foresp')) return { ok: false, hvorfor: `Forespørgslen er allerede sendt til ${navn}.`, status: 409 };
+    if (sendt.some((x) => x.slags === 'foresp')) return { ok: false, hvorfor: T.fejl.alleredeSendt(navn), status: 409 };
     // One open request on her channel at a time, so a reply of hers has exactly one meaning.
     if (s.forespoergsler.some((x) => x.id !== f.id && x.til === f.til && x.tilstand === 'spurgt' && (x.kanal?.sendt.length ?? 0) > 0)) {
-      return { ok: false, hvorfor: `${navn} har allerede en åben forespørgsel på ${kanalNavn}. Vent på svaret først.`, status: 409 };
+      return { ok: false, hvorfor: T.fejl.aabenPaaKanal(navn, kanalNavn), status: 409 };
     }
   } else {
-    if (!sendt.some((x) => x.slags === 'foresp')) return { ok: false, hvorfor: 'Send forespørgslen først.', status: 409 };
-    if (sendt.some((x) => x.slags === 'paamindelse')) return { ok: false, hvorfor: `Påmindelsen er allerede sendt til ${navn}.`, status: 409 };
+    if (!sendt.some((x) => x.slags === 'foresp')) return { ok: false, hvorfor: T.fejl.sendFoerst, status: 409 };
+    if (sendt.some((x) => x.slags === 'paamindelse')) return { ok: false, hvorfor: T.fejl.paamindelseSendt(navn), status: 409 };
   }
-  const fraNavn = s.medlemmer.find((x) => x.id === f.fra)?.navn ?? 'En i husstanden';
+  const fraNavn = s.medlemmer.find((x) => x.id === f.fra)?.navn ?? T.besked.enIHusstanden;
   const tekst = beskedTekst(f, fraNavn, slags);
   return { ok: true, f, til: { medlemId: m.id, kanal: m.kanal.kanal, handle: m.kanal.handle }, tekst, jaId: sendJaId(f.id, slags, tekst), kanalNavn };
 }
@@ -169,12 +188,12 @@ export function lavHermesKanal(o: { cli: string; koer?: KanalKoer; laesLog: () =
   return {
     mode: 'hermes',
     async send(til, tekst) {
-      if (!o.cli) throw new KanalFejl('Hermes kan ikke sende beskeder herfra endnu.');
+      if (!o.cli) throw new KanalFejl(husstandTekst().fejl.hermesKanIkke);
       const handle = gyldigHandle(til.kanal, til.handle);
-      if (!handle || handle !== til.handle) throw new KanalFejl('Modtagerens nummer eller id er ikke gyldigt, så intet er sendt.');
-      if (!tekst.trim() || FORBUDT.test(tekst)) throw new KanalFejl('Beskeden kan ikke sendes, som den står.');
+      if (!handle || handle !== til.handle) throw new KanalFejl(husstandTekst().fejl.ugyldigModtager);
+      if (!tekst.trim() || FORBUDT.test(tekst)) throw new KanalFejl(husstandTekst().fejl.kanIkkeSendes);
       const r = await koer(o.cli, ['send', '--to', `${til.kanal}:${handle}`, '--file', '-', '--json', '--quiet'], tekst);
-      if (r.code !== 0) throw new KanalFejl(`Hermes kunne ikke sende beskeden (${KANAL_NAVN[til.kanal]}). Prøv igen senere.`);
+      if (r.code !== 0) throw new KanalFejl(husstandTekst().fejl.hermesFejlede(KANAL_NAVN[til.kanal]));
     },
     async hentSvar(siden) {
       const log = (await o.laesLog()) ?? [];

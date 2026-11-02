@@ -220,7 +220,7 @@
       baandEl = document.createElement('div');
       baandEl.className = 'forbindelse-baand';
       baandEl.setAttribute('role', 'status');
-      baandEl.textContent = window.KCForbindelse.ingenForbindelse() + ' — prøver igen …';
+      baandEl.textContent = window.KCForbindelse.ingenForbindelse() + tk('proeverIgen');
       body.appendChild(baandEl);
     }
     baandEl.hidden = false;
@@ -385,7 +385,7 @@
       busy--;
       if (chatEl) chatEl.querySelectorAll('.msg-status').forEach(function (m) { m.remove(); });
       if (opts.chat) addMsg('hermes', tk('fejl') + text, 'msg-status'); else toast(tk('fejl') + text, true);
-      setStatus('fejl: ' + text.slice(0, 60), 'bad');
+      setStatus(tk('fejlKort') + text.slice(0, 60), 'bad');
       clearBusy();
       document.querySelectorAll('button[disabled]').forEach(function (b) { b.disabled = false; });
       if (opts.onDone) opts.onDone(null);
@@ -393,8 +393,8 @@
     // KC-0083: the connection dropped, not the run — wait, look again, and follow it to its end.
     function samlOp() {
       var om = window.KCFoelg.ventOm(forsoeg++);
-      if (om === null) { slut('forbindelsen kom ikke tilbage — Hermes arbejder måske videre'); return; }
-      setStatus('forbindelsen røg — venter på den', 'busy');
+      if (om === null) { slut(tk('forbindelsenKomIkkeTilbage')); return; }
+      setStatus(tk('forbindelsenRoeg'), 'busy');
       setTimeout(function () {
         fetch('/api/koe', { cache: 'no-store' }).then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(function (k) {
           if (window.KCFoelg.skridt(k.runs || [], runId) === 'foelg') { forfra = true; aabn(); return; }
@@ -403,7 +403,7 @@
           clearBusy();
           document.querySelectorAll('button[disabled]').forEach(function (b) { b.disabled = false; });
           fetch('/api/rum/' + encodeURIComponent(roomId || 'hjem') + '/fragment').then(function (r) { return r.json(); }).then(function (d) { swapRoom(d.html); updateNav(d.venter); }).catch(function () { /* the live stream catches up */ });
-          toast('Handlingen blev afbrudt undervejs. Rummet er hentet igen — tryk igen, hvis den mangler.', true);
+          toast(tk('afbrudt'), true);
           setStatus(tk('klar'), 'ok');
           if (opts.onDone) opts.onDone(null);
         }).catch(samlOp);
@@ -514,7 +514,7 @@
       if (v && typeof v === 'object' && typeof v.text === 'function') {
         var felt = f.elements[k];
         var maks = felt && felt.dataset ? Number(felt.dataset.maks) : 0;
-        if (maks && v.size > maks) forStor = 'Filen er for stor';
+        if (maks && v.size > maks) forStor = tk('filenForStor');
         laes.push(v.text().then(function (t) { par.push([k, t]); }));
       } else par.push([k, v]);
     });
@@ -530,12 +530,12 @@
 
   // KC-0139: "Fjern forbindelsen" on a connection card takes two taps (it removes the access); then Nu is fetched again.
   function kildeFjern(btn) {
-    if (!btn.hasAttribute('data-bekraeft')) { btn.setAttribute('data-bekraeft', ''); btn.textContent = 'Fjern? Tryk igen'; return; }
+    if (!btn.hasAttribute('data-bekraeft')) { btn.setAttribute('data-bekraeft', ''); btn.textContent = tk('fjernKildeTryk'); return; }
     btn.disabled = true;
     fetch('/api/kilder/' + encodeURIComponent(btn.dataset.kildeFjern) + '/frakobl', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); }); })
       .then(refetchHjem)
-      .catch(function (err) { btn.disabled = false; btn.removeAttribute('data-bekraeft'); btn.textContent = 'Fjern forbindelsen'; toast(tk('fejl') + fejlTekst(err), true); });
+      .catch(function (err) { btn.disabled = false; btn.removeAttribute('data-bekraeft'); btn.textContent = tk('fjernForbindelsen'); toast(tk('fejl') + fejlTekst(err), true); });
   }
 
   function kortPost(btn, url, payload, busyText, okText) {
@@ -561,12 +561,12 @@
       .then(function (p) { return fetch('/api/tillid/forslag/' + encodeURIComponent(id) + '/' + hvad, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(p) }); })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
       .then(function () {
-        if (hvad === 'afvis') toast('Nej tak. Jeg foreslår det ikke igen de næste 30 dage.', false);
+        if (hvad === 'afvis') toast(tk('regelNej'), false);
         return refetchHjem().then(function () {
           if (hvad !== 'godkend') return;
           // The undo is on the log line in Nu; another room (Start) says where it is.
-          if (roomId === 'hjem') tilbydFortryd(foer, 'Det er nu en regel');
-          else toast('Det er nu en regel. Du kan fortryde det i Nu.', false);
+          if (roomId === 'hjem') tilbydFortryd(foer, tk('detErRegel'));
+          else toast(tk('detErRegelToast'), false);
         });
       })
       .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); btn.disabled = false; });
@@ -590,7 +590,7 @@
         var ok = false;
         try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
         t.remove();
-        if (ok) resolve(); else reject(new Error('kunne ikke kopiere'));
+        if (ok) resolve(); else reject(new Error(tk('kunneIkkeKopiereFejl')));
       });
     }
     if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text).catch(gammel);
@@ -621,19 +621,19 @@
     if (btn.dataset.ccKort) {
       var betyder = kortEl ? (kortEl.querySelector('.betydning') || {}).textContent || '' : '';
       // KC-0046: an app-made sentence Henrik can edit — never Hermes' words (the card is data).
-      var fast = btn.dataset.ccProjektNavn ? 'Se på kortet og ret fejlen i ' + btn.dataset.ccProjektNavn + '.' : '';
+      var fast = btn.dataset.ccProjektNavn ? tk('kortFejlIProjekt') + btn.dataset.ccProjektNavn + '.' : '';
       aabnCc({ kortId: btn.dataset.ccKort }, btn.dataset.ccTitel || '', fast, betyder, btn.dataset.ccProjekt);
       return true;
     }
     // KC-0045: Henrik answers Claude Code's question with one of its options.
     if (btn.dataset.ccSvar) {
-      kortPost(btn, '/api/udvikling/opgaver/' + encodeURIComponent(btn.dataset.ccSvar) + '/svar', { svar: btn.dataset.svar }, 'sender dit svar', 'Svaret er sendt. Claude Code tager den op, næste gang den arbejder i projektet.');
+      kortPost(btn, '/api/udvikling/opgaver/' + encodeURIComponent(btn.dataset.ccSvar) + '/svar', { svar: btn.dataset.svar }, tk('sendDitSvar'), tk('svarSendt'));
       return true;
     }
     if (btn.dataset.luk) {
-      var grund = window.prompt('Hvorfor lukker du det? (fx "klaret i Claude Code" eller "ikke relevant for mig" — Hermes husker det)', '');
+      var grund = window.prompt(tk('hvorforLukker'), '');
       if (grund === null) return true;
-      kortPost(btn, '/api/rum/hjem/kort/' + encodeURIComponent(btn.dataset.luk) + '/luk', grund.trim() ? { grund: grund.trim().slice(0, 300) } : {}, 'lukker kortet');
+      kortPost(btn, '/api/rum/hjem/kort/' + encodeURIComponent(btn.dataset.luk) + '/luk', grund.trim() ? { grund: grund.trim().slice(0, 300) } : {}, tk('lukkerKortet'));
       return true;
     }
     // KC-0096: Senere opens its two choices in the card (no dialog); a choice sends the card away until then.
@@ -648,12 +648,12 @@
       return true;
     }
     if (btn.dataset.senere) {
-      kortPost(btn, '/api/rum/hjem/kort/' + encodeURIComponent(btn.dataset.senereKort) + '/senere', { til: btn.dataset.senere }, 'udsætter kortet');
+      kortPost(btn, '/api/rum/hjem/kort/' + encodeURIComponent(btn.dataset.senereKort) + '/senere', { til: btn.dataset.senere }, tk('udsaetterKortet'));
       return true;
     }
     if (btn.dataset.regnskab) {
       var hvad = btn.dataset.regnskab;
-      kortPost(btn, base + '/regnskab/' + hvad, {}, hvad === 'fortryd' ? 'fortryder' : hvad === 'flyt' ? 'flytter' : 'skriver i regnskabet', hvad === 'fortryd' ? 'Regnskabslinjen er fjernet.' : 'Regnskabet er opdateret.');
+      kortPost(btn, base + '/regnskab/' + hvad, {}, hvad === 'fortryd' ? tk('fortryder') : hvad === 'flyt' ? tk('flytter') : tk('skriverIRegnskab'), hvad === 'fortryd' ? tk('regnskabslinjeFjernet') : tk('regnskabOpdateret'));
       return true;
     }
     if (btn.dataset.regelforslagJa) { regelforslagSvar(btn, 'godkend', btn.dataset.regelforslagJa); return true; }
@@ -661,21 +661,21 @@
     if (btn.dataset.stikproeveSvar) {
       var forkert = btn.dataset.stikproeveSvar === 'forkert';
       soendagSvar(btn, '/api/tillid/stikproeve/' + encodeURIComponent(btn.dataset.uge) + '/' + encodeURIComponent(btn.dataset.id), { svar: btn.dataset.stikproeveSvar },
-        forkert ? 'Noteret. Hermes ser på, hvad der skal ændres; et forslag kommer i Nu.' : '');
+        forkert ? tk('noteret') : '');
       return true;
     }
     if (btn.dataset.soendagstjekStopSvar) {
       var stopJa = btn.dataset.soendagstjekStopSvar === 'ja';
-      soendagSvar(btn, '/api/tillid/soendagstjek/stop', { svar: btn.dataset.soendagstjekStopSvar }, stopJa ? 'Søndagstjekket er stoppet. Fortryd i loggen tænder det igen.' : 'Søndagstjekket fortsætter.');
+      soendagSvar(btn, '/api/tillid/soendagstjek/stop', { svar: btn.dataset.soendagstjekStopSvar }, stopJa ? tk('soendagStoppet') : tk('soendagFortsaetter'));
       return true;
     }
     if (btn.dataset.hjemFortryd) {
-      kortPost(btn, '/api/rum/hjem/fortryd/' + encodeURIComponent(btn.dataset.hjemFortryd), {}, 'fortryder', 'Fortrudt.');
+      kortPost(btn, '/api/rum/hjem/fortryd/' + encodeURIComponent(btn.dataset.hjemFortryd), {}, tk('fortryder'), tk('fortrudt'));
       return true;
     }
     if (btn.dataset.kopier !== undefined) {
       var fra = btn.dataset.kopierFra ? document.getElementById(btn.dataset.kopierFra) : null;
-      kopierMedBesked(fra && fra.value.trim() ? fra.value : btn.dataset.kopier, 'Kopieret');
+      kopierMedBesked(fra && fra.value.trim() ? fra.value : btn.dataset.kopier, tk('kopieret'));
       return true;
     }
     if (btn.dataset.delUrl) {
@@ -695,7 +695,7 @@
     if (!ccDialog || !ccForm) return;
     ccKilde = kilde;
     ccForm.elements.saetning.value = tekst || '';
-    if (ccGrundlag) { ccGrundlag.hidden = !titel; ccGrundlag.textContent = titel ? (kilde.kortId ? 'Kortet følger med: ' : tk('om')) + titel : ''; }
+    if (ccGrundlag) { ccGrundlag.hidden = !titel; ccGrundlag.textContent = titel ? (kilde.kortId ? tk('kortetFoelger') : tk('om')) + titel : ''; }
     // A card that names a project picks it; otherwise the last choice stays.
     var hay = (titel + ' ' + (mere || '')).toLowerCase();
     ccForm.querySelectorAll('input[name="projekt"]').forEach(function (r) {
@@ -731,7 +731,7 @@
         send.disabled = false;
         lukCc();
         if (ccKilde.fraChat && input) input.value = '';
-        toast('Sendt til Claude Code. Den henter opgaven, næste gang den arbejder i projektet.', false);
+        toast(tk('sendtTilClaude'), false);
         if (roomId === 'hjem') refetchHjem();
       })
       .catch(function (err) { send.disabled = false; toast(tk('fejl') + fejlTekst(err), true); });
@@ -756,7 +756,7 @@
     if (!f) return;
     ev.preventDefault();
     var svar = f.elements.svar.value.trim();
-    if (svar) kortPost(f.querySelector('button[type="submit"]'), '/api/udvikling/opgaver/' + encodeURIComponent(f.dataset.ccSvarForm) + '/svar', { svar: svar }, 'sender dit svar', 'Svaret er sendt. Claude Code tager den op, næste gang den arbejder i projektet.');
+    if (svar) kortPost(f.querySelector('button[type="submit"]'), '/api/udvikling/opgaver/' + encodeURIComponent(f.dataset.ccSvarForm) + '/svar', { svar: svar }, tk('sendDitSvar'), tk('svarSendt'));
   });
 
   // KC-0203: the closed beta (only on a page that loaded beta.js). The feedback card builds its preview and its body from
@@ -849,29 +849,29 @@
         }
         if (btn.dataset.fortryd) {
           btn.disabled = true;
-          setBusy(btn.closest('.log-row'), 'fortryder …');
-          start('/api/rum/' + roomId + '/log/' + encodeURIComponent(btn.dataset.fortryd) + '/fortryd', {}, { startText: 'fortryder …' });
+          setBusy(btn.closest('.log-row'), tk('fortryder') + ' …');
+          start('/api/rum/' + roomId + '/log/' + encodeURIComponent(btn.dataset.fortryd) + '/fortryd', {}, { startText: tk('fortryder') + ' …' });
           return;
         }
         if (btn.dataset.opdater) {
           btn.disabled = true;
-          setBusy(roomEl.querySelector('.card'), btn.dataset.opdater === 'hent' ? 'henter …' : 'bygger rummet …');
-          start('/api/rum/' + roomId + '/opdater', { mode: btn.dataset.opdater }, { startText: btn.dataset.opdater === 'hent' ? 'henter dagens data …' : 'bygger rummet …' });
+          setBusy(roomEl.querySelector('.card'), btn.dataset.opdater === 'hent' ? tk('henter') + ' …' : tk('bygger') + ' …');
+          start('/api/rum/' + roomId + '/opdater', { mode: btn.dataset.opdater }, { startText: btn.dataset.opdater === 'hent' ? tk('henterDagensData') + ' …' : tk('bygger') + ' …' });
           return;
         }
         // KC-0153: Send on a request goes to her channel — a one-time yes for exactly the text on screen, then the send.
         if (btn.dataset.kanalSend) {
           btn.disabled = true;
-          setBusy(elementOf(btn), 'sender …');
+          setBusy(elementOf(btn), tk('sender') + ' …');
           var slagsK = btn.dataset.kanalSlags === 'paamindelse' ? 'paamindelse' : 'foresp';
-          start('/api/hushold/foresp/' + encodeURIComponent(btn.dataset.kanalSend) + '/send', slagsK === 'paamindelse' ? { slags: slagsK } : {}, { ja: { rum: 'husstand', slags: 'send', id: btn.dataset.kanalJa }, startText: 'sender …' });
+          start('/api/hushold/foresp/' + encodeURIComponent(btn.dataset.kanalSend) + '/send', slagsK === 'paamindelse' ? { slags: slagsK } : {}, { ja: { rum: 'husstand', slags: 'send', id: btn.dataset.kanalJa }, startText: tk('sender') + ' …' });
           return;
         }
         // KC-0154: Send on an invitation — the same: a one-time yes for exactly the first message on screen, then the send.
         if (btn.dataset.invitationSend) {
           btn.disabled = true;
-          setBusy(elementOf(btn), 'sender …');
-          start('/api/hushold/medlem/' + encodeURIComponent(btn.dataset.invitationSend) + '/inviter', {}, { ja: { rum: 'husstand', slags: 'invitation', id: btn.dataset.invitationJa }, startText: 'sender …' });
+          setBusy(elementOf(btn), tk('sender') + ' …');
+          start('/api/hushold/medlem/' + encodeURIComponent(btn.dataset.invitationSend) + '/inviter', {}, { ja: { rum: 'husstand', slags: 'invitation', id: btn.dataset.invitationJa }, startText: tk('sender') + ' …' });
           return;
         }
         if (btn.dataset.aktion) {
@@ -983,7 +983,7 @@
       var spoken = input.dataset.spoken === '1'; input.dataset.spoken = '';
       // KC-0077: the suggestions are for starting; once Henrik has said something they go.
       var forslag = document.getElementById('chat-forslag'); if (forslag) forslag.remove();
-      start('/api/rum/' + roomId + '/chat', { besked: besked, kontekst: kontekst || undefined, enhed: enhed(), aabn: true }, { chat: true, statusInChat: true, startText: 'svarer …', spoken: spoken });
+      start('/api/rum/' + roomId + '/chat', { besked: besked, kontekst: kontekst || undefined, enhed: enhed(), aabn: true }, { chat: true, statusInChat: true, startText: tk('svarer') + ' …', spoken: spoken });
     });
     // The same path as typing and pressing Send: the sentence goes into the field and the form submits.
     function sendSomTastet(tekst) { input.value = tekst; if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true })); }
@@ -1148,12 +1148,12 @@
     }
     var b = e.target.closest('[data-kilde-frakobl]');
     if (!b || b.disabled) return;
-    if (!b.hasAttribute('data-bekraeft')) { b.setAttribute('data-bekraeft', ''); b.textContent = 'Frakobl? Tryk igen'; return; }
+    if (!b.hasAttribute('data-bekraeft')) { b.setAttribute('data-bekraeft', ''); b.textContent = tk('frakoblTryk'); return; }
     b.disabled = true;
     fetch('/api/kilder/' + encodeURIComponent(b.getAttribute('data-kilde-frakobl')) + '/frakobl', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
       .then(function (r) { if (!r.ok) return r.json().then(function (j) { throw new Error(j.error || 'HTTP ' + r.status); }); loadKoe(); })
       .catch(function (err) {
-        b.disabled = false; b.removeAttribute('data-bekraeft'); b.textContent = 'Frakobl';
+        b.disabled = false; b.removeAttribute('data-bekraeft'); b.textContent = tk('frakobl');
         var note = b.closest('.kilde-row') && b.closest('.kilde-row').querySelector('.row-note');
         if (note) note.textContent = err.message;
       });
@@ -1319,18 +1319,18 @@
     var fjernBar = function () { if (sitBar) { sitBar.remove(); sitBar = null; } };
     var visBar = function (m) {
       var min = Math.ceil((Date.parse(m.start) - Date.now()) / 60000);
-      var tekst = min > 0 ? 'starter om ' + min + ' min' : 'er i gang';
+      var tekst = min > 0 ? tk('starterOm') + min + ' ' + tk('omMin') : tk('erIGang');
       if (!sitBar) {
         sitBar = document.createElement('div');
         sitBar.className = 'uv-situation-bar';
         sitBar.setAttribute('role', 'status');
         sitBar.appendChild(document.createElement('span'));
         var a = document.createElement('a');
-        a.className = 'btn'; a.textContent = 'Åbn mødevisningen';
+        a.className = 'btn'; a.textContent = tk('aabnMoedevisning');
         sitBar.appendChild(a);
         roomEl.parentNode.insertBefore(sitBar, roomEl);
       }
-      sitBar.firstChild.textContent = 'Mødet "' + m.titel + '" ' + tekst;
+      sitBar.firstChild.textContent = tk('moedet') + m.titel + '" ' + tekst;
       sitBar.lastChild.setAttribute('href', m.url);
     };
     var skiftRum = roomId === 'hjem' || roomId === 'dagen';
@@ -1392,9 +1392,9 @@
         player.src = url;
         player.onended = function () { URL.revokeObjectURL(url); markPlaying(null); end(); };
         var p = player.play();
-        if (p && p.catch) p.catch(function (err) { toast('Kunne ikke afspille: ' + fejlTekst(err), true); markPlaying(null); end(); });
+        if (p && p.catch) p.catch(function (err) { toast(tk('kunneIkkeAfspille') + fejlTekst(err), true); markPlaying(null); end(); });
       })
-      .catch(function (err) { if (seq !== sigSeq) { end(); return; } toast('Oplæsning fejlede: ' + fejlTekst(err), true); markPlaying(null); end(); });
+      .catch(function (err) { if (seq !== sigSeq) { end(); return; } toast(tk('oplaesningFejlede') + fejlTekst(err), true); markPlaying(null); end(); });
   }
 
   // Mic: press to record, press again to stop; the text lands where you were typing.
@@ -1410,7 +1410,7 @@
     if (rec && rec.state !== 'inactive') { try { rec.stop(); } catch (e) { /* ignore */ } }
   }
   function startRec(btn) {
-    if (!navigator.mediaDevices || !window.MediaRecorder) { toast('Mikrofonen virker ikke i denne browser.', true); return; }
+    if (!navigator.mediaDevices || !window.MediaRecorder) { toast(tk('mikVirkerIkke'), true); return; }
     if (rec && rec.state === 'recording') { stopRec(); return; }
     unlockAudio();
     var mime = micMime();
@@ -1419,7 +1419,7 @@
       rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
       recChunks = []; recBtn = btn;
       btn.classList.add('is-recording'); btn.setAttribute('aria-pressed', 'true');
-      setStatus('lytter …', 'busy');
+      setStatus(tk('lytterKort') + ' …', 'busy');
       rec.addEventListener('dataavailable', function (e) { if (e.data && e.data.size) recChunks.push(e.data); });
       rec.addEventListener('stop', function () {
         stream.getTracks().forEach(function (t) { t.stop(); });
@@ -1433,10 +1433,10 @@
       });
       rec.start(250);
       recTimer = setTimeout(stopRec, 60000);
-    }).catch(function (err) { toast('Ingen adgang til mikrofonen: ' + fejlTekst(err), true); });
+    }).catch(function (err) { toast(tk('ingenAdgangMik') + fejlTekst(err), true); });
   }
   function sendRec(blob, type, btn) {
-    setStatus('skriver ned …', 'busy');
+    setStatus(tk('skriverNed') + ' …', 'busy');
     btn.classList.add('is-transcribing');
     var fd = new FormData();
     fd.append('file', blob, type.indexOf('mp4') >= 0 ? 'speech.m4a' : type.indexOf('ogg') >= 0 ? 'speech.ogg' : 'speech.webm');
@@ -1447,10 +1447,10 @@
         btn.classList.remove('is-transcribing');
         setStatus(tk('klar'), 'ok');
         var text = (j.tekst || '').trim();
-        if (!text) { toast('Jeg hørte ikke noget.', false); return; }
+        if (!text) { toast(tk('hoertIkke'), false); return; }
         deliver(btn, text);
       })
-      .catch(function (err) { btn.classList.remove('is-transcribing'); setStatus(tk('klar'), 'ok'); toast('Kunne ikke forstå optagelsen: ' + fejlTekst(err), true); });
+      .catch(function (err) { btn.classList.remove('is-transcribing'); setStatus(tk('klar'), 'ok'); toast(tk('kunneIkkeForstaa') + fejlTekst(err), true); });
   }
   /** Where the words go: the chat sends them at once; a field gets them at the caret. */
   function deliver(btn, text) {
@@ -1486,7 +1486,7 @@
       if (!f.id) f.id = 'felt-' + (++micSeq);
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'btn mic mic-field'; b.dataset.mic = f.id; b.dataset.klient = '';
-      b.setAttribute('aria-label', 'Tal ind i feltet'); b.title = 'Tal (tryk, tal, tryk igen)';
+      b.setAttribute('aria-label', tk('talIndIFeltet')); b.title = tk('talTitel');
       b.innerHTML = '<span class="mic-icon" aria-hidden="true"></span>';
       f.insertAdjacentElement('afterend', b);
       var lab = f.closest('.field'); if (lab) lab.classList.add('has-mic');
@@ -1498,7 +1498,7 @@
       if (slot.querySelector(':scope > .lyt')) return;
       var b = document.createElement('button');
       b.type = 'button'; b.className = 'btn btn-ghost lyt'; b.dataset.lyt = ''; b.dataset.klient = '';
-      b.setAttribute('aria-label', 'Læs op'); b.title = 'Læs op'; b.textContent = 'Lyt';
+      b.setAttribute('aria-label', tk('laesOp')); b.title = tk('laesOp'); b.textContent = tk('lyt');
       slot.appendChild(b);
     });
   }
@@ -1544,39 +1544,39 @@
   function chatRoom() { return roomId || 'hjem'; } // KC-0019: Hjem has a chat with the overview of every room
   var clientTools = {
     hent_oversigt: function () {
-      return fetch('/api/stemme/oversigt').then(function (r) { return r.json(); }).then(function (o) { return o.tekst || 'Intet venter.'; }).catch(function (err) { return 'Kunne ikke hente oversigten: ' + fejlTekst(err); });
+      return fetch('/api/stemme/oversigt').then(function (r) { return r.json(); }).then(function (o) { return o.tekst || 'Intet venter.'; }).catch(function (err) { return 'Kunne ikke hente oversigten: ' + fejlTekst(err); }); // agent: said to the Danish voice agent, not shown
     },
     udfoer: function (p) {
       var id = p && p.id ? String(p.id).trim() : '';
       return fetch('/api/stemme/udfoer', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: id }) })
         .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
         .then(function (j) {
-          samLine('app', 'Sat i gang: ' + j.label);
+          samLine('app', tk('satIGang') + j.label);
           follow(j.runId, { startText: j.label + ' …', onDone: function (d) {
-            var res = d ? (d.text || 'gjort') : 'fejlede';
-            samLine('app', 'Hermes er færdig med "' + j.label + '": ' + res.slice(0, 200));
-            if (conv) { try { conv.sendContextualUpdate('Hermes er færdig med "' + j.label + '": ' + res.slice(0, 600)); } catch (e) { /* session ended */ } }
+            var res = d ? (d.text || tk('gjort')) : tk('fejlede');
+            samLine('app', tk('hermesFaerdigMed') + j.label + '": ' + res.slice(0, 200));
+            if (conv) { try { conv.sendContextualUpdate('Hermes er færdig med "' + j.label + '": ' + res.slice(0, 600)); } catch (e) { /* session ended */ } } // agent: said to the Danish voice agent, not shown
           } });
-          return 'Sat i gang: ' + j.label + '. Gå videre; jeg siger til når Hermes er færdig.';
+          return 'Sat i gang: ' + j.label + '. Gå videre; jeg siger til når Hermes er færdig.'; // agent: said to the Danish voice agent, not shown
         })
-        .catch(function (err) { return 'Kunne ikke: ' + fejlTekst(err); });
+        .catch(function (err) { return 'Kunne ikke: ' + fejlTekst(err); }); // agent: said to the Danish voice agent, not shown
     },
     spoerg_hermes: function (p) {
       var besked = p && p.besked ? String(p.besked).trim().slice(0, 2000) : '';
-      if (!besked) return 'Spørgsmålet var tomt.';
+      if (!besked) return 'Spørgsmålet var tomt.'; // agent: said to the Danish voice agent, not shown
       addMsg('henrik', besked);
       return new Promise(function (resolve) {
         var done = false;
-        var timer = setTimeout(function () { if (!done) { done = true; resolve('Hermes svarede ikke i tide.'); } }, 70000);
+        var timer = setTimeout(function () { if (!done) { done = true; resolve('Hermes svarede ikke i tide.'); } }, 70000); // agent: said to the Danish voice agent, not shown
         fetch('/api/rum/' + chatRoom() + '/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ besked: besked, enhed: enhed() }) })
           .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })
           .then(function (j) {
-            follow(j.runId, { chat: true, statusInChat: true, startText: 'svarer …', onDone: function (d) {
+            follow(j.runId, { chat: true, statusInChat: true, startText: tk('svarer') + ' …', onDone: function (d) {
               if (done) return; done = true; clearTimeout(timer);
-              resolve(d && d.text ? d.text.slice(0, 1500) : 'Hermes svarede ikke.');
+              resolve(d && d.text ? d.text.slice(0, 1500) : 'Hermes svarede ikke.'); // agent: said to the Danish voice agent, not shown
             } });
           })
-          .catch(function (err) { if (!done) { done = true; clearTimeout(timer); resolve('Kunne ikke spørge Hermes: ' + fejlTekst(err)); } });
+          .catch(function (err) { if (!done) { done = true; clearTimeout(timer); resolve('Kunne ikke spørge Hermes: ' + fejlTekst(err)); } }); // agent: said to the Danish voice agent, not shown
       });
     }
   };
@@ -1598,18 +1598,18 @@
     h.stream.getTracks().forEach(function (t) { t.stop(); });
     if (h.ctx) { try { h.ctx.close(); } catch (e) { /* ignore */ } }
     stopSig();
-    samSay(reason || 'slut', 'ok');
+    samSay(reason || tk('slut'), 'ok');
     samLive(false);
   }
   function hsSpeak(h, text, next) {
     if (hs !== h) return;
-    samSay('taler', 'busy');
+    samSay(tk('taler'), 'busy');
     if (muted) { next(); return; }
     sig(text, null, function () { if (hs === h) next(); });
   }
   function hsListen(h) {
     if (hs !== h) return;
-    samSay('lytter — tal, og hold en pause når du er færdig', 'ok');
+    samSay(tk('lytterTal'), 'ok');
     var mime = micMime();
     var rec = mime ? new MediaRecorder(h.stream, { mimeType: mime }) : new MediaRecorder(h.stream);
     var chunks = [];
@@ -1630,11 +1630,11 @@
       var now = performance.now();
       var st = m.feed(Math.sqrt(sum / buf.length), now);
       if (st === 'faerdig' || now - started > 60000) { clearInterval(h.timer); h.timer = null; rec.stop(); }
-      else if (st === 'stille') { clearInterval(h.timer); h.timer = null; hsStop('sluttede — jeg hørte ikke noget'); }
+      else if (st === 'stille') { clearInterval(h.timer); h.timer = null; hsStop(tk('sluttedeHoertIkke')); }
     }, 50);
   }
   function hsHeard(h, blob, type) {
-    samSay('skriver ned …', 'busy');
+    samSay(tk('skriverNed') + ' …', 'busy');
     var fd = new FormData();
     fd.append('file', blob, type.indexOf('mp4') >= 0 ? 'speech.m4a' : type.indexOf('ogg') >= 0 ? 'speech.ogg' : 'speech.webm');
     fd.append('rum', roomId || '');
@@ -1645,15 +1645,15 @@
         var tekst = (j.tekst || '').trim();
         if (!tekst) { hsListen(h); return; }
         samLine('user', tekst);
-        if (window.KCLyt.erStop(tekst)) { hsStop('slut'); return; }
+        if (window.KCLyt.erStop(tekst)) { hsStop(tk('slut')); return; }
         addMsg('henrik', tekst);
-        samSay('Hermes tænker …', 'busy');
+        samSay(tk('hermesTaenker'), 'busy');
         return fetch('/api/rum/' + chatRoom() + '/chat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ besked: tekst, enhed: enhed() }) })
           .then(function (r) { return r.json().then(function (k) { if (!r.ok) throw new Error(k.error || ('HTTP ' + r.status)); return k; }); })
           .then(function (k) {
-            follow(k.runId, { chat: true, statusInChat: true, startText: 'svarer …', onDone: function (d) {
+            follow(k.runId, { chat: true, statusInChat: true, startText: tk('svarer') + ' …', onDone: function (d) {
               if (hs !== h) return;
-              var svar = d && d.text ? d.text : 'Hermes kunne ikke svare. Prøv igen.';
+              var svar = d && d.text ? d.text : tk('hermesKanIkkeSvare');
               samLine('ai', svar);
               hsSpeak(h, svar, function () { hsListen(h); });
             } });
@@ -1667,10 +1667,10 @@
   }
   /** ctx: an AudioContext made inside Henrik's tap (iOS only lets it run then). */
   function hermesSamtale(ctx) {
-    if (!navigator.mediaDevices || !window.MediaRecorder || !window.KCLyt || !ctx) { toast('Samtale virker ikke i denne browser.', true); samLive(false); samSay('slut', 'ok'); return; }
+    if (!navigator.mediaDevices || !window.MediaRecorder || !window.KCLyt || !ctx) { toast(tk('samtaleVirkerIkke'), true); samLive(false); samSay(tk('slut'), 'ok'); return; }
     if (samPanel) samPanel.hidden = false;
     samLive(true);
-    samSay('starter …', 'busy');
+    samSay(tk('starter'), 'busy');
     navigator.mediaDevices.getUserMedia({ audio: true }).then(function (stream) {
       var analyser = ctx.createAnalyser();
       analyser.fftSize = 1024;
@@ -1678,17 +1678,17 @@
       var h = { stream: stream, ctx: ctx, analyser: analyser, timer: null, rec: null };
       hs = h;
       return fetch('/api/stemme/oversigt').then(function (r) { return r.json(); }).then(function (o) {
-        var intro = (o && o.tekst ? o.tekst + '\n' : '') + 'Hvad vil du?';
+        var intro = (o && o.tekst ? o.tekst + '\n' : '') + tk('hvadVilDu');
         samLine('ai', intro);
         hsSpeak(h, intro, function () { hsListen(h); });
       }).catch(function () { hsListen(h); });
-    }).catch(function (err) { try { ctx.close(); } catch (e) { /* ignore */ } samLive(false); samSay('fejl', 'bad'); toast('Ingen adgang til mikrofonen: ' + fejlTekst(err), true); });
+    }).catch(function (err) { try { ctx.close(); } catch (e) { /* ignore */ } samLive(false); samSay(tk('fejlLille'), 'bad'); toast(tk('ingenAdgangMik') + fejlTekst(err), true); });
   }
 
   function endSamtale() {
     if (conv) { var c = conv; conv = null; try { c.endSession(); } catch (e) { /* ignore */ } }
-    hsStop('slut');
-    samSay('slut', 'ok');
+    hsStop(tk('slut'));
+    samSay(tk('slut'), 'ok');
     samLive(false);
   }
   function startSamtale() {
@@ -1700,9 +1700,9 @@
     if (ctx && ctx.resume) { try { ctx.resume(); } catch (e) { /* ignore */ } }
     if (!agentOn || !window.ElevenLabsClient || !window.ElevenLabsClient.Conversation) { hermesSamtale(ctx); return; }
     if (samPanel) samPanel.hidden = false;
-    samSay('starter …', 'busy');
+    samSay(tk('starter'), 'busy');
     samLive(true);
-    var mic = navigator.mediaDevices ? navigator.mediaDevices.getUserMedia({ audio: true }) : Promise.reject(new Error('ingen mikrofon'));
+    var mic = navigator.mediaDevices ? navigator.mediaDevices.getUserMedia({ audio: true }) : Promise.reject(new Error(tk('ingenMikrofon')));
     Promise.all([mic, fetch('/api/stemme/samtale', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rum: roomId || 'hjem' }) })
       .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status)); return j; }); })])
       .then(function (both) {
@@ -1714,19 +1714,19 @@
           dynamicVariables: j.dynamiskeVariabler,
           clientTools: clientTools,
           useWakeLock: true,
-          onConnect: function () { samSay('lytter', 'ok'); },
-          onDisconnect: function () { conv = null; samSay('slut', 'ok'); if (samToggle) { samToggle.classList.remove('is-live'); samToggle.setAttribute('aria-expanded', 'false'); } },
-          onModeChange: function (m) { samSay(m && m.mode === 'speaking' ? 'taler' : 'lytter', m && m.mode === 'speaking' ? 'busy' : 'ok'); },
-          onStatusChange: function (s) { if (s && s.status === 'connecting') samSay('forbinder …', 'busy'); },
+          onConnect: function () { samSay(tk('lytterKort'), 'ok'); },
+          onDisconnect: function () { conv = null; samSay(tk('slut'), 'ok'); if (samToggle) { samToggle.classList.remove('is-live'); samToggle.setAttribute('aria-expanded', 'false'); } },
+          onModeChange: function (m) { samSay(m && m.mode === 'speaking' ? tk('taler') : tk('lytterKort'), m && m.mode === 'speaking' ? 'busy' : 'ok'); },
+          onStatusChange: function (s) { if (s && s.status === 'connecting') samSay(tk('forbinder'), 'busy'); },
           onMessage: function (m) { if (m && m.message) samLine(m.source === 'user' ? 'user' : 'ai', m.message); },
-          onError: function (msg) { samSay('fejl', 'bad'); toast('Samtale: ' + msg, true); }
+          onError: function (msg) { samSay(tk('fejlLille'), 'bad'); toast(tk('samtalePraefiks') + msg, true); }
         });
       })
       .then(function (c) { conv = c; if (ctx) { try { ctx.close(); } catch (e) { /* ignore */ } } if (muted) { try { c.setVolume({ volume: 0 }); } catch (e) { /* ignore */ } } })
       .catch(function (err) {
         // The agent cannot start (today: the key lacks the convai scopes) — talk to Hermes directly instead.
         conv = null;
-        samLine('app', 'Stemme-agenten kunne ikke starte (' + fejlTekst(err) + '). Jeg taler med Hermes direkte.');
+        samLine('app', tk('agentStartFoer') + fejlTekst(err) + tk('agentStartEfter'));
         hermesSamtale(ctx);
       });
   }
@@ -1735,7 +1735,7 @@
     if (samStop) samStop.addEventListener('click', function () { endSamtale(); if (samPanel) samPanel.hidden = true; });
     if (samLyd) samLyd.addEventListener('click', function () {
       muted = !muted;
-      samLyd.textContent = muted ? 'Lyd til' : 'Lyd fra';
+      samLyd.textContent = muted ? tk('lydTil') : tk('lydFra');
       samLyd.setAttribute('aria-pressed', muted ? 'true' : 'false');
       if (conv) { try { conv.setVolume({ volume: muted ? 0 : 1 }); } catch (e) { /* ignore */ } }
     });

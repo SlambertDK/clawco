@@ -7,6 +7,7 @@
 
 import { html, type Markup } from '../../shell/html.ts';
 import { tilstandChip } from '../../shell/sprog.ts';
+import { startTekst } from './tekster.ts';
 
 /** What Start is told while the step is open (src/danmark/vindue.ts `PostStart`, restated: rooms import nothing from src/danmark). */
 export type PostStartVisning = {
@@ -19,36 +20,37 @@ export type PostStartVisning = {
   kanGemme: boolean;
 };
 
-const TITEL = 'Få besked, når der er ny Digital Post';
-const STAAENDE = 'Clawco ser kun notifikationen: hverken brevet eller mailens tekst.';
-
 function afsendere(v: PostStartVisning): Markup {
+  const T = startTekst().post;
   if (v.kandidater.length === 0) {
-    return html`<p class="row-note" data-post-ingen>${v.laeser === 'kan-ikke-se' ? 'Clawco kan ikke se din indbakke lige nu, så der er ingen liste. Skriv adressen selv herunder.' : 'Clawco har ikke set nogen notifikationsmail endnu. Når den første er kommet, står dens adresse her. Du kan også skrive adressen selv.'}</p>`;
+    return html`<p class="row-note" data-post-ingen>${v.laeser === 'kan-ikke-se' ? T.ingenKanIkkeSe : T.ingenIkkeSet}</p>`;
   }
-  return html`<div class="stack" role="radiogroup" aria-label="Afsenderadresse">${v.kandidater.map((a, i) => html`<label class="field-check"><input type="radio" name="afsender" value="${a}"${i === 0 ? html` checked` : ''}><span class="mono">${a}</span></label>`)}</div>`;
+  return html`<div class="stack" role="radiogroup" aria-label="${T.afsenderAria}">${v.kandidater.map((a, i) => html`<label class="field-check"><input type="radio" name="afsender" value="${a}"${i === 0 ? html` checked` : ''}><span class="mono">${a}</span></label>`)}</div>`;
 }
 
 function formen(v: PostStartVisning): Markup {
+  const T = startTekst();
   return html`<form id="post-form" class="nyt-form" onsubmit="return false" autocomplete="off">
-    <p class="row-title">2. Vælg afsenderen</p>
-    <p class="row-note">Det er adressen, notifikationsmailen kommer fra. Her er de adresser i din indbakke, der ligner Digital Post.</p>
+    <p class="row-title">${T.post.trin2}</p>
+    <p class="row-note">${T.post.trin2Note}</p>
     ${afsendere(v)}
-    <label class="field"><span class="row-note">Eller skriv adressen (den skal slutte på ${v.domaener.join(', ')})</span><input name="egen" type="text" inputmode="email" spellcheck="false" maxlength="200" autocomplete="off" data-uden-stemme></label>
-    <p class="row-title">3. Hvor læser du din Digital Post?</p>
-    <p class="row-note">Det er dit link i kortet i Nu. Clawco logger aldrig ind dér.</p>
-    <div class="stack" role="radiogroup" aria-label="Postkasse">${v.visere.map((x) => html`<label class="field-check"><input type="radio" name="viser" value="${x.id}"${x.id === v.viser ? html` checked` : ''}><span>${x.navn}</span></label>`)}</div>
-    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="post-afsender-gem" data-form="post-form" data-status="gemmer">Gem</button><button type="button" class="btn btn-ghost" data-aktion="post-ikke-nu" data-status="lægger væk">Ikke nu</button></div>
+    <label class="field"><span class="row-note">${T.post.egen(v.domaener.join(', '))}</span><input name="egen" type="text" inputmode="email" spellcheck="false" maxlength="200" autocomplete="off" data-uden-stemme></label>
+    <p class="row-title">${T.post.trin3}</p>
+    <p class="row-note">${T.post.trin3Note}</p>
+    <div class="stack" role="radiogroup" aria-label="${T.post.postkasseAria}">${v.visere.map((x) => html`<label class="field-check"><input type="radio" name="viser" value="${x.id}"${x.id === v.viser ? html` checked` : ''}><span>${x.navn}</span></label>`)}</div>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="post-afsender-gem" data-form="post-form" data-status="${T.gemmer}">${T.gem}</button><button type="button" class="btn btn-ghost" data-aktion="post-ikke-nu" data-status="${T.laeggerVaekKort}">${T.ikkeNu}</button></div>
   </form>`;
 }
 
 export function renderDigitalPostStart(v: PostStartVisning): Markup {
-  return html`<article class="card kort" data-blok="kort" data-post-start data-element="Danmark-pakke: ${TITEL}">
-    <div class="kort-head">${tilstandChip('rolig', 'Valgfrit')}<span class="row-title">${TITEL}</span></div>
-    <p>Clawco kan lægge et kort i Nu, når Digital Post har sendt dig en notifikation om ny post. Det sker ved at læse den mail, Digital Post selv sender.</p>
-    <p class="row-title">1. Slå notifikationen til</p>
-    <p class="row-note">Åbn Digital Post (på mit.dk, e-Boks eller borger.dk), og slå «Notifikation på e-mail» til. Giv den e-mailadresse, som Clawco læser.</p>
-    ${v.kanGemme ? formen(v) : html`<p class="row-note">Ejeren vælger afsenderen og postkassen.</p>`}
-    <p class="row-note" data-post-staaende>${STAAENDE}</p>
+  const T = startTekst();
+  const P = T.post;
+  return html`<article class="card kort" data-blok="kort" data-post-start data-element="${T.pakkeTitel}: ${P.titel}">
+    <div class="kort-head">${tilstandChip('rolig', T.valgfrit)}<span class="row-title">${P.titel}</span></div>
+    <p>${P.intro}</p>
+    <p class="row-title">${P.trin1}</p>
+    <p class="row-note">${P.trin1Note}</p>
+    ${v.kanGemme ? formen(v) : html`<p class="row-note">${P.ejeren}</p>`}
+    <p class="row-note" data-post-staaende>${P.staaende}</p>
   </article>`;
 }

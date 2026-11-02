@@ -10,6 +10,8 @@
 
 import { koebenhavnTilIso } from '../shell/tid.ts';
 import { klokke } from './render.ts';
+import { sprogNu, type Sprog } from '../store/sprog.ts';
+import { HUSSTAND_TEKSTER, husstandTekst } from './tekster.ts';
 import { beslutter, type Forespoergsel } from './foresp.ts';
 import { iSaetning, overlapper, type PersonId, type Ressource, type Tidsrum } from './ressource.ts';
 import type { Medlem } from './schema.ts';
@@ -200,15 +202,19 @@ export function parseKonfliktTekst(svar: string, k: Pick<Konflikt, 'parter'>, me
   return { resume, spoergsmaal };
 }
 
-/** `lørdag kl. 11.00–13.00` — the time of the request, the day in words. */
-export const tidSag = (k: Pick<Konflikt, 'tid' | 'dag'>): string => `${dagNavn(k.dag)} kl. ${klokke(k.tid.start)}–${klokke(k.tid.slut)}`;
+/** `lørdag kl. 11.00–13.00` / `Saturday at 11:00–13:00` — the time of the request, the day in words (Danish unless `sprog` says otherwise). */
+export const tidSag = (k: Pick<Konflikt, 'tid' | 'dag'>, sprog: Sprog = 'da'): string => {
+  const T = HUSSTAND_TEKSTER[sprog];
+  return T.tidSag(T.midt(T.ugedage[new Date(`${k.dag}T12:00:00Z`).getUTCDay()] ?? k.dag), klokke(k.tid.start, sprog), klokke(k.tid.slut, sprog));
+};
 
-/** What the request from a pick says, from the asker's side (the asker is the one who tapped). */
+/** What the request from a pick says, from the asker's side (the asker is the one who tapped), in the language of the request being served. */
 export function valgTitel(k: Konflikt, v: KonfliktValg, asker: PersonId): string {
-  const hvad = k.behov.slags === 'barn' ? k.behov.navn : iSaetning(k.behov.navn);
-  const nar = tidSag(k);
-  if (v.slags === 'tredje') return `Kan vi finde en tredje til ${hvad} ${nar}?`.slice(0, 200);
-  return (v.hvem === asker ? `Jeg tager ${hvad} ${nar}. Passer det?` : `Kan du tage ${hvad} ${nar}?`).slice(0, 200);
+  const T = husstandTekst();
+  const hvad = k.behov.slags === 'barn' ? k.behov.navn : T.iSaet(k.behov.navn);
+  const nar = T.paa(tidSag(k, sprogNu()));
+  if (v.slags === 'tredje') return T.konfliktTredje(hvad, nar).slice(0, 200);
+  return (v.hvem === asker ? T.konfliktJegTager(hvad, nar) : T.konfliktKanDuTage(hvad, nar)).slice(0, 200);
 }
 
 /**

@@ -14,6 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { access, chmod, constants, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { registrerHemmelighed } from '../graenser/redaktion.ts';
+import { kilderTekst } from './tekster.ts';
 import { KILDE_ID } from './types.ts';
 
 /** The app-level keys Start may set. A new provider adds its keys here. KC-0127: Clawco's own key to Hermes (a keyless install). */
@@ -39,16 +40,16 @@ async function skrivPrivat(fil: string, indhold: string): Promise<void> {
     await rename(tmp, fil);
   } catch (err) {
     await rm(tmp, { force: true });
-    throw new HemmelighedFejl(`kunne ikke skrive ${path.basename(fil)}: ${(err as NodeJS.ErrnoException).code ?? 'fejl'}`);
+    throw new HemmelighedFejl(kilderTekst().hemmelighed.kunneIkkeSkrive(path.basename(fil), (err as NodeJS.ErrnoException).code ?? 'fejl'));
   }
 }
 
 /** Sets one KEY=value line in an env file (atomic, 0600). Returns the key name and the value's length only. */
 async function skrivEnvLinje(fil: string, noegle: string, vaerdi: string): Promise<Laengde> {
-  if (typeof vaerdi !== 'string' || vaerdi.length > MAKS || !ENV_VAERDI.test(vaerdi)) throw new HemmelighedFejl(`værdien til ${noegle} er tom, for lang eller har tegn, der ikke kan stå i filen`);
+  if (typeof vaerdi !== 'string' || vaerdi.length > MAKS || !ENV_VAERDI.test(vaerdi)) throw new HemmelighedFejl(kilderTekst().hemmelighed.vaerdiUbrugelig(noegle));
   let gammel = '';
   try { gammel = await readFile(fil, 'utf8'); } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw new HemmelighedFejl(`kunne ikke læse ${path.basename(fil)}: ${(err as NodeJS.ErrnoException).code ?? 'fejl'}`);
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw new HemmelighedFejl(kilderTekst().hemmelighed.kunneIkkeLaese(path.basename(fil), (err as NodeJS.ErrnoException).code ?? 'fejl'));
   }
   const linjer = gammel.split('\n').filter((l, i, a) => !(i === a.length - 1 && l === ''));
   const ny = `${noegle}=${vaerdi}`;
@@ -71,7 +72,7 @@ async function skrivEnvLinje(fil: string, noegle: string, vaerdi: string): Promi
  * Returns the key name and the value's length only.
  */
 export async function saetMiljoeNoegle(noegle: string, vaerdi: string, o: { fil?: string; env?: Record<string, string | undefined> } = {}): Promise<Laengde> {
-  if (!(TILLADTE_NOEGLER as readonly string[]).includes(noegle)) throw new HemmelighedFejl(`${noegle.slice(0, 40)} er ikke en nøgle, Clawco må sætte`);
+  if (!(TILLADTE_NOEGLER as readonly string[]).includes(noegle)) throw new HemmelighedFejl(kilderTekst().hemmelighed.noegleForbudt(noegle.slice(0, 40)));
   const svar = await skrivEnvLinje(o.fil ?? (process.env['KC_ENV_FILE'] || '.env'), noegle, vaerdi);
   (o.env ?? process.env)[noegle] = vaerdi;
   return svar;
@@ -84,7 +85,7 @@ const AGENT_NAVN = /^[A-Z][A-Z0-9_]{0,63}$/;
  * `tilladte` (the providers' list), never one of Clawco's own (KC_*); the value stays out of Clawco's environment.
  */
 export async function saetAgentMiljoeNoegle(fil: string, noegle: string, vaerdi: string, tilladte: readonly string[]): Promise<Laengde> {
-  if (!AGENT_NAVN.test(noegle) || noegle.startsWith('KC_') || !tilladte.includes(noegle)) throw new HemmelighedFejl(`${noegle.slice(0, 40)} er ikke en nøgle, Clawco må give agenten`);
+  if (!AGENT_NAVN.test(noegle) || noegle.startsWith('KC_') || !tilladte.includes(noegle)) throw new HemmelighedFejl(kilderTekst().hemmelighed.noegleForbudtAgent(noegle.slice(0, 40)));
   return skrivEnvLinje(fil, noegle, vaerdi);
 }
 
@@ -109,7 +110,7 @@ export function lavAgentNoegleSkriver(fil: string, tilladte: readonly string[]):
 export const KILDE_HEMMELIGHEDER = 'hemmeligheder';
 
 function kildeFil(dataDir: string, kildeId: string): string {
-  if (!KILDE_ID.test(kildeId)) throw new HemmelighedFejl('ugyldigt kilde-id');
+  if (!KILDE_ID.test(kildeId)) throw new HemmelighedFejl(kilderTekst().hemmelighed.ugyldigtKildeId);
   return path.join(dataDir, KILDE_HEMMELIGHEDER, `${kildeId}.json`);
 }
 
@@ -117,7 +118,7 @@ function kildeFil(dataDir: string, kildeId: string): string {
 export async function gemKildeHemmelighed(dataDir: string, kildeId: string, data: Record<string, string>): Promise<Laengde[]> {
   const fil = kildeFil(dataDir, kildeId);
   for (const [k, v] of Object.entries(data)) {
-    if (!FELT.test(k) || typeof v !== 'string' || v.length > MAKS) throw new HemmelighedFejl(`ugyldigt felt i hemmeligheden: ${k.slice(0, 40)}`);
+    if (!FELT.test(k) || typeof v !== 'string' || v.length > MAKS) throw new HemmelighedFejl(kilderTekst().hemmelighed.ugyldigtFelt(k.slice(0, 40)));
   }
   const mappe = path.dirname(fil);
   await mkdir(mappe, { recursive: true, mode: 0o700 });
@@ -133,11 +134,11 @@ export async function laesKildeHemmelighed(dataDir: string, kildeId: string): Pr
   let tekst: string;
   try { tekst = await readFile(fil, 'utf8'); } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
-    throw new HemmelighedFejl(`hemmeligheden til ${kildeId} kunne ikke læses`);
+    throw new HemmelighedFejl(kilderTekst().hemmelighed.kunneIkkeLaeses(kildeId));
   }
   let raw: unknown;
-  try { raw = JSON.parse(tekst); } catch { throw new HemmelighedFejl(`hemmeligheden til ${kildeId} er ikke gyldig`); }
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new HemmelighedFejl(`hemmeligheden til ${kildeId} er ikke gyldig`);
+  try { raw = JSON.parse(tekst); } catch { throw new HemmelighedFejl(kilderTekst().hemmelighed.ikkeGyldig(kildeId)); }
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new HemmelighedFejl(kilderTekst().hemmelighed.ikkeGyldig(kildeId));
   const ud = Object.fromEntries(Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === 'string'));
   for (const v of Object.values(ud)) registrerHemmelighed(v);
   return ud;
@@ -148,6 +149,6 @@ export async function fjernKildeHemmelighed(dataDir: string, kildeId: string): P
   const fil = kildeFil(dataDir, kildeId);
   try { await rm(fil); return true; } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false;
-    throw new HemmelighedFejl(`hemmeligheden til ${kildeId} kunne ikke fjernes`);
+    throw new HemmelighedFejl(kilderTekst().hemmelighed.kunneIkkeFjernes(kildeId));
   }
 }

@@ -11,6 +11,7 @@ import { afgoer, type Afgoerelse, type Forslag, type Kontekst } from './afgoer.t
 import { lavTegn, type Tegn } from './tegn.ts';
 import { VERB_NU } from './opsyn.ts';
 import type { Kanal } from './revisionslog.ts';
+import { graenserTekst } from './tekster.ts';
 
 /** How a handling was asked for: the channel, and a human-tap token when the button needed a yes. */
 export type Indgang = { kanal: Kontekst['kanal']; ja?: string };
@@ -35,7 +36,7 @@ export type VogtetRum = Omit<RoomModule, Startere> & {
 /** A refusal is a line in the room's log that says what Clawco did not do (AGENTS §4 r10). */
 export const logSink: Sink = async (d, r) => {
   if (r.udfald === 'tillad') return;
-  await d.store.appendLog(r.forslag.rum, { kilde: 'system', tekst: `Ikke gjort: ${r.hvorfor}`, zone: r.forslag.zoner[0] ?? 'privat', graense: r.udfald === 'kraever-ja' ? 'kraever-ja' : 'afvist' });
+  await d.store.appendLog(r.forslag.rum, { kilde: 'system', tekst: graenserTekst().ikkeGjort(r.hvorfor), zone: r.forslag.zoner[0] ?? 'privat', graense: r.udfald === 'kraever-ja' ? 'kraever-ja' : 'afvist' });
 };
 
 const KANAL: Record<Kontekst['kanal'], Kanal> = { knap: 'knap', stemme: 'stemme', chat: 'chat', baggrund: 'planlagt' };

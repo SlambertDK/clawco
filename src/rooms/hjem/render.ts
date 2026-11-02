@@ -25,7 +25,7 @@ import { regelforslagKort } from '../../shell/regelforslagkort.ts';
 import { betaKort, feedbackKort, type BetaVisning } from './beta.ts';
 import { POST_GRUPPE, postElementer, type PostVisning } from './digitalpost.ts';
 import { AULA_GRUPPE, aulaElementer, type AulaVisning } from './aula.ts';
-import { hjemTekst } from './tekster.ts';
+import { hjemTekst, intetHvorfor } from './tekster.ts';
 import { tekst } from '../../shell/tekster.ts';
 
 export const CANVAS_URL = 'https://claude.ai/artifact/UETuFBpsk39GAAXUFprqyD';
@@ -344,7 +344,7 @@ export function renderHjem(d: HjemData): Markup {
   const ordnet: OrdnetGruppe[] = !vis.has('ordnet') ? [] : [
     { titel: t.gjort, form: 'kort', elementer: rangeret.filter(erGjort).map((k) => ({ id: `kort:${k.id}`, html: kortKasse(k, gjort, false, undefined, igen) })) },
     { titel: t.skrevetIRegnskab, form: 'raekker', elementer: kunSynlige(d.regnskab ?? [], d.person).map((r) => ({ id: `regnskab:${r.id}`, html: skrevetRaekke(r) })) },
-    { titel: t.intetAtGoere, form: 'raekker', elementer: intet.map((i) => ({ id: `intet:${i.titel}`, html: html`<div class="row"><span class="row-main"><span class="row-title">${i.titel}</span>${i.hvorfor ? html`<span class="row-note">${i.hvorfor}</span>` : ''}</span></div>` })) },
+    { titel: t.intetAtGoere, form: 'raekker', elementer: intet.map((i) => ({ id: `intet:${i.titel}`, html: html`<div class="row"><span class="row-main"><span class="row-title">${i.titel}</span>${i.hvorfor ? html`<span class="row-note">${intetHvorfor(i.hvorfor)}</span>` : ''}</span></div>` })) },
     { titel: t.ccFaerdig, form: 'raekker', elementer: cc.filter((o) => o.status === 'faerdig').map(ccElement), note: html`${(d.ccTal ?? []).map(ccTalLinje)}` },
     { titel: t.hermesHarGjort, form: 'raekker', elementer: dagensLog(kunSynlige(d.hermes, d.person), nu).map((h) => ({ id: unik(`log:${h.id ?? `${h.tid}|${h.tekst}`}`), html: logRaekke(h, nu) })) },
   ];
@@ -364,7 +364,7 @@ export function renderHjem(d: HjemData): Markup {
   ${fliser.length ? html`<section class="tiles kun-stor">
     ${fliser.map((r) => medId(`rum:${r.id}`, html`<a class="tile${r.built ? '' : ' tile-unbuilt'}" href="/rum/${r.id}" data-room-tile="${r.id}">${rumIkon(r.id)}<span class="tile-name">${rumNavn(r.id)}</span><span class="row-note">${rumBeskrivelse(r)}</span></a>`))}
   </section>` : ''}
-  ${tekst().chatSaetninger ? html`<p class="row-note rum-hint">${raw(t.chatHint)}</p>` : ''}`;
+  <p class="row-note rum-hint">${raw(t.chatHint)}</p>`;
 }
 
 export function renderPlaceholder(r: Room): Markup {

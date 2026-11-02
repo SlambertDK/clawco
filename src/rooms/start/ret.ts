@@ -8,11 +8,11 @@ import type { RoomDeps } from '../module.ts';
 import type { RetHaendelse } from '../rethaendelse.ts';
 import { KORSEL } from './prompt.ts';
 import { parseStartState } from './schema.ts';
+import { startTekst } from './tekster.ts';
 
 export type { RetHaendelse } from '../rethaendelse.ts';
 
 const RUM = 'start';
-const SAGT = { ret: 'rettede', 'ikke-relevant': 'sagde ikke relevant til' } as const;
 
 /** Records `h` when it is the first, newer than Start, and the journey is not already Done (an install latched before step 6 existed keeps its data untouched). True when it completed the step. */
 export async function modtagRet(deps: RoomDeps, h: RetHaendelse): Promise<boolean> {
@@ -24,7 +24,7 @@ export async function modtagRet(deps: RoomDeps, h: RetHaendelse): Promise<boolea
     trin: { ...s.trin, 'foerste-ret': { status: 'klaret', tid: h.tid } },
     ret: { art: h.art, tid: h.tid, titel: h.titel.slice(0, 200), ...(h.kortId ? { kortId: h.kortId } : {}), ...(tekst ? { tekst } : {}) },
   });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: deps.person.id, tekst: `Du ${SAGT[h.art]} »${h.titel.slice(0, 80)}«. Tak.` });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: deps.person.id, tekst: startTekst().akt.retLog(h.art, h.titel.slice(0, 80)) });
   deps.live.notify(RUM);
   return true;
 }

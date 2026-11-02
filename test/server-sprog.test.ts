@@ -17,13 +17,13 @@ const NOW = new Date('2026-10-31T10:00:00Z');
 const EJER: Person = { id: FAMILIE.medlem.id, login: null, navn: FAMILIE.medlem.navn, rolle: 'ejer' };
 
 type Sut = ReturnType<typeof createApp> & { hermes: ReturnType<typeof createFakeAgent> };
-async function medApp(fn: (s: Sut) => Promise<void>): Promise<void> {
+async function medApp(fn: (s: Sut) => Promise<void>, ekstra: { standardSprog?: 'da' | 'en' } = {}): Promise<void> {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-server-sprog-'));
   try {
     const hermes = createFakeAgent({ answer: () => 'Hej.' });
     const app = createApp({
       store: createFileStore(dir), hermes, sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW,
-      mailRunner: async () => ({ code: 1, stdout: '', stderr: 'x' }), mailStateDir: '/nonexistent', identitet: { fast: EJER }, kilder: [],
+      mailRunner: async () => ({ code: 1, stdout: '', stderr: 'x' }), mailStateDir: '/nonexistent', identitet: { fast: EJER }, kilder: [], ...ekstra,
     });
     await fn({ ...app, hermes });
   } finally { await rm(dir, { recursive: true, force: true }); }
@@ -90,4 +90,56 @@ test('a run after choosing English tells Hermes to answer in English, over the D
     assert.match(ins, /Answer in English/);
     assert.match(ins, /even though/i);
   });
+});
+
+// Slice 3: what server.ts itself answers follows the language too.
+test('API errors the server writes itself are English after choosing English, Danish before', async () => {
+  await medApp(async (s) => {
+    const daarlig = async (): Promise<Response> => s.app.request('/api/kilder/nyheder-rss/feeds', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{' });
+    const foer = await daarlig();
+    assert.equal(foer.status, 400);
+    assert.deepEqual(await foer.json(), { error: 'Send {"adresse": "…"} med adressen på én nyhedskilde.' });
+    assert.deepEqual(await (await s.app.request('/api/ingenting')).json(), { error: 'Findes ikke' });
+    await gem(s, 'en');
+    const efter = await daarlig();
+    assert.equal(efter.status, 400);
+    assert.deepEqual(await efter.json(), { error: 'Send {"adresse": "…"} with the address of one news source.' });
+    assert.deepEqual(await (await s.app.request('/api/ingenting')).json(), { error: 'Not found' });
+    assert.equal(await (await s.app.request('/api/runs/nej/events')).text(), 'The run does not exist');
+  });
+});
+
+test('the meeting page that is gone answers in the language too', async () => {
+  await medApp(async (s) => {
+    const side = (): Promise<Response> => Promise.resolve(s.app.request('/moede/intet/m1'));
+    const da = await side();
+    assert.equal(da.status, 404);
+    assert.match(await da.text(), /<h1>Mødet findes ikke<\/h1>/);
+    await gem(s, 'en');
+    const en = await side();
+    assert.equal(en.status, 404);
+    const t = await en.text();
+    assert.match(t, /<h1>The meeting does not exist<\/h1>/);
+    assert.match(t, /To Dagen/);
+  });
+});
+
+// Slice 3: a new installation (store/installation.ts says so) is English before step 1; Danish only when chosen.
+test('a new installation: no profile renders English; choosing English does not reload, choosing Danish does', async () => {
+  await medApp(async (s) => {
+    const h = await side(s, '/rum/start');
+    assert.match(h, /<html lang="en">/);
+    assert.match(h, /<span>Now<\/span>/);
+    assert.match(h, /<option value="en" selected>English<\/option>/);
+    // Nobody has a name yet: the greeting names no one (Henrik is the reference installation's fallback only).
+    assert.match(await side(s, '/rum/hjem'), /<h1>Good afternoon<\/h1>/);
+    const en = await gem(s, 'en');
+    assert.equal(en.result?.genindlaes, undefined);
+    assert.match(await side(s, '/rum/start'), /<html lang="en">/);
+  }, { standardSprog: 'en' });
+  await medApp(async (s) => {
+    const da = await gem(s, 'da');
+    assert.equal(da.result?.genindlaes, true);
+    assert.match(await side(s, '/rum/start'), /<html lang="da">/);
+  }, { standardSprog: 'en' });
 });

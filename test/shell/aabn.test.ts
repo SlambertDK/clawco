@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rumFraBesked, erHjaelp, hvadKanJegSige, hjaelpSvar } from '../../src/shell/aabn.ts';
 import { ROOMS } from '../../src/rooms/registry.ts';
+import { medSprog } from '../../src/store/sprog.ts';
 
 const UNIVERS = [{ id: 'min-arena', navn: 'Min arena' }];
 const aabn = (besked: string) => rumFraBesked(besked, UNIVERS);
@@ -90,6 +91,114 @@ test('KC-0154: "inviter …" opens the invite page; a question about invitations
 
 test('KC-0146: no chat phrase ever opens Slet alt', async () => {
   for (const b of ['slet alt', 'åbn slet alt', 'vis slet alt', 'jeg vil slette alt', 'slet alt hvad du ved om mig', 'åbn viden/slet-alt']) {
+    const hit = rumFraBesked(b, UNIVERS, { husstand: true });
+    assert.ok(!hit || !/slet/.test(hit.id), b);
+  }
+});
+
+// KC-0170: the reader understands both languages whatever the request's language: a person may type either.
+const en = <T,>(fn: () => T): T => medSprog('en', fn);
+
+test('KC-0170: the wish to write opens Skrive in English too', () => {
+  for (const b of ['I want to write', 'I want to write something', "Let's write", 'Help me write', 'Help me to write', "Okay, I need to write a text.", 'can we write', 'I would like to write'])
+    assert.deepEqual(aabn(b), { id: 'skrive', videre: false }, b);
+});
+
+test('KC-0170: an English opening verb with a room name opens that room', () => {
+  assert.deepEqual(aabn('open mail'), { id: 'mail', videre: false });
+  assert.deepEqual(aabn('Show me the news'), { id: 'nyheder', videre: false });
+  assert.deepEqual(aabn('go to the day'), { id: 'dagen', videre: false });
+  assert.deepEqual(aabn('can you open my calendar?'), { id: 'dagen', videre: false });
+  assert.deepEqual(aabn('back to the front page'), { id: 'hjem', videre: false });
+  assert.deepEqual(aabn('Take me to the front page'), { id: 'hjem', videre: false });
+  assert.deepEqual(aabn('open the universes'), { id: 'univers', videre: false });
+  assert.deepEqual(aabn('switch to the inbox'), { id: 'mail', videre: false });
+  assert.deepEqual(aabn('show me my mail'), { id: 'mail', videre: false });
+  assert.deepEqual(aabn('open the setup'), { id: 'start', videre: false });
+  assert.deepEqual(aabn('go back to the setup'), { id: 'start', videre: false });
+  assert.deepEqual(rumFraBesked('open the household', UNIVERS, { husstand: true }), { id: 'husstand', videre: false });
+  assert.deepEqual(rumFraBesked('go to the writing', UNIVERS, { husstand: true }), { id: 'skrive', videre: false });
+  assert.equal(aabn('open the household'), null, 'a single user: the sentence goes to Hermes');
+});
+
+test("KC-0170: the English wish to do a room's thing opens it", () => {
+  assert.deepEqual(aabn('I want to read the news'), { id: 'nyheder', videre: false });
+  assert.deepEqual(aabn('I just need to check my mail'), { id: 'mail', videre: false });
+  assert.deepEqual(aabn('I want to see the calendar'), { id: 'dagen', videre: false });
+  assert.deepEqual(aabn("let's go through my inbox"), { id: 'mail', videre: false });
+  assert.deepEqual(aabn("let's look at my calendar"), { id: 'dagen', videre: false });
+});
+
+test('KC-0170: a univers opens by its name in English too, the name used as it is', () => {
+  assert.deepEqual(aabn('open Min arena'), { id: 'univers-min-arena', videre: false });
+  assert.deepEqual(aabn('I want to work on Min arena'), { id: 'univers-min-arena', videre: false });
+  assert.deepEqual(aabn('go to Min arena'), { id: 'univers-min-arena', videre: false });
+});
+
+test('KC-0170: an English sentence that says more than the wish goes on to the room (videre)', () => {
+  assert.deepEqual(aabn('I want to write a text about Friday\'s meeting'), { id: 'skrive', videre: true });
+  assert.deepEqual(aabn('show me the mail from school'), { id: 'mail', videre: true });
+  assert.deepEqual(aabn('please, could you open my mail'), { id: 'mail', videre: false });
+});
+
+test('KC-0170: "what can I say", "help" and "what can you do" ask for the help in English too', () => {
+  for (const b of ['what can I say', 'What can I say?', '  WHAT CAN I SAY?! ', 'help', 'Help.', 'what can you do', 'What can you do?'])
+    assert.equal(erHjaelp(b), true, b);
+});
+
+test('KC-0170: ordinary English sentences to Hermes are not swallowed by the help', () => {
+  for (const b of ['help me write to Maja', 'what can I say to Maja?', 'what can you see in my calendar', 'what can I do today', 'I need help with the mail', 'help me'])
+    assert.equal(erHjaelp(b), false, b);
+});
+
+test('KC-0170: English questions and other sentences are for Hermes, not a room switch', () => {
+  for (const b of ["What does the news say?", 'what should I write to the school?', 'Did I get mail from Rikke', 'write a short reply', 'How is the day going?', 'I want an overview', 'I want to', 'show me what is new'])
+    assert.equal(aabn(b), null, b);
+});
+
+test('KC-0170: the list is in the request\'s language: English phrases, each really opening its room; Danish stays as it was', () => {
+  const liste = en(() => hvadKanJegSige(UNIVERS, { husstand: true }));
+  for (const r of ROOMS) assert.ok(liste.some((e) => e.id === r.id), `${r.id} is in the English list`);
+  assert.deepEqual(liste.find((e) => e.id === 'univers-min-arena'), { id: 'univers-min-arena', saet: 'Open Min arena' });
+  for (const e of liste) assert.deepEqual(rumFraBesked(e.saet, UNIVERS, { husstand: true }), { id: e.id, videre: false }, `"${e.saet}" opens ${e.id}`);
+  assert.deepEqual(liste.map((e) => e.saet), ['Back to the front page', 'Open the setup', 'Open the day', 'Open mail', 'I want to write', 'I want to read the news', 'Open the universes', 'Open the household', 'Open Min arena']);
+  assert.deepEqual(hvadKanJegSige(UNIVERS, { husstand: true }).map((e) => e.saet), ['Tilbage til forsiden', 'Åbn opsætningen', 'Åbn dagen', 'Åbn mail', 'Jeg vil skrive', 'Jeg vil læse nyhederne', 'Åbn universerne', 'Åbn husstanden', 'Åbn Min arena']);
+});
+
+test('KC-0170: the English help answer lists the phrases and says that the rest goes to Hermes; the Danish one is byte for byte as before', () => {
+  const svar = en(() => hjaelpSvar(UNIVERS));
+  assert.match(svar, /^You can say, for example:\n/);
+  for (const e of en(() => hvadKanJegSige(UNIVERS))) assert.ok(svar.includes(`• "${e.saet}"`), e.saet);
+  assert.match(svar, /\nAnything else, you can just ask me\.$/);
+  assert.ok(!svar.includes('husstand') && !svar.includes('household'), 'Husstanden only when it is there for the person');
+  assert.ok(en(() => hjaelpSvar(UNIVERS, { husstand: true })).includes('"Open the household"'));
+  assert.equal(hjaelpSvar(UNIVERS), 'Du kan sige for eksempel:\n• "Tilbage til forsiden"\n• "Åbn opsætningen"\n• "Åbn dagen"\n• "Åbn mail"\n• "Jeg vil skrive"\n• "Jeg vil læse nyhederne"\n• "Åbn universerne"\n• "Åbn Min arena"\nAlt andet kan du bare spørge mig om.');
+});
+
+test('KC-0170: the English phrases are read whatever the request language, and the Danish ones too under English', () => {
+  assert.deepEqual(en(() => aabn('åbn mail')), { id: 'mail', videre: false });
+  assert.deepEqual(aabn('open mail'), { id: 'mail', videre: false });
+  assert.equal(en(() => erHjaelp('hvad kan jeg sige')), true);
+});
+
+test('KC-0170: "what do you know about me" and "what have you stored" open the page of what Clawco knows', async () => {
+  const { erVidenBesked } = await import('../../src/shell/aabn.ts');
+  for (const b of ['what do you know about me', 'What do you know about me?', 'what have you stored', 'What have you saved about me?', 'Hi Hermes, what do you know about me', 'what does Clawco know about me'])
+    assert.equal(erVidenBesked(b), true, b);
+  for (const b of ['what do you know about Maja', 'what have you stored in Skrive yesterday', 'delete everything', 'delete everything you know about me', 'I want to delete everything'])
+    assert.equal(erVidenBesked(b), false, b);
+});
+
+test('KC-0170: "invite …" opens the invite page; a question about invitations is for Hermes', async () => {
+  const { erInviterBesked } = await import('../../src/shell/aabn.ts');
+  for (const b of ['invite', 'Invite someone', 'invite someone', 'I want to invite my daughter', "Hi Hermes, I'd like to invite Maja", 'can I invite grandma', 'let me invite Maja'])
+    assert.equal(erInviterBesked(b), true, b);
+  for (const b of ['who have I invited?', 'can you make an invitation for the party', 'write an invitation to the birthday', 'the invitation to the meeting', 'invited'])
+    assert.equal(erInviterBesked(b), false, b);
+});
+
+test('KC-0170: no English chat phrase ever opens Slet alt', () => {
+  for (const b of ['delete everything', 'open delete everything', 'show delete all', 'I want to delete everything', 'open viden/slet-alt']) {
     const hit = rumFraBesked(b, UNIVERS, { husstand: true });
     assert.ok(!hit || !/slet/.test(hit.id), b);
   }

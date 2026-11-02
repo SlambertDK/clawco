@@ -1,0 +1,70 @@
+{
+  "kalenderTom": {
+    "titel": "Ingen aftaler i dag",
+    "linje": "Kalenderen er forbundet. Hermes kigger på de næste dage."
+  },
+  "kalenderTidsat": {
+    "titel": "2 aftaler i dag",
+    "linje": "Første kl. 12.30: Board meeting"
+  },
+  "kalenderHelDag": {
+    "titel": "1 aftale i dag",
+    "linje": "Hele dagen: Holiday"
+  },
+  "kalenderUdenTitel": {
+    "titel": "1 aftale i dag",
+    "linje": "Første kl. 12.30: (uden titel)"
+  },
+  "mailIngenUlaeste": {
+    "titel": "Ingen ulæste",
+    "linje": "1 mail læst, alle er læst."
+  },
+  "mailUlaeste": {
+    "titel": "4 ulæste",
+    "linje": "De nyeste fra Bo, Alma og Cleo"
+  },
+  "mailEnUlaest": {
+    "titel": "1 ulæst",
+    "linje": "De nyeste fra Alma"
+  },
+  "mailUdenAfsender": {
+    "titel": "2 ulæste",
+    "linje": ""
+  },
+  "noter": {
+    "titel": "2 noter og 3 mennesker",
+    "linje": "Senest: Garden plan"
+  },
+  "noterEn": {
+    "titel": "1 note og 1 menneske",
+    "linje": "Senest: Garden plan"
+  },
+  "noterTom": {
+    "titel": "0 noter og 0 mennesker",
+    "linje": ""
+  },
+  "nyheder": {
+    "titel": "2 nyheder",
+    "linje": "Den nyeste: Power prices fall"
+  },
+  "nyhederTom": {
+    "titel": "0 nyheder",
+    "linje": ""
+  },
+  "beskeder": {
+    "titel": "2 ulæste beskeder",
+    "linje": "Fra Alma og Bo"
+  },
+  "beskederEn": {
+    "titel": "1 ulæst besked",
+    "linje": "Fra Alma"
+  },
+  "beskederIngen": {
+    "titel": "0 ulæste beskeder",
+    "linje": ""
+  },
+  "ugyldig": {
+    "titel": "Ingen aftaler i dag",
+    "linje": "Kalenderen er forbundet. Hermes kigger på de næste dage."
+  }
+}

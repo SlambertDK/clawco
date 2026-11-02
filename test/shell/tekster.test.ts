@@ -50,7 +50,7 @@ test('every room has an English name; the Danish names are the registry\'s own',
 });
 
 /** Strings that are the same in both languages on purpose (names, and words English borrows). */
-const ENS = new Set(['hermes', 'stop', 'send', 'rum.start', 'rum.mail', 'rolle.stoette', 'sprogValg.da', 'klient.omMin']);
+const ENS = new Set(['hermes', 'stop', 'send', 'rum.start', 'rum.mail', 'rolle.stoette', 'sprogValg.da', 'klient.omMin', 'kanal.stoette', 'stoetteHvem', 'billede.under', 'billede.min']);
 
 test('English is actually English: no Danish string copied over', () => {
   const ens = [...ensStrenge(TEKSTER.da as unknown as Record<string, unknown>, TEKSTER.en as unknown as Record<string, unknown>), ...ensStrenge(START_TEKSTER.da as unknown as Record<string, unknown>, START_TEKSTER.en as unknown as Record<string, unknown>)];
@@ -101,8 +101,12 @@ test('English: the shell has no Danish word, and its <html lang> and client tabl
   assert.match(doc, /<span>Now<\/span>/);
   assert.match(doc, /<span>Today<\/span>/);
   assert.deepEqual(danskeLinjer(doc), []);
-  // The Danish chat phrases are read only by the Danish chat matcher: not offered in English.
-  assert.doesNotMatch(doc, /id="chat-forslag"/);
+  // The chat reads English phrases too (KC-0170), so the chips and the list of what to say are shown in English.
+  assert.match(doc, /id="chat-forslag" role="group" aria-label="Suggestions"/);
+  assert.match(doc, /data-forslag="What can I say\?"/);
+  assert.match(doc, /<h3 class="eyebrow">In the chat you can say<\/h3>/);
+  assert.match(doc, /<li>Open the day<\/li>/);
+  assert.match(doc, /<li>What can I say\?<\/li>/);
 });
 
 test('the Danish detector works: the same shell in Danish is full of Danish lines', () => {
@@ -199,6 +203,8 @@ test('English: freshness, the next line, the clock, zone chips, the 404 page, th
   assert.equal(medSprog('en', () => omTekst(1_000_000_000_000, undefined, 1_000_000_000_000 - 90 * 60_000)), 'in 1 h 30 min');
   assert.equal(medSprog('en', () => tekst().hilsen(9, 'Alma')), 'Good morning, Alma');
   assert.equal(tekst().hilsen(18, 'Henrik'), 'Godaften, Henrik');
+  assert.equal(tekst().hilsen(18), 'Godaften');
+  assert.equal(medSprog('en', () => tekst().hilsen(11)), 'Good afternoon');
   assert.equal(medSprog('en', () => omTekst(1_000_000_000_000, 1_000_000_000_000 + 60_000, 1_000_000_000_000)), 'now');
   assert.equal(omTekst(1_000_000_000_000, undefined, 1_000_000_000_000 - 90 * 60_000), 'om 1 t 30 min');
 });

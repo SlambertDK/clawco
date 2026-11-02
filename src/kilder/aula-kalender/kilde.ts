@@ -20,10 +20,11 @@ import { createHash } from 'node:crypto';
 import { KildeFejl, type Helbred, type Kilde, type KildeKontekst, type KildeKort } from '../types.ts';
 import { tjekAdresse, AdresseFejl } from '../nyheder-rss/adresse.ts';
 import { HentFejl, lavHenter, type Henter } from '../nyheder-rss/hent.ts';
+import { rssTekst } from '../nyheder-rss/tekster.ts';
+import { aulaTekst } from './tekster.ts';
 import { IcsFejl, MAKS_BYTES, parseIcs, type IcsHaendelse } from './ics.ts';
 
 export const AULA_KALENDER_ID = 'aula-kalender';
-const NAVN = 'Aula';
 
 /**
  * The hosts an Aula calendar link may be on, and the only hosts a redirect may reach: aula.dk and its subdomains.
@@ -47,17 +48,17 @@ const MAKS_LINK = 1500; // within the secret module's 2000
 /** Link refused by the card: a Danish sentence that never repeats what was pasted. */
 function afvisLink(raa: string): URL {
   const t = raa.trim();
-  const ligner = new KildeFejl(400, 'Det ligner ikke et Aula-kalenderlink. Kopiér linket "Ugekalender" i Aula, og indsæt det her.');
-  if (!t) throw new KildeFejl(400, 'Indsæt linket fra Aula.');
+  const ligner = new KildeFejl(400, aulaTekst().ligner);
+  if (!t) throw new KildeFejl(400, aulaTekst().indsaetLinket);
   if (t.length > MAKS_LINK || /[\u0000- \u007f]/.test(t)) throw ligner;
-  if (!/^https:\/\//i.test(t)) throw new KildeFejl(400, 'Linket skal begynde med https://. Kopiér linket "Ugekalender" fra Aula.');
+  if (!/^https:\/\//i.test(t)) throw new KildeFejl(400, aulaTekst().skalBegynde);
   let u: URL;
   try { u = tjekAdresse(t, { oprindelse: 'ekstern' }); } catch (err) {
     if (err instanceof AdresseFejl) throw ligner;
     throw err;
   }
   if (u.protocol !== 'https:' || u.username || u.password || u.port) throw ligner;
-  if (!erAulaVaert(u.hostname)) throw new KildeFejl(400, 'Det er ikke et link fra Aula. Linket skal ligge på aula.dk.');
+  if (!erAulaVaert(u.hostname)) throw new KildeFejl(400, aulaTekst().ikkeAula);
   return u;
 }
 
@@ -70,14 +71,8 @@ type Gemt = { etag?: string; sidstRettet?: string; tekst: string };
 const ICS_ACCEPT = 'text/calendar, text/plain;q=0.5, */*;q=0.1';
 const REVOKERET = new Set([401, 403, 404, 410]);
 
-const TEKST_TILBAGEKALDT = 'Aula-linket virker ikke mere: lav et nyt kalenderlink i Aula (samtykket kan være trukket tilbage, eller kommunen har slået synkronisering fra).';
-
-const TRIN: { tekst: string }[] = [
-  { tekst: 'Åbn Aula i browseren eller i appen, og gå til Kalender. Vælg Kalendersynkronisering (Synkronisér kalender).' },
-  { tekst: 'Sæt fluebenet ved samtykket til, at Aula må overføre dine kalenderbegivenheder til en ekstern kalender. Fjerner du fluebenet senere, stopper deling ved kilden.' },
-  { tekst: 'Vælg den institution og de begivenhedstyper, du vil se, og tryk Opret kalenderlink.' },
-  { tekst: 'Kopiér linket "Ugekalender" (det der opdateres hvert femte minut), og indsæt det herunder. Linket virker som en adgangskode: del det ikke med andre.' },
-];
+/** The setup steps, in the language of the request each time the card is made (KC-0170). */
+const trin = (): { tekst: string }[] => aulaTekst().trin.map((tekst) => ({ tekst }));
 
 export function aulaKalender(o: { hent?: Henter; ur?: () => number; langsomMs?: number; version?: string } = {}): Kilde {
   const hent = o.hent ?? lavHenter({ agent: `Clawco/${o.version ?? '0.1'}`, accept: ICS_ACCEPT, maksBytes: MAKS_BYTES, tilladtVaert: erAulaVaert, perVaert: 1, samtidige: 2 });
@@ -106,13 +101,13 @@ export function aulaKalender(o: { hent?: Henter; ur?: () => number; langsomMs?: 
       const svar = await hent(link, { oprindelse: 'ekstern', ...(g?.etag ? { etag: g.etag } : {}), ...(g?.sidstRettet ? { sidstRettet: g.sidstRettet } : {}) });
       let tekst: string;
       if (svar.status === 'uaendret') {
-        if (!g) throw new HentFejl('net', 'Kilden kunne ikke læses.');
+        if (!g) throw new HentFejl('net', rssTekst().kildenIkkeLaest);
         tekst = g.tekst;
       } else {
         tekst = svar.tekst;
         if (!/^\s*BEGIN:VCALENDAR/i.test(tekst.replace(/^﻿/, ''))) {
           husk.set(noegle, { art: 'tilbagekaldt', tid });
-          throw new KildeFejl(502, 'Aula-linket virker ikke mere: svaret er ikke en kalender. Lav et nyt kalenderlink i Aula.');
+          throw new KildeFejl(502, aulaTekst().virkerIkkeIkkeKalender);
         }
         gemt.set(noegle, { tekst, ...(svar.etag ? { etag: svar.etag } : {}), ...(svar.sidstRettet ? { sidstRettet: svar.sidstRettet } : {}) });
       }
@@ -123,23 +118,23 @@ export function aulaKalender(o: { hent?: Henter; ur?: () => number; langsomMs?: 
       if (err instanceof HentFejl) {
         if ((err.kode === 'status' && err.httpStatus !== undefined && REVOKERET.has(err.httpStatus)) || err.kode === 'afvist') {
           husk.set(noegle, { art: 'tilbagekaldt', tid });
-          throw new KildeFejl(502, 'Aula-linket virker ikke mere. Lav et nyt kalenderlink i Aula.');
+          throw new KildeFejl(502, aulaTekst().virkerIkke);
         }
         husk.set(noegle, { art: 'nede', tid });
-        const ord = err.kode === 'tid' ? 'Aula svarede ikke i tide.' : err.kode === 'stor' ? 'Aula-kalenderen er for stor.' : 'Aula svarer ikke lige nu.';
+        const ord = err.kode === 'tid' ? aulaTekst().svarede.tid : err.kode === 'stor' ? aulaTekst().svarede.stor : aulaTekst().svarede.andet;
         throw new KildeFejl(502, ord);
       }
       husk.set(noegle, { art: 'nede', tid });
-      throw new KildeFejl(502, 'Aula svarer ikke lige nu.');
+      throw new KildeFejl(502, aulaTekst().svarerIkkeNu);
     }
   }
 
   return {
-    id: AULA_KALENDER_ID, navn: NAVN, slags: 'kalender', zone: 'husstand', auth: 'apikey', tillid: 'uklar',
+    id: AULA_KALENDER_ID, get navn() { return aulaTekst().navn; }, slags: 'kalender', zone: 'husstand', auth: 'apikey', tillid: 'uklar',
 
     async read(ctx) {
       const link = await linkAf(ctx);
-      if (!link) throw new KildeFejl(409, 'Aula er ikke forbundet med et kalenderlink.');
+      if (!link) throw new KildeFejl(409, aulaTekst().ikkeForbundet);
       const tekst = await hentTekst(link, ctx.nu);
       return { slags: 'kalender', hentet: ctx.nu.toISOString(), uklar: true, data: ugen(tekst, ctx.nu) };
     },
@@ -147,16 +142,17 @@ export function aulaKalender(o: { hent?: Henter; ur?: () => number; langsomMs?: 
     async kort(ctx): Promise<KildeKort> {
       const link = await linkAf(ctx);
       const vaert = link ? vaertAf(link) : '';
+      const t = aulaTekst();
       return {
-        titel: 'Aula', handling: link ? 'Skift link' : 'Forbind Aula', trin: TRIN,
-        tekst: `Clawco kan læse din kalender i Aula gennem det private kalenderlink, Aula selv laver til forældre: uden MitID. Clawco læser kun tid, titel, sted og institution, aldrig hvem der er inviteret eller beskrivelser, og kan aldrig ændre noget i Aula.${vaert ? ` Forbundet til ${vaert}.` : ''}`,
-        felter: [{ navn: 'link', etiket: 'Linket "Ugekalender" fra Aula', type: 'hemmelig', paakraevet: true, maks: MAKS_LINK }],
+        titel: t.navn, handling: link ? t.handling.skiftLink : t.handling.forbind, trin: trin(),
+        tekst: `${t.kortTekst}${vaert ? t.forbundetTil(vaert) : ''}`,
+        felter: [{ navn: 'link', etiket: t.linkEtiket, type: 'hemmelig', paakraevet: true, maks: MAKS_LINK }],
       };
     },
 
     async helbred(ctx): Promise<Helbred> {
       const link = await linkAf(ctx);
-      if (!link) return { status: 'log-ind-igen', tekst: 'Der er intet kalenderlink gemt. Indsæt linket fra Aula igen.' };
+      if (!link) return { status: 'log-ind-igen', tekst: aulaTekst().ingenLink };
       const noegle = hash(link);
       const vaert = vaertAf(link);
       const nu = ctx.nu.getTime();
@@ -166,10 +162,10 @@ export function aulaKalender(o: { hent?: Henter; ur?: () => number; langsomMs?: 
         try { await hentTekst(link, ctx.nu); } catch { /* the outcome is remembered; the answer below is made from it */ }
         h = husk.get(noegle);
       }
-      if (!h) return { status: 'nede', tekst: 'Aula svarer ikke lige nu.' };
-      if (h.art === 'tilbagekaldt') return { status: 'log-ind-igen', tekst: TEKST_TILBAGEKALDT };
-      if (h.art === 'nede') return { status: 'nede', tekst: `${vaert || 'Aula'} svarer ikke lige nu.` };
-      if (h.varighedMs > langsomMs) return { status: 'langsomt', tekst: `${vaert || 'Aula'} svarer langsomt.` };
+      if (!h) return { status: 'nede', tekst: aulaTekst().svarerIkkeNu };
+      if (h.art === 'tilbagekaldt') return { status: 'log-ind-igen', tekst: aulaTekst().tilbagekaldt };
+      if (h.art === 'nede') return { status: 'nede', tekst: aulaTekst().vaertSvarerIkkeNu(vaert || 'Aula') };
+      if (h.varighedMs > langsomMs) return { status: 'langsomt', tekst: aulaTekst().vaertSvarerLangsomt(vaert || 'Aula') };
       return { status: 'ok' };
     },
 
@@ -182,17 +178,17 @@ export function aulaKalender(o: { hent?: Henter; ur?: () => number; langsomMs?: 
       try { tekst = await hentTekst(link, ctx.nu); } catch (err) {
         const hk = husk.get(hash(link));
         if (hk?.art === 'tilbagekaldt') {
-          const ikkeKalender = err instanceof KildeFejl && /svaret er ikke en kalender/.test(err.message);
-          throw new KildeFejl(400, ikkeKalender ? 'Det ligner ikke et Aula-kalenderlink: svaret er ikke en kalender.' : 'Aula afviser linket. Lav et nyt kalenderlink i Aula (Ugekalender), og indsæt det her.');
+          const ikkeKalender = err instanceof KildeFejl && err.message === aulaTekst().virkerIkkeIkkeKalender; // by the sentence itself, in whatever language it was made in
+          throw new KildeFejl(400, ikkeKalender ? aulaTekst().ligneIkkeSvar : aulaTekst().afviserLinket);
         }
-        throw new KildeFejl(502, 'Aula svarer ikke lige nu. Prøv igen om lidt.');
+        throw new KildeFejl(502, aulaTekst().svarerIkkeProvIgen);
       }
       let antal: number;
       try { antal = ugen(tekst, ctx.nu).days.reduce((n, d) => n + d.events.length, 0); } catch (err) {
-        if (err instanceof IcsFejl) throw new KildeFejl(400, 'Det ligner ikke et Aula-kalenderlink: svaret er ikke en kalender.');
+        if (err instanceof IcsFejl) throw new KildeFejl(400, aulaTekst().ligneIkkeSvar);
         throw err;
       }
-      return { tekst: `Aula-kalenderen svarede: ${antal} ${antal === 1 ? 'aftale' : 'aftaler'} de næste syv dage.`, valg: {} };
+      return { tekst: aulaTekst().opsatTekst(antal), valg: {} };
     },
 
     async frakobl(ctx): Promise<void> {
@@ -219,7 +215,7 @@ function ugen(tekst: string, nu: Date): { generated: string; days: { date: strin
   const dage = new Map<string, { ms: number; heldag: boolean; e: Record<string, unknown> }[]>(Array.from({ length: UGE_DAGE }, (_, i) => [plusDage(foerste, i), []]));
   const set = new Set<string>();
   for (const h of r.haendelser) {
-    const e = begivenhed(h, r.kalenderNavn ?? NAVN);
+    const e = begivenhed(h, r.kalenderNavn ?? aulaTekst().navn);
     const id = String(e['id']);
     if (set.has(id)) continue;
     set.add(id);

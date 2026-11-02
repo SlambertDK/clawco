@@ -13,6 +13,7 @@
 // beside the state, prompt.ts), so nothing it writes can transition a request.
 
 import { koebenhavnTilIso } from '../shell/tid.ts';
+import { husstandTekst } from './tekster.ts';
 
 export const TILSTANDE = ['spurgt', 'accepteret', 'afvist', 'alternativ', 'udloebet'] as const;
 export type Tilstand = (typeof TILSTANDE)[number];
@@ -139,12 +140,12 @@ function gentagelse(f: Forespoergsel, h: Haendelse): boolean {
 
 /** Applies one event. Never mutates `f`. */
 export function anvend(f: Forespoergsel, h: Haendelse, nu: Date): Udfald {
-  if (h.slags !== 'udloeb' && !erPart(f, h.af)) return nej('ikke-part', 'Forespørgslen er ikke din.');
+  if (h.slags !== 'udloeb' && !erPart(f, h.af)) return nej('ikke-part', husstandTekst().fejl.forespIkkeDin);
   if (gentagelse(f, h)) return { ok: true, f, aendret: false };
-  if (ENDELIG.has(f.tilstand)) return nej('afgjort', 'Forespørgslen er allerede afgjort.');
+  if (ENDELIG.has(f.tilstand)) return nej('afgjort', husstandTekst().fejl.afgjortAllerede);
   const m = maal(f, h);
-  if (!m || (h.slags !== 'udloeb' && m.hvem !== h.af)) return nej('ikke-din-tur', 'Det er ikke din beslutning lige nu.');
-  if (h.slags === 'udloeb' && nu.getTime() < Date.parse(f.udloeber)) return nej('ikke-endnu', 'Forespørgslen er ikke udløbet endnu.');
+  if (!m || (h.slags !== 'udloeb' && m.hvem !== h.af)) return nej('ikke-din-tur', husstandTekst().fejl.ikkeDinBeslutning);
+  if (h.slags === 'udloeb' && nu.getTime() < Date.parse(f.udloeber)) return nej('ikke-endnu', husstandTekst().fejl.ikkeUdloebet);
   const ud: Forespoergsel = { ...f, tilstand: m.til, historik: [...f.historik, { tid: nu.toISOString(), tilstand: m.til, af: m.hvem }] };
   if (h.slags === 'alternativ') ud.alternativ = { ...h.alternativ };
   if (h.slags === 'traek') ud.aarsag = 'trukket';
@@ -170,12 +171,12 @@ export function tik(f: Forespoergsel, nu: Date): { f: Forespoergsel; aendret: bo
 
 /** Fortryd of an answer: back to the state before it — by its author only, while it is the latest step and before expiry. */
 export function fortrydSvar(f: Forespoergsel, af: PersonId, nu: Date): Udfald {
-  if (!erPart(f, af)) return nej('ikke-part', 'Forespørgslen er ikke din.');
+  if (!erPart(f, af)) return nej('ikke-part', husstandTekst().fejl.forespIkkeDin);
   const sidst = f.historik.at(-1);
   const foer = f.historik.at(-2);
-  if (!sidst || !foer || sidst.tilstand === 'spurgt' || sidst.tilstand === 'udloebet') return nej('intet', 'Der er intet svar at fortryde.');
-  if (sidst.af !== af) return nej('ikke-din-tur', 'Kun den, der svarede, kan fortryde svaret.');
-  if (nu.getTime() >= Date.parse(f.udloeber)) return nej('afgjort', 'Forespørgslen er udløbet, så svaret kan ikke fortrydes.');
+  if (!sidst || !foer || sidst.tilstand === 'spurgt' || sidst.tilstand === 'udloebet') return nej('intet', husstandTekst().fejl.intetSvar);
+  if (sidst.af !== af) return nej('ikke-din-tur', husstandTekst().fejl.kunSvareren);
+  if (nu.getTime() >= Date.parse(f.udloeber)) return nej('afgjort', husstandTekst().fejl.udloebetFortryd);
   const ud: Forespoergsel = { ...f, tilstand: foer.tilstand, historik: [...f.historik, { tid: nu.toISOString(), tilstand: foer.tilstand, af }] };
   if (foer.tilstand === 'spurgt') delete ud.alternativ;
   if (sidst.tilstand === 'accepteret') delete ud.iKalender;

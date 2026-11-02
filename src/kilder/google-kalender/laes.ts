@@ -13,6 +13,7 @@
 
 import { KildeFejl, type KalenderData } from '../types.ts';
 import { ENDPOINTS, type Hent } from '../google/oauth.ts';
+import { kalenderTekst } from './tekster.ts';
 
 const TZ = 'Europe/Copenhagen';
 const MAKS_KALENDERE = 50;
@@ -113,9 +114,9 @@ export async function laesUge(o: { hent: Hent; adgang: (ny?: boolean) => Promise
   let liste;
   try { liste = await alleSider(o.hent, o.adgang, `${ENDPOINTS.kalender}/users/me/calendarList`, {}); } catch (err) {
     if (err instanceof KildeFejl) throw err;
-    throw new KildeFejl(502, 'Google Kalender kunne ikke nås.');
+    throw new KildeFejl(502, kalenderTekst().kalenderIkkeNaaet);
   }
-  if (!liste.ok) throw new KildeFejl(502, `Kalenderlisten kunne ikke hentes fra Google (fejl ${liste.status}).`);
+  if (!liste.ok) throw new KildeFejl(502, kalenderTekst().kalenderlisteFejl(liste.status));
 
   for (const kal of liste.items.filter(erObj).slice(0, MAKS_KALENDERE)) {
     const id = str(kal['id']);
@@ -126,7 +127,7 @@ export async function laesUge(o: { hent: Hent; adgang: (ny?: boolean) => Promise
       r = await alleSider(o.hent, o.adgang, `${ENDPOINTS.kalender}/calendars/${encodeURIComponent(id)}/events`, { timeMin, timeMax, singleEvents: 'true', orderBy: 'startTime', maxResults: '250' });
     } catch (err) {
       if (err instanceof KildeFejl) throw err; // the token itself failed: the whole read fails, health says why
-      errors.push(`${navn}: netværksfejl`);
+      errors.push(kalenderTekst().netvaerksfejl(navn));
       continue;
     }
     if (!r.ok) { errors.push(`${navn}: HTTP ${r.status}`); continue; }

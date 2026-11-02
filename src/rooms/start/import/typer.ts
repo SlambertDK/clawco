@@ -2,6 +2,8 @@
 // whatever a file holds, they never throw and never return more than the caps below. Phone numbers, e-mail
 // addresses and photos are deliberately not read: the people register needs none of them (spec: files the user owns).
 
+import { START_TEKSTER, startTekst } from '../tekster.ts';
+
 /** One person as a contact file or an export holds them. */
 export type Kontakt = { navn: string; org?: string; foedselsdag?: string; noter?: string };
 
@@ -21,7 +23,12 @@ export function lavKontakt(f: { navn?: string | undefined; org?: string | undefi
   return { navn, ...(org ? { org } : {}), ...(foedselsdag ? { foedselsdag } : {}), ...(noter ? { noter } : {}) };
 }
 
-/** What a note's `kilde` says (`import-<slags>`), in the user's words: the card, the pile and the log use these. */
-export const SLAGS_NAVN: Record<string, string> = { chatgpt: 'ChatGPT', claude: 'Claude', gemini: 'Gemini', andet: 'en anden assistent', kontakter: 'dine kontakter', noter: 'dine noter', flere: 'flere kilder' };
+/** The names that do not change with the language. */
+const EGENNAVNE: Readonly<Record<string, string>> = { chatgpt: 'ChatGPT', claude: 'Claude', gemini: 'Gemini' };
 export const ASSISTENTER = ['chatgpt', 'claude', 'gemini', 'andet'] as const;
-export const slagsNavn = (slags: string): string => SLAGS_NAVN[slags] ?? slags;
+
+/**
+ * What a note's `kilde` says (`import-<slags>`), in the user's words: the card, the pile and the log use these. `sprog` = a language
+ * to force (the text written into the user's own files is always Danish); none = the language being rendered.
+ */
+export const slagsNavn = (slags: string, sprog?: 'da'): string => EGENNAVNE[slags] ?? (sprog ? START_TEKSTER[sprog] : startTekst()).imp.slags[slags] ?? slags;

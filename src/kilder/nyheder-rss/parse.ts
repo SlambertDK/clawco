@@ -8,6 +8,7 @@
 // and that is what billion-laughs documents are made of).
 
 import { XMLParser } from 'fast-xml-parser';
+import { rssTekst } from './tekster.ts';
 import type { Nyhed } from '../types.ts';
 import { normaliserAdresse } from './adresse.ts';
 
@@ -90,11 +91,11 @@ const erObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 const egen = (o: Record<string, unknown>, n: string): unknown => (Object.hasOwn(o, n) ? o[n] : undefined);
 
 function laesXml(xml: string): Record<string, unknown> {
-  if (typeof xml !== 'string' || !xml.trim()) throw new ParseFejl('Svaret er tomt.');
-  if (/<!ENTITY/i.test(xml)) throw new ParseFejl('Svaret bruger XML-entiteter og afvises.');
+  if (typeof xml !== 'string' || !xml.trim()) throw new ParseFejl(rssTekst().svarTomt);
+  if (/<!ENTITY/i.test(xml)) throw new ParseFejl(rssTekst().xmlEntiteter);
   let rod: unknown;
-  try { rod = parser.parse(xml, true); } catch { throw new ParseFejl('Svaret er ikke gyldig XML.'); }
-  if (!erObj(rod)) throw new ParseFejl('Svaret er ikke gyldig XML.');
+  try { rod = parser.parse(xml, true); } catch { throw new ParseFejl(rssTekst().ikkeGyldigXml); }
+  if (!erObj(rod)) throw new ParseFejl(rssTekst().ikkeGyldigXml);
   return rod;
 }
 
@@ -158,11 +159,11 @@ export function parseFeed(xml: string, o: { navn?: string; adresse: string }): {
   if (erObj(rss) && erObj(egen(rss, 'channel'))) { kanal = egen(rss, 'channel') as Record<string, unknown>; poster = liste(egen(kanal, 'item')); }
   else if (erObj(atom)) { kanal = atom; poster = liste(egen(atom, 'entry')); }
   else if (erObj(rdf)) { kanal = erObj(egen(rdf, 'channel')) ? (egen(rdf, 'channel') as Record<string, unknown>) : {}; poster = liste(egen(rdf, 'item')); }
-  else throw new ParseFejl('Svaret er ikke en nyhedskilde (RSS eller Atom).');
+  else throw new ParseFejl(rssTekst().ikkeEnKilde);
   const titel = renTekst(txt(egen(kanal, 'title')), MAKS_KILDE);
   let vaert = '';
   try { vaert = new URL(o.adresse).hostname; } catch { /* no host: the title or a placeholder below */ }
-  const kilde = renTekst(o.navn ?? '', MAKS_KILDE) || titel || vaert.slice(0, MAKS_KILDE) || 'Ukendt kilde';
+  const kilde = renTekst(o.navn ?? '', MAKS_KILDE) || titel || vaert.slice(0, MAKS_KILDE) || rssTekst().ukendtKilde;
   const nyheder: Nyhed[] = [];
   for (const p of poster) {
     const n = tilNyhed(p, kilde);
@@ -176,7 +177,7 @@ export function parseFeed(xml: string, o: { navn?: string; adresse: string }): {
 export function parseOpml(xml: string): { url: string; navn?: string }[] {
   const rod = laesXml(xml);
   const opml = egen(rod, 'opml');
-  if (!erObj(opml)) throw new ParseFejl('Filen er ikke en OPML-fil.');
+  if (!erObj(opml)) throw new ParseFejl(rssTekst().ikkeOpml);
   const ud: { url: string; navn?: string }[] = [];
   const set = new Set<string>();
   const gaa = (noder: unknown[], dybde: number): void => {

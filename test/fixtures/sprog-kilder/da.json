@@ -1,0 +1,2517 @@
+{
+ "helbred-kort": {
+  "snart-udloebet/oauth/kalender": {
+   "titel": "Adgangen til din kalender udløber snart",
+   "tekst": "Log ind igen nu, så din kalender ikke holder op med at virke.",
+   "knap": "Log ind igen"
+  },
+  "snart-udloebet/oauth/mail": {
+   "titel": "Adgangen til din mail udløber snart",
+   "tekst": "Log ind igen nu, så din mail ikke holder op med at virke.",
+   "knap": "Log ind igen"
+  },
+  "snart-udloebet/oauth/noter": {
+   "titel": "Adgangen til dine noter udløber snart",
+   "tekst": "Log ind igen nu, så dine noter ikke holder op med at virke.",
+   "knap": "Log ind igen"
+  },
+  "snart-udloebet/oauth/nyheder": {
+   "titel": "Adgangen til dine nyheder udløber snart",
+   "tekst": "Log ind igen nu, så dine nyheder ikke holder op med at virke.",
+   "knap": "Log ind igen"
+  },
+  "snart-udloebet/oauth/beskeder": {
+   "titel": "Adgangen til dine beskeder udløber snart",
+   "tekst": "Log ind igen nu, så dine beskeder ikke holder op med at virke.",
+   "knap": "Log ind igen"
+  },
+  "snart-udloebet/apikey/kalender": {
+   "titel": "Kalenderlinket udløber snart",
+   "tekst": "Lav et nyt kalenderlink i Aula, og indsæt det her, så din kalender ikke holder op med at virke.",
+   "knap": "Indsæt et nyt link"
+  },
+  "snart-udloebet/apikey/mail": {
+   "titel": "Adgangskoden til din mail udløber snart",
+   "tekst": "Skriv den igen nu, så din mail ikke holder op med at virke.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "snart-udloebet/apikey/noter": {
+   "titel": "Adgangskoden til dine noter udløber snart",
+   "tekst": "Skriv den igen nu, så dine noter ikke holder op med at virke.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "snart-udloebet/apikey/nyheder": {
+   "titel": "Adgangskoden til dine nyheder udløber snart",
+   "tekst": "Skriv den igen nu, så dine nyheder ikke holder op med at virke.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "snart-udloebet/apikey/beskeder": {
+   "titel": "Adgangskoden til dine beskeder udløber snart",
+   "tekst": "Skriv den igen nu, så dine beskeder ikke holder op med at virke.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "snart-udloebet/local/kalender": {
+   "titel": "Adgangen til mappen med din kalender udløber snart",
+   "tekst": "Vælg mappen igen nu, så din kalender ikke holder op med at virke.",
+   "knap": "Vælg mappen igen"
+  },
+  "snart-udloebet/local/mail": {
+   "titel": "Adgangen til mappen med din mail udløber snart",
+   "tekst": "Vælg mappen igen nu, så din mail ikke holder op med at virke.",
+   "knap": "Vælg mappen igen"
+  },
+  "snart-udloebet/local/noter": {
+   "titel": "Adgangen til mappen med dine noter udløber snart",
+   "tekst": "Vælg mappen igen nu, så dine noter ikke holder op med at virke.",
+   "knap": "Vælg mappen igen"
+  },
+  "snart-udloebet/local/nyheder": {
+   "titel": "Adgangen til mappen med dine nyheder udløber snart",
+   "tekst": "Vælg mappen igen nu, så dine nyheder ikke holder op med at virke.",
+   "knap": "Vælg mappen igen"
+  },
+  "snart-udloebet/local/beskeder": {
+   "titel": "Adgangen til mappen med dine beskeder udløber snart",
+   "tekst": "Vælg mappen igen nu, så dine beskeder ikke holder op med at virke.",
+   "knap": "Vælg mappen igen"
+  },
+  "snart-udloebet/bridge/kalender": {
+   "titel": "Adgangskoden til din kalender udløber snart",
+   "tekst": "Skriv den igen nu, så din kalender ikke holder op med at virke.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "snart-udloebet/bridge/mail": {
+   "titel": "Adgangskoden til din mail udløber snart",
+   "tekst": "Skriv den igen nu, så din mail ikke holder op med at virke.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "snart-udloebet/bridge/noter": {
+   "titel": "Adgangskoden til dine noter udløber snart",
+   "tekst": "Skriv den igen nu, så dine noter ikke holder op med at virke.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "snart-udloebet/bridge/nyheder": {
+   "titel": "Adgangskoden til dine nyheder udløber snart",
+   "tekst": "Skriv den igen nu, så dine nyheder ikke holder op med at virke.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "snart-udloebet/bridge/beskeder": {
+   "titel": "Adgangen til dine beskeder udløber snart",
+   "tekst": "Forbind kanalen igen hos Hermes, så dine beskeder ikke holder op med at virke.",
+   "knap": "Tjek igen"
+  },
+  "log-ind-igen/oauth/kalender": {
+   "titel": "Din kalender er logget ud",
+   "tekst": "Clawco kan ikke hente din kalender, før du har logget ind igen.",
+   "knap": "Log ind igen"
+  },
+  "log-ind-igen/oauth/mail": {
+   "titel": "Din mail er logget ud",
+   "tekst": "Clawco kan ikke hente din mail, før du har logget ind igen.",
+   "knap": "Log ind igen"
+  },
+  "log-ind-igen/oauth/noter": {
+   "titel": "Dine noter er logget ud",
+   "tekst": "Clawco kan ikke hente dine noter, før du har logget ind igen.",
+   "knap": "Log ind igen"
+  },
+  "log-ind-igen/oauth/nyheder": {
+   "titel": "Dine nyheder er logget ud",
+   "tekst": "Clawco kan ikke hente dine nyheder, før du har logget ind igen.",
+   "knap": "Log ind igen"
+  },
+  "log-ind-igen/oauth/beskeder": {
+   "titel": "Dine beskeder er logget ud",
+   "tekst": "Clawco kan ikke hente dine beskeder, før du har logget ind igen.",
+   "knap": "Log ind igen"
+  },
+  "log-ind-igen/apikey/kalender": {
+   "titel": "Kalenderlinket virker ikke længere",
+   "tekst": "Lav et nyt kalenderlink i Aula, og indsæt det her. Det kan være, at samtykket er trukket tilbage, eller at kommunen har slået synkronisering fra.",
+   "knap": "Indsæt et nyt link"
+  },
+  "log-ind-igen/apikey/mail": {
+   "titel": "Adgangskoden til din mail virker ikke længere",
+   "tekst": "Skriv adgangskoden igen, så henter Clawco din mail igen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "log-ind-igen/apikey/noter": {
+   "titel": "Adgangskoden til dine noter virker ikke længere",
+   "tekst": "Skriv adgangskoden igen, så henter Clawco dine noter igen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "log-ind-igen/apikey/nyheder": {
+   "titel": "Adgangskoden til dine nyheder virker ikke længere",
+   "tekst": "Skriv adgangskoden igen, så henter Clawco dine nyheder igen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "log-ind-igen/apikey/beskeder": {
+   "titel": "Adgangskoden til dine beskeder virker ikke længere",
+   "tekst": "Skriv adgangskoden igen, så henter Clawco dine beskeder igen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "log-ind-igen/local/kalender": {
+   "titel": "Mappen med din kalender kan ikke åbnes",
+   "tekst": "Vælg mappen igen, så henter Clawco din kalender igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "log-ind-igen/local/mail": {
+   "titel": "Mappen med din mail kan ikke åbnes",
+   "tekst": "Vælg mappen igen, så henter Clawco din mail igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "log-ind-igen/local/noter": {
+   "titel": "Mappen med dine noter kan ikke åbnes",
+   "tekst": "Vælg mappen igen, så henter Clawco dine noter igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "log-ind-igen/local/nyheder": {
+   "titel": "Mappen med dine nyheder kan ikke åbnes",
+   "tekst": "Vælg mappen igen, så henter Clawco dine nyheder igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "log-ind-igen/local/beskeder": {
+   "titel": "Mappen med dine beskeder kan ikke åbnes",
+   "tekst": "Vælg mappen igen, så henter Clawco dine beskeder igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "log-ind-igen/bridge/kalender": {
+   "titel": "Adgangskoden til din kalender virker ikke længere",
+   "tekst": "Skriv adgangskoden igen, så henter Clawco din kalender igen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "log-ind-igen/bridge/mail": {
+   "titel": "Adgangskoden til din mail virker ikke længere",
+   "tekst": "Skriv adgangskoden igen, så henter Clawco din mail igen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "log-ind-igen/bridge/noter": {
+   "titel": "Adgangskoden til dine noter virker ikke længere",
+   "tekst": "Skriv adgangskoden igen, så henter Clawco dine noter igen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "log-ind-igen/bridge/nyheder": {
+   "titel": "Adgangskoden til dine nyheder virker ikke længere",
+   "tekst": "Skriv adgangskoden igen, så henter Clawco dine nyheder igen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "log-ind-igen/bridge/beskeder": {
+   "titel": "Hermes har mistet en af dine beskedkanaler",
+   "tekst": "Forbind kanalen igen på serveren, hvor Hermes kører: WhatsApp med \"hermes whatsapp\" (scan QR-koden), Signal med \"signal-cli link\", Telegram med \"hermes gateway setup\". Genstart Hermes, så læser Clawco videre i de samtaler, du har valgt.",
+   "knap": "Tjek igen"
+  },
+  "nede/oauth/kalender": {
+   "titel": "Din kalender svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente din kalender i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Log ind igen"
+  },
+  "nede/oauth/mail": {
+   "titel": "Din mail svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente din mail i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Log ind igen"
+  },
+  "nede/oauth/noter": {
+   "titel": "Dine noter svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente dine noter i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Log ind igen"
+  },
+  "nede/oauth/nyheder": {
+   "titel": "Dine nyheder svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente dine nyheder i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Log ind igen"
+  },
+  "nede/oauth/beskeder": {
+   "titel": "Dine beskeder svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente dine beskeder i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Log ind igen"
+  },
+  "nede/apikey/kalender": {
+   "titel": "Din kalender svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente din kalender i et stykke tid. Indsæt linket igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indsæt linket igen"
+  },
+  "nede/apikey/mail": {
+   "titel": "Din mail svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente din mail i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "nede/apikey/noter": {
+   "titel": "Dine noter svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente dine noter i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "nede/apikey/nyheder": {
+   "titel": "Dine nyheder svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente dine nyheder i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "nede/apikey/beskeder": {
+   "titel": "Dine beskeder svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente dine beskeder i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "nede/local/kalender": {
+   "titel": "Mappen med din kalender er væk",
+   "tekst": "Clawco kan ikke finde mappen. Er den flyttet eller koblet fra, så vælg den igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "nede/local/mail": {
+   "titel": "Mappen med din mail er væk",
+   "tekst": "Clawco kan ikke finde mappen. Er den flyttet eller koblet fra, så vælg den igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "nede/local/noter": {
+   "titel": "Mappen med dine noter er væk",
+   "tekst": "Clawco kan ikke finde mappen. Er den flyttet eller koblet fra, så vælg den igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "nede/local/nyheder": {
+   "titel": "Mappen med dine nyheder er væk",
+   "tekst": "Clawco kan ikke finde mappen. Er den flyttet eller koblet fra, så vælg den igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "nede/local/beskeder": {
+   "titel": "Mappen med dine beskeder er væk",
+   "tekst": "Clawco kan ikke finde mappen. Er den flyttet eller koblet fra, så vælg den igen.",
+   "knap": "Vælg mappen igen"
+  },
+  "nede/bridge/kalender": {
+   "titel": "Din kalender svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente din kalender i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "nede/bridge/mail": {
+   "titel": "Din mail svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente din mail i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "nede/bridge/noter": {
+   "titel": "Dine noter svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente dine noter i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "nede/bridge/nyheder": {
+   "titel": "Dine nyheder svarer ikke",
+   "tekst": "Clawco har ikke kunnet hente dine nyheder i et stykke tid. Forbind igen; svarer den stadig ikke, er det hos udbyderen.",
+   "knap": "Indtast adgangskoden igen"
+  },
+  "nede/bridge/beskeder": {
+   "titel": "Dine beskeder svarer ikke",
+   "tekst": "Hermes har ikke skrevet beskeder til Clawco i et stykke tid. Tjek, at Hermes kører.",
+   "knap": "Tjek igen"
+  }
+ },
+ "helbred-ord": {
+  "knap": {
+   "oauth": "Log ind igen",
+   "apikey": "Indtast adgangskoden igen",
+   "bridge": "Indtast adgangskoden igen",
+   "local": "Vælg mappen igen"
+  },
+  "kanal": {
+   "telegram": "Telegram er ikke forbundet til Hermes. Tjek bot-nøglen i Hermes med \"hermes gateway setup\", og genstart Hermes.",
+   "whatsapp": "WhatsApp er logget ud af Hermes. Kør \"hermes whatsapp\" på serveren, og scan QR-koden med telefonen igen.",
+   "signal": "Signal er ikke forbundet til Hermes. Link Signal igen med \"signal-cli link\", og genstart Hermes."
+  },
+  "stemme": [
+   "Din kalender svarer ikke.",
+   "Hermes har mistet en af dine beskedkanaler.",
+   null
+  ],
+  "felter": [
+   {
+    "navn": "adgangskode",
+    "etiket": "Kode",
+    "type": "hemmelig",
+    "paakraevet": true,
+    "skjult": false
+   }
+  ]
+ },
+ "register": {
+  "ukendt-id": {
+   "fejl": "Ukendt forbindelse",
+   "status": 404
+  },
+  "ikke-forbundet": {
+   "fejl": "Testen er ikke forbundet",
+   "status": 409
+  },
+  "body-ikke-objekt": {
+   "fejl": "ugyldig forespørgsel",
+   "status": 400
+  },
+  "body-ukendt-felt": {
+   "fejl": "ukendt felt: x",
+   "status": 400
+  },
+  "body-ukendt-zone": {
+   "fejl": "ukendt zone",
+   "status": 400
+  },
+  "felter-ikke-objekt": {
+   "fejl": "felter skal være et objekt",
+   "status": 400
+  },
+  "felt-ukendt": {
+   "fejl": "ukendt felt: foo",
+   "status": 400
+  },
+  "felt-skjult": {
+   "fejl": "ukendt felt: skjult",
+   "status": 400
+  },
+  "felt-mangler": {
+   "fejl": "Konto mangler",
+   "status": 400
+  },
+  "felt-ugyldig": {
+   "fejl": "Konto er ugyldig",
+   "status": 400
+  },
+  "felt-ikke-valg": {
+   "fejl": "Valg er ikke et af valgene",
+   "status": 400
+  },
+  "forbind-ok": {
+   "ok": "forbundet"
+  },
+  "laes-ok": {
+   "ok": "kalender"
+  },
+  "forbind-opsaet-fejler": {
+   "fejl": "Testen kunne ikke sættes op",
+   "status": 502
+  },
+  "forbind-opsaet-ugyldig": {
+   "fejl": "Testen svarede med ugyldige valg",
+   "status": 502
+  },
+  "forbind-fejler-laes": {
+   "fejl": "Testen kunne ikke læses",
+   "status": 502
+  },
+  "forbind-forkert-slags": {
+   "fejl": "Testen svarede med noget andet end kalender",
+   "status": 502
+  },
+  "forbind-nede": {
+   "fejl": "Testen virker ikke lige nu",
+   "status": 502
+  },
+  "tilbage-ukendt-state": {
+   "fejl": "Forbindelsen kunne ikke bekræftes. Prøv at forbinde igen.",
+   "status": 400
+  },
+  "aendre-ikke-forbundet": {
+   "fejl": "Testen er ikke forbundet",
+   "status": 409
+  },
+  "aendre-fejler": {
+   "fejl": "Testen kunne ikke ændres",
+   "status": 502
+  },
+  "aendre-ugyldigt": {
+   "fejl": "Testen svarede med ugyldige valg",
+   "status": 502
+  },
+  "aendre-ok": {
+   "ok": "ok"
+  },
+  "handl-ukendt": {
+   "fejl": "Testen kan ikke flyv",
+   "status": 400
+  },
+  "handl-ikke-forbundet": {
+   "fejl": "Testen er ikke forbundet",
+   "status": 409
+  },
+  "handl-gaest": {
+   "fejl": "Din rolle i husstanden må ikke sætte det her i gang.",
+   "status": 403
+  },
+  "handl-ok": {
+   "ok": {
+    "ok": true,
+    "tekst": "ok"
+   }
+  },
+  "frakobl-ikke-forbundet": {
+   "fejl": "Testen er ikke forbundet",
+   "status": 409
+  },
+  "frakobl-ok": {},
+  "log": {
+   "ok": [
+    "Ella frakoblede Testen (kalender); adgangen er fjernet.",
+    "Ella frakoblede Testen (kalender); adgangen er fjernet.",
+    "Ella forbandt Testen (kalender).",
+    "Ella ændrede Testen: Satte det.",
+    "Ella forbandt Testen (kalender).",
+    "Ella forbandt Testen (kalender).",
+    "Ella forbandt Testen (kalender).",
+    "Ella forbandt Testen (kalender)."
+   ]
+  }
+ },
+ "laesning": {
+  "forkert-slags": {
+   "fejl": "Testen svarede med noget andet end mail",
+   "status": 502
+  }
+ },
+ "hemmeligheder": {
+  "noegle-ikke-tilladt": {
+   "fejl": "PATH er ikke en nøgle, Clawco må sætte"
+  },
+  "vaerdi-ugyldig": {
+   "fejl": "værdien til KC_GOOGLE_CLIENT_ID er tom, for lang eller har tegn, der ikke kan stå i filen"
+  },
+  "agent-noegle": {
+   "fejl": "KC_X er ikke en nøgle, Clawco må give agenten"
+  },
+  "kilde-id": {
+   "fejl": "ugyldigt kilde-id"
+  },
+  "kilde-felt": {
+   "fejl": "ugyldigt felt i hemmeligheden: X!"
+  },
+  "laes-ugyldig": {
+   "fejl": "hemmeligheden til k2 er ikke gyldig"
+  },
+  "laes-ikke-objekt": {
+   "fejl": "hemmeligheden til k3 er ikke gyldig"
+  },
+  "fjern-ukendt-id": {
+   "fejl": "ugyldigt kilde-id"
+  },
+  "er-fejl": {
+   "fejl": "x"
+  }
+ },
+ "google-trin": {
+  "fuld": [
+   {
+    "tekst": "Åbn console.cloud.google.com med din egen Google-konto, og lav et nyt projekt, fx \"Clawco\"."
+   },
+   {
+    "tekst": "Gå til \"APIs & Services\" og \"Library\", søg efter \"Google Calendar API\", og tryk \"Enable\"."
+   },
+   {
+    "tekst": "Gå til \"Google Auth platform\" og \"Branding\", tryk \"Get started\", giv appen et navn og din mail, og vælg \"External\" som målgruppe."
+   },
+   {
+    "tekst": "Under \"Audience\": tilføj din egen Google-konto som testbruger."
+   },
+   {
+    "tekst": "Under \"Data Access\": tryk \"Add or remove scopes\", og tilføj denne tilladelse.",
+    "kopier": "https://www.googleapis.com/auth/calendar.readonly"
+   },
+   {
+    "tekst": "Under \"Clients\": tryk \"Create client\", vælg \"Web application\", og indsæt denne adresse under \"Authorized redirect URIs\".",
+    "kopier": "https://k.example.test/api/kilder/google-kalender/tilbage"
+   },
+   {
+    "tekst": "Under \"Audience\": tryk \"Publish app\", så adgangen ikke udløber efter syv dage. Google kalder appen ikke godkendt; det er i orden, når det er din egen app til dig selv."
+   },
+   {
+    "tekst": "Kopiér klient-id og klienthemmelighed fra \"Clients\", og sæt dem ind herunder."
+   }
+  ],
+  "uden": [
+   {
+    "tekst": "Åbn console.cloud.google.com med din egen Google-konto, og lav et nyt projekt, fx \"Clawco\"."
+   },
+   {
+    "tekst": "Gå til \"Google Auth platform\" og \"Branding\", tryk \"Get started\", giv appen et navn og din mail, og vælg \"External\" som målgruppe."
+   },
+   {
+    "tekst": "Under \"Audience\": tilføj din egen Google-konto som testbruger."
+   },
+   {
+    "tekst": "Under \"Clients\": tryk \"Create client\" og vælg \"Web application\". Clawco kender ikke sin egen adresse endnu (KC_ADRESSE), så adressen, Google skal sende dig tilbage til, kan ikke vises. Ejeren skal sætte den først."
+   },
+   {
+    "tekst": "Under \"Audience\": tryk \"Publish app\", så adgangen ikke udløber efter syv dage. Google kalder appen ikke godkendt; det er i orden, når det er din egen app til dig selv."
+   },
+   {
+    "tekst": "Kopiér klient-id og klienthemmelighed fra \"Clients\", og sæt dem ind herunder."
+   }
+  ],
+  "tilfoej": [
+   {
+    "tekst": "Google-appen kender endnu kun den første forbindelses returadresse. Åbn din klient under \"Clients\" i \"Google Auth platform\", og tilføj denne adresse under \"Authorized redirect URIs\".",
+    "kopier": "https://k.example.test/x"
+   },
+   {
+    "tekst": "Under \"Data Access\": tryk \"Add or remove scopes\", og tilføj denne tilladelse.",
+    "kopier": "https://mail.google.com/"
+   }
+  ],
+  "tilfoejUden": [
+   {
+    "tekst": "Google-appen skal kende denne forbindelses returadresse under \"Authorized redirect URIs\", men Clawco kender ikke sin egen adresse endnu (KC_ADRESSE). Ejeren skal sætte den først."
+   },
+   {
+    "tekst": "Under \"Data Access\": tryk \"Add or remove scopes\", og tilføj denne tilladelse.",
+    "kopier": "https://mail.google.com/"
+   }
+  ]
+ },
+ "google-krav": {
+  "kalender": {
+   "mangler": "Clawco fik ikke lov til at se kalenderen. Log ind igen, og sæt flueben ved kalenderen.",
+   "formeget": "Google gav mere end læseadgang til kalenderen. Clawco tager kun imod læseadgang."
+  },
+  "mail": {
+   "mangler": "Clawco fik ikke lov til at læse din mail. Log ind igen, og sæt flueben ved mail.",
+   "formeget": "Google gav mere end mail og din adresse. Clawco tager kun imod det, den bad om."
+  }
+ },
+ "google-oauth": {
+  "nede": {
+   "fejl": "Google kunne ikke nås. Prøv igen om lidt.",
+   "status": 502
+  },
+  "invalid_grant": {
+   "fejl": "Google har trukket adgangen tilbage eller ladet den udløbe. Log ind med Google igen.",
+   "status": 502
+  },
+  "invalid_client": {
+   "fejl": "Google kender ikke Clawcos nøgle til kalenderen. Tjek klient-id og hemmelighed.",
+   "status": 502
+  },
+  "status": {
+   "fejl": "Google svarede med fejl 503.",
+   "status": 502
+  },
+  "ingen-adgang": {
+   "fejl": "Google sendte ingen adgang.",
+   "status": 502
+  },
+  "ingen-refresh": {
+   "fejl": "Google gav ikke en varig adgang. Prøv at logge ind igen.",
+   "status": 502
+  },
+  "scope-mangler": {
+   "fejl": "Clawco fik ikke lov til at se kalenderen. Log ind igen, og sæt flueben ved kalenderen.",
+   "status": 403
+  },
+  "scope-for-meget": {
+   "fejl": "Google gav mere end læseadgang til kalenderen. Clawco tager kun imod læseadgang.",
+   "status": 403
+  },
+  "mail-for-meget": {
+   "fejl": "Google gav mere end mail og din adresse. Clawco tager kun imod det, den bad om.",
+   "status": 403
+  }
+ },
+ "kort-google-kalender": {
+  "navn": "Google Kalender",
+  "uden": {
+   "titel": "Google Kalender",
+   "handling": "Gem og log ind med Google",
+   "trin": [
+    {
+     "tekst": "Åbn console.cloud.google.com med din egen Google-konto, og lav et nyt projekt, fx \"Clawco\"."
+    },
+    {
+     "tekst": "Gå til \"APIs & Services\" og \"Library\", søg efter \"Google Calendar API\", og tryk \"Enable\"."
+    },
+    {
+     "tekst": "Gå til \"Google Auth platform\" og \"Branding\", tryk \"Get started\", giv appen et navn og din mail, og vælg \"External\" som målgruppe."
+    },
+    {
+     "tekst": "Under \"Audience\": tilføj din egen Google-konto som testbruger."
+    },
+    {
+     "tekst": "Under \"Clients\": tryk \"Create client\", vælg \"Web application\", og indsæt denne adresse under \"Authorized redirect URIs\".",
+     "kopier": "https://k.example.test/api/kilder/google-kalender/tilbage"
+    },
+    {
+     "tekst": "Under \"Audience\": tryk \"Publish app\", så adgangen ikke udløber efter syv dage. Google kalder appen ikke godkendt; det er i orden, når det er din egen app til dig selv."
+    },
+    {
+     "tekst": "Kopiér klient-id og klienthemmelighed fra \"Clients\", og sæt dem ind herunder."
+    }
+   ],
+   "tekst": "Første gang laver du din egen lille Google-app, så din kalender går direkte fra Google til Clawco. Det tager fem minutter, ét trin ad gangen. Clawco kan kun læse kalenderen, aldrig ændre den.",
+   "felter": [
+    {
+     "navn": "klient_id",
+     "etiket": "Klient-id",
+     "type": "tekst",
+     "paakraevet": true,
+     "maks": 300,
+     "miljoe": "KC_GOOGLE_CLIENT_ID"
+    },
+    {
+     "navn": "klient_hemmelighed",
+     "etiket": "Klienthemmelighed",
+     "type": "hemmelig",
+     "paakraevet": true,
+     "maks": 300,
+     "miljoe": "KC_GOOGLE_CLIENT_SECRET"
+    }
+   ]
+  },
+  "udenAdresse": {
+   "titel": "Google Kalender",
+   "handling": "Gem og log ind med Google",
+   "trin": [
+    {
+     "tekst": "Åbn console.cloud.google.com med din egen Google-konto, og lav et nyt projekt, fx \"Clawco\"."
+    },
+    {
+     "tekst": "Gå til \"APIs & Services\" og \"Library\", søg efter \"Google Calendar API\", og tryk \"Enable\"."
+    },
+    {
+     "tekst": "Gå til \"Google Auth platform\" og \"Branding\", tryk \"Get started\", giv appen et navn og din mail, og vælg \"External\" som målgruppe."
+    },
+    {
+     "tekst": "Under \"Audience\": tilføj din egen Google-konto som testbruger."
+    },
+    {
+     "tekst": "Under \"Clients\": tryk \"Create client\" og vælg \"Web application\". Clawco kender ikke sin egen adresse endnu (KC_ADRESSE), så adressen, Google skal sende dig tilbage til, kan ikke vises. Ejeren skal sætte den først."
+    },
+    {
+     "tekst": "Under \"Audience\": tryk \"Publish app\", så adgangen ikke udløber efter syv dage. Google kalder appen ikke godkendt; det er i orden, når det er din egen app til dig selv."
+    },
+    {
+     "tekst": "Kopiér klient-id og klienthemmelighed fra \"Clients\", og sæt dem ind herunder."
+    }
+   ],
+   "tekst": "Første gang laver du din egen lille Google-app, så din kalender går direkte fra Google til Clawco. Det tager fem minutter, ét trin ad gangen. Clawco kan kun læse kalenderen, aldrig ændre den.",
+   "felter": [
+    {
+     "navn": "klient_id",
+     "etiket": "Klient-id",
+     "type": "tekst",
+     "paakraevet": true,
+     "maks": 300,
+     "miljoe": "KC_GOOGLE_CLIENT_ID"
+    },
+    {
+     "navn": "klient_hemmelighed",
+     "etiket": "Klienthemmelighed",
+     "type": "hemmelig",
+     "paakraevet": true,
+     "maks": 300,
+     "miljoe": "KC_GOOGLE_CLIENT_SECRET"
+    }
+   ]
+  },
+  "med": {
+   "titel": "Google Kalender",
+   "felter": [],
+   "handling": "Log ind med Google",
+   "tekst": "Log ind med din Google-konto, så står alle dine kalendere de næste syv dage i Dagen og i Nu. Clawco kan kun læse kalenderen, aldrig ændre den."
+  },
+  "helbredUden": {
+   "status": "nede",
+   "tekst": "Google-appen mangler klient-id eller klienthemmelighed."
+  },
+  "helbredIngenAdgang": {
+   "status": "log-ind-igen",
+   "tekst": "Clawco har ingen adgang til kalenderen. Log ind med Google igen."
+  },
+  "fejl": {
+   "start-uden-klient": {
+    "fejl": "Google-appen er ikke sat op endnu: klient-id og klienthemmelighed mangler. Følg trinene på kortet.",
+    "status": 409
+   },
+   "start-uden-adresse": {
+    "fejl": "Clawco kender ikke sin egen adresse (KC_ADRESSE), så Google ikke kan sende dig tilbage. Ejeren skal sætte den først.",
+    "status": 409
+   },
+   "tilbage-ukendt": {
+    "fejl": "Login med Google kunne ikke bekræftes. Prøv igen.",
+    "status": 400
+   },
+   "read-uden-klient": {
+    "fejl": "Google-appen er ikke sat op endnu: klient-id og klienthemmelighed mangler. Følg trinene på kortet.",
+    "status": 409
+   },
+   "read-uden-adgang": {
+    "fejl": "Clawco har ingen adgang til kalenderen. Log ind med Google igen.",
+    "status": 502
+   },
+   "read-nede": {
+    "fejl": "Google kunne ikke nås. Prøv igen om lidt.",
+    "status": 502
+   },
+   "read-liste": {
+    "ok": {
+     "slags": "kalender",
+     "hentet": "2026-11-02T08:00:00.000Z",
+     "uklar": true,
+     "data": {
+      "generated": "2026-11-02T09:00:00+01:00",
+      "days": [
+       {
+        "date": "2026-11-02",
+        "events": []
+       },
+       {
+        "date": "2026-11-03",
+        "events": []
+       },
+       {
+        "date": "2026-11-04",
+        "events": []
+       },
+       {
+        "date": "2026-11-05",
+        "events": []
+       },
+       {
+        "date": "2026-11-06",
+        "events": []
+       },
+       {
+        "date": "2026-11-07",
+        "events": []
+       },
+       {
+        "date": "2026-11-08",
+        "events": []
+       }
+      ],
+      "errors": []
+     }
+    }
+   }
+  }
+ },
+ "kort-mail-gmail": {
+  "navn": "Gmail",
+  "uden": {
+   "titel": "Gmail",
+   "handling": "Gem og log ind med Google",
+   "trin": [
+    {
+     "tekst": "Åbn console.cloud.google.com med din egen Google-konto, og lav et nyt projekt, fx \"Clawco\"."
+    },
+    {
+     "tekst": "Gå til \"Google Auth platform\" og \"Branding\", tryk \"Get started\", giv appen et navn og din mail, og vælg \"External\" som målgruppe."
+    },
+    {
+     "tekst": "Under \"Audience\": tilføj din egen Google-konto som testbruger."
+    },
+    {
+     "tekst": "Under \"Data Access\": tryk \"Add or remove scopes\", og tilføj denne tilladelse.",
+     "kopier": "https://mail.google.com/"
+    },
+    {
+     "tekst": "Under \"Clients\": tryk \"Create client\", vælg \"Web application\", og indsæt denne adresse under \"Authorized redirect URIs\".",
+     "kopier": "https://k.example.test/api/kilder/mail-gmail/tilbage"
+    },
+    {
+     "tekst": "Under \"Audience\": tryk \"Publish app\", så adgangen ikke udløber efter syv dage. Google kalder appen ikke godkendt; det er i orden, når det er din egen app til dig selv."
+    },
+    {
+     "tekst": "Kopiér klient-id og klienthemmelighed fra \"Clients\", og sæt dem ind herunder."
+    }
+   ],
+   "tekst": "Første gang laver du din egen lille Google-app, så din mail går direkte fra Google til Clawco, uden en app-adgangskode. Det tager fem minutter, ét trin ad gangen. Google kalder tilladelsen \"fuld adgang til din Gmail\", fordi Google ikke har en smallere tilladelse til mail over IMAP. Clawco bruger den kun til at læse afsender, emne og tid, aldrig selve mailen, og kan hverken sende, flytte eller slette; det sørger Clawcos egen kode for. Vil du ikke give den tilladelse, kan du i stedet vælge Mail og Gmail (app-adgangskode); det kræver bekræftelse i to trin hos Google.",
+   "felter": [
+    {
+     "navn": "klient_id",
+     "etiket": "Klient-id",
+     "type": "tekst",
+     "paakraevet": true,
+     "maks": 300,
+     "miljoe": "KC_GOOGLE_CLIENT_ID"
+    },
+    {
+     "navn": "klient_hemmelighed",
+     "etiket": "Klienthemmelighed",
+     "type": "hemmelig",
+     "paakraevet": true,
+     "maks": 300,
+     "miljoe": "KC_GOOGLE_CLIENT_SECRET"
+    }
+   ]
+  },
+  "med": {
+   "titel": "Gmail",
+   "felter": [],
+   "handling": "Log ind med Google",
+   "tekst": "Log ind med din Google-konto, så står dine ulæste og ventende mails i Nu. Du skal ikke lave en app-adgangskode. Google kalder tilladelsen \"fuld adgang til din Gmail\", fordi Google ikke har en smallere tilladelse til mail over IMAP. Clawco bruger den kun til at læse afsender, emne og tid, aldrig selve mailen, og kan hverken sende, flytte eller slette; det sørger Clawcos egen kode for. Vil du ikke give den tilladelse, kan du i stedet vælge Mail og Gmail (app-adgangskode); det kræver bekræftelse i to trin hos Google."
+  },
+  "forbundetKalender": {
+   "titel": "Gmail",
+   "felter": [],
+   "handling": "Giv adgang til mail",
+   "trin": [
+    {
+     "tekst": "Google-appen kender endnu kun den første forbindelses returadresse. Åbn din klient under \"Clients\" i \"Google Auth platform\", og tilføj denne adresse under \"Authorized redirect URIs\".",
+     "kopier": "https://k.example.test/api/kilder/mail-gmail/tilbage"
+    },
+    {
+     "tekst": "Under \"Data Access\": tryk \"Add or remove scopes\", og tilføj denne tilladelse.",
+     "kopier": "https://mail.google.com/"
+    }
+   ],
+   "tekst": "Google er allerede koblet: kun mail mangler. Clawco bruger den samme Google-app og beder kun om tilladelse til mail; kalenderen røres ikke. Google kalder tilladelsen \"fuld adgang til din Gmail\", fordi Google ikke har en smallere tilladelse til mail over IMAP. Clawco bruger den kun til at læse afsender, emne og tid, aldrig selve mailen, og kan hverken sende, flytte eller slette; det sørger Clawcos egen kode for. Vil du ikke give den tilladelse, kan du i stedet vælge Mail og Gmail (app-adgangskode); det kræver bekræftelse i to trin hos Google."
+  },
+  "forbundet": {
+   "titel": "Gmail",
+   "tekst": "Forbundet som ella@gmail.example. Google kalder tilladelsen \"fuld adgang til din Gmail\", fordi Google ikke har en smallere tilladelse til mail over IMAP. Clawco bruger den kun til at læse afsender, emne og tid, aldrig selve mailen, og kan hverken sende, flytte eller slette; det sørger Clawcos egen kode for.",
+   "felter": [],
+   "handling": "Skift Google-konto"
+  },
+  "forbundetUdenAdresse": {
+   "titel": "Gmail",
+   "tekst": "Forbundet. Google kalder tilladelsen \"fuld adgang til din Gmail\", fordi Google ikke har en smallere tilladelse til mail over IMAP. Clawco bruger den kun til at læse afsender, emne og tid, aldrig selve mailen, og kan hverken sende, flytte eller slette; det sørger Clawcos egen kode for.",
+   "felter": [],
+   "handling": "Skift Google-konto"
+  },
+  "helbredUden": {
+   "status": "nede",
+   "tekst": "Google-appen mangler klient-id eller klienthemmelighed."
+  },
+  "helbredTom": {
+   "status": "log-ind-igen",
+   "tekst": "Clawco har ingen adgang til din Gmail. Log ind med Google igen."
+  },
+  "tekster": {
+   "adgang": "Google afviste adgangen til din Gmail. Log ind med Google igen.",
+   "tom": "Clawco har ingen adgang til din Gmail. Log ind med Google igen."
+  },
+  "klassifikation": [
+   {
+    "status": "nede",
+    "tekst": "Mailen kunne ikke hentes.",
+    "http": 502
+   },
+   {
+    "status": "log-ind-igen",
+    "tekst": "Google afviste adgangen til din Gmail. Log ind med Google igen.",
+    "http": 400
+   }
+  ],
+  "fejl": {
+   "start-uden-klient": {
+    "fejl": "Google-appen er ikke sat op endnu: klient-id og klienthemmelighed mangler. Følg trinene på kortet.",
+    "status": 409
+   },
+   "start-uden-adresse": {
+    "fejl": "Clawco kender ikke sin egen adresse (KC_ADRESSE), så Google ikke kan sende dig tilbage. Ejeren skal sætte den først.",
+    "status": 409
+   },
+   "tilbage-ukendt": {
+    "fejl": "Login med Google kunne ikke bekræftes. Prøv igen.",
+    "status": 400
+   },
+   "read-uden-adgang": {
+    "fejl": "Clawco har ingen adgang til din Gmail. Log ind med Google igen.",
+    "status": 502
+   }
+  }
+ },
+ "kort-mail-imap": {
+  "navn": "Mail",
+  "tomt": {
+   "titel": "Mail",
+   "tekst": "Clawco læser afsender, emne og dato på dine nyeste mails, aldrig selve brevene. Når du trykker, kan Clawco flytte en mail til en anden mappe i kontoen og gemme et svar som kladde; Clawco sender og sletter aldrig noget. Vælg din mailtjeneste, skriv din mailadresse og en app-adgangskode, som du laver hos din mailudbyder. Bruger du Proton, skal Proton Mail Bridge køre på maskinen, og adgangskoden er den, Bridge viser, ikke din Proton-adgangskode.",
+   "felter": [
+    {
+     "navn": "tjeneste",
+     "etiket": "Din mailtjeneste",
+     "type": "tekst",
+     "paakraevet": true,
+     "muligheder": [
+      {
+       "vaerdi": "proton-bridge",
+       "etiket": "Proton (via Bridge)"
+      },
+      {
+       "vaerdi": "fastmail",
+       "etiket": "Fastmail"
+      },
+      {
+       "vaerdi": "icloud",
+       "etiket": "iCloud"
+      },
+      {
+       "vaerdi": "gmail",
+       "etiket": "Gmail (app-adgangskode)"
+      },
+      {
+       "vaerdi": "anden",
+       "etiket": "Anden mailudbyder"
+      }
+     ]
+    },
+    {
+     "navn": "adresse",
+     "etiket": "Din mailadresse",
+     "type": "tekst",
+     "paakraevet": true,
+     "maks": 200
+    },
+    {
+     "navn": "adgangskode",
+     "etiket": "App-adgangskode (med Proton: adgangskoden, Bridge viser, ikke din Proton-adgangskode)",
+     "type": "hemmelig",
+     "paakraevet": true
+    },
+    {
+     "navn": "server",
+     "etiket": "Serveradresse (kun ved Anden mailudbyder)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 253
+    },
+    {
+     "navn": "sikkerhed",
+     "etiket": "Kryptering (kun ved Anden mailudbyder)",
+     "type": "tekst",
+     "paakraevet": false,
+     "muligheder": [
+      {
+       "vaerdi": "tls",
+       "etiket": "TLS (port 993)"
+      },
+      {
+       "vaerdi": "starttls",
+       "etiket": "STARTTLS (port 143)"
+      }
+     ]
+    },
+    {
+     "navn": "port",
+     "etiket": "Port (kun hvis din udbyder eller Bridge bruger en anden)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 5
+    },
+    {
+     "navn": "fingeraftryk",
+     "etiket": "Bridge-certifikatets fingeraftryk (Clawco udfylder det selv første gang)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 100
+    }
+   ],
+   "handling": "Forbind"
+  },
+  "valgt": {
+   "titel": "Mail",
+   "tekst": "Mailkontoen ella@proton.example hos Proton (via Bridge). Clawco læser kun afsender, emne og dato. Når du trykker, flytter Clawco en mail eller gemmer et svar som kladde; Clawco sender og sletter aldrig noget.",
+   "felter": [
+    {
+     "navn": "tjeneste",
+     "etiket": "Din mailtjeneste",
+     "type": "tekst",
+     "paakraevet": true,
+     "muligheder": [
+      {
+       "vaerdi": "proton-bridge",
+       "etiket": "Proton (via Bridge)"
+      },
+      {
+       "vaerdi": "fastmail",
+       "etiket": "Fastmail"
+      },
+      {
+       "vaerdi": "icloud",
+       "etiket": "iCloud"
+      },
+      {
+       "vaerdi": "gmail",
+       "etiket": "Gmail (app-adgangskode)"
+      },
+      {
+       "vaerdi": "anden",
+       "etiket": "Anden mailudbyder"
+      }
+     ]
+    },
+    {
+     "navn": "adresse",
+     "etiket": "Din mailadresse",
+     "type": "tekst",
+     "paakraevet": true,
+     "maks": 200
+    },
+    {
+     "navn": "adgangskode",
+     "etiket": "App-adgangskode (med Proton: adgangskoden, Bridge viser, ikke din Proton-adgangskode)",
+     "type": "hemmelig",
+     "paakraevet": true
+    },
+    {
+     "navn": "server",
+     "etiket": "Serveradresse (kun ved Anden mailudbyder)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 253
+    },
+    {
+     "navn": "sikkerhed",
+     "etiket": "Kryptering (kun ved Anden mailudbyder)",
+     "type": "tekst",
+     "paakraevet": false,
+     "muligheder": [
+      {
+       "vaerdi": "tls",
+       "etiket": "TLS (port 993)"
+      },
+      {
+       "vaerdi": "starttls",
+       "etiket": "STARTTLS (port 143)"
+      }
+     ]
+    },
+    {
+     "navn": "port",
+     "etiket": "Port (kun hvis din udbyder eller Bridge bruger en anden)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 5
+    },
+    {
+     "navn": "fingeraftryk",
+     "etiket": "Bridge-certifikatets fingeraftryk (Clawco udfylder det selv første gang)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 100
+    }
+   ],
+   "handling": "Skift konto"
+  },
+  "pin": {
+   "titel": "Mail",
+   "tekst": "Mailkontoen ella@proton.example hos Proton (via Bridge). Bridge-certifikatets fingeraftryk: AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB:AB. Clawco læser kun afsender, emne og dato. Når du trykker, flytter Clawco en mail eller gemmer et svar som kladde; Clawco sender og sletter aldrig noget.",
+   "felter": [
+    {
+     "navn": "tjeneste",
+     "etiket": "Din mailtjeneste",
+     "type": "tekst",
+     "paakraevet": true,
+     "muligheder": [
+      {
+       "vaerdi": "proton-bridge",
+       "etiket": "Proton (via Bridge)"
+      },
+      {
+       "vaerdi": "fastmail",
+       "etiket": "Fastmail"
+      },
+      {
+       "vaerdi": "icloud",
+       "etiket": "iCloud"
+      },
+      {
+       "vaerdi": "gmail",
+       "etiket": "Gmail (app-adgangskode)"
+      },
+      {
+       "vaerdi": "anden",
+       "etiket": "Anden mailudbyder"
+      }
+     ]
+    },
+    {
+     "navn": "adresse",
+     "etiket": "Din mailadresse",
+     "type": "tekst",
+     "paakraevet": true,
+     "maks": 200
+    },
+    {
+     "navn": "adgangskode",
+     "etiket": "App-adgangskode (med Proton: adgangskoden, Bridge viser, ikke din Proton-adgangskode)",
+     "type": "hemmelig",
+     "paakraevet": true
+    },
+    {
+     "navn": "server",
+     "etiket": "Serveradresse (kun ved Anden mailudbyder)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 253
+    },
+    {
+     "navn": "sikkerhed",
+     "etiket": "Kryptering (kun ved Anden mailudbyder)",
+     "type": "tekst",
+     "paakraevet": false,
+     "muligheder": [
+      {
+       "vaerdi": "tls",
+       "etiket": "TLS (port 993)"
+      },
+      {
+       "vaerdi": "starttls",
+       "etiket": "STARTTLS (port 143)"
+      }
+     ]
+    },
+    {
+     "navn": "port",
+     "etiket": "Port (kun hvis din udbyder eller Bridge bruger en anden)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 5
+    },
+    {
+     "navn": "fingeraftryk",
+     "etiket": "Bridge-certifikatets fingeraftryk (Clawco udfylder det selv første gang)",
+     "type": "tekst",
+     "paakraevet": false,
+     "maks": 100
+    }
+   ],
+   "handling": "Skift konto"
+  },
+  "helbredUdenOpsaetning": {
+   "status": "nede",
+   "tekst": "Mailkontoen er ikke sat op."
+  },
+  "helbredKode": {
+   "status": "log-ind-igen",
+   "tekst": "Adgangskoden mangler. Forbind mailen igen."
+  },
+  "presets": [
+   "Proton (via Bridge)",
+   "Fastmail",
+   "iCloud",
+   "Gmail (app-adgangskode)",
+   "Anden mailudbyder"
+  ],
+  "fejltekst": {
+   "adgangskode": "Forkert adgangskode. Brug en app-adgangskode fra din mailudbyder; med Proton er det adgangskoden, Bridge viser.",
+   "bridge": "Bridge kører ikke. Start Proton Mail Bridge på denne maskine, og prøv igen.",
+   "svarer": "Mailserveren svarer ikke. Tjek serveradressen og din internetforbindelse.",
+   "certifikat": "Mailserverens certifikat kunne ikke bekræftes, så Clawco forbinder ikke.",
+   "pin": "Bridge-certifikatet er et andet end sidst. Har du selv geninstalleret Bridge, så forbind igen.",
+   "kryptering": "Mailserveren tilbyder ikke kryptering, så Clawco forbinder ikke.",
+   "ukendt": "Mailen kunne ikke hentes."
+  },
+  "klassifikation": [
+   {
+    "status": "nede",
+    "tekst": "Mailen kunne ikke hentes.",
+    "http": 502
+   },
+   {
+    "status": "nede",
+    "tekst": "Bridge kører ikke. Start Proton Mail Bridge på denne maskine, og prøv igen.",
+    "http": 502
+   },
+   {
+    "status": "log-ind-igen",
+    "tekst": "Forkert adgangskode. Brug en app-adgangskode fra din mailudbyder; med Proton er det adgangskoden, Bridge viser.",
+    "http": 400
+   }
+  ],
+  "fejl": {
+   "tjeneste": {
+    "fejl": "Vælg din mailtjeneste.",
+    "status": 400
+   },
+   "adresse": {
+    "fejl": "Skriv din mailadresse.",
+    "status": 400
+   },
+   "server": {
+    "fejl": "Skriv adressen på din mailserver.",
+    "status": 400
+   },
+   "server-ugyldig": {
+    "fejl": "Serveradressen er ugyldig.",
+    "status": 400
+   },
+   "port": {
+    "fejl": "Porten skal være et tal mellem 1 og 65535.",
+    "status": 400
+   },
+   "opsaet-uden-kode": {
+    "fejl": "Skriv din app-adgangskode.",
+    "status": 400
+   },
+   "opsaet-fingeraftryk": {
+    "fejl": "Fingeraftrykket er ugyldigt.",
+    "status": 400
+   },
+   "act-uden-args": {
+    "fejl": "Handlingen mangler sine oplysninger.",
+    "status": 400
+   },
+   "act-ukendt-oplysning": {
+    "fejl": "Ukendt oplysning: x.",
+    "status": 400
+   },
+   "act-mangler": {
+    "fejl": "Oplysningen til mangler.",
+    "status": 400
+   },
+   "act-uid": {
+    "fejl": "Mailens id er ugyldigt.",
+    "status": 400
+   },
+   "act-mappe": {
+    "fejl": "Mappens navn er ugyldigt.",
+    "status": 400
+   },
+   "act-kladde": {
+    "fejl": "Kladden skal have en tekst på højst 20000 tegn.",
+    "status": 400
+   },
+   "act-ukendt-navn": {
+    "fejl": "Mail kan ikke flyv.",
+    "status": 400
+   },
+   "act-uden-kode": {
+    "fejl": "Adgangskoden mangler. Forbind mailen igen.",
+    "status": 409
+   }
+  },
+  "verber": {
+   "flyt": "Flytter en mail til en anden mappe i din mailkonto, fx arkivet. Aldrig til papirkurven eller spam.",
+   "kladde": "Gemmer et svar som kladde i din kladdemappe. Clawco sender det aldrig."
+  }
+ },
+ "kort-nyheder-rss": {
+  "navn": "Nyhedskilder",
+  "tomt": {
+   "titel": "Nyhedskilder",
+   "tekst": "Indsæt adressen på en nyhedskilde, eller upload en OPML-fil fra din gamle læser, så står nyhederne i Nyheder, når de er relevante. Clawco læser kun overskrifter og korte resuméer og henter dem hver morgen. Der følger ingen kilder med: du vælger selv. Har du brugt en anden læser, finder du OPML-filen under eksport eller OPML i dens indstillinger.",
+   "felter": [
+    {
+     "navn": "adresser",
+     "etiket": "Adressen på en nyhedskilde (RSS). Du kan indsætte flere, en på hver linje",
+     "type": "tekst",
+     "flere": true,
+     "paakraevet": false,
+     "maks": 8040
+    },
+    {
+     "navn": "opml",
+     "etiket": "Eller en OPML-fil fra din gamle læser",
+     "type": "fil",
+     "paakraevet": false,
+     "maks": 1000000
+    },
+    {
+     "navn": "feeds",
+     "etiket": "Dine kilder",
+     "type": "tekst",
+     "skjult": true,
+     "paakraevet": false,
+     "maks": 60000
+    }
+   ],
+   "handling": "Tilføj"
+  },
+  "en": {
+   "titel": "Nyhedskilder",
+   "tekst": "1 nyhedskilde: A. Indsæt flere adresser eller en OPML-fil for at tilføje flere.",
+   "felter": [
+    {
+     "navn": "adresser",
+     "etiket": "Adressen på en nyhedskilde (RSS). Du kan indsætte flere, en på hver linje",
+     "type": "tekst",
+     "flere": true,
+     "paakraevet": false,
+     "maks": 8040
+    },
+    {
+     "navn": "opml",
+     "etiket": "Eller en OPML-fil fra din gamle læser",
+     "type": "fil",
+     "paakraevet": false,
+     "maks": 1000000
+    },
+    {
+     "navn": "feeds",
+     "etiket": "Dine kilder",
+     "type": "tekst",
+     "skjult": true,
+     "paakraevet": false,
+     "maks": 60000
+    }
+   ],
+   "handling": "Tilføj flere"
+  },
+  "flere": {
+   "titel": "Nyhedskilder",
+   "tekst": "5 nyhedskilder: A, B, C og 2 andre. Indsæt flere adresser eller en OPML-fil for at tilføje flere.",
+   "felter": [
+    {
+     "navn": "adresser",
+     "etiket": "Adressen på en nyhedskilde (RSS). Du kan indsætte flere, en på hver linje",
+     "type": "tekst",
+     "flere": true,
+     "paakraevet": false,
+     "maks": 8040
+    },
+    {
+     "navn": "opml",
+     "etiket": "Eller en OPML-fil fra din gamle læser",
+     "type": "fil",
+     "paakraevet": false,
+     "maks": 1000000
+    },
+    {
+     "navn": "feeds",
+     "etiket": "Dine kilder",
+     "type": "tekst",
+     "skjult": true,
+     "paakraevet": false,
+     "maks": 60000
+    }
+   ],
+   "handling": "Tilføj flere"
+  },
+  "helbredTom": {
+   "status": "nede",
+   "tekst": "Der er ingen nyhedskilder endnu."
+  },
+  "fejl": {
+   "opsaet-tom": {
+    "fejl": "Indsæt en adresse eller vælg en OPML-fil.",
+    "status": 400
+   },
+   "opsaet-adresse": {
+    "fejl": "ftp://x.example/feed: Adressen skal begynde med http:// eller https://.",
+    "status": 400
+   },
+   "opsaet-intern": {
+    "fejl": "http://169.254.169.254/: Adressen peger på en intern tjeneste, som Clawco ikke må kalde.",
+    "status": 400
+   },
+   "opsaet-html": {
+    "fejl": "other.example: siden har ingen nyhedskilde, Clawco kan finde. Find feedets egen adresse, og indsæt den.",
+    "status": 400
+   },
+   "opsaet-nede": {
+    "fejl": "nede.example kunne ikke bruges som nyhedskilde: stub: no such feed",
+    "status": 400
+   },
+   "opsaet-for-mange": {
+    "fejl": "Indsæt højst 20 adresser ad gangen. Har du mange, så brug en OPML-fil.",
+    "status": 400
+   },
+   "opsaet-opml": {
+    "fejl": "Filen kunne ikke læses som OPML. Eksportér den igen fra din læser.",
+    "status": 400
+   },
+   "opsaet-ok": {
+    "ok": {
+     "tekst": "Tilføjede 1 nyhedskilde. I alt 1 nyhedskilde.",
+     "valg": {
+      "feeds": "[{\"url\":\"https://wire.example/feed\",\"navn\":\"Daily Wire\",\"tilfoejet\":\"2026-11-02T08:00:00.000Z\"}]"
+     }
+    }
+   },
+   "tilfoej-tom": {
+    "fejl": "Indsæt adressen på en nyhedskilde.",
+    "status": 400
+   },
+   "tilfoej-flere": {
+    "fejl": "Indsæt én adresse ad gangen. Har du mange, så brug en OPML-fil, når du forbinder.",
+    "status": 400
+   },
+   "tilfoej-dublet": {
+    "fejl": "Wire har du allerede.",
+    "status": 409
+   },
+   "tilfoej-ok": {
+    "ok": {
+     "tekst": "Tilføjede Daily Wire. I alt 1 nyhedskilde.",
+     "valg": {
+      "feeds": "[{\"url\":\"https://wire.example/feed\",\"navn\":\"Daily Wire\",\"tilfoejet\":\"2026-11-02T08:00:00.000Z\"}]"
+     },
+     "feed": {
+      "id": "f-be2f2f8d66b5",
+      "navn": "Daily Wire"
+     }
+    }
+   },
+   "fjern-ukendt": {
+    "fejl": "Den kilde findes ikke længere.",
+    "status": 404
+   },
+   "fjern-sidste": {
+    "fejl": "Det er din sidste kilde. Vil du ikke have flere, så frakobl Nyhedskilder.",
+    "status": 409
+   },
+   "fjern-ok": {
+    "ok": {
+     "tekst": "Fjernede A (https://a.example/feed). I alt 1 nyhedskilde.",
+     "valg": {
+      "feeds": "[{\"url\":\"https://b.example/feed\",\"navn\":\"B\",\"tilfoejet\":\"2026-11-02T08:00:00.000Z\"}]"
+     },
+     "feed": {
+      "id": "f-f4dd3bc9a686",
+      "navn": "A"
+     }
+    }
+   },
+   "read-ingen-svarer": {
+    "fejl": "Ingen af dine nyhedskilder svarede.",
+    "status": 502
+   }
+  },
+  "helbredNede": {
+   "status": "nede",
+   "tekst": "Ingen af kilderne svarer: X og Y."
+  },
+  "helbredEnNede": {
+   "status": "ok",
+   "tekst": "Y svarer ikke lige nu."
+  },
+  "adresse": {
+   "intern": {
+    "fejl": "Adressen peger på dit lokale netværk. Skriv den selv ind, hvis det er meningen."
+   },
+   "lokal": {
+    "fejl": "Adressen peger på dit lokale netværk. Skriv den selv ind, hvis det er meningen."
+   },
+   "metadata": {
+    "fejl": "Adressen peger på en intern tjeneste, som Clawco ikke må kalde."
+   },
+   "tom": {
+    "fejl": "Adressen er tom eller for lang."
+   },
+   "skema": {
+    "fejl": "Adressen skal begynde med http:// eller https://."
+   },
+   "bruger": {
+    "fejl": "Adressen må ikke indeholde brugernavn eller adgangskode."
+   },
+   "vaert": {
+    "fejl": "Adressen kan ikke læses."
+   }
+  },
+  "parse": {
+   "tomt": {
+    "fejl": "Svaret er tomt."
+   },
+   "entitet": {
+    "fejl": "Svaret bruger XML-entiteter og afvises."
+   },
+   "xml": {
+    "fejl": "Svaret er ikke gyldig XML."
+   },
+   "ikke-feed": {
+    "fejl": "Svaret er ikke en nyhedskilde (RSS eller Atom)."
+   },
+   "opml": {
+    "fejl": "Filen er ikke en OPML-fil."
+   }
+  }
+ },
+ "kort-noter": {
+  "navn": "Noter",
+  "kira": {
+   "titel": "Noter i din vault",
+   "tekst": "Obsidian-vaulten, Clawco allerede gemmer i: indbakken og kartoteket over mennesker.",
+   "felter": [],
+   "handling": "Forbind"
+  },
+  "ikkeValgt": "Et sted til det, du vil huske: gemte tekster, et kartotek med én fil pr. menneske, du kender, og en note om dig. Alt er almindelige tekstfiler, du selv kan åbne og rette. En ny mappe lægger Clawco i Clawco/Vault i din hjemmemappe. Vælger du din Obsidian-vault, tilføjer Clawco kun mapperne 00-Indbakke, 40-Mennesker/People og Clawco, hvis de mangler, og rører ikke dine noter.",
+  "felter": [
+   [
+    "Hvor skal dine noter ligge?",
+    [
+     "Lav en ny mappe til mig",
+     "Jeg har allerede en Obsidian-vault"
+    ]
+   ],
+   [
+    "Mappe",
+    null
+   ]
+  ],
+  "mangler": "Mappen kan ikke findes: <tmp>/missing. Er drevet koblet fra, så sæt det i igen. Ellers vælg mappen igen.",
+  "ny": "Dine noter ligger i din nye mappe <tmp>/min-vault. Det er almindelige tekstfiler, du selv kan åbne og rette.",
+  "eksisterende": "Clawco bruger din Obsidian-vault <tmp>/min-vault: gemte tekster i 00-Indbakke, kartoteket i 40-Mennesker/People og Clawcos egne filer i Clawco.",
+  "kortHandlinger": [
+   "Vælg mappe",
+   "Vælg mappen igen",
+   "Skift mappe"
+  ],
+  "helbredManglende": {
+   "status": "nede",
+   "tekst": "Mappen kan ikke findes."
+  },
+  "fejl": {
+   "opsaet-vault": {
+    "fejl": "Vælg din vault, eller skriv stien til den.",
+    "status": 400
+   },
+   "opsaet-sti": {
+    "fejl": "Skriv hele stien til mappen.",
+    "status": 400
+   },
+   "read-mangler": {
+    "fejl": "Mappen kan ikke findes.",
+    "status": 502
+   },
+   "opsaet-ny": {
+    "ok": {
+     "tekst": "Lavede <tmp>/frisk med 00-Indbakke, 40-Mennesker/People, Clawco og Clawco/Om mig.md.",
+     "valg": {
+      "opsaetning": "ny",
+      "mappe": "<tmp>/frisk"
+     }
+    }
+   },
+   "opsaet-ny-igen": {
+    "ok": {
+     "tekst": "Bruger <tmp>/frisk; der manglede ingen mapper.",
+     "valg": {
+      "opsaetning": "ny",
+      "mappe": "<tmp>/frisk"
+     }
+    }
+   },
+   "opsaet-adopter": {
+    "ok": {
+     "tekst": "Tilføjede 00-Indbakke, 40-Mennesker/People og Clawco i <tmp>/min-vault.",
+     "valg": {
+      "opsaetning": "eksisterende",
+      "mappe": "<tmp>/min-vault"
+     }
+    }
+   },
+   "vault-fil": {
+    "fejl": "Der ligger en fil, hvor mappen skal være.",
+    "status": 409
+   },
+   "vault-ikke-tom": {
+    "fejl": "Mappen er ikke tom. Vælg en tom mappe, eller vælg den som din eksisterende vault.",
+    "status": 409
+   },
+   "vault-findes-ikke": {
+    "fejl": "Mappen kan ikke findes.",
+    "status": 409
+   },
+   "sti-ugyldig": {
+    "fejl": "Ugyldig sti.",
+    "status": 400
+   },
+   "sti-absolut": {
+    "fejl": "Stien skal ligge i mappen.",
+    "status": 400
+   },
+   "sti-op": {
+    "fejl": "Stien skal ligge i mappen.",
+    "status": 400
+   },
+   "sti-rod": {
+    "fejl": "Mappen kan ikke findes.",
+    "status": 409
+   },
+   "navn": {
+    "fejl": "Navnet kan ikke bruges som filnavn.",
+    "status": 400
+   }
+  }
+ },
+ "kort-beskeder": {
+  "navn": "Beskeder",
+  "uden": {
+   "titel": "Beskeder",
+   "tekst": "Clawco kan læse de beskeder, der når Hermes på Telegram, WhatsApp eller Signal, og vise dem, der kræver noget af dig, i Nu. Hermes skriver ingen beskeder til Clawco endnu: Hermes skal have en beskedkanal, og Clawcos beskedkrog skal være sat op hos Hermes. Clawco læser kun og svarer aldrig selv.",
+   "felter": [],
+   "handling": "Forbind"
+  },
+  "helbredUden": {
+   "status": "nede",
+   "tekst": "Hermes skriver ingen beskeder til Clawco endnu."
+  },
+  "fejlUden": {
+   "read": {
+    "fejl": "Hermes skriver ingen beskeder til Clawco endnu.",
+    "status": 502
+   },
+   "opsaet": {
+    "fejl": "Hermes skriver ingen beskeder til Clawco endnu. Sæt Clawcos beskedkrog op hos Hermes først.",
+    "status": 400
+   },
+   "vaelg": {
+    "fejl": "Hermes skriver ingen beskeder til Clawco endnu.",
+    "status": 502
+   }
+  },
+  "tom": {
+   "titel": "Beskeder",
+   "tekst": "Hermes har ikke modtaget nogen beskeder endnu. Skriv til Hermes på en af dine kanaler, så står samtalen her. Clawco læser kun de samtaler, du vælger, og svarer aldrig selv. Andre samtaler ser hverken Hermes eller Clawco.",
+   "felter": [],
+   "handling": "Forbind"
+  },
+  "med": {
+   "titel": "Beskeder",
+   "tekst": "Hermes kan se 2 samtaler på Signal og Telegram: Samtale på Signal og Crew. Vælg, hvilke Clawco må læse; grupper er fra, til du vælger dem. Clawco læser kun de samtaler, du vælger, og svarer aldrig selv. Andre samtaler ser hverken Hermes eller Clawco.",
+   "felter": [
+    {
+     "navn": "s-000851ecd79d",
+     "etiket": "Samtale på Signal (samtale på Signal)",
+     "type": "tekst",
+     "paakraevet": false,
+     "muligheder": [
+      {
+       "vaerdi": "nej",
+       "etiket": "Læs ikke"
+      },
+      {
+       "vaerdi": "privat",
+       "etiket": "Læs, privat"
+      },
+      {
+       "vaerdi": "arbejde",
+       "etiket": "Læs, arbejde"
+      },
+      {
+       "vaerdi": "husstand",
+       "etiket": "Læs, husstand"
+      }
+     ]
+    },
+    {
+     "navn": "s-e2866b5a8ebf",
+     "etiket": "Crew (gruppe på Telegram)",
+     "type": "tekst",
+     "paakraevet": false,
+     "muligheder": [
+      {
+       "vaerdi": "nej",
+       "etiket": "Læs ikke"
+      },
+      {
+       "vaerdi": "privat",
+       "etiket": "Læs, privat"
+      },
+      {
+       "vaerdi": "arbejde",
+       "etiket": "Læs, arbejde"
+      },
+      {
+       "vaerdi": "husstand",
+       "etiket": "Læs, husstand"
+      }
+     ]
+    }
+   ],
+   "handling": "Gem valget"
+  },
+  "valgt": {
+   "titel": "Beskeder",
+   "tekst": "Hermes kan se 2 samtaler på Signal og Telegram: Samtale på Signal og Crew. Clawco læser 2 af 2 samtaler: Samtale på Signal og Crew. Clawco læser kun de samtaler, du vælger, og svarer aldrig selv. Andre samtaler ser hverken Hermes eller Clawco.",
+   "felter": [
+    {
+     "navn": "s-000851ecd79d",
+     "etiket": "Samtale på Signal (samtale på Signal)",
+     "type": "tekst",
+     "paakraevet": false,
+     "muligheder": [
+      {
+       "vaerdi": "nej",
+       "etiket": "Læs ikke"
+      },
+      {
+       "vaerdi": "privat",
+       "etiket": "Læs, privat"
+      },
+      {
+       "vaerdi": "arbejde",
+       "etiket": "Læs, arbejde"
+      },
+      {
+       "vaerdi": "husstand",
+       "etiket": "Læs, husstand"
+      }
+     ]
+    },
+    {
+     "navn": "s-e2866b5a8ebf",
+     "etiket": "Crew (gruppe på Telegram)",
+     "type": "tekst",
+     "paakraevet": false,
+     "muligheder": [
+      {
+       "vaerdi": "nej",
+       "etiket": "Læs ikke"
+      },
+      {
+       "vaerdi": "privat",
+       "etiket": "Læs, privat"
+      },
+      {
+       "vaerdi": "arbejde",
+       "etiket": "Læs, arbejde"
+      },
+      {
+       "vaerdi": "husstand",
+       "etiket": "Læs, husstand"
+      }
+     ]
+    }
+   ],
+   "handling": "Gem valget"
+  },
+  "opsaet": {
+   "tekst": "Clawco læser nu Samtale på Signal.",
+   "valg": {
+    "s-000851ecd79d": "privat"
+   }
+  },
+  "opsaetIngen": {
+   "tekst": "Clawco læser ingen samtaler endnu.",
+   "valg": {}
+  },
+  "helbredIngen": {
+   "status": "ok",
+   "tekst": "Ingen samtaler er valgt."
+  },
+  "helbredValgt": {
+   "status": "ok",
+   "tekst": "Seneste besked for 2 timer siden."
+  },
+  "visning": [
+   {
+    "noegle": "s-000851ecd79d",
+    "navn": "Samtale på Signal",
+    "kanal": "Signal",
+    "gruppe": false,
+    "valgt": false
+   },
+   {
+    "noegle": "s-e2866b5a8ebf",
+    "navn": "Crew",
+    "kanal": "Telegram",
+    "gruppe": true,
+    "valgt": false
+   }
+  ],
+  "vaelg": {
+   "tekst": "Clawco læser nu 1 af 2 samtaler.",
+   "valg": {
+    "s-000851ecd79d": "privat"
+   },
+   "samtaler": [
+    {
+     "noegle": "s-000851ecd79d",
+     "navn": "Samtale på Signal",
+     "kanal": "Signal",
+     "gruppe": false,
+     "valgt": true,
+     "zone": "privat"
+    },
+    {
+     "noegle": "s-e2866b5a8ebf",
+     "navn": "Crew",
+     "kanal": "Telegram",
+     "gruppe": true,
+     "valgt": false
+    }
+   ]
+  },
+  "ukendt": {
+   "fejl": "Den samtale kender Clawco ikke. Prøv igen.",
+   "status": 400
+  },
+  "mistet": {
+   "read": {
+    "fejl": "Signal er ikke forbundet til Hermes. Link Signal igen med \"signal-cli link\", og genstart Hermes.",
+    "status": 502
+   },
+   "helbred": {
+    "ok": {
+     "status": "log-ind-igen",
+     "tekst": "Signal er ikke forbundet til Hermes. Link Signal igen med \"signal-cli link\", og genstart Hermes."
+    }
+   }
+  }
+ },
+ "kort-aula": {
+  "navn": "Aula",
+  "uden": {
+   "titel": "Aula",
+   "handling": "Forbind Aula",
+   "trin": [
+    {
+     "tekst": "Åbn Aula i browseren eller i appen, og gå til Kalender. Vælg Kalendersynkronisering (Synkronisér kalender)."
+    },
+    {
+     "tekst": "Sæt fluebenet ved samtykket til, at Aula må overføre dine kalenderbegivenheder til en ekstern kalender. Fjerner du fluebenet senere, stopper deling ved kilden."
+    },
+    {
+     "tekst": "Vælg den institution og de begivenhedstyper, du vil se, og tryk Opret kalenderlink."
+    },
+    {
+     "tekst": "Kopiér linket \"Ugekalender\" (det der opdateres hvert femte minut), og indsæt det herunder. Linket virker som en adgangskode: del det ikke med andre."
+    }
+   ],
+   "tekst": "Clawco kan læse din kalender i Aula gennem det private kalenderlink, Aula selv laver til forældre: uden MitID. Clawco læser kun tid, titel, sted og institution, aldrig hvem der er inviteret eller beskrivelser, og kan aldrig ændre noget i Aula.",
+   "felter": [
+    {
+     "navn": "link",
+     "etiket": "Linket \"Ugekalender\" fra Aula",
+     "type": "hemmelig",
+     "paakraevet": true,
+     "maks": 1500
+    }
+   ]
+  },
+  "med": {
+   "titel": "Aula",
+   "handling": "Skift link",
+   "trin": [
+    {
+     "tekst": "Åbn Aula i browseren eller i appen, og gå til Kalender. Vælg Kalendersynkronisering (Synkronisér kalender)."
+    },
+    {
+     "tekst": "Sæt fluebenet ved samtykket til, at Aula må overføre dine kalenderbegivenheder til en ekstern kalender. Fjerner du fluebenet senere, stopper deling ved kilden."
+    },
+    {
+     "tekst": "Vælg den institution og de begivenhedstyper, du vil se, og tryk Opret kalenderlink."
+    },
+    {
+     "tekst": "Kopiér linket \"Ugekalender\" (det der opdateres hvert femte minut), og indsæt det herunder. Linket virker som en adgangskode: del det ikke med andre."
+    }
+   ],
+   "tekst": "Clawco kan læse din kalender i Aula gennem det private kalenderlink, Aula selv laver til forældre: uden MitID. Clawco læser kun tid, titel, sted og institution, aldrig hvem der er inviteret eller beskrivelser, og kan aldrig ændre noget i Aula. Forbundet til www.aula.dk.",
+   "felter": [
+    {
+     "navn": "link",
+     "etiket": "Linket \"Ugekalender\" fra Aula",
+     "type": "hemmelig",
+     "paakraevet": true,
+     "maks": 1500
+    }
+   ]
+  },
+  "helbredUden": {
+   "status": "log-ind-igen",
+   "tekst": "Der er intet kalenderlink gemt. Indsæt linket fra Aula igen."
+  },
+  "helbredOk": {
+   "status": "ok"
+  },
+  "helbredTilbagekaldt": {
+   "status": "log-ind-igen",
+   "tekst": "Aula-linket virker ikke mere: lav et nyt kalenderlink i Aula (samtykket kan være trukket tilbage, eller kommunen har slået synkronisering fra)."
+  },
+  "helbredNede": {
+   "status": "nede",
+   "tekst": "www.aula.dk svarer ikke lige nu."
+  },
+  "helbredLangsom": {
+   "status": "langsomt",
+   "tekst": "www.aula.dk svarer langsomt."
+  },
+  "helbredIkkeKalender": {
+   "status": "log-ind-igen",
+   "tekst": "Aula-linket virker ikke mere: lav et nyt kalenderlink i Aula (samtykket kan være trukket tilbage, eller kommunen har slået synkronisering fra)."
+  },
+  "fejl": {
+   "opsaet-tom": {
+    "fejl": "Indsæt linket fra Aula.",
+    "status": 400
+   },
+   "opsaet-ligner-ikke": {
+    "fejl": "Det ligner ikke et Aula-kalenderlink. Kopiér linket \"Ugekalender\" i Aula, og indsæt det her.",
+    "status": 400
+   },
+   "opsaet-http": {
+    "fejl": "Linket skal begynde med https://. Kopiér linket \"Ugekalender\" fra Aula.",
+    "status": 400
+   },
+   "opsaet-vaert": {
+    "fejl": "Det er ikke et link fra Aula. Linket skal ligge på aula.dk.",
+    "status": 400
+   },
+   "opsaet-ok": {
+    "ok": {
+     "tekst": "Aula-kalenderen svarede: 1 aftale de næste syv dage.",
+     "valg": {}
+    }
+   },
+   "opsaet-ikke-kalender": {
+    "fejl": "Det ligner ikke et Aula-kalenderlink: svaret er ikke en kalender.",
+    "status": 400
+   },
+   "opsaet-afvist": {
+    "fejl": "Aula afviser linket. Lav et nyt kalenderlink i Aula (Ugekalender), og indsæt det her.",
+    "status": 400
+   },
+   "opsaet-nede": {
+    "fejl": "Aula svarer ikke lige nu. Prøv igen om lidt.",
+    "status": 502
+   },
+   "read-uden-link": {
+    "fejl": "Aula er ikke forbundet med et kalenderlink.",
+    "status": 409
+   },
+   "read-ikke-kalender": {
+    "fejl": "Aula-linket virker ikke mere: svaret er ikke en kalender. Lav et nyt kalenderlink i Aula.",
+    "status": 502
+   },
+   "read-tilbagekaldt": {
+    "fejl": "Aula-linket virker ikke mere. Lav et nyt kalenderlink i Aula.",
+    "status": 502
+   },
+   "read-tid": {
+    "fejl": "Aula svarede ikke i tide.",
+    "status": 502
+   },
+   "read-stor": {
+    "fejl": "Aula-kalenderen er for stor.",
+    "status": 502
+   },
+   "read-nede": {
+    "fejl": "Aula svarer ikke lige nu.",
+    "status": 502
+   }
+  }
+ },
+ "pause-forslag": {
+  "titel": "Sæt «Newsletters sorted» på pause",
+  "tekst": "Reglen R-0001 skjulte «Receipt», som du ville have set. På pause følger Hermes den ikke, før du tænder den igen."
+ },
+ "noter-personer": {
+  "zone": {
+   "fejl": "Ukendt zone.",
+   "status": 400
+  },
+  "felt": {
+   "fejl": "Ugyldig org.",
+   "status": 400
+  },
+  "foedselsdag": {
+   "fejl": "Ugyldig foedselsdag.",
+   "status": 400
+  },
+  "relation": {
+   "fejl": "Relationen mangler.",
+   "status": 400
+  },
+  "tekst": {
+   "fejl": "Ugyldig tekst.",
+   "status": 400
+  },
+  "navn": {
+   "fejl": "Navnet kan ikke bruges som filnavn.",
+   "status": 400
+  },
+  "opdater-findes-ikke": {
+   "fejl": "Personen findes ikke længere i din mappe.",
+   "status": 404
+  },
+  "opdater-ugyldig": {
+   "fejl": "Ugyldig relation.",
+   "status": 400
+  },
+  "opdater-foedselsdag": {
+   "fejl": "Ugyldig foedselsdag.",
+   "status": 400
+  },
+  "profil-ugyldig": {
+   "fejl": "Ugyldig profiltekst.",
+   "status": 400
+  },
+  "profil-fjern": {
+   "fejl": "Kun profilen kan fjernes her.",
+   "status": 400
+  }
+ },
+ "besked-data": {
+  "sender": {
+   "navn": "ukendt afsender"
+  },
+  "tekst": "Call [nummer] or [skjult] or [skjult] please",
+  "samtale": "Samtale på Signal",
+  "standardnavne": [
+   "Samtale på Signal",
+   "Gruppe på Telegram"
+  ],
+  "vedhaeftning": [
+   {
+    "navn": "vedhæftning",
+    "type": "ukendt"
+   }
+  ]
+ },
+ "google-kalender-laes": {
+  "liste-fejl": {
+   "fejl": "Kalenderlisten kunne ikke hentes fra Google (fejl 500).",
+   "status": 502
+  },
+  "kalender-fejl": {
+   "ok": [
+    "Mine: HTTP 500"
+   ]
+  },
+  "kalender-net": {
+   "ok": [
+    "Mine: netværksfejl"
+   ]
+  },
+  "netvaerk": {
+   "fejl": "Google Kalender kunne ikke nås.",
+   "status": 502
+  }
+ },
+ "afgoer": {
+  "ikkeEndnu": [
+   "Jeg må ikke sortere dette endnu: hvilken regel skal dække det?",
+   "Jeg må ikke bogføre dette endnu: hvilken regel skal dække det?",
+   "Jeg må ikke forberede dette endnu: hvilken regel skal dække det?",
+   "Jeg må ikke gøre dette endnu: hvilken regel skal dække det?",
+   "Jeg må ikke gøre dette endnu: hvilken regel skal dække det?"
+  ],
+  "aldrig": [
+   "Clawco betaler aldrig noget. Det gør du selv.",
+   "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand.",
+   "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt.",
+   null,
+   null
+  ],
+  "laes/knap/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "laes/knap/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "laes/stemme/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "laes/stemme/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "laes/chat/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "laes/chat/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "laes/baggrund/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "laes/baggrund/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "sorter/knap/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "sorter/knap/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "sorter/stemme/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "sorter/stemme/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "sorter/chat/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "sorter/chat/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "sorter/baggrund/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke sortere dette endnu: hvilken regel skal dække det?"
+  },
+  "sorter/baggrund/ja": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke sortere dette endnu: hvilken regel skal dække det?"
+  },
+  "bogfoer/knap/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "bogfoer/knap/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "bogfoer/stemme/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "bogfoer/stemme/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "bogfoer/chat/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "bogfoer/chat/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "bogfoer/baggrund/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke bogføre dette endnu: hvilken regel skal dække det?"
+  },
+  "bogfoer/baggrund/ja": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke bogføre dette endnu: hvilken regel skal dække det?"
+  },
+  "forbered/knap/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "forbered/knap/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "forbered/stemme/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "forbered/stemme/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "forbered/chat/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "forbered/chat/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "forbered/baggrund/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke forberede dette endnu: hvilken regel skal dække det?"
+  },
+  "forbered/baggrund/ja": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke forberede dette endnu: hvilken regel skal dække det?"
+  },
+  "udfoer-med-fortryd/knap/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "udfoer-med-fortryd/knap/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "udfoer-med-fortryd/stemme/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "udfoer-med-fortryd/stemme/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "udfoer-med-fortryd/chat/nej": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "udfoer-med-fortryd/chat/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "udfoer-med-fortryd/baggrund/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke gøre dette endnu: hvilken regel skal dække det?"
+  },
+  "udfoer-med-fortryd/baggrund/ja": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke gøre dette endnu: hvilken regel skal dække det?"
+  },
+  "send-til-andre/knap/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco må kun skrive til andre, når du selv har trykket ja på knappen."
+  },
+  "send-til-andre/knap/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Du trykkede ja, så Clawco må skrive til andre denne ene gang."
+  },
+  "send-til-andre/stemme/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco må ikke skrive til andre på et ord fra stemmen. Tryk selv på knappen på skærmen."
+  },
+  "send-til-andre/stemme/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco må ikke skrive til andre på et ord fra stemmen. Tryk selv på knappen på skærmen."
+  },
+  "send-til-andre/chat/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco må kun skrive til andre, når du selv har trykket ja på knappen."
+  },
+  "send-til-andre/chat/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Du trykkede ja, så Clawco må skrive til andre denne ene gang."
+  },
+  "send-til-andre/baggrund/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco må aldrig skrive til andre af sig selv. Det kræver dit eget tryk."
+  },
+  "send-til-andre/baggrund/ja": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco må aldrig skrive til andre af sig selv. Det kræver dit eget tryk."
+  },
+  "slet/knap/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco må kun slette noget, når du selv har trykket ja på knappen."
+  },
+  "slet/knap/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Du trykkede ja, så Clawco må slette noget denne ene gang."
+  },
+  "slet/stemme/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco må ikke slette noget på et ord fra stemmen. Tryk selv på knappen på skærmen."
+  },
+  "slet/stemme/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco må ikke slette noget på et ord fra stemmen. Tryk selv på knappen på skærmen."
+  },
+  "slet/chat/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco må kun slette noget, når du selv har trykket ja på knappen."
+  },
+  "slet/chat/ja": {
+   "udfald": "tillad",
+   "hvorfor": "Du trykkede ja, så Clawco må slette noget denne ene gang."
+  },
+  "slet/baggrund/nej": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco må aldrig slette noget af sig selv. Det kræver dit eget tryk."
+  },
+  "slet/baggrund/ja": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco må aldrig slette noget af sig selv. Det kræver dit eget tryk."
+  },
+  "betal/knap/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco betaler aldrig noget. Det gør du selv."
+  },
+  "betal/knap/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco betaler aldrig noget. Det gør du selv."
+  },
+  "betal/stemme/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco betaler aldrig noget. Det gør du selv."
+  },
+  "betal/stemme/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco betaler aldrig noget. Det gør du selv."
+  },
+  "betal/chat/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco betaler aldrig noget. Det gør du selv."
+  },
+  "betal/chat/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco betaler aldrig noget. Det gør du selv."
+  },
+  "betal/baggrund/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco betaler aldrig noget. Det gør du selv."
+  },
+  "betal/baggrund/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco betaler aldrig noget. Det gør du selv."
+  },
+  "kopier-paa-tvaers/knap/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "kopier-paa-tvaers/knap/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "kopier-paa-tvaers/stemme/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "kopier-paa-tvaers/stemme/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "kopier-paa-tvaers/chat/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "kopier-paa-tvaers/chat/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "kopier-paa-tvaers/baggrund/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "kopier-paa-tvaers/baggrund/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "flyv/knap/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt."
+  },
+  "flyv/knap/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt."
+  },
+  "flyv/stemme/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt."
+  },
+  "flyv/stemme/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt."
+  },
+  "flyv/chat/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt."
+  },
+  "flyv/chat/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt."
+  },
+  "flyv/baggrund/nej": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt."
+  },
+  "flyv/baggrund/ja": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt."
+  },
+  "gaest": {
+   "udfald": "afvis",
+   "hvorfor": "Din rolle i husstanden må ikke sætte det her i gang."
+  },
+  "blandet": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand."
+  },
+  "tap/knap/false": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco gør kun det her, når du selv har trykket ja på knappen."
+  },
+  "tap/knap/true": {
+   "udfald": "tillad",
+   "hvorfor": "Inden for grænserne."
+  },
+  "tap/stemme/false": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gør ikke det her på et ord fra stemmen. Tryk selv på knappen på skærmen."
+  },
+  "tap/stemme/true": {
+   "udfald": "afvis",
+   "hvorfor": "Clawco gør ikke det her på et ord fra stemmen. Tryk selv på knappen på skærmen."
+  },
+  "tap/baggrund/false": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco gør aldrig det her af sig selv. Det kræver dit eget tryk på knappen."
+  },
+  "tap/baggrund/true": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Clawco gør aldrig det her af sig selv. Det kræver dit eget tryk på knappen."
+  },
+  "for-lavt-trin": {
+   "udfald": "kraever-ja",
+   "hvorfor": "Jeg må ikke forberede dette endnu: reglen, der dækker det, står på et for lavt trin (det kræver trin 3). Hvilken regel skal dække det?"
+  }
+ },
+ "opsyn": {
+  "vaerktoej": {
+   "ok": false,
+   "hvorfor": "Clawco stoppede kørslen: Hermes ville bruge værktøjet cronjob_manage, og det må handlingen ikke."
+  },
+  "send": {
+   "ok": false,
+   "hvorfor": "Clawco stoppede kørslen: Hermes ville sende en mail, og det må handlingen ikke."
+  },
+  "slet": {
+   "ok": false,
+   "hvorfor": "Clawco stoppede kørslen: Hermes ville slette noget, og det må handlingen ikke."
+  },
+  "ok": {
+   "ok": true,
+   "hvorfor": ""
+  }
+ },
+ "nodstop": {
+  "stop-gaest": {
+   "fejl": "Din rolle i husstanden kan ikke stoppe Clawco."
+  },
+  "start-medlem": {
+   "fejl": "Kun ejeren kan starte Clawco igen."
+  },
+  "stop-2": {
+   "ok": 2
+  },
+  "stop-1": {
+   "ok": 1
+  },
+  "stop-0": {
+   "ok": 0
+  },
+  "start": {
+   "ok": true
+  },
+  "revision": [
+   "Stop alt: 2 opgaver blev standset.",
+   "Stop alt: 1 opgave blev standset.",
+   "Stop alt: intet var i gang.",
+   "Start igen: Clawco arbejder igen."
+  ],
+  "pauseFejl": "Clawco er sat på pause",
+  "nodstop": "x"
+ },
+ "viden": {
+  "fuld": "<div class=\"viden\" data-viden>\n<header class=\"room-head\"><div><h1>Hvad Clawco ved om dig</h1><p class=\"muted\">Alt, hvad Clawco har gemt om dig, samlet ét sted.</p></div></header>\n\n<section class=\"card\" data-viden-del=\"kilder\"><h2 class=\"eyebrow\">Kilder</h2><ul class=\"card-list\"><li class=\"row\" data-viden-kilde=\"falsk-kalender\"><span class=\"row-main\"><span class=\"row-title\">Calendar</span><span class=\"row-note\">kalender · privat</span></span></li><li class=\"row\" data-viden-kilde=\"mail-imap\"><span class=\"row-main\"><span class=\"row-title\">Mail</span><span class=\"row-note\">mail · arbejde</span></span></li></ul></section>\n<section class=\"card\" data-viden-del=\"regler\"><h2 class=\"eyebrow\">Regler</h2><ul class=\"card-list\"><li class=\"row\" data-regel=\"R-0001\" data-regel-status=\"aktiv\" data-regel-trin=\"1\"><span class=\"row-main\"><span class=\"row-title\"><span class=\"mono\">R-0001</span> · Mail sorteres i mapper</span><span class=\"row-note\">Trin 1 · Hermes må sortere · mail / indbakke</span><span class=\"row-note\">Importeret 2026-10-31</span></span><form method=\"post\" action=\"/api/tillid/regler/R-0001/pause\" class=\"viden-form\" data-regel-form=\"R-0001:pause\"><button type=\"submit\" class=\"btn btn-ghost\" data-regel-skift=\"pause\">Slå fra</button></form></li><li class=\"row\" data-regel=\"R-0002\" data-regel-status=\"pause\" data-regel-trin=\"2\"><span class=\"row-main\"><span class=\"row-title\"><span class=\"mono\">R-0002</span> · Regnskab</span><span class=\"row-note\">Trin 2 · Hermes må føre regnskab · mail / regning</span><span class=\"row-note\">Fra en rettelse 2026-11-01 · på pause</span></span><form method=\"post\" action=\"/api/tillid/regler/R-0002/aktiv\" class=\"viden-form\" data-regel-form=\"R-0002:aktiv\"><button type=\"submit\" class=\"btn btn-ghost\" data-regel-skift=\"aktiv\">Slå til igen</button></form></li><li class=\"row\" data-regel=\"R-0003\" data-regel-status=\"aktiv\" data-regel-trin=\"3\"><span class=\"row-main\"><span class=\"row-title\"><span class=\"mono\">R-0003</span> · Alt</span><span class=\"row-note\">Trin 3 · Hermes må forberede · <span class=\"chip tilstand-kraever\" data-regel-alt>gælder alt</span></span><span class=\"row-note\">Skrevet i hånden 2026-11-01</span></span><form method=\"post\" action=\"/api/tillid/regler/R-0003/pause\" class=\"viden-form\" data-regel-form=\"R-0003:pause\"><button type=\"submit\" class=\"btn btn-ghost\" data-regel-skift=\"pause\">Slå fra</button></form></li></ul><p class=\"row-note\">1 afsnit i filen er skrevet forkert og følges ikke: R-9 · Daarlig.</p><p class=\"row-note\" data-regler-aendret>Filen er ændret uden for Clawco. Det er helt i orden; reglerne læses, som de står i filen nu.</p><p class=\"row-note\">Filen: <span class=\"mono\" data-regler-fil>/v/Clawco/regler.md</span></p></section>\n<section class=\"card\" data-viden-del=\"personer\"><h2 class=\"eyebrow\">Personer</h2><ul class=\"card-list\"><li class=\"row\" data-viden-person><span class=\"row-main\"><a class=\"row-title\" href=\"obsidian://open?path=%2Fv%2F40-People%2Ffamilie%2Falma.md\">Alma</a><span class=\"row-note\">family · <span class=\"mono\">familie/alma.md</span></span></span></li></ul><p class=\"row-note\">Personerne er dine egne noter i <span class=\"mono\">/v/40-People</span>. Clawco læser dem kun.</p></section>\n<section class=\"card\" data-viden-del=\"ugetal\"><h2 class=\"eyebrow\">Ting der krævede dig</h2><div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I denne uge krævede i snit 6 ting dig om dagen (sidste uge 9). Fortryd: 1 (sidste uge 0).</p><p class=\"row-note\" data-ugetal=\"hjaelp\">Sådan tæller vi: en ting tæller for en dag, hvis den stod under Kræver dig på noget tidspunkt den dag, og kun én gang den dag. Fortryd er de handlinger, du fortrød i ugen. Tallet skal falde, uden at Fortryd stiger.</p></div><figure class=\"ugetal-soejler\" data-ugetal=\"soejler\" role=\"img\" aria-label=\"Ting der krævede dig om dagen, uge for uge: uge 41: –, uge 42: –, uge 43: 9, uge 44: 6\"><svg viewBox=\"0 0 82 54\" aria-hidden=\"true\" focusable=\"false\"><rect class=\"ugetal-soejle ugetal-tom\" x=\"0\" y=\"39\" width=\"16\" height=\"1\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"8\" y=\"51\" text-anchor=\"middle\">41</text><rect class=\"ugetal-soejle ugetal-tom\" x=\"22\" y=\"39\" width=\"16\" height=\"1\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"30\" y=\"51\" text-anchor=\"middle\">42</text><rect class=\"ugetal-soejle\" x=\"44\" y=\"0\" width=\"16\" height=\"40\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"52\" y=\"51\" text-anchor=\"middle\">43</text><rect class=\"ugetal-soejle ugetal-nu\" x=\"66\" y=\"13.333333333333336\" width=\"16\" height=\"26.666666666666664\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"74\" y=\"51\" text-anchor=\"middle\">44</text></svg><figcaption class=\"row-note\">uge 41: –, uge 42: –, uge 43: 9, uge 44: 6</figcaption></figure></section>\n\n<section class=\"card\" data-viden-del=\"gemt\"><h2 class=\"eyebrow\">Gemt</h2>\n    <ul class=\"card-list\"><li class=\"row\" data-viden-rum=\"mail\"><span class=\"row-main\"><span class=\"row-title\">Mail</span><span class=\"row-note\">12 linjer i loggen · 1 besked · 2,0 kB</span></span></li><li class=\"row\" data-viden-rum=\"univers-trip\"><span class=\"row-main\"><span class=\"row-title\">Univers: trip</span><span class=\"row-note\">1 linje i loggen · 2 beskeder · 100 B</span></span></li><li class=\"row\" data-viden-rum=\"nav\"><span class=\"row-main\"><span class=\"row-title\">Hvornår du åbnede rummene</span><span class=\"row-note\">0 linjer i loggen · 0 beskeder · 10 B</span></span></li><li class=\"row\" data-viden-rum=\"husstand\"><span class=\"row-main\"><span class=\"row-title\">Husstanden</span><span class=\"row-note\">3 linjer i loggen · 0 beskeder · 500 B</span></span></li></ul>\n    <p class=\"row-note\">1 fil i Clawco-mappen i din vault: <span class=\"mono\">regler.md</span>.</p>\n    <p class=\"row-note\">4 andre filer: forbindelser, indstillinger og hvad Clawco har gjort.</p>\n    <p class=\"row-note\">2 filer med nøgler og logins til dine kilder. De kommer ikke med i Hent alt.</p>\n    <p class=\"row-note\">I alt 4,0 kB.</p></section>\n<div class=\"actions viden-knapper\"><a class=\"btn\" href=\"/api/tillid/eksport\" download data-viden-hent>Hent alt</a><a class=\"btn btn-graense\" href=\"/viden/slet-alt\" data-viden-slet>Slet alt</a></div>\n</div>",
+  "slettet": "<div class=\"viden\" data-viden>\n<header class=\"room-head\"><div><h1>Hvad Clawco ved om dig</h1><p class=\"muted\">Alt, hvad Clawco har gemt om dig, samlet ét sted.</p></div></header>\n<div class=\"card\" data-slettet role=\"status\"><strong>Alt er slettet</strong><p class=\"row-note\">Clawco er tom og starter forfra. Din vault og dine egne noter er der stadig.</p></div>\n<section class=\"card\" data-viden-del=\"kilder\"><h2 class=\"eyebrow\">Kilder</h2><ul class=\"card-list\"><li class=\"row\" data-viden-kilde=\"falsk-kalender\"><span class=\"row-main\"><span class=\"row-title\">Calendar</span><span class=\"row-note\">kalender · privat</span></span></li><li class=\"row\" data-viden-kilde=\"mail-imap\"><span class=\"row-main\"><span class=\"row-title\">Mail</span><span class=\"row-note\">mail · arbejde</span></span></li></ul></section>\n<section class=\"card\" data-viden-del=\"regler\"><h2 class=\"eyebrow\">Regler</h2><ul class=\"card-list\"><li class=\"row\" data-regel=\"R-0001\" data-regel-status=\"aktiv\" data-regel-trin=\"1\"><span class=\"row-main\"><span class=\"row-title\"><span class=\"mono\">R-0001</span> · Mail sorteres i mapper</span><span class=\"row-note\">Trin 1 · Hermes må sortere · mail / indbakke</span><span class=\"row-note\">Importeret 2026-10-31</span></span><form method=\"post\" action=\"/api/tillid/regler/R-0001/pause\" class=\"viden-form\" data-regel-form=\"R-0001:pause\"><button type=\"submit\" class=\"btn btn-ghost\" data-regel-skift=\"pause\">Slå fra</button></form></li><li class=\"row\" data-regel=\"R-0002\" data-regel-status=\"pause\" data-regel-trin=\"2\"><span class=\"row-main\"><span class=\"row-title\"><span class=\"mono\">R-0002</span> · Regnskab</span><span class=\"row-note\">Trin 2 · Hermes må føre regnskab · mail / regning</span><span class=\"row-note\">Fra en rettelse 2026-11-01 · på pause</span></span><form method=\"post\" action=\"/api/tillid/regler/R-0002/aktiv\" class=\"viden-form\" data-regel-form=\"R-0002:aktiv\"><button type=\"submit\" class=\"btn btn-ghost\" data-regel-skift=\"aktiv\">Slå til igen</button></form></li><li class=\"row\" data-regel=\"R-0003\" data-regel-status=\"aktiv\" data-regel-trin=\"3\"><span class=\"row-main\"><span class=\"row-title\"><span class=\"mono\">R-0003</span> · Alt</span><span class=\"row-note\">Trin 3 · Hermes må forberede · <span class=\"chip tilstand-kraever\" data-regel-alt>gælder alt</span></span><span class=\"row-note\">Skrevet i hånden 2026-11-01</span></span><form method=\"post\" action=\"/api/tillid/regler/R-0003/pause\" class=\"viden-form\" data-regel-form=\"R-0003:pause\"><button type=\"submit\" class=\"btn btn-ghost\" data-regel-skift=\"pause\">Slå fra</button></form></li></ul><p class=\"row-note\">1 afsnit i filen er skrevet forkert og følges ikke: R-9 · Daarlig.</p><p class=\"row-note\" data-regler-aendret>Filen er ændret uden for Clawco. Det er helt i orden; reglerne læses, som de står i filen nu.</p><p class=\"row-note\">Filen: <span class=\"mono\" data-regler-fil>/v/Clawco/regler.md</span></p></section>\n<section class=\"card\" data-viden-del=\"personer\"><h2 class=\"eyebrow\">Personer</h2><ul class=\"card-list\"><li class=\"row\" data-viden-person><span class=\"row-main\"><a class=\"row-title\" href=\"obsidian://open?path=%2Fv%2F40-People%2Ffamilie%2Falma.md\">Alma</a><span class=\"row-note\">family · <span class=\"mono\">familie/alma.md</span></span></span></li></ul><p class=\"row-note\">Personerne er dine egne noter i <span class=\"mono\">/v/40-People</span>. Clawco læser dem kun.</p></section>\n<section class=\"card\" data-viden-del=\"ugetal\"><h2 class=\"eyebrow\">Ting der krævede dig</h2><div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I denne uge krævede i snit 6 ting dig om dagen (sidste uge 9). Fortryd: 1 (sidste uge 0).</p><p class=\"row-note\" data-ugetal=\"hjaelp\">Sådan tæller vi: en ting tæller for en dag, hvis den stod under Kræver dig på noget tidspunkt den dag, og kun én gang den dag. Fortryd er de handlinger, du fortrød i ugen. Tallet skal falde, uden at Fortryd stiger.</p></div><figure class=\"ugetal-soejler\" data-ugetal=\"soejler\" role=\"img\" aria-label=\"Ting der krævede dig om dagen, uge for uge: uge 41: –, uge 42: –, uge 43: 9, uge 44: 6\"><svg viewBox=\"0 0 82 54\" aria-hidden=\"true\" focusable=\"false\"><rect class=\"ugetal-soejle ugetal-tom\" x=\"0\" y=\"39\" width=\"16\" height=\"1\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"8\" y=\"51\" text-anchor=\"middle\">41</text><rect class=\"ugetal-soejle ugetal-tom\" x=\"22\" y=\"39\" width=\"16\" height=\"1\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"30\" y=\"51\" text-anchor=\"middle\">42</text><rect class=\"ugetal-soejle\" x=\"44\" y=\"0\" width=\"16\" height=\"40\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"52\" y=\"51\" text-anchor=\"middle\">43</text><rect class=\"ugetal-soejle ugetal-nu\" x=\"66\" y=\"13.333333333333336\" width=\"16\" height=\"26.666666666666664\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"74\" y=\"51\" text-anchor=\"middle\">44</text></svg><figcaption class=\"row-note\">uge 41: –, uge 42: –, uge 43: 9, uge 44: 6</figcaption></figure></section>\n\n<section class=\"card\" data-viden-del=\"gemt\"><h2 class=\"eyebrow\">Gemt</h2>\n    <ul class=\"card-list\"><li class=\"row\" data-viden-rum=\"mail\"><span class=\"row-main\"><span class=\"row-title\">Mail</span><span class=\"row-note\">12 linjer i loggen · 1 besked · 2,0 kB</span></span></li><li class=\"row\" data-viden-rum=\"univers-trip\"><span class=\"row-main\"><span class=\"row-title\">Univers: trip</span><span class=\"row-note\">1 linje i loggen · 2 beskeder · 100 B</span></span></li><li class=\"row\" data-viden-rum=\"nav\"><span class=\"row-main\"><span class=\"row-title\">Hvornår du åbnede rummene</span><span class=\"row-note\">0 linjer i loggen · 0 beskeder · 10 B</span></span></li><li class=\"row\" data-viden-rum=\"husstand\"><span class=\"row-main\"><span class=\"row-title\">Husstanden</span><span class=\"row-note\">3 linjer i loggen · 0 beskeder · 500 B</span></span></li></ul>\n    <p class=\"row-note\">1 fil i Clawco-mappen i din vault: <span class=\"mono\">regler.md</span>.</p>\n    <p class=\"row-note\">4 andre filer: forbindelser, indstillinger og hvad Clawco har gjort.</p>\n    <p class=\"row-note\">2 filer med nøgler og logins til dine kilder. De kommer ikke med i Hent alt.</p>\n    <p class=\"row-note\">I alt 4,0 kB.</p></section>\n<div class=\"actions viden-knapper\"><a class=\"btn\" href=\"/api/tillid/eksport\" download data-viden-hent>Hent alt</a><a class=\"btn btn-graense\" href=\"/viden/slet-alt\" data-viden-slet>Slet alt</a></div>\n</div>",
+  "tomt": "<div class=\"viden\" data-viden>\n<header class=\"room-head\"><div><h1>Hvad Clawco ved om dig</h1><p class=\"muted\">Alt, hvad Clawco har gemt om dig, samlet ét sted.</p></div></header>\n\n<section class=\"card\" data-viden-del=\"kilder\"><h2 class=\"eyebrow\">Kilder</h2><p class=\"muted\">Ingen kilder er koblet til.</p></section>\n<section class=\"card\" data-viden-del=\"regler\"><h2 class=\"eyebrow\">Regler</h2><p class=\"muted\">Ingen regler endnu.</p></section>\n<section class=\"card\" data-viden-del=\"personer\"><h2 class=\"eyebrow\">Personer</h2><p class=\"muted\">Der er ikke valgt noget personregister.</p></section>\n\n\n<section class=\"card\" data-viden-del=\"gemt\"><h2 class=\"eyebrow\">Gemt</h2><p class=\"muted\">Clawco har ikke gemt noget.</p></section>\n<div class=\"actions viden-knapper\"><a class=\"btn\" href=\"/api/tillid/eksport\" download data-viden-hent>Hent alt</a><a class=\"btn btn-graense\" href=\"/viden/slet-alt\" data-viden-slet>Slet alt</a></div>\n</div>",
+  "mangler": "<div class=\"viden\" data-viden>\n<header class=\"room-head\"><div><h1>Hvad Clawco ved om dig</h1><p class=\"muted\">Alt, hvad Clawco har gemt om dig, samlet ét sted.</p></div></header>\n\n<section class=\"card\" data-viden-del=\"kilder\"><h2 class=\"eyebrow\">Kilder</h2><ul class=\"card-list\"><li class=\"row\" data-viden-kilde=\"falsk-kalender\"><span class=\"row-main\"><span class=\"row-title\">Calendar</span><span class=\"row-note\">kalender · privat</span></span></li><li class=\"row\" data-viden-kilde=\"mail-imap\"><span class=\"row-main\"><span class=\"row-title\">Mail</span><span class=\"row-note\">mail · arbejde</span></span></li></ul></section>\n<section class=\"card\" data-viden-del=\"regler\"><h2 class=\"eyebrow\">Regler</h2><p class=\"muted\">Ingen regler endnu.</p><p class=\"row-note\">Filen: <span class=\"mono\" data-regler-fil>/v/Clawco/regler.md</span></p></section>\n<section class=\"card\" data-viden-del=\"personer\"><h2 class=\"eyebrow\">Personer</h2><p class=\"muted\">Personregisteret er tomt.</p></section>\n<section class=\"card\" data-viden-del=\"ugetal\"><h2 class=\"eyebrow\">Ting der krævede dig</h2><p class=\"muted\">Tallet kommer, når Clawco har talt en dag.</p></section>\n\n<section class=\"card\" data-viden-del=\"gemt\"><h2 class=\"eyebrow\">Gemt</h2>\n    <ul class=\"card-list\"><li class=\"row\" data-viden-rum=\"mail\"><span class=\"row-main\"><span class=\"row-title\">Mail</span><span class=\"row-note\">12 linjer i loggen · 1 besked · 2,0 kB</span></span></li><li class=\"row\" data-viden-rum=\"univers-trip\"><span class=\"row-main\"><span class=\"row-title\">Univers: trip</span><span class=\"row-note\">1 linje i loggen · 2 beskeder · 100 B</span></span></li><li class=\"row\" data-viden-rum=\"nav\"><span class=\"row-main\"><span class=\"row-title\">Hvornår du åbnede rummene</span><span class=\"row-note\">0 linjer i loggen · 0 beskeder · 10 B</span></span></li><li class=\"row\" data-viden-rum=\"husstand\"><span class=\"row-main\"><span class=\"row-title\">Husstanden</span><span class=\"row-note\">3 linjer i loggen · 0 beskeder · 500 B</span></span></li></ul>\n    <p class=\"row-note\">1 fil i Clawco-mappen i din vault: <span class=\"mono\">regler.md</span>.</p>\n    <p class=\"row-note\">4 andre filer: forbindelser, indstillinger og hvad Clawco har gjort.</p>\n    <p class=\"row-note\">2 filer med nøgler og logins til dine kilder. De kommer ikke med i Hent alt.</p>\n    <p class=\"row-note\">I alt 4,0 kB.</p></section>\n<div class=\"actions viden-knapper\"><a class=\"btn\" href=\"/api/tillid/eksport\" download data-viden-hent>Hent alt</a><a class=\"btn btn-graense\" href=\"/viden/slet-alt\" data-viden-slet>Slet alt</a></div>\n</div>",
+  "ulaeselig": "<div class=\"viden\" data-viden>\n<header class=\"room-head\"><div><h1>Hvad Clawco ved om dig</h1><p class=\"muted\">Alt, hvad Clawco har gemt om dig, samlet ét sted.</p></div></header>\n\n<section class=\"card\" data-viden-del=\"kilder\"><h2 class=\"eyebrow\">Kilder</h2><ul class=\"card-list\"><li class=\"row\" data-viden-kilde=\"falsk-kalender\"><span class=\"row-main\"><span class=\"row-title\">Calendar</span><span class=\"row-note\">kalender · privat</span></span></li><li class=\"row\" data-viden-kilde=\"mail-imap\"><span class=\"row-main\"><span class=\"row-title\">Mail</span><span class=\"row-note\">mail · arbejde</span></span></li></ul></section>\n<section class=\"card\" data-viden-del=\"regler\"><h2 class=\"eyebrow\">Regler</h2><p class=\"muted\" data-regler=\"ulaeselig\">Filen kan ikke læses (file unreadable). Indtil den er rettet, må Hermes kun se og foreslå.</p><p class=\"row-note\">Filen: <span class=\"mono\" data-regler-fil>/v/Clawco/regler.md</span></p></section>\n<section class=\"card\" data-viden-del=\"personer\"><h2 class=\"eyebrow\">Personer</h2><ul class=\"card-list\"><li class=\"row\" data-viden-person><span class=\"row-main\"><a class=\"row-title\" href=\"obsidian://open?path=%2Fv%2F40-People%2Ffamilie%2Falma.md\">Alma</a><span class=\"row-note\">family · <span class=\"mono\">familie/alma.md</span></span></span></li></ul><p class=\"row-note\">Personerne er dine egne noter i <span class=\"mono\">/v/40-People</span>. Clawco læser dem kun.</p></section>\n<section class=\"card\" data-viden-del=\"ugetal\"><h2 class=\"eyebrow\">Ting der krævede dig</h2><div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I denne uge krævede i snit 6 ting dig om dagen (sidste uge 9). Fortryd: 1 (sidste uge 0).</p><p class=\"row-note\" data-ugetal=\"hjaelp\">Sådan tæller vi: en ting tæller for en dag, hvis den stod under Kræver dig på noget tidspunkt den dag, og kun én gang den dag. Fortryd er de handlinger, du fortrød i ugen. Tallet skal falde, uden at Fortryd stiger.</p></div><figure class=\"ugetal-soejler\" data-ugetal=\"soejler\" role=\"img\" aria-label=\"Ting der krævede dig om dagen, uge for uge: uge 41: –, uge 42: –, uge 43: 9, uge 44: 6\"><svg viewBox=\"0 0 82 54\" aria-hidden=\"true\" focusable=\"false\"><rect class=\"ugetal-soejle ugetal-tom\" x=\"0\" y=\"39\" width=\"16\" height=\"1\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"8\" y=\"51\" text-anchor=\"middle\">41</text><rect class=\"ugetal-soejle ugetal-tom\" x=\"22\" y=\"39\" width=\"16\" height=\"1\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"30\" y=\"51\" text-anchor=\"middle\">42</text><rect class=\"ugetal-soejle\" x=\"44\" y=\"0\" width=\"16\" height=\"40\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"52\" y=\"51\" text-anchor=\"middle\">43</text><rect class=\"ugetal-soejle ugetal-nu\" x=\"66\" y=\"13.333333333333336\" width=\"16\" height=\"26.666666666666664\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"74\" y=\"51\" text-anchor=\"middle\">44</text></svg><figcaption class=\"row-note\">uge 41: –, uge 42: –, uge 43: 9, uge 44: 6</figcaption></figure></section>\n\n<section class=\"card\" data-viden-del=\"gemt\"><h2 class=\"eyebrow\">Gemt</h2>\n    <ul class=\"card-list\"><li class=\"row\" data-viden-rum=\"mail\"><span class=\"row-main\"><span class=\"row-title\">Mail</span><span class=\"row-note\">12 linjer i loggen · 1 besked · 2,0 kB</span></span></li><li class=\"row\" data-viden-rum=\"univers-trip\"><span class=\"row-main\"><span class=\"row-title\">Univers: trip</span><span class=\"row-note\">1 linje i loggen · 2 beskeder · 100 B</span></span></li><li class=\"row\" data-viden-rum=\"nav\"><span class=\"row-main\"><span class=\"row-title\">Hvornår du åbnede rummene</span><span class=\"row-note\">0 linjer i loggen · 0 beskeder · 10 B</span></span></li><li class=\"row\" data-viden-rum=\"husstand\"><span class=\"row-main\"><span class=\"row-title\">Husstanden</span><span class=\"row-note\">3 linjer i loggen · 0 beskeder · 500 B</span></span></li></ul>\n    <p class=\"row-note\">1 fil i Clawco-mappen i din vault: <span class=\"mono\">regler.md</span>.</p>\n    <p class=\"row-note\">4 andre filer: forbindelser, indstillinger og hvad Clawco har gjort.</p>\n    <p class=\"row-note\">2 filer med nøgler og logins til dine kilder. De kommer ikke med i Hent alt.</p>\n    <p class=\"row-note\">I alt 4,0 kB.</p></section>\n<div class=\"actions viden-knapper\"><a class=\"btn\" href=\"/api/tillid/eksport\" download data-viden-hent>Hent alt</a><a class=\"btn btn-graense\" href=\"/viden/slet-alt\" data-viden-slet>Slet alt</a></div>\n</div>",
+  "sletAlt": "<div class=\"viden\" data-viden>\n<header class=\"room-head\"><div><a class=\"muted\" href=\"/viden\">Tilbage</a><h1>Slet alt</h1><p class=\"muted\">Det kan ikke fortrydes.</p></div></header>\n<section class=\"card\" data-slet-alt=\"bekraeft\">\n  <h2 class=\"eyebrow\">Det bliver slettet</h2>\n  <ul class=\"viden-liste\"><li>Mail: 12 linjer i loggen og 1 besked</li><li>Univers: trip: 1 linje i loggen og 2 beskeder</li><li>Hvornår du åbnede rummene: 0 linjer i loggen og 0 beskeder</li><li>Husstanden: 3 linjer i loggen og 0 beskeder</li><li>Reglerne: <span class=\"mono\">/v/Clawco/regler.md</span></li><li>1 fil i Clawco-mappen i din vault</li><li>4 andre filer: forbindelser, indstillinger og hvad Clawco har gjort</li><li>2 filer med nøgler og logins til dine kilder</li></ul>\n  <p class=\"row-note\">Bliver liggende: din vault og dine egne noter, også personerne i personregisteret.</p>\n  <div class=\"actions\"><a class=\"btn\" href=\"/api/tillid/eksport\" download data-viden-hent>Hent alt først</a></div>\n  <form method=\"post\" action=\"/api/tillid/slet-alt\" class=\"viden-form\" data-slet-alt=\"form\">\n    \n    <label class=\"field\"><span class=\"row-note\">Skriv SLET for at bekræfte</span><input name=\"bekraeft\" type=\"text\" required autocomplete=\"off\" autocapitalize=\"characters\" spellcheck=\"false\" maxlength=\"10\" data-uden-stemme></label>\n    <div class=\"actions\"><button type=\"submit\" class=\"btn btn-graense\">Slet alt</button></div>\n  </form>\n</section>\n</div>",
+  "sletAltFejl": "<div class=\"viden\" data-viden>\n<header class=\"room-head\"><div><a class=\"muted\" href=\"/viden\">Tilbage</a><h1>Slet alt</h1><p class=\"muted\">Det kan ikke fortrydes.</p></div></header>\n<section class=\"card\" data-slet-alt=\"bekraeft\">\n  <h2 class=\"eyebrow\">Det bliver slettet</h2>\n  <ul class=\"viden-liste\"><li>Mail: 12 linjer i loggen og 1 besked</li><li>Univers: trip: 1 linje i loggen og 2 beskeder</li><li>Hvornår du åbnede rummene: 0 linjer i loggen og 0 beskeder</li><li>Husstanden: 3 linjer i loggen og 0 beskeder</li><li>Reglerne: <span class=\"mono\">/v/Clawco/regler.md</span></li><li>1 fil i Clawco-mappen i din vault</li><li>4 andre filer: forbindelser, indstillinger og hvad Clawco har gjort</li><li>2 filer med nøgler og logins til dine kilder</li></ul>\n  <p class=\"row-note\">Bliver liggende: din vault og dine egne noter, også personerne i personregisteret.</p>\n  <div class=\"actions\"><a class=\"btn\" href=\"/api/tillid/eksport\" download data-viden-hent>Hent alt først</a></div>\n  <form method=\"post\" action=\"/api/tillid/slet-alt\" class=\"viden-form\" data-slet-alt=\"form\">\n    <p class=\"row-note\" role=\"alert\" data-slet-alt-fejl>Try again</p>\n    <label class=\"field\"><span class=\"row-note\">Skriv SLET for at bekræfte</span><input name=\"bekraeft\" type=\"text\" required autocomplete=\"off\" autocapitalize=\"characters\" spellcheck=\"false\" maxlength=\"10\" data-uden-stemme></label>\n    <div class=\"actions\"><button type=\"submit\" class=\"btn btn-graense\">Slet alt</button></div>\n  </form>\n</section>\n</div>",
+  "sletAltTom": "<div class=\"viden\" data-viden>\n<header class=\"room-head\"><div><a class=\"muted\" href=\"/viden\">Tilbage</a><h1>Slet alt</h1><p class=\"muted\">Det kan ikke fortrydes.</p></div></header>\n<section class=\"card\" data-slet-alt=\"bekraeft\">\n  <h2 class=\"eyebrow\">Det bliver slettet</h2>\n  <p class=\"muted\">Clawco har ikke gemt noget.</p>\n  <p class=\"row-note\">Bliver liggende: din vault og dine egne noter, også personerne i personregisteret.</p>\n  <div class=\"actions\"><a class=\"btn\" href=\"/api/tillid/eksport\" download data-viden-hent>Hent alt først</a></div>\n  <form method=\"post\" action=\"/api/tillid/slet-alt\" class=\"viden-form\" data-slet-alt=\"form\">\n    \n    <label class=\"field\"><span class=\"row-note\">Skriv SLET for at bekræfte</span><input name=\"bekraeft\" type=\"text\" required autocomplete=\"off\" autocapitalize=\"characters\" spellcheck=\"false\" maxlength=\"10\" data-uden-stemme></label>\n    <div class=\"actions\"><button type=\"submit\" class=\"btn btn-graense\">Slet alt</button></div>\n  </form>\n</section>\n</div>"
+ },
+ "dagstal": {
+  "to": "<div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I denne uge krævede i snit 6 ting dig om dagen (sidste uge 9). Fortryd: 1. Det er faldet, uden at Fortryd steg.</p><p class=\"row-note\" data-ugetal=\"hjaelp\">Sådan tæller vi: en ting tæller for en dag, hvis den stod under Kræver dig på noget tidspunkt den dag, og kun én gang den dag. Fortryd er de handlinger, du fortrød i ugen. Tallet skal falde, uden at Fortryd stiger.</p></div>",
+  "faldt": "<div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I denne uge krævede i snit 6 ting dig om dagen (sidste uge 9). Fortryd: 1. Det er faldet, uden at Fortryd steg.</p></div>",
+  "steg": "<div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I denne uge krævede i snit 6 ting dig om dagen (sidste uge 5). Fortryd: 3 (sidste uge 0).</p></div>",
+  "foerste": "<div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">Første uge: 6 om dagen. Sammenligning kommer næste uge.</p></div>",
+  "sidste": "<div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I uge 44 krævede i snit 6 ting dig om dagen (ugen før 9). Fortryd: 1. Det er faldet, uden at Fortryd steg.</p></div>",
+  "hul": "<div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I denne uge krævede i snit 6 ting dig om dagen (uge 41: 9). Fortryd: 1. Det er faldet, uden at Fortryd steg.</p></div>",
+  "gammel": "<div class=\"ugetal\"><p class=\"ugetal-linje\" data-ugetal=\"linje\">I uge 42 krævede i snit 6 ting dig om dagen (ugen før 9). Fortryd: 1. Det er faldet, uden at Fortryd steg.</p></div>",
+  "tekst": "uge 41: –, uge 42: –, uge 43: 9, uge 44: 6",
+  "soejler": "<figure class=\"ugetal-soejler\" data-ugetal=\"soejler\" role=\"img\" aria-label=\"Ting der krævede dig om dagen, uge for uge: uge 41: –, uge 42: –, uge 43: 9, uge 44: 6\"><svg viewBox=\"0 0 82 54\" aria-hidden=\"true\" focusable=\"false\"><rect class=\"ugetal-soejle ugetal-tom\" x=\"0\" y=\"39\" width=\"16\" height=\"1\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"8\" y=\"51\" text-anchor=\"middle\">41</text><rect class=\"ugetal-soejle ugetal-tom\" x=\"22\" y=\"39\" width=\"16\" height=\"1\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"30\" y=\"51\" text-anchor=\"middle\">42</text><rect class=\"ugetal-soejle\" x=\"44\" y=\"0\" width=\"16\" height=\"40\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"52\" y=\"51\" text-anchor=\"middle\">43</text><rect class=\"ugetal-soejle ugetal-nu\" x=\"66\" y=\"13.333333333333336\" width=\"16\" height=\"26.666666666666664\" rx=\"2\"></rect><text class=\"ugetal-nr\" x=\"74\" y=\"51\" text-anchor=\"middle\">44</text></svg><figcaption class=\"row-note\">uge 41: –, uge 42: –, uge 43: 9, uge 44: 6</figcaption></figure>"
+ },
+ "regler": {
+  "fil": "# Regler for Clawco\n\nnaeste-id: R-0002\n\nDet, Hermes må gøre af sig selv. Én regel pr. afsnit: overskriften har reglens faste nummer, så trin (0 se, 1 sortere, 2 føre regnskab, 3 forberede, 4 udføre med fortryd), hvad den gælder for, hvor den kom fra og om den er aktiv eller på pause; derefter din egen tekst. Du må rette i filen. En regel, der er skrevet forkert, bliver ikke fulgt. Rør ikke linjen naeste-id: den sørger for, at et nummer aldrig bruges to gange.\n\n## R-0001 · A\n- trin: 1\n- gaelder: mail\n- oprindelse: haand 2026-11-01\n- status: aktiv\n"
+ },
+ "slet-alt": {
+  "r": {
+   "ok": {
+    "filer": 1
+   }
+  },
+  "revision": [
+   "Slet alt: ejeren bekræftede med SLET"
+  ],
+  "roden": {
+   "fejl": "Slet alt sletter kun i en datamappe, ikke (ingen mappe)"
+  }
+ }
+}

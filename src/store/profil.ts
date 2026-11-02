@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { skrivAtomisk } from './atomisk.ts';
+import { sprogNu } from './sprog.ts';
 
 export const SPROG = ['da', 'en'] as const;
 export const HUSSTAND = ['alene', 'husstand'] as const;
@@ -17,22 +18,29 @@ export type Profil = { navn: string; sprog: Sprog; husstand: Husstandsform };
 
 export const NAVN_MAKS = 60;
 
+/** KC-0170: what a person is told when the profile they typed is refused, in the request's language (file errors are the operator's and stay Danish). */
+export const PROFIL_TEKSTER = {
+  da: { mangler: 'Profilen mangler', skrivNavn: 'Skriv hvad du hedder', navnForLangt: (maks: number): string => `Navnet må højst være ${maks} tegn`, ugyldigeTegn: 'Navnet har ugyldige tegn', vaelgSprog: 'Vælg dansk eller engelsk', vaelgHusstand: 'Vælg alene eller husstand' },
+  en: { mangler: 'The profile is missing', skrivNavn: 'Write what you are called', navnForLangt: (maks: number): string => `The name can be at most ${maks} characters`, ugyldigeTegn: 'The name has invalid characters', vaelgSprog: 'Choose Danish or English', vaelgHusstand: 'Choose alone or household' },
+};
+const profilTekst = () => PROFIL_TEKSTER[sprogNu()];
+
 export class ProfilFejl extends Error {
   constructor(besked: string) { super(besked); this.name = 'ProfilFejl'; }
 }
 
 /** The profile in `raw`, trimmed; throws ProfilFejl with a Danish reason the form can show. */
 export function validerProfil(raw: unknown): Profil {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ProfilFejl('Profilen mangler');
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new ProfilFejl(profilTekst().mangler);
   const o = raw as Record<string, unknown>;
   const navn = typeof o['navn'] === 'string' ? o['navn'].trim() : '';
-  if (!navn) throw new ProfilFejl('Skriv hvad du hedder');
-  if (navn.length > NAVN_MAKS) throw new ProfilFejl(`Navnet må højst være ${NAVN_MAKS} tegn`);
-  if (/[\u0000-\u001f\u007f]/.test(navn)) throw new ProfilFejl('Navnet har ugyldige tegn');
+  if (!navn) throw new ProfilFejl(profilTekst().skrivNavn);
+  if (navn.length > NAVN_MAKS) throw new ProfilFejl(profilTekst().navnForLangt(NAVN_MAKS));
+  if (/[\u0000-\u001f\u007f]/.test(navn)) throw new ProfilFejl(profilTekst().ugyldigeTegn);
   const sprog = o['sprog'];
-  if (!(SPROG as readonly unknown[]).includes(sprog)) throw new ProfilFejl('Vælg dansk eller engelsk');
+  if (!(SPROG as readonly unknown[]).includes(sprog)) throw new ProfilFejl(profilTekst().vaelgSprog);
   const husstand = o['husstand'];
-  if (!(HUSSTAND as readonly unknown[]).includes(husstand)) throw new ProfilFejl('Vælg alene eller husstand');
+  if (!(HUSSTAND as readonly unknown[]).includes(husstand)) throw new ProfilFejl(profilTekst().vaelgHusstand);
   return { navn, sprog: sprog as Sprog, husstand: husstand as Husstandsform };
 }
 

@@ -15,26 +15,26 @@ import { parseStartState, ProfilFejl, validerProfil, type Forslag, type Profil, 
 import { alleTrin, NIVEAUER, PAKKE_KILDER, trinStatus, utenPakke, type ModelSyn, type Niveau, type TrinKontekst } from './trin.ts';
 import { erRejsenFaerdig } from './rejsen.ts';
 import { foreslaaTilfoejelse } from './forslag.ts';
-import { renderStart, testTekst, type StartVisning } from './render.ts';
+import { renderStart, sek, testTekst, type StartVisning } from './render.ts';
 import { ventendeForslag } from './regelforslag.ts';
 import { buildStartChatRun, KORSEL } from './prompt.ts';
 import { envVaerdi, hentModelNavne, udbyderAf } from './udbydere.ts';
-import { MODEL_FEJL, modelFejlArt, type ModelFejlArt } from './modelfejl.ts';
+import { modelFejlArt, type ModelFejlArt } from './modelfejl.ts';
 import { MODEL_TEST } from '../../agent/prompt.ts';
 import type { AgentStatus } from '../../agent/types.ts';
 import { kildeKontekst, kildeVisning, springOver } from './vaerdi.ts';
 import type { KildeVisning } from './kilderender.ts';
 import { flereKilderKoe } from './trin.ts';
-import { IMPORT_AKTIONER, IMPORT_LABEL, importAktion, importFortryd, importKvitteringer, rydGamleUploads, type Hjaelp as ImportHjaelp } from './import/handlinger.ts';
+import { IMPORT_AKTIONER, erImportLabel, importAktion, importFortryd, importKvitteringer, rydGamleUploads, type Hjaelp as ImportHjaelp } from './import/handlinger.ts';
 import type { ImportVisning } from './import/render.ts';
 import { visTailscaleKort } from './tailscalekort.ts';
 import { TsFejl } from '../../shell/tailscale.ts';
 import { STANDARD_SPROG, tekst } from '../../shell/tekster.ts';
+import { startTekst } from './tekster.ts';
 
 const RUM = 'start';
 /** How long worked-out suggestions are kept before the sources are asked again. */
 const FORSLAG_GYLDIG_MS = 15 * 60_000;
-const SPROG_NAVN = { da: 'dansk', en: 'engelsk' } as const;
 
 const ny = (nu: Date): StartState => ({ startet: nu.toISOString(), trin: {}, afvist: {} });
 const laesState = async (deps: RoomDeps): Promise<StartState | null> => parseStartState(await deps.store.readState(RUM));
@@ -74,7 +74,7 @@ const laasFaerdig = (deps: RoomDeps): Promise<StartState> => enAdGangen(deps, as
   if (nyeste?.faerdig) return nyeste;
   const laast = { ...(nyeste ?? ny(deps.now())), faerdig: deps.now().toISOString() };
   await deps.store.writeState(RUM, laast);
-  await deps.store.appendLog(RUM, { kilde: 'system', zone: KORSEL, tekst: 'Rejsen er gennemført.' }); // KC-0130
+  await deps.store.appendLog(RUM, { kilde: 'system', zone: KORSEL, tekst: startTekst().akt.rejsenGennemfoert }); // KC-0130
   return laast;
 });
 
@@ -126,9 +126,9 @@ async function importSyn(deps: RoomDeps, s: StartState, model: ModelSyn | undefi
   if (!skriver) return {};
   const u = model?.udbyder ? udbyderAf(model.udbyder) : undefined;
   return { import: {
-    klar: await skriver.klar().catch(() => false), kanLavMappe: Boolean(skriver.lavMappe), udbyder: u ? { navn: u.navn, lokal: !u.kraeverNoegle } : null,
+    klar: await skriver.klar().catch(() => false), kanLavMappe: Boolean(skriver.lavMappe), udbyder: u ? { navn: startTekst().udbyderNavn(u), lokal: !u.kraeverNoegle } : null,
     ...(s.import?.bunke ? { bunke: s.import.bunke } : {}), gemt: s.import?.gemt ?? [],
-    laeser: deps.runs.igang(RUM).some((r) => r.label === IMPORT_LABEL), kanGemme: kan(deps.person.rolle, 'aendre-indstillinger'),
+    laeser: deps.runs.igang(RUM).some((r) => erImportLabel(r.label)), kanGemme: kan(deps.person.rolle, 'aendre-indstillinger'),
   } };
 }
 
@@ -205,10 +205,12 @@ const importHjaelp: ImportHjaelp = { laesState, ny, enAdGangen, faerdigt, korsel
 
 async function startAction(deps: RoomDeps, name: string, body: Record<string, unknown>): Promise<RunRecord | null> {
   const p = deps.person;
+  const T = startTekst();
+  const A = T.akt;
   if (name === 'velkommen-gem') {
-    if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan gemme profilen.');
+    if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError(A.kunEjerenGemmerProfil);
     const lager = deps.profil;
-    if (!lager) throw new ActionError('Clawco har ingen datamappe, så profilen kan ikke gemmes.');
+    if (!lager) throw new ActionError(A.ingenDatamappeProfil);
     let profil: Profil;
     try { profil = validerProfil(body); } catch (err) {
       if (err instanceof ProfilFejl) throw new ActionError(err.message);
@@ -222,54 +224,54 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
       // AGENTS §1: the undo restores the previous profile (none = back to no profile).
       await deps.store.appendLog(RUM, {
         kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'velkommen-gem', fortryd: `lokal:${JSON.stringify({ forrige })}`,
-        tekst: `Gemte profilen: ${profil.navn}, Hermes svarer på ${SPROG_NAVN[profil.sprog]}${deps.laptop?.() ? '' : `, ${profil.husstand === 'husstand' ? 'en husstand' : 'alene'}`}.`, // KC-0160: no household wording in laptop mode
+        tekst: A.gemteProfil(profil.navn, profil.sprog, deps.laptop?.() ? null : profil.husstand), // KC-0160: no household wording in laptop mode
       });
       // KC-0170: a new screen language reloads the page (no profile was shown in the standard language).
-      const svar = await faerdigt(deps, 'Gemt. Velkommen.');
-      return profil.sprog === (forrige?.sprog ?? STANDARD_SPROG) ? svar : { ...svar, genindlaes: true };
-    }, { room: RUM, label: 'Start: gemmer profilen' });
+      const svar = await faerdigt(deps, A.gemtVelkommen);
+      return profil.sprog === (forrige?.sprog ?? deps.standardSprog?.() ?? STANDARD_SPROG) ? svar : { ...svar, genindlaes: true };
+    }, { room: RUM, label: T.label.profil });
   }
   if (name === 'forslag-afvis') {
     const kildeId = str(body['kildeId'], 40);
     const f = (await rejsen(deps)).forslag.find((x) => x.kildeId === kildeId);
-    if (!f) throw new ActionError('Forslaget findes ikke i rummet');
+    if (!f) throw new ActionError(A.forslagFindesIkke);
     return deps.runs.local('afvis', async () => {
       const s = (await laesState(deps)) ?? ny(deps.now());
       const forslag = s.forslag ? { ...s.forslag, liste: s.forslag.liste.filter((x) => x.kildeId !== kildeId) } : undefined;
       await deps.store.writeState(RUM, { ...s, afvist: { ...s.afvist, [kildeId]: deps.now().toISOString() }, ...(forslag ? { forslag } : {}) });
-      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: `Lagde forslaget om ${f.navn} væk i 30 dage.` });
-      return faerdigt(deps, 'Lagt væk.');
-    }, { room: RUM, label: 'Start: lægger forslaget væk' });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.lagdeForslagVaek(f.navn) });
+      return faerdigt(deps, A.lagtVaek);
+    }, { room: RUM, label: T.label.forslag });
   }
   if (name === 'ret-spring-over') {
-    if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan springe trinnet over.');
+    if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError(A.kunEjerenSpringerOver);
     const { trin } = await trinNu(deps, await laesState(deps));
     const status = trin.find((x) => x.trin.id === 'foerste-ret')?.status;
-    if (status === 'klaret') throw new ActionError('Trinnet er allerede klaret.');
-    if (status === 'sprunget-over') throw new ActionError('Trinnet er allerede sprunget over.');
+    if (status === 'klaret') throw new ActionError(A.trinKlaret);
+    if (status === 'sprunget-over') throw new ActionError(A.trinSprunget);
     return deps.runs.local('afvis', async () => {
       const s = (await laesState(deps)) ?? ny(deps.now());
-      const titel = alleTrin().find((t) => t.id === 'foerste-ret')?.titel ?? 'Ret én ting';
+      const titel = T.trin['foerste-ret'].titel;
       await deps.store.writeState(RUM, { ...s, trin: { ...s.trin, 'foerste-ret': { status: 'sprunget-over', tid: deps.now().toISOString() } } });
-      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: `Sprang »${titel}« over. Rejsen er først færdig, når du har rettet noget.` });
-      return faerdigt(deps, 'Sprunget over.');
-    }, { room: RUM, label: 'Start: springer et trin over' });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.sprangRet(titel) });
+      return faerdigt(deps, A.sprunget);
+    }, { room: RUM, label: T.label.trin });
   }
   if ((IMPORT_AKTIONER as readonly string[]).includes(name)) {
     const t = name === 'import-spring-over' ? (await trinNu(deps, await laesState(deps))).trin.find((x) => x.trin.id === 'import') : undefined;
-    return importAktion(deps, name, body, importHjaelp, { status: t?.status, titel: t?.trin.titel ?? 'Tag det med' });
+    return importAktion(deps, name, body, importHjaelp, { status: t?.status, titel: t?.trin.titel ?? T.trin['import'].titel });
   }
   if (name === 'model-gem' || name === 'model-test' || name === 'model-agent-noegle') return modelAktion(deps, name, body);
   if (name === 'tailscale-del') return tailscaleDel(deps, body);
   if (name === 'post-afsender-gem' || name === 'post-ikke-nu') return digitalPostAktion(deps, name, body);
   if (name === 'aula-ikke-nu') return aulaIkkeNu(deps);
   if (name === 'kilde-spring-over') {
-    if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren vælger kilderne.');
+    if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError(A.kunEjerenKilder);
     const kildeId = str(body['kildeId'], 40);
     const s = await laesState(deps);
     const { ctx } = await trinNu(deps, s);
-    if (!flereKilderKoe(s, ctx).some((k) => k.id === kildeId)) throw new ActionError('Kilden er ikke tilbudt i rummet');
-    return deps.runs.local('afvis', async () => faerdigt(deps, `${await springOver(deps, kildeId, ctx)} er sprunget over.`), { room: RUM, label: 'Start: springer en kilde over' });
+    if (!flereKilderKoe(s, ctx).some((k) => k.id === kildeId)) throw new ActionError(A.kildeIkkeTilbudt);
+    return deps.runs.local('afvis', async () => faerdigt(deps, A.kildeSprunget(await springOver(deps, kildeId, ctx))), { room: RUM, label: T.label.kilde });
   }
   return null;
 }
@@ -281,35 +283,39 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
  */
 async function digitalPostAktion(deps: RoomDeps, name: 'post-afsender-gem' | 'post-ikke-nu', body: Record<string, unknown>): Promise<RunRecord> {
   const p = deps.person;
-  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren vælger afsenderen.', 403);
+  const T = startTekst();
+  const A = T.akt;
+  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError(A.kunEjerenAfsenderen, 403);
   const dm = deps.danmark;
-  if (!dm) throw new ActionError('Clawco har ingen datamappe, så valget kan ikke gemmes.');
+  if (!dm) throw new ActionError(A.ingenDatamappeValg);
   if (name === 'post-ikke-nu') {
     await dm.ikkeNu();
     return deps.runs.local('afvis', async () => {
-      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: name, tekst: 'Lagde trinnet om Digital Post væk i 30 dage.' });
-      return faerdigt(deps, 'Lagt væk.');
-    }, { room: RUM, label: 'Start: lægger Digital Post-trinnet væk' });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: name, tekst: A.lagdePostVaek });
+      return faerdigt(deps, A.lagtVaek);
+    }, { room: RUM, label: T.label.postVaek });
   }
   const afsender = str(body['egen'], 200) || str(body['afsender'], 200);
   await dm.gem(afsender, str(body['viser'], 20));
   return deps.runs.local('gem', async () => {
-    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: name, tekst: `Valgte afsenderen til Digital Post: ${afsender.toLowerCase()}.` });
-    return faerdigt(deps, 'Gemt. Nu lægger Clawco et kort i Nu, når der kommer ny Digital Post.');
-  }, { room: RUM, label: 'Start: gemmer Digital Post-afsenderen' });
+    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: name, tekst: A.valgteAfsender(afsender.toLowerCase()) });
+    return faerdigt(deps, A.gemtPost);
+  }, { room: RUM, label: T.label.postGem });
 }
 
 /** KC-0236: "Ikke nu" on the Aula card — a setting (30 days); it reaches neither Hermes nor Aula. Only the owner. */
 async function aulaIkkeNu(deps: RoomDeps): Promise<RunRecord> {
   const p = deps.person;
-  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren vælger kilderne.', 403);
+  const T = startTekst();
+  const A = T.akt;
+  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError(A.kunEjerenKilder, 403);
   const dm = deps.danmark;
-  if (!dm) throw new ActionError('Clawco har ingen datamappe, så valget kan ikke gemmes.');
+  if (!dm) throw new ActionError(A.ingenDatamappeValg);
   await dm.aulaIkkeNu();
   return deps.runs.local('afvis', async () => {
-    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'aula-ikke-nu', tekst: 'Lagde Aula-kortet væk i 30 dage.' });
-    return faerdigt(deps, 'Lagt væk.');
-  }, { room: RUM, label: 'Start: lægger Aula-kortet væk' });
+    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'aula-ikke-nu', tekst: A.lagdeAulaVaek });
+    return faerdigt(deps, A.lagtVaek);
+  }, { room: RUM, label: T.label.aulaVaek });
 }
 
 /**
@@ -320,22 +326,24 @@ async function aulaIkkeNu(deps: RoomDeps): Promise<RunRecord> {
 async function tailscaleDel(deps: RoomDeps, body: Record<string, unknown>): Promise<RunRecord> {
   const p = deps.person;
   const t = deps.tailscale;
-  if (!t) throw new ActionError('Clawco kan ikke dele på tailnettet fra den her installation.');
-  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan dele Clawco på tailnettet.');
+  const T = startTekst();
+  const A = T.akt;
+  if (!t) throw new ActionError(A.kanIkkeDeleHer);
+  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError(A.kunEjerenDeler);
   const felter = Object.keys(body).filter((k) => k !== 'ja');
-  if (felter.length !== 1 || felter[0] !== 'port' || body['port'] !== t.port) throw new ActionError(`Knappen passer ikke til Clawcos port (${t.port}). Åbn Start igen.`);
-  if ((await t.laes()).tilstand !== 'klar') throw new ActionError('Clawco kan kun deles, når Tailscale er logget ind, og Clawco ikke allerede er delt.');
+  if (felter.length !== 1 || felter[0] !== 'port' || body['port'] !== t.port) throw new ActionError(A.knappenPasserIkke(t.port));
+  if ((await t.laes()).tilstand !== 'klar') throw new ActionError(A.kanKunDeles);
   return deps.runs.local('gem', async () => {
     try {
       const efter = await t.del();
-      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'tailscale-del', tekst: `Delte Clawco på tailnettet (tailscale serve --bg ${t.port})${efter.adresse ? `: ${efter.adresse}` : ''}.` });
-      return faerdigt(deps, efter.tilstand === 'delt' ? 'Clawco er delt på dit tailnet.' : 'Kommandoen er kørt. Åbn Start igen for at se, om Tailscale har delt Clawco.');
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'tailscale-del', tekst: A.deltLog(t.port, efter.adresse) });
+      return faerdigt(deps, efter.tilstand === 'delt' ? A.erDelt : A.kommandoenKoert);
     } catch (err) {
       if (!(err instanceof TsFejl)) throw err;
-      await deps.store.appendLog(RUM, { kilde: 'system', zone: KORSEL, ejer: p.id, handlingId: 'tailscale-del', tekst: `Ikke gjort: ${err.message}` });
+      await deps.store.appendLog(RUM, { kilde: 'system', zone: KORSEL, ejer: p.id, handlingId: 'tailscale-del', tekst: A.ikkeGjort(err.message) });
       throw new Error(err.message);
     }
-  }, { room: RUM, label: 'Start: deler Clawco på tailnettet' });
+  }, { room: RUM, label: T.label.del });
 }
 
 /** KC-0127: one live test of a tier — one tiny run through the agent real runs use, stopped after testMs. Stored per revision; fail closed. */
@@ -365,8 +373,8 @@ async function testBegge(deps: RoomDeps): Promise<string> {
   const r: { ok: boolean; ms: number; fejl?: ModelFejlArt }[] = [];
   for (const n of NIVEAUER) r.push(await testNiveau(deps, n));
   const fejl = r.find((x) => !x.ok);
-  const [lille, taenker] = r.map((x) => testTekst(x).replace(/^Virker · /, ''));
-  return fejl ? testTekst(fejl) : `Virker: den hurtige svarede på ${lille}, den grundige på ${taenker}.`;
+  const [lille, taenker] = r.map((x) => `${sek(x.ms)} s`);
+  return fejl ? testTekst(fejl) : startTekst().akt.virkerBegge(lille!, taenker!);
 }
 
 /** Which model a tier gets: the posted one for the same provider, else the provider's default (or the first discovered when the default is not offered). */
@@ -378,37 +386,39 @@ function modelTil(n: Niveau, o: { samme: boolean; posted: string; nu: ModelSyn; 
 
 async function modelAktion(deps: RoomDeps, name: string, body: Record<string, unknown>): Promise<RunRecord> {
   const p = deps.person;
-  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan vælge modellen.');
+  const T = startTekst();
+  const A = T.akt;
+  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError(A.kunEjerenModellen);
   const m = deps.model;
-  if (!m) throw new ActionError('Clawco har ingen datamappe, så modellen kan ikke gemmes.');
+  if (!m) throw new ActionError(A.ingenDatamappeModel);
 
   if (name === 'model-agent-noegle') {
     const v = str(body['noegle'], 2001);
-    if (!v) throw new ActionError('Indsæt nøglen til Hermes.');
+    if (!v) throw new ActionError(A.indsaetNoegle);
     return deps.runs.local('gem', async () => {
       const r = await m.saetAgentNoegle(v);
-      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: `Gemte nøglen til Hermes (${r.laengde} tegn).` });
-      return faerdigt(deps, `Gemt (${r.laengde} tegn).`);
-    }, { room: RUM, label: 'Start: gemmer nøglen til Hermes' });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.gemteNoegle(r.laengde) });
+      return faerdigt(deps, A.gemtLaengde(r.laengde));
+    }, { room: RUM, label: T.label.noegle });
   }
 
-  if ((await deps.hermes.status()) === 'mangler-noegle') throw new ActionError(`${MODEL_FEJL['agent-noegle']} Indsæt den først.`);
+  if ((await deps.hermes.status()) === 'mangler-noegle') throw new ActionError(`${T.modelFejl['agent-noegle']} ${A.indsaetDenFoerst}`);
 
   if (name === 'model-test') {
     const niveau = body['tier'];
-    if (!(NIVEAUER as readonly unknown[]).includes(niveau)) throw new ActionError('Ukendt niveau');
+    if (!(NIVEAUER as readonly unknown[]).includes(niveau)) throw new ActionError(A.ukendtNiveau);
     const n = niveau as Niveau;
-    if (!(await m.laes()).modeller[n]) throw new ActionError('Vælg en model først.');
-    return deps.runs.local('test', async () => faerdigt(deps, testTekst(await testNiveau(deps, n))), { room: RUM, label: 'Start: prøver modellen' });
+    if (!(await m.laes()).modeller[n]) throw new ActionError(A.vaelgModelFoerst);
+    return deps.runs.local('test', async () => faerdigt(deps, testTekst(await testNiveau(deps, n))), { room: RUM, label: T.label.test });
   }
 
   // model-gem: the provider, the key (or a local address) to the agent, the models, then both tiers tested at once.
   const u = udbyderAf(str(body['udbyder'], 40));
-  if (!u) throw new ActionError('Vælg en udbyder fra listen.');
+  if (!u) throw new ActionError(A.vaelgUdbyder);
   const raa = u.kraeverNoegle ? str(body['noegle'], 2001) : str(body['url'], 200);
   const vaerdi = u.kraeverNoegle && !raa ? null : envVaerdi(u, raa);
-  if (!u.kraeverNoegle && !vaerdi) throw new ActionError(`Adressen skal være en http-adresse, fx ${u.standardUrl ?? 'http://127.0.0.1'}.`);
-  if (u.kraeverNoegle && raa && !vaerdi) throw new ActionError('Nøglen er for lang.');
+  if (!u.kraeverNoegle && !vaerdi) throw new ActionError(A.adresseHttp(u.standardUrl ?? 'http://127.0.0.1'));
+  if (u.kraeverNoegle && raa && !vaerdi) throw new ActionError(A.noegleForLang);
   const posted = { lille: str(body['lille'], 80), taenker: str(body['taenker'], 80) };
   return deps.runs.local('gem', async () => {
     const nu = await m.laes();
@@ -428,14 +438,15 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
     const valg = (n: Niveau): string => modelTil(n, { samme, posted: posted[n], nu, std: u.standardModeller[n], ...(gemt.navne ? { navne: gemt.navne } : {}) });
     await m.vaelg({ udbyder: u.id, lille: valg('lille'), taenker: valg('taenker') });
     await deps.store.writeState(RUM, { ...s, model: gemt });
-    const hvad = gemt.noegle ? `, nøglen er givet til Hermes (${gemt.noegle.laengde} tegn)` : gemt.url ? `, adressen ${gemt.url}` : '';
-    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: `Valgte ${u.navn}${hvad}: ${valg('lille')} og ${valg('taenker')}.` });
-    if (gemt.kommando && vaerdi) return faerdigt(deps, 'Kør kommandoen på Hermes’ maskine, og tryk så Test.');
+    const hvad = gemt.noegle ? A.hvadNoegle(gemt.noegle.laengde) : gemt.url ? A.hvadAdresse(gemt.url) : '';
+    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.valgteModel(T.udbyderNavn(u), hvad, valg('lille'), valg('taenker')) });
+    if (gemt.kommando && vaerdi) return faerdigt(deps, A.koerKommandoen);
     return faerdigt(deps, await testBegge(deps));
-  }, { room: RUM, label: 'Start: gemmer og prøver modellen' });
+  }, { room: RUM, label: T.label.modelGem });
 }
 
 async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | null> {
+  const T = startTekst();
   const entry = (await deps.store.readLog(RUM, 200)).filter((e) => synligFor(deps.person, e)).find((e) => e.id === logId);
   const kvit = importKvitteringer(entry?.fortryd); // KC-0129: a saved import's Fortryd
   if (entry && kvit) return importFortryd(deps, entry, kvit, importHjaelp);
@@ -450,20 +461,22 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
     const nu = await lager.laes().catch(() => null);
     if (forrige) await lager.skriv(forrige); else await lager.fjern();
     await deps.store.updateLog(RUM, logId, { fortrudt: deps.now().toISOString() });
-    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: deps.person.id, tekst: forrige ? `Satte profilen tilbage til ${forrige.navn}.` : 'Fjernede profilen igen.' });
-    const svar = await faerdigt(deps, 'Fortrudt.');
-    return (nu?.sprog ?? STANDARD_SPROG) === (forrige?.sprog ?? STANDARD_SPROG) ? svar : { ...svar, genindlaes: true }; // KC-0170
-  }, { room: RUM, label: 'Start: fortryder' });
+    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: deps.person.id, tekst: forrige ? T.akt.satteProfilTilbage(forrige.navn) : T.akt.fjernedeProfil });
+    const svar = await faerdigt(deps, T.akt.fortrudt);
+    const std = deps.standardSprog?.() ?? STANDARD_SPROG;
+    return (nu?.sprog ?? std) === (forrige?.sprog ?? std) ? svar : { ...svar, genindlaes: true }; // KC-0170
+  }, { room: RUM, label: T.label.fortryd });
 }
 
 async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
+  const ingenSvar = startTekst().akt.ingenSvar; // read now: the answer may arrive in another request's context
   const { trin } = await trinNu(deps, await laesState(deps));
   await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
   return deps.runs.start({
     kind: 'chat',
     spec: buildStartChatRun(besked, kontekst, trin.map((x) => ({ titel: x.trin.titel, status: x.status }))),
     onDone: async (output) => {
-      const text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || '(intet svar)';
+      const text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || ingenSvar;
       await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
       return { text };
     },
@@ -483,5 +496,5 @@ export const startRoom: RoomModule = {
   startAction,
   tik: async (deps) => { await rydGamleUploads(deps).catch(() => 0); }, // KC-0129: an upload never outlives an hour
   venter: async (deps) => (await aabneObligatoriske(deps)).length,
-  hjemVenter: async (deps) => (await aabneObligatoriske(deps)).map((titel) => ({ roomId: RUM, tekst: `Start: ${titel}` })),
+  hjemVenter: async (deps) => (await aabneObligatoriske(deps)).map((titel) => ({ roomId: RUM, tekst: startTekst().akt.nuLinje(titel) })),
 };

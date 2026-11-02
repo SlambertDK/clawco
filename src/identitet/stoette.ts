@@ -17,6 +17,7 @@ import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { KontoIndstilling } from './konto.ts';
 import type { Person } from './husstand.ts';
+import { identitetTekst } from './tekster.ts';
 
 export const STOETTE_TIMER = [1, 4, 24] as const;
 export const STOETTE_MAKS_TIMER = 24;
@@ -50,17 +51,17 @@ export function aktiv(a: StoetteAdgang | null | undefined, nu: Date): a is Stoet
 }
 
 function valider(raw: unknown): StoetteAdgang {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new StoetteFejl('stoette.json er ikke et objekt');
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) throw new StoetteFejl(identitetTekst().filIkkeObjekt);
   const o = raw as Record<string, unknown>;
   const kendte = new Set(['id', 'givet', 'udloeber', 'timer', 'grund', 'tilbagekaldt', 'udloebLogget', 'sessioner']);
-  for (const k of Object.keys(o)) if (!kendte.has(k)) throw new StoetteFejl('stoette.json har et ukendt felt');
+  for (const k of Object.keys(o)) if (!kendte.has(k)) throw new StoetteFejl(identitetTekst().filUkendtFelt);
   const { id, givet, udloeber, timer, grund, tilbagekaldt, udloebLogget, sessioner } = o;
-  if (typeof id !== 'string' || !ID.test(id)) throw new StoetteFejl('stoette.json: ugyldigt id');
-  if (!Number.isFinite(tid(givet)) || !Number.isFinite(tid(udloeber))) throw new StoetteFejl('stoette.json: ugyldig tid');
-  if (!(STOETTE_TIMER as readonly unknown[]).includes(timer) || tid(udloeber) - tid(givet) !== (timer as number) * TIME_MS) throw new StoetteFejl('stoette.json: ugyldig varighed');
-  if (typeof grund !== 'string' || grund.length > GRUND_MAKS || FORBUDT.test(grund)) throw new StoetteFejl('stoette.json: ugyldig grund');
-  for (const v of [tilbagekaldt, udloebLogget]) if (v !== undefined && !Number.isFinite(tid(v))) throw new StoetteFejl('stoette.json: ugyldig tid');
-  if (!Array.isArray(sessioner) || sessioner.length > 200 || !sessioner.every((s) => typeof s === 'string' && SESSION.test(s))) throw new StoetteFejl('stoette.json: ugyldige sessioner');
+  if (typeof id !== 'string' || !ID.test(id)) throw new StoetteFejl(identitetTekst().filUgyldigtId);
+  if (!Number.isFinite(tid(givet)) || !Number.isFinite(tid(udloeber))) throw new StoetteFejl(identitetTekst().filUgyldigTid);
+  if (!(STOETTE_TIMER as readonly unknown[]).includes(timer) || tid(udloeber) - tid(givet) !== (timer as number) * TIME_MS) throw new StoetteFejl(identitetTekst().filUgyldigVarighed);
+  if (typeof grund !== 'string' || grund.length > GRUND_MAKS || FORBUDT.test(grund)) throw new StoetteFejl(identitetTekst().filUgyldigGrund);
+  for (const v of [tilbagekaldt, udloebLogget]) if (v !== undefined && !Number.isFinite(tid(v))) throw new StoetteFejl(identitetTekst().filUgyldigTid);
+  if (!Array.isArray(sessioner) || sessioner.length > 200 || !sessioner.every((s) => typeof s === 'string' && SESSION.test(s))) throw new StoetteFejl(identitetTekst().filUgyldigeSessioner);
   return o as StoetteAdgang;
 }
 
@@ -72,10 +73,10 @@ export function lavStoetteLager(dataDir: string) {
       let tekst: string;
       try { tekst = await readFile(fil, 'utf8'); } catch (err) {
         if ((err as NodeJS.ErrnoException).code === 'ENOENT') return null;
-        throw new StoetteFejl(`stoette.json kunne ikke læses: ${(err as Error).message}`);
+        throw new StoetteFejl(identitetTekst().filKunneIkkeLaeses((err as Error).message));
       }
       let raw: unknown;
-      try { raw = JSON.parse(tekst); } catch { throw new StoetteFejl('stoette.json er ikke gyldig JSON'); }
+      try { raw = JSON.parse(tekst); } catch { throw new StoetteFejl(identitetTekst().filIkkeJson); }
       return valider(raw);
     },
     /** Validates and writes atomically (tmp file + rename). */
@@ -94,23 +95,24 @@ const BEVIS = /^s1\.([A-Za-z0-9_-]{11})\.([A-Za-z0-9_-]{1,1400})\.([A-Za-z0-9_-]
 
 /** Sky's bevis for a grant (sky/src/gateway/signer.ts signerStoetteBevis), checked with this tenant's gateway keys. */
 export function verificerBevis(bevis: unknown, k: KontoIndstilling, nuSek: number): { ok: true; adgang: StoetteAdgang } | { ok: false; grund: string } {
+  const x = identitetTekst();
   const m = typeof bevis === 'string' ? BEVIS.exec(bevis) : null;
-  if (!m) return { ok: false, grund: 'beviset har forkert form' };
+  if (!m) return { ok: false, grund: x.bevisForkertForm };
   const [, id, payload, signatur] = m as unknown as [string, string, string, string];
   const noegle = k.noegler.get(id);
-  if (!noegle) return { ok: false, grund: 'ukendt nøgle-id' };
-  if (!verify(null, Buffer.from(`s1.${id}.${payload}`), noegle, Buffer.from(signatur, 'base64url'))) return { ok: false, grund: 'signaturen holder ikke' };
+  if (!noegle) return { ok: false, grund: x.ukendtNoegle };
+  if (!verify(null, Buffer.from(`s1.${id}.${payload}`), noegle, Buffer.from(signatur, 'base64url'))) return { ok: false, grund: x.signaturHolderIkke };
   let p: Record<string, unknown>;
-  try { p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>; } catch { return { ok: false, grund: 'beviset er ikke JSON' }; }
-  if (typeof p !== 'object' || p === null || Array.isArray(p) || Object.keys(p).sort().join() !== 'a,g,h,iat,r,t,u') return { ok: false, grund: 'beviset har forkert form' };
+  try { p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')) as Record<string, unknown>; } catch { return { ok: false, grund: x.bevisIkkeJson }; }
+  if (typeof p !== 'object' || p === null || Array.isArray(p) || Object.keys(p).sort().join() !== 'a,g,h,iat,r,t,u') return { ok: false, grund: x.bevisForkertForm };
   const { t, a, g, u, h, r, iat } = p;
-  if (t !== k.tenant) return { ok: false, grund: 'en anden tenant' };
-  if (![g, u, iat].every(Number.isSafeInteger) || typeof a !== 'string' || !ID.test(a)) return { ok: false, grund: 'beviset har forkert form' };
+  if (t !== k.tenant) return { ok: false, grund: x.andenTenant };
+  if (![g, u, iat].every(Number.isSafeInteger) || typeof a !== 'string' || !ID.test(a)) return { ok: false, grund: x.bevisForkertForm };
   const alder = nuSek - (iat as number);
-  if (alder > BEVIS_VINDUE || alder < -10) return { ok: false, grund: 'beviset er for gammelt' };
-  if (!(STOETTE_TIMER as readonly unknown[]).includes(h) || (u as number) - (g as number) !== (h as number) * 3600) return { ok: false, grund: 'ugyldig varighed' };
-  if ((u as number) <= nuSek) return { ok: false, grund: 'allerede udløbet' };
-  if (typeof r !== 'string' || r.length > GRUND_MAKS || FORBUDT.test(r)) return { ok: false, grund: 'ugyldig grund' };
+  if (alder > BEVIS_VINDUE || alder < -10) return { ok: false, grund: x.bevisForGammelt };
+  if (!(STOETTE_TIMER as readonly unknown[]).includes(h) || (u as number) - (g as number) !== (h as number) * 3600) return { ok: false, grund: x.ugyldigVarighed };
+  if ((u as number) <= nuSek) return { ok: false, grund: x.alleredeUdloebet };
+  if (typeof r !== 'string' || r.length > GRUND_MAKS || FORBUDT.test(r)) return { ok: false, grund: x.ugyldigGrund };
   return { ok: true, adgang: { id: a, givet: new Date((g as number) * 1000).toISOString(), udloeber: new Date((u as number) * 1000).toISOString(), timer: h as number, grund: r, sessioner: [] } };
 }
 
@@ -119,17 +121,17 @@ export function verificerBevis(bevis: unknown, k: KontoIndstilling, nuSek: numbe
  * returns it. Throws StoetteFejl (the route answers 403) on anything else.
  */
 export async function startStoette(lager: StoetteLager, o: { person: Person; bevis: unknown; konto: KontoIndstilling | undefined; nu: Date }): Promise<StoetteAdgang> {
-  if (o.person.rolle !== 'ejer') throw new StoetteFejl('Kun ejeren kan slå support til.');
-  if (!o.konto) throw new StoetteFejl('Support kan kun slås til gennem Clawco Sky.');
+  if (o.person.rolle !== 'ejer') throw new StoetteFejl(identitetTekst().kunEjerenTil);
+  if (!o.konto) throw new StoetteFejl(identitetTekst().kunViaSky);
   const v = verificerBevis(o.bevis, o.konto, Math.floor(o.nu.getTime() / 1000));
-  if (!v.ok) throw new StoetteFejl(`Support blev ikke slået til: ${v.grund}.`);
+  if (!v.ok) throw new StoetteFejl(identitetTekst().ikkeSlaaetTil(v.grund));
   await lager.skriv(v.adgang);
   return v.adgang;
 }
 
 /** The owner's "Slå fra": the record is marked revoked now. Returns the grant that was on, or null. */
 export async function slaaStoetteFra(lager: StoetteLager, o: { person: Person; nu: Date }): Promise<StoetteAdgang | null> {
-  if (o.person.rolle !== 'ejer') throw new StoetteFejl('Kun ejeren kan slå support fra.');
+  if (o.person.rolle !== 'ejer') throw new StoetteFejl(identitetTekst().kunEjerenFra);
   const a = await lager.laes();
   if (!aktiv(a, o.nu)) return null;
   await lager.skriv({ ...a, tilbagekaldt: o.nu.toISOString() });

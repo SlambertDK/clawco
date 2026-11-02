@@ -9,6 +9,7 @@
 // without stopping anything — the limits that matter are send and delete.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
+import { graenserTekst } from './tekster.ts';
 
 /** The verb the current handling passed the policy layer with; port.ts sets it, runs.ts reads it when a run starts. */
 export const VERB_NU = new AsyncLocalStorage<string>();
@@ -24,11 +25,11 @@ const SEND = /himalaya\s+(?:\S+\s+)*message\s+(?:send|reply|forward)\b|\bsendmai
 const SLET = /himalaya\s+(?:\S+\s+)*(?:message|folder)\s+(?:delete|expunge|purge)\b|himalaya\s+(?:\S+\s+)*message\s+move\s+(?:-\S+\s+)*["']?Trash\b/i;
 
 export function vaerktoejTilladt(verb: string, tool: string, preview: string): { ok: boolean; hvorfor: string } {
-  const stop = (hvad: string): { ok: false; hvorfor: string } => ({ ok: false, hvorfor: `Clawco stoppede kørslen: Hermes ville ${hvad}, og det må handlingen ikke.` });
-  if (ALDRIG.has(tool)) return stop(`bruge værktøjet ${tool}`);
+  const stop = (hvad: string): { ok: false; hvorfor: string } => ({ ok: false, hvorfor: graenserTekst().stoppedeKoerslen(hvad) });
+  if (ALDRIG.has(tool)) return stop(graenserTekst().hvadVaerktoej(tool));
   if (tool === 'terminal' || tool === 'process_manage') {
-    if (SEND.test(preview) && verb !== 'send-til-andre') return stop('sende en mail');
-    if (SLET.test(preview) && verb !== 'slet') return stop('slette noget');
+    if (SEND.test(preview) && verb !== 'send-til-andre') return stop(graenserTekst().hvadSendMail);
+    if (SLET.test(preview) && verb !== 'slet') return stop(graenserTekst().hvadSlet);
   }
   return { ok: true, hvorfor: '' };
 }

@@ -7,6 +7,7 @@
 import { html, raw, type Markup } from './html.ts';
 import { IKONER, type IkonNavn } from './ikoner.ts';
 import { tilstandFraTone } from './sprog.ts';
+import { tekst } from './tekster.ts';
 
 export type { IkonNavn } from './ikoner.ts';
 export type Tone = 'god' | 'adv' | 'rolig';
@@ -105,7 +106,7 @@ export function ikon(navn: IkonNavn, cls = 'ikon'): Markup {
   return html`<svg class="${cls}" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${raw(indre)}</svg>`;
 }
 
-const kr = (n: number): string => new Intl.NumberFormat('da-DK', { maximumFractionDigits: 0 }).format(n);
+const kr = (n: number): string => new Intl.NumberFormat(tekst().lokale, { maximumFractionDigits: 0 }).format(n);
 const pct = (n: number): string => `${Math.round(n * 10000) / 100}%`;
 const timer = (t: string): number => Number(t.slice(0, 2)) + Number(t.slice(3, 5)) / 60;
 
@@ -129,6 +130,7 @@ function kbhNu(d: Date): { dag: string; t: number } {
 
 /** `ctx` is only given where the picture is of a known day; without it a day line shows no "nu" (what Hermes stored is never used). */
 export function billede(b: Billede, ctx?: NuKontekst): Markup {
+  const T = tekst().billede;
   switch (b.art) {
     case 'dagslinje': {
       const span = b.til - b.fra;
@@ -153,7 +155,7 @@ export function billede(b: Billede, ctx?: NuKontekst): Markup {
       const nuK = ctx ? kbhNu(ctx.nu) : null;
       const iDag = ctx !== undefined && nuK !== null && nuK.dag === ctx.dag;
       const nuT = nuK ? nuK.t : 0;
-      const nuMark = iDag ? html`<span class="dl-nu"${nuT < b.fra || nuT > b.til ? raw(' hidden') : raw('')} style="left:${pct(Math.min(Math.max((nuT - b.fra) / span, 0), 1))}"><span>nu</span></span>` : '';
+      const nuMark = iDag ? html`<span class="dl-nu"${nuT < b.fra || nuT > b.til ? raw(' hidden') : raw('')} style="left:${pct(Math.min(Math.max((nuT - b.fra) / span, 0), 1))}"><span>${T.nu}</span></span>` : '';
       const nuAttr = iDag && ctx ? html` data-fra="${b.fra}" data-til="${b.til}" data-dag="${ctx.dag}" data-nu-ms="${ctx.nu.getTime()}"` : '';
       return html`<div class="dagslinje${taet ? ' taet' : ''}"${nuAttr} role="img" aria-label="${b.punkter.map((p) => `${p.tekst} ${p.tid}`).join(', ')}">
         <div class="dl-spor">
@@ -169,7 +171,7 @@ export function billede(b: Billede, ctx?: NuKontekst): Markup {
       const lige = b.vaerdi === b.graense;
       const max = Math.max(b.vaerdi, b.graense);
       return html`<div class="beloeb tilstand-${over ? 'kraever' : 'ordnet'}">
-        <div class="bl-tal"><span class="bl-vaerdi">${kr(b.vaerdi)} ${b.enhed}</span><span class="bl-dom">${over ? `+${kr(b.vaerdi - b.graense)} ${b.enhed}` : lige ? html`${ikon('check')} Passer` : `${kr(b.graense - b.vaerdi)} ${b.enhed} under`}</span></div>
+        <div class="bl-tal"><span class="bl-vaerdi">${kr(b.vaerdi)} ${b.enhed}</span><span class="bl-dom">${over ? `+${kr(b.vaerdi - b.graense)} ${b.enhed}` : lige ? html`${ikon('check')} ${T.passer}` : `${kr(b.graense - b.vaerdi)} ${b.enhed} ${T.under}`}</span></div>
         <div class="bl-spor"><span class="bl-fyld" style="width:${pct(b.vaerdi / max)}"></span>${over ? html`<span class="bl-over" style="left:${pct(b.graense / max)};width:${pct((b.vaerdi - b.graense) / max)}"></span>` : ''}<span class="bl-graense" style="left:${pct(b.graense / max)}"></span></div>
         <div class="bl-noter"><span>${b.tekst}</span><span>${b.graenseTekst} ${kr(b.graense)}</span></div>
       </div>`;
@@ -177,12 +179,12 @@ export function billede(b: Billede, ctx?: NuKontekst): Markup {
     case 'nedtaelling': {
       const r = 26, omkreds = 2 * Math.PI * r;
       const andel = Math.min(Math.max(b.minutter / b.ialt, 0), 1);
-      return html`<div class="nedtaelling"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${r}" class="nt-spor"/><circle cx="32" cy="32" r="${r}" class="nt-fyld" stroke-dasharray="${(andel * omkreds).toFixed(1)} ${omkreds.toFixed(1)}" transform="rotate(-90 32 32)"/><text x="32" y="37" text-anchor="middle">${b.minutter}</text></svg><span class="nt-tekst"><span class="nt-enhed">min</span>${b.tekst}</span></div>`;
+      return html`<div class="nedtaelling"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="${r}" class="nt-spor"/><circle cx="32" cy="32" r="${r}" class="nt-fyld" stroke-dasharray="${(andel * omkreds).toFixed(1)} ${omkreds.toFixed(1)}" transform="rotate(-90 32 32)"/><text x="32" y="37" text-anchor="middle">${b.minutter}</text></svg><span class="nt-tekst"><span class="nt-enhed">${T.min}</span>${b.tekst}</span></div>`;
     }
     case 'uge':
       return html`<div class="uge">${b.dage.map((d) => html`<span class="uge-dag ${d.fri ? 'fri' : 'optaget'}${d.valgt ? ' valgt' : ''}"><span class="uge-navn">${d.navn}</span>${d.ikon ? ikon(d.ikon) : d.fri ? ikon('check') : html`<span class="uge-streg"></span>`}</span>`)}</div>`;
     case 'prikker':
-      return html`<div class="prikker"><span class="pk-raekke">${Array.from({ length: b.ialt }, (_, i) => html`<span class="prik${i < b.antal ? ' fyldt' : ''}"></span>`)}</span><span class="pk-tekst">${b.antal} af ${b.ialt} ${b.tekst}</span></div>`;
+      return html`<div class="prikker"><span class="pk-raekke">${Array.from({ length: b.ialt }, (_, i) => html`<span class="prik${i < b.antal ? ' fyldt' : ''}"></span>`)}</span><span class="pk-tekst">${b.antal} ${T.af} ${b.ialt} ${b.tekst}</span></div>`;
     case 'personer':
       return html`<div class="personer">${b.personer.map((p) => html`<span class="person">${avatar(p.navn)}<span class="person-navn">${p.navn}</span>${p.rolle ? html`<span class="person-rolle">${p.rolle}</span>` : ''}</span>`)}</div>`;
   }
@@ -194,7 +196,7 @@ export function visHoved(v: Pick<Visuel, 'ikon' | 'tone'>, overskrift: string, e
 }
 
 /** The explanation behind one tap, on every device. */
-export function mere(indhold: Markup, navn = 'Hvorfor?'): Markup {
+export function mere(indhold: Markup, navn = tekst().billede.hvorfor): Markup {
   return html`<details class="vis-mere"><summary>${ikon('info')}<span>${navn}</span></summary><div class="vis-mere-indhold">${indhold}</div></details>`;
 }
 

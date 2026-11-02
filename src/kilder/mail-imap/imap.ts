@@ -22,6 +22,7 @@ import tls from 'node:tls';
 import { ImapFlow } from 'imapflow';
 import { KildeFejl, type Kuvert } from '../types.ts';
 import { kladdeBesked } from './kladde.ts';
+import { imapTekst } from './tekster.ts';
 import { kuverter, MAX_KUVERTER, type ImapBesked } from './parse.ts';
 import { erLoopback, normalFingeraftryk, PinFejl, tlsValg, type Forbindelse, type Pin } from './presets.ts';
 
@@ -221,17 +222,17 @@ function erForbudtMaal(m: MappeInfo): boolean {
 export async function flytMail(f: Forbindelse, adgangskode: string, o: { pin?: string; tidsgraenseMs?: number; uid: number; fra: string; til: string }): Promise<{ fra: string; til: string; nyUid?: number }> {
   const k = await aabnPinnet(f, adgangskode, { ...o, verbum: 'flyt' });
   try {
-    if (!k.capabilities.has('MOVE')) throw new KildeFejl(409, 'Din mailudbyder kan ikke flytte mails direkte, så Clawco lader mailen ligge.');
+    if (!k.capabilities.has('MOVE')) throw new KildeFejl(409, imapTekst().ingenMove);
     const liste = await k.list();
     const fra = findMappe(liste, o.fra);
     const til = findMappe(liste, o.til);
-    if (!fra) throw new KildeFejl(404, `Mappen ${o.fra.slice(0, 60)} findes ikke i din mailkonto.`);
-    if (!til) throw new KildeFejl(404, `Mappen ${o.til.slice(0, 60)} findes ikke i din mailkonto, og Clawco opretter ikke mapper.`);
-    if (erForbudtMaal(til)) throw new KildeFejl(400, 'Clawco flytter aldrig mail til papirkurven, spam eller andre særlige mapper.');
-    if (til.path === fra.path) throw new KildeFejl(400, `Mailen ligger allerede i ${til.path.slice(0, 60)}.`);
+    if (!fra) throw new KildeFejl(404, imapTekst().mappeFindesIkke(o.fra.slice(0, 60)));
+    if (!til) throw new KildeFejl(404, imapTekst().maalFindesIkke(o.til.slice(0, 60)));
+    if (erForbudtMaal(til)) throw new KildeFejl(400, imapTekst().forbudtMaal);
+    if (til.path === fra.path) throw new KildeFejl(400, imapTekst().ligger(til.path.slice(0, 60)));
     await k.mailboxOpen(fra.path);
     const findes = await k.fetchOne(String(o.uid), { uid: true }, { uid: true });
-    if (!findes) throw new KildeFejl(404, `Mailen ligger ikke længere i ${fra.path.slice(0, 60)}.`);
+    if (!findes) throw new KildeFejl(404, imapTekst().liggerIkkeI(fra.path.slice(0, 60)));
     const r = await k.messageMove(String(o.uid), til.path, { uid: true });
     if (!r) throw new Error('MOVE failed');
     const nyUid = r.uidMap?.get(o.uid);
@@ -252,10 +253,10 @@ export async function gemKladde(f: Forbindelse, adgangskode: string, o: { pin?: 
   try {
     const liste = await k.list();
     const kladder = liste.find((m) => m.specialUse === '\\Drafts') ?? liste.find((m) => /^(drafts|kladder)$/i.test(m.path));
-    if (!kladder) throw new KildeFejl(409, 'Mailkontoen har ingen kladdemappe, så Clawco kan ikke gemme kladden.');
+    if (!kladder) throw new KildeFejl(409, imapTekst().ingenKladdemappe);
     await k.mailboxOpen('INBOX', { readOnly: true });
     const m = await k.fetchOne(String(o.uid), { uid: true, envelope: true }, { uid: true });
-    if (!m || !m.envelope) throw new KildeFejl(404, 'Mailen ligger ikke længere i indbakken.');
+    if (!m || !m.envelope) throw new KildeFejl(404, imapTekst().liggerIkkeIndbakke);
     const e = m.envelope;
     const besked = kladdeBesked({
       fra: f.bruger, til: (e.replyTo?.[0]?.address ?? e.from?.[0]?.address ?? '').trim(), emne: e.subject ?? '',

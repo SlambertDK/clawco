@@ -17,6 +17,7 @@ import { chmod, mkdir, open, readdir, readFile, rename, stat, unlink, writeFile 
 import path from 'node:path';
 import { erDataZone, type DataZone } from '../../identitet/zoner.ts';
 import { KildeFejl } from '../types.ts';
+import { noterTekst } from './tekster.ts';
 import { filnavn, iRod } from './sti.ts';
 
 /** The relation folders (created on first use). Henrik's register has familie/, arbejde/, andre/. */
@@ -178,16 +179,16 @@ export async function laesPersoner(dir: string, o: { zone: DataZone }): Promise<
 
 function tjekPerson(p: PersonFil): PersonFil {
   const ren: PersonFil = { navn: filnavn(p.navn), relation: '', zone: p.zone };
-  if (!erDataZone(p.zone)) throw new KildeFejl(400, 'Ukendt zone.');
+  if (!erDataZone(p.zone)) throw new KildeFejl(400, noterTekst().ukendtZone);
   for (const f of ['relation', 'org', 'foedselsdag', 'kilde', 'importeret'] as const) {
     const v = p[f];
     if (v === undefined) continue;
-    if (typeof v !== 'string' || v.length > MAKS[f] || KONTROL.test(v)) throw new KildeFejl(400, `Ugyldig ${f}.`);
+    if (typeof v !== 'string' || v.length > MAKS[f] || KONTROL.test(v)) throw new KildeFejl(400, noterTekst().ugyldigt(noterTekst().personFelt[f] ?? f));
     if (v.trim()) ren[f] = v.trim();
   }
-  if (!ren.relation) throw new KildeFejl(400, 'Relationen mangler.');
+  if (!ren.relation) throw new KildeFejl(400, noterTekst().relationenMangler);
   if (p.tekst !== undefined) {
-    if (typeof p.tekst !== 'string' || p.tekst.length > TEKST_MAKS || p.tekst.includes('\u0000')) throw new KildeFejl(400, 'Ugyldig tekst.');
+    if (typeof p.tekst !== 'string' || p.tekst.length > TEKST_MAKS || p.tekst.includes('\u0000')) throw new KildeFejl(400, noterTekst().ugyldigTekst);
     ren.tekst = p.tekst;
   }
   return ren;
@@ -239,7 +240,7 @@ export async function skrivPerson(dir: string, p: PersonFil, o: { mappe: string;
 
 /** Fortryd: removes the file of `k` only while it still holds exactly what was written. True when removed. */
 export async function fjernPerson(dir: string, k: Kvittering): Promise<boolean> {
-  if (!k.sti.endsWith('.md')) throw new KildeFejl(400, 'Kun en persons fil kan fjernes.');
+  if (!k.sti.endsWith('.md')) throw new KildeFejl(400, noterTekst().kunPersonFil);
   const fil = await iRod(dir, k.sti);
   const nu = await readFile(fil, 'utf8').catch(() => null);
   if (nu === null || sha256(nu) !== k.sha256) return false;
@@ -285,7 +286,7 @@ function retForhoved(tekst: string, ret: [RetFelt, string][]): string {
     }
     if (i < 0) { nye.push(`${felt}: ${yaml(v)}`); continue; }
     const l = NOEGLE_LINJE.exec(dele[i] as string) as RegExpExecArray;
-    if ((l[2] as string).trim() === '' && /^(?:[ \t]+\S|-[ \t])/.test(dele[i + 2] ?? '')) throw new KildeFejl(409, `${l[1]} har en liste under sig, og Clawco retter den ikke blindt. Ret filen selv.`);
+    if ((l[2] as string).trim() === '' && /^(?:[ \t]+\S|-[ \t])/.test(dele[i + 2] ?? '')) throw new KildeFejl(409, noterTekst().listeUnderSig(l[1] as string));
     dele[i] = `${l[1]}: ${yaml(v)}`;
   }
   let hoved = dele.join('');
@@ -320,18 +321,18 @@ export async function opdaterPerson(dir: string, p: { navn: string; diff: Forske
   const diff = p.diff.filter((d) => erRetFelt(d.felt));
   for (const d of diff) {
     const felt = d.felt as RetFelt;
-    if (typeof d.ny !== 'string' || !d.ny.trim() || d.ny.trim().length > MAKS[felt] || KONTROL.test(d.ny)) throw new KildeFejl(400, `Ugyldig ${felt}.`);
+    if (typeof d.ny !== 'string' || !d.ny.trim() || d.ny.trim().length > MAKS[felt] || KONTROL.test(d.ny)) throw new KildeFejl(400, noterTekst().ugyldigt(noterTekst().personFelt[felt] ?? felt));
   }
   const noegle = `${navn}.md`.toLowerCase();
   const fundet = (await personFiler(dir)).find((f) => f.navn.normalize('NFC').toLowerCase() === noegle);
-  if (!fundet) throw new KildeFejl(404, 'Personen findes ikke længere i din mappe.');
+  if (!fundet) throw new KildeFejl(404, noterTekst().personenFindesIkke);
   const rel = fundet.mappe ? `${fundet.mappe}/${fundet.navn}` : fundet.navn;
   const sti = rel.normalize('NFC');
   const fil = await iRod(dir, rel);
   const raa = await readFile(fil);
   const gammel = raa.toString('utf8');
-  if (!Buffer.from(gammel, 'utf8').equals(raa) || gammel.includes('\u0000')) throw new KildeFejl(409, 'Filen er ikke ren tekst, så Clawco kan ikke sætte den tilbage præcis. Ret den selv.');
-  if (gammel.length > OPDATER_MAKS_TEGN) throw new KildeFejl(409, 'Filen er for stor til, at en ændring kan fortrydes sikkert. Ret den selv.');
+  if (!Buffer.from(gammel, 'utf8').equals(raa) || gammel.includes('\u0000')) throw new KildeFejl(409, noterTekst().ikkeRenTekst);
+  if (gammel.length > OPDATER_MAKS_TEGN) throw new KildeFejl(409, noterTekst().forStorTilFortryd);
   const { felter } = delFil(gammel);
   const nu = somPerson(felter, fundet.navn, fundet.mappe, 'privat');
   const gaelder = (a: string | undefined, b: string): boolean => (a ?? '').normalize('NFC').trim() === b.normalize('NFC').trim();
@@ -348,14 +349,14 @@ export async function opdaterPerson(dir: string, p: { navn: string; diff: Forske
   if (ny === gammel) return { udfald: 'uaendret', sti };
   // Nobody may have saved the file since it was read (Obsidian is open next to Clawco): else we would overwrite their edit.
   const [igen, st] = await Promise.all([readFile(fil), stat(fil)]);
-  if (!igen.equals(raa)) throw new KildeFejl(409, 'Filen blev ændret, mens Clawco arbejdede. Intet er skrevet; prøv igen.');
+  if (!igen.equals(raa)) throw new KildeFejl(409, noterTekst().filenAendret);
   await skrivAtomiskFil(fil, ny, st.mode & 0o777);
   return { udfald: 'opdateret', sti, kvittering: { sti, sha256: sha256(ny), forrige: gammel }, felter: ret.map(([f]) => f), sprunget };
 }
 
 /** Fortryd of an update: writes the previous content back (atomically) — only while the file still holds exactly what the update wrote. True when put back. */
 export async function gendanPerson(dir: string, k: Kvittering): Promise<boolean> {
-  if (!k.sti.endsWith('.md') || k.forrige === undefined) throw new KildeFejl(400, 'Kun en opdateret persons fil kan sættes tilbage.');
+  if (!k.sti.endsWith('.md') || k.forrige === undefined) throw new KildeFejl(400, noterTekst().kunOpdateret);
   const fil = await iRod(dir, k.sti);
   const nu = await readFile(fil, 'utf8').catch(() => null);
   if (nu === null || sha256(nu) !== k.sha256) return false;

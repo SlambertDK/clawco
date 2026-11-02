@@ -10,6 +10,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { skrivAtomisk } from '../store/atomisk.ts';
 import { parseRegler, ReglerFejl, serialiserRegler, type Regelsaet } from './regler.ts';
+import { ULAESELIG } from './tekster.ts';
 
 export type ReglerLaest =
   | { tilstand: 'mangler' }
@@ -50,12 +51,12 @@ export function lavReglerLager(o: { vaultDir: string; dataDir: string }): Regler
       let tekst: string;
       try { tekst = await readFile(fil, 'utf8'); } catch (err) {
         if (kode(err) === 'ENOENT') return { tilstand: 'mangler' };
-        return { tilstand: 'ulaeselig', hvorfor: 'filen kunne ikke åbnes', aendretUdenfor: false };
+        return { tilstand: 'ulaeselig', hvorfor: ULAESELIG.aabne, aendretUdenfor: false };
       }
       const aendretUdenfor = await aendret(tekst);
       try { return { tilstand: 'ok', saet: parseRegler(tekst), aendretUdenfor }; } catch (err) {
         if (err instanceof ReglerFejl) return { tilstand: 'ulaeselig', hvorfor: err.message, aendretUdenfor };
-        return { tilstand: 'ulaeselig', hvorfor: 'filen kunne ikke læses', aendretUdenfor };
+        return { tilstand: 'ulaeselig', hvorfor: ULAESELIG.laese, aendretUdenfor };
       }
     },
     skriv: (s) => skrivTekst(serialiserRegler(s)),

@@ -1,12 +1,15 @@
 // KC-0170: the Univers room's strings — the overview, one univers with its task board, the meeting view and the
 // Nu line — Danish and English, in the shape of src/shell/tekster.ts (which also says which language is being
 // rendered). Plain text or small functions: render.ts escapes all of it. English must have exactly Danish's keys
-// (the type and test/rooms/univers-tekster.test.ts hold that). Not here (stays Danish): the Hermes prompts, the log
-// lines the room writes, the errors, the archive button and its confirm text (room.ts), and the data-element
-// context strings, which are what prompt.ts and room.ts match on.
+// (the type and test/rooms/univers-tekster.test.ts hold that). The refusals (toasts), the log lines, the status line,
+// the changes' description and the data-element contexts (what "Spørg" hands Hermes, and what room.ts parses back to
+// find the meeting — in either language) are here too (slice 3): said in the language of the request that causes
+// them. Not here, on purpose: the Hermes prompts and the schema's / store's errors (addressed to Hermes, Danish).
 
 import { sprogNu } from '../../shell/tekster.ts';
+import { statusISprog, type StatusArt } from '../status.ts';
 import type { OpgaveStatus } from './schema.ts';
+import type { ElementType } from './lager.ts';
 
 const da = {
   // Time and wording
@@ -125,6 +128,68 @@ const da = {
 
   // The Nu line (reported to Nu by the overview)
   nuNyeMoeder: (n: number): string => (n === 1 ? '1 nyt møde venter på et univers' : `${n} nye møder venter på et univers`),
+  nuForberedt: (titel: string, kl: string, univers: string): string => `Mødet "${titel}" kl. ${kl} er forberedt (${univers})`,
+
+  // The context an element hands Hermes with "Spørg" / "Skriv om" (data-element); the meeting ones are parsed back by room.ts
+  elOpgave: (titel: string): string => `Opgave: ${titel}`,
+  elMoede: (titel: string): string => `Møde: ${titel}`,
+  elMoedet: (titel: string): string => `Mødet: ${titel}`,
+  elDokument: (titel: string): string => `Dokument: ${titel}`,
+  elNote: (titel: string): string => `Note: ${titel}`,
+  elNytMoede: (titel: string): string => `Nyt møde: ${titel}`,
+  elUnivers: (navn: string): string => `Univers: ${navn}`,
+  elPraesentation: (titel: string): string => `Præsentationen: ${titel}`,
+  elHusstanden: 'Husstanden',
+  elNaeste: 'Næste i universet',
+  elTalepunkter: 'Talepunkter',
+  elDeltagerne: 'Deltagerne',
+  elMoedetsOpgaver: 'Mødets opgaver',
+
+  // Refusals (the toast) and the errors of a run
+  fejlGivNavn: 'Giv universet et navn',
+  fejlNavnLangt: 'Navnet må højst være 60 tegn',
+  fejlOmLang: 'Beskrivelsen må højst være 300 tegn',
+  fejlMoedeIkkeNyt: 'Mødet er ikke blandt de nye møder (længere)',
+  fejlUniversFindesIkke: 'Universet findes ikke',
+  fejlKanIkkeLaegges: 'Mødet kunne ikke lægges i universet (er det flyttet allerede?)',
+  fejlUniversVaek: 'Universet findes ikke længere',
+  fejlForberedelseUklar: 'Hermes svarede med en forberedelse, men det er ikke klart, hvilket møde den gælder (peg på et møde først)',
+  fejlMoedeFindesIkke: 'Mødet findes ikke',
+  fejlUkendtStatus: 'Ukendt status',
+  fejlOpgaveFindesIkke: 'Opgaven findes ikke',
+  fejlGivMoedeTitel: 'Giv mødet en titel',
+  fejlStartIkkeLaeses: 'Starttidspunktet kan ikke læses',
+
+  // What a finished run says
+  resOprettet: (navn: string): string => `Universet "${navn}" er oprettet.`,
+  resMoedeLagt: (navn: string): string => `Mødet ligger nu i "${navn}".`,
+  resForberedt: (titel: string): string => `Mødet "${titel}" er forberedt.`,
+  resMoedeTilfoejet: (titel: string): string => `Mødet "${titel}" er tilføjet.`,
+  resArkiveret: (navn: string): string => `Universet "${navn}" er arkiveret.`,
+  resFortrudt: 'Fortrudt.',
+  intetSvar: '(intet svar)',
+
+  // The room's log (in the language of the request that caused the line)
+  logOprettede: (navn: string): string => `Oprettede universet "${navn}".`,
+  logLagde: (titel: string, univers: string): string => `Lagde mødet "${titel}" i universet "${univers}".`,
+  logSkjulte: (titel: string): string => `Skjulte mødet "${titel}" (ikke et møde for Henrik).`,
+  logForberedte: (titel: string, dele: string): string => `Hermes forberedte mødet "${titel}": ${dele}.`,
+  taleTal: (n: number): string => `${n} talepunkter`,
+  opgaveTal: (n: number): string => `${n} opgaver`,
+  enPraesentation: 'en præsentation',
+  logTilfoejede: (titel: string, kl: string): string => `Tilføjede mødet "${titel}" (${kl}).`,
+  logArkiverede: (navn: string): string => `Arkiverede universet "${navn}".`,
+  logFortrudt: (tekst: string): string => `Fortrudt: ${tekst}`,
+
+  // The sentence for what Hermes changed ("Hermes lavede 1 note og 1 opgave og opdaterede 1 dokument: A, B.")
+  elementNavn: { dokument: ['dokument', 'dokumenter'], note: ['note', 'noter'], opgave: ['opgave', 'opgaver'] } as Record<ElementType, [string, string]>,
+  og: ' og ',
+  ogNTil: (n: number): string => ` og ${n} til`,
+  aendring: (nye: string, gamle: string, titler: string): string => `Hermes ${[nye ? `lavede ${nye}` : '', gamle ? `opdaterede ${gamle}` : ''].filter(Boolean).join(' og ')}: ${titler}.`,
+
+  // The status the room stores, and the default title of a presentation
+  statusForberedte: (titel: string): string => `Forberedte "${titel}"`,
+  praesentation: 'Præsentation',
 };
 
 export type UniversTekster = typeof da;
@@ -244,9 +309,75 @@ const en: UniversTekster = {
 
   // The Nu line (reported to Nu by the overview)
   nuNyeMoeder: (n) => (n === 1 ? '1 new meeting is waiting for a universe' : `${n} new meetings are waiting for a universe`),
+  nuForberedt: (titel, kl, univers) => `The meeting "${titel}" at ${kl} is prepared (${univers})`,
+
+  elOpgave: (titel) => `Task: ${titel}`,
+  elMoede: (titel) => `Meeting: ${titel}`,
+  elMoedet: (titel) => `The meeting: ${titel}`,
+  elDokument: (titel) => `Document: ${titel}`,
+  elNote: (titel) => `Note: ${titel}`,
+  elNytMoede: (titel) => `New meeting: ${titel}`,
+  elUnivers: (navn) => `Universe: ${navn}`,
+  elPraesentation: (titel) => `The presentation: ${titel}`,
+  elHusstanden: 'Household',
+  elNaeste: 'Next in the universe',
+  elTalepunkter: 'Talking points',
+  elDeltagerne: 'The participants',
+  elMoedetsOpgaver: "The meeting's tasks",
+
+  fejlGivNavn: 'Give the universe a name',
+  fejlNavnLangt: 'The name can be 60 characters at most',
+  fejlOmLang: 'The description can be 300 characters at most',
+  fejlMoedeIkkeNyt: 'The meeting is not among the new meetings (any more)',
+  fejlUniversFindesIkke: 'The universe does not exist',
+  fejlKanIkkeLaegges: 'The meeting could not be put in the universe (has it been moved already?)',
+  fejlUniversVaek: 'The universe no longer exists',
+  fejlForberedelseUklar: 'Hermes answered with a preparation, but it is not clear which meeting it is for (point at a meeting first)',
+  fejlMoedeFindesIkke: 'The meeting does not exist',
+  fejlUkendtStatus: 'Unknown status',
+  fejlOpgaveFindesIkke: 'The task does not exist',
+  fejlGivMoedeTitel: 'Give the meeting a title',
+  fejlStartIkkeLaeses: 'The start time cannot be read',
+
+  resOprettet: (navn) => `The universe "${navn}" has been created.`,
+  resMoedeLagt: (navn) => `The meeting is now in "${navn}".`,
+  resForberedt: (titel) => `The meeting "${titel}" is prepared.`,
+  resMoedeTilfoejet: (titel) => `The meeting "${titel}" has been added.`,
+  resArkiveret: (navn) => `The universe "${navn}" has been archived.`,
+  resFortrudt: 'Undone.',
+  intetSvar: '(no answer)',
+
+  logOprettede: (navn) => `Created the universe "${navn}".`,
+  logLagde: (titel, univers) => `Put the meeting "${titel}" in the universe "${univers}".`,
+  logSkjulte: (titel) => `Hid the meeting "${titel}" (not a meeting for you).`,
+  logForberedte: (titel, dele) => `Hermes prepared the meeting "${titel}": ${dele}.`,
+  taleTal: (n) => `${n} talking ${n === 1 ? 'point' : 'points'}`,
+  opgaveTal: (n) => `${n} ${n === 1 ? 'task' : 'tasks'}`,
+  enPraesentation: 'a presentation',
+  logTilfoejede: (titel, kl) => `Added the meeting "${titel}" (${kl}).`,
+  logArkiverede: (navn) => `Archived the universe "${navn}".`,
+  logFortrudt: (tekst) => `Undone: ${tekst}`,
+
+  elementNavn: { dokument: ['document', 'documents'], note: ['note', 'notes'], opgave: ['task', 'tasks'] },
+  og: ' and ',
+  ogNTil: (n) => ` and ${n} more`,
+  aendring: (nye, gamle, titler) => `Hermes ${[nye ? `made ${nye}` : '', gamle ? `updated ${gamle}` : ''].filter(Boolean).join(' and ')}: ${titler}.`,
+
+  statusForberedte: (titel) => `Prepared "${titel}"`,
+  praesentation: 'Presentation',
 };
 
 export const UNIVERS_TEKSTER: { da: UniversTekster; en: UniversTekster } = { da, en };
 
 /** The room's strings in the language being rendered. Call it at render time, never at module load. */
 export const universTekst = (): UniversTekster => UNIVERS_TEKSTER[sprogNu()];
+
+/** The status kinds the room stores (a stored Danish one still reads in English, and the other way round). */
+const STATUS: StatusArt[] = [{ da: da.statusForberedte, en: en.statusForberedte }];
+
+/** A stored status in the language of the request. */
+export const universStatus = (lagret: string): string => statusISprog(lagret, STATUS, sprogNu());
+
+/** Whether `kontekst` (the chat chip: what an element's data-element handed over) names the meeting `titel`, in either language. */
+export const erMoedeKontekst = (kontekst: string, titel: string): boolean =>
+  [da.elMoede, da.elMoedet, en.elMoede, en.elMoedet].some((f) => f(titel).slice(0, 200) === kontekst);

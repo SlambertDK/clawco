@@ -10,6 +10,13 @@
 //   afgiv {hvem}               hvem lets go (the holder: their booking goes and the wish is booked; the wisher: the wish is dropped)
 // Invariant: nothing here ever returns a calendar with two overlapping bookings,
 // and a booking is only removed by an outcome its booker chose (or accepted).
+//
+// The reasons a step is refused are for the screen, so they come from the language table (tekster.ts) in the language
+// of the request being served (KC-0170); `valgNeutralt` is the one that also feeds Hermes' prompt, so it is Danish
+// unless a table is handed in.
+
+import { iSaetning } from './artikel.ts';
+import { HUSSTAND_TEKSTER, husstandTekst, type HusstandTekster } from './tekster.ts';
 
 export const SLAGS = ['bil', 'rum', 'ting', 'person'] as const;
 export type Slags = (typeof SLAGS)[number];
@@ -62,7 +69,7 @@ export const kommendeAfAndre = (r: Pick<Ressource, 'kalender'>, person: PersonId
   r.kalender.filter((b) => b.af !== person && Date.parse(b.slut) > nu.getTime());
 
 /**
- * Why a resource may not be removed right now (Danish, for the screen), or null. The invariant above holds: another
+ * Why a resource may not be removed right now (for the screen, in the language being rendered), or null. The invariant above holds: another
  * person's upcoming booking, an open clash that touches the resource and an open request for it all wait to be settled
  * by the people they belong to; the remover's own upcoming bookings go with it (they are the booker).
  */
@@ -70,13 +77,14 @@ export function hvorforIkkeFjernes(
   r: Ressource,
   o: { person: PersonId; nu: Date; sammenfald: readonly Sammenfald[]; forespoergsler: readonly { ressourceId?: string; tilstand: string }[] },
 ): string | null {
+  const T = husstandTekst();
   const andres = kommendeAfAndre(r, o.person, o.nu);
-  if (andres.length) return `Der er kommende bookinger af andre på ${iSaetning(r.navn)}. Vent til de er overstået.`;
+  if (andres.length) return T.fejl.andresBookinger(T.iSaet(r.navn));
   if (o.sammenfald.some((s) => aabenSammenfald(s, o.nu) && (s.ressourceId === r.id || s.valg.some((v) => v.slags === 'anden' && v.ressourceId === r.id)))) {
-    return `Der er et åbent kort om ${iSaetning(r.navn)}. Afgør det først.`;
+    return T.fejl.aabentKort(T.iSaet(r.navn));
   }
   if (o.forespoergsler.some((f) => f.ressourceId === r.id && (f.tilstand === 'spurgt' || f.tilstand === 'alternativ'))) {
-    return `Der er en åben forespørgsel om ${iSaetning(r.navn)}. Vent på svaret først.`;
+    return T.fejl.aabenForesp(T.iSaet(r.navn));
   }
   return null;
 }
@@ -92,9 +100,9 @@ export type Indsat = { ok: true; ressourcer: Ressource[] } | { ok: false; hvorfo
 /** Puts a booking into its resource's calendar, only when the slot is free. */
 export function indsaet(ressourcer: readonly Ressource[], ny: Booking): Indsat {
   const r = ressourcer.find((x) => x.id === ny.ressourceId);
-  if (!r) return { ok: false, hvorfor: 'Den ting findes ikke (længere).', mod: [] };
+  if (!r) return { ok: false, hvorfor: husstandTekst().fejl.tingFindesIkke, mod: [] };
   const mod = sammenfald(ny, r.kalender);
-  if (mod.length) return { ok: false, hvorfor: `${r.navn} er optaget i det tidsrum.`, mod };
+  if (mod.length) return { ok: false, hvorfor: husstandTekst().fejl.optaget(r.navn), mod };
   return { ok: true, ressourcer: ressourcer.map((x) => (x.id === r.id ? { ...x, kalender: [...x.kalender, { ...ny }] } : x)) };
 }
 
@@ -134,9 +142,9 @@ export type Loesning = { ok: true; ressourcer: Ressource[]; booket: Booking[]; f
  * when the outcome came through an accepted request. Refuses (never displaces) when the world moved since the clash.
  */
 export function loesSammenfald(ressourcer: readonly Ressource[], s: Sammenfald, valgId: string, nyId: string, o: { foresporgselId?: string } = {}): Loesning {
-  if (s.afgjort) return { ok: false, hvorfor: 'Det er allerede afgjort.' };
+  if (s.afgjort) return { ok: false, hvorfor: husstandTekst().fejl.alleredeAfgjort };
   const v = s.valg.find((x) => x.id === valgId);
-  if (!v) return { ok: false, hvorfor: 'Ukendt valg.' };
+  if (!v) return { ok: false, hvorfor: husstandTekst().fejl.ukendtValg };
   const oensket: Booking = { ...s.ny, id: nyId, ...(o.foresporgselId ? { foresporgselId: o.foresporgselId } : {}) };
   const holdt = ressourcer.find((x) => x.id === s.ressourceId)?.kalender.find((x) => x.id === s.mod.id);
   if (v.slags === 'afgiv' && v.hvem === s.ny.af) return { ok: true, ressourcer: [...ressourcer], booket: [], fjernet: [] };
@@ -145,7 +153,7 @@ export function loesSammenfald(ressourcer: readonly Ressource[], s: Sammenfald, 
     return r.ok ? { ok: true, ressourcer: r.ressourcer, booket: [{ ...oensket, ressourceId: v.ressourceId }], fjernet: [] } : { ok: false, hvorfor: r.hvorfor };
   }
   // The holder's outcomes: their booking must still be there.
-  if (!holdt) return { ok: false, hvorfor: 'Bookingen findes ikke længere.' };
+  if (!holdt) return { ok: false, hvorfor: husstandTekst().fejl.bookingFindesIkke };
   const uden = ressourcer.map((x) => (x.id === s.ressourceId ? { ...x, kalender: x.kalender.filter((y) => y.id !== holdt.id) } : x));
   let efter = uden;
   const booket: Booking[] = [];
@@ -161,12 +169,15 @@ export function loesSammenfald(ressourcer: readonly Ressource[], s: Sammenfald, 
   return { ok: true, ressourcer: r.ressourcer, booket: [...booket, oensket], fjernet: v.slags === 'afgiv' ? [holdt] : [] };
 }
 
-/** "Den store bil" inside a sentence is "den store bil"; a proper name keeps its capital. */
-export const iSaetning = (navn: string): string => (/^(Den|Det|De) /.test(navn) ? navn[0]!.toLowerCase() + navn.slice(1) : navn);
+/** "Den store bil" inside a sentence is "den store bil"; a proper name keeps its capital (artikel.ts). */
+export { iSaetning };
 
-/** An option in neutral words, both parties by name (Hermes' prompt, the log line when it is chosen). */
-export function valgNeutralt(s: Pick<Sammenfald, 'ny' | 'mod'>, v: Valg, navn: (id: PersonId) => string, ressourcer: readonly Pick<Ressource, 'id' | 'navn'>[]): string {
+/**
+ * An option in neutral words, both parties by name: Hermes' prompt (Danish, so the default table) and the log line when
+ * it is chosen (the caller hands in the table of the language of the request).
+ */
+export function valgNeutralt(s: Pick<Sammenfald, 'ny' | 'mod'>, v: Valg, navn: (id: PersonId) => string, ressourcer: readonly Pick<Ressource, 'id' | 'navn'>[], T: HusstandTekster = HUSSTAND_TEKSTER.da): string {
   const anden = v.hvem === s.ny.af ? s.mod.af : s.ny.af;
-  if (v.slags === 'anden') return `${navn(v.hvem)} tager ${iSaetning(ressourcer.find((r) => r.id === v.ressourceId)?.navn ?? 'en anden')}`;
-  return v.hvem === s.mod.af ? `${navn(v.hvem)} lader ${navn(anden)} få den (bytte)` : `${navn(v.hvem)} dropper det, ${navn(anden)} beholder den`;
+  if (v.slags === 'anden') return T.valgTager(navn(v.hvem), T.iSaet(ressourcer.find((r) => r.id === v.ressourceId)?.navn ?? T.enAnden));
+  return v.hvem === s.mod.af ? T.valgLader(navn(v.hvem), navn(anden)) : T.valgDropper(navn(v.hvem), navn(anden));
 }

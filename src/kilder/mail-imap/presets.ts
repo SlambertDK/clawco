@@ -9,18 +9,20 @@ import { X509Certificate } from 'node:crypto';
 import { isIP } from 'node:net';
 import type { ConnectionOptions, PeerCertificate } from 'node:tls';
 import { KildeFejl } from '../types.ts';
+import { imapTekst } from './tekster.ts';
 
 export const TJENESTER = ['proton-bridge', 'fastmail', 'icloud', 'gmail', 'anden'] as const;
 export type TjenesteId = (typeof TJENESTER)[number];
 export type Sikkerhed = 'tls' | 'starttls';
 export type Preset = { navn: string; vaert: string; port: number; sikkerhed: Sikkerhed };
 
+// KC-0170: `navn` is read in the language of the request each time (the service names are in ./tekster.ts).
 export const PRESETS: Readonly<Record<TjenesteId, Preset>> = {
-  'proton-bridge': { navn: 'Proton (via Bridge)', vaert: '127.0.0.1', port: 1143, sikkerhed: 'starttls' },
-  fastmail: { navn: 'Fastmail', vaert: 'imap.fastmail.com', port: 993, sikkerhed: 'tls' },
-  icloud: { navn: 'iCloud', vaert: 'imap.mail.me.com', port: 993, sikkerhed: 'tls' },
-  gmail: { navn: 'Gmail (app-adgangskode)', vaert: 'imap.gmail.com', port: 993, sikkerhed: 'tls' },
-  anden: { navn: 'Anden mailudbyder', vaert: '', port: 993, sikkerhed: 'tls' },
+  'proton-bridge': { get navn() { return imapTekst().tjenester['proton-bridge']; }, vaert: '127.0.0.1', port: 1143, sikkerhed: 'starttls' },
+  fastmail: { get navn() { return imapTekst().tjenester.fastmail; }, vaert: 'imap.fastmail.com', port: 993, sikkerhed: 'tls' },
+  icloud: { get navn() { return imapTekst().tjenester.icloud; }, vaert: 'imap.mail.me.com', port: 993, sikkerhed: 'tls' },
+  gmail: { get navn() { return imapTekst().tjenester.gmail; }, vaert: 'imap.gmail.com', port: 993, sikkerhed: 'tls' },
+  anden: { get navn() { return imapTekst().tjenester.anden; }, vaert: '', port: 993, sikkerhed: 'tls' },
 };
 
 /** What a connection needs besides the password. `bruger` is the mail address (the IMAP login on every preset). */
@@ -34,23 +36,23 @@ const VAERT = /^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
 /** The connection the card's options describe. Only `anden` takes server and security; `port` overrides any preset. */
 export function forbindelse(valg: Readonly<Record<string, string>>): Forbindelse {
   const tjeneste = valg['tjeneste'];
-  if (!erTjeneste(tjeneste)) throw new KildeFejl(400, 'Vælg din mailtjeneste.');
+  if (!erTjeneste(tjeneste)) throw new KildeFejl(400, imapTekst().vaelgTjeneste);
   const bruger = (valg['adresse'] ?? '').trim();
-  if (!bruger) throw new KildeFejl(400, 'Skriv din mailadresse.');
+  if (!bruger) throw new KildeFejl(400, imapTekst().skrivAdresse);
   const p = PRESETS[tjeneste];
   let { vaert, sikkerhed } = p;
   let port = p.port;
   if (tjeneste === 'anden') {
     vaert = (valg['server'] ?? '').trim();
-    if (!vaert) throw new KildeFejl(400, 'Skriv adressen på din mailserver.');
-    if (!VAERT.test(vaert) && !isIP(vaert)) throw new KildeFejl(400, 'Serveradressen er ugyldig.');
+    if (!vaert) throw new KildeFejl(400, imapTekst().skrivServer);
+    if (!VAERT.test(vaert) && !isIP(vaert)) throw new KildeFejl(400, imapTekst().serverUgyldig);
     sikkerhed = valg['sikkerhed'] === 'starttls' ? 'starttls' : 'tls';
     port = sikkerhed === 'starttls' ? 143 : 993;
   }
   const egen = (valg['port'] ?? '').trim();
   if (egen) {
     const n = Number(egen);
-    if (!/^\d{1,5}$/.test(egen) || n < 1 || n > 65535) throw new KildeFejl(400, 'Porten skal være et tal mellem 1 og 65535.');
+    if (!/^\d{1,5}$/.test(egen) || n < 1 || n > 65535) throw new KildeFejl(400, imapTekst().portUgyldig);
     port = n;
   }
   return { tjeneste, vaert, port, sikkerhed, bruger };

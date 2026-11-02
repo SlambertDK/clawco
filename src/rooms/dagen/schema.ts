@@ -9,6 +9,7 @@ import { dagStr, klokke } from '../../shell/friskhed.ts';
 import { ZoneFejl, zoneFra, synligFor, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import type { Person } from '../../identitet/husstand.ts';
 import { agentGulv, verbFra } from '../../graenser/verber.ts';
+import { dagenTekst } from './tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -183,7 +184,7 @@ export function parseDagenState(raw: unknown, now: Date): DagenState {
     anbefaling,
     kalender,
     morgenavis,
-    hermesStatus: str(raw['hermesStatus'], 80) || 'Klar',
+    hermesStatus: str(raw['hermesStatus'], 80) || dagenTekst().klar,
   };
   const vejr = optStr(raw['vejr'], 80); if (vejr) state.vejr = vejr;
   const visuel = parseVisuel(raw['visuel']); if (visuel) state.visuel = visuel;

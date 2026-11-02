@@ -15,6 +15,7 @@ import { appendFile, mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { html, type Markup } from '../shell/html.ts';
 import { idagKbh } from '../shell/tid.ts';
+import { tillidTekst } from './tekster.ts';
 
 export type Dagstal = { dato: string; kraevede: number; fortryd: number; regler?: number };
 /** One week: `dage` = days with a snapshot, `snit` = things per such day (not rounded), `fortryd` = Fortryd over the week. */
@@ -168,13 +169,14 @@ export function ugeVisning(raekke: readonly Ugetal[], sidsteEr: 'denne' | 'sidst
   const i = raekke.map((u) => u.dage > 0).lastIndexOf(true);
   const valgt = raekke[i];
   if (!valgt) return undefined;
+  const T = tillidTekst();
   const siden = (k: number): number => raekke.length - 1 - k + (sidsteEr === 'denne' ? 0 : 1); // weeks ago
   const gammel = siden(i);
-  const start = gammel === 0 ? 'I denne uge' : gammel === 1 ? 'Sidste uge' : `I uge ${valgt.nr}`;
+  const start = gammel === 0 ? T.denneUge : gammel === 1 ? T.sidsteUge : T.iUge(valgt.nr);
   const j = raekke.slice(0, i).map((u) => u.dage > 0).lastIndexOf(true);
   const forrige = raekke[j];
   if (!forrige) return { valgt, start };
-  const forrigeNavn = siden(j) === gammel + 1 ? (gammel === 0 ? 'sidste uge' : 'ugen før') : `uge ${forrige.nr}:`;
+  const forrigeNavn = siden(j) === gammel + 1 ? (gammel === 0 ? T.sidsteUgeNavn : T.ugenFoer) : T.ugeNavn(forrige.nr);
   return { valgt, forrige, start, forrigeNavn };
 }
 
@@ -186,30 +188,31 @@ export function ugeVisning(raekke: readonly Ugetal[], sidsteEr: 'denne' | 'sidst
  * `hjaelp`: the definition, for the page that explains the number.
  */
 export function ugeLinje(v: Ugevisning, o: { hjaelp?: boolean } = {}): Markup {
+  const T = tillidTekst();
   const a = afrund(v.valgt.snit);
   let linje: string;
-  if (!v.forrige) linje = `Første uge: ${a} om dagen. Sammenligning kommer næste uge.`;
+  if (!v.forrige) linje = T.foersteUge(a);
   else {
     const b = afrund(v.forrige.snit);
     const f = v.valgt.fortryd;
     const steg = f > v.forrige.fortryd;
     const sidste = `(${v.forrigeNavn} ${b})`;
     const faldt = a < b && !steg && v.valgt.dage >= v.forrige.dage;
-    linje = `${v.start} krævede i snit ${a} ting dig om dagen ${sidste}. Fortryd: ${f}${steg ? ` (${v.forrigeNavn} ${v.forrige.fortryd})` : ''}.${faldt ? ' Det er faldet, uden at Fortryd steg.' : ''}`;
+    linje = T.ugeLinje(v.start, a, sidste, f, steg ? T.fortrydForrige(v.forrigeNavn ?? '', v.forrige.fortryd) : '', faldt ? T.detErFaldet : '');
   }
   const hjaelp = o.hjaelp
-    ? html`<p class="row-note" data-ugetal="hjaelp">Sådan tæller vi: en ting tæller for en dag, hvis den stod under Kræver dig på noget tidspunkt den dag, og kun én gang den dag. Fortryd er de handlinger, du fortrød i ugen. Tallet skal falde, uden at Fortryd stiger.</p>`
+    ? html`<p class="row-note" data-ugetal="hjaelp">${T.hjaelp}</p>`
     : '';
   return html`<div class="ugetal"><p class="ugetal-linje" data-ugetal="linje">${linje}</p>${hjaelp}</div>`;
 }
 
 /** The text alternative of the bars: "uge 43: 9, uge 44: 6 …" ("–" for a week with no data). */
-export const ugeTekst = (raekke: readonly Ugetal[]): string => raekke.map((u) => `uge ${u.nr}: ${u.dage ? afrund(u.snit) : '–'}`).join(', ');
+export const ugeTekst = (raekke: readonly Ugetal[]): string => raekke.map((u) => tillidTekst().ugeTal(u.nr, String(u.dage ? afrund(u.snit) : '–'))).join(', ');
 
 /** The eight-week row of bars (the last bar is the current week). On a phone the figure is hidden: there it is just the line. */
 export function ugeSoejler(raekke: readonly Ugetal[]): Markup {
   const maks = Math.max(1, ...raekke.map((u) => u.snit));
-  const alt = `Ting der krævede dig om dagen, uge for uge: ${ugeTekst(raekke)}`;
+  const alt = tillidTekst().soejlerAlt(ugeTekst(raekke));
   const BREDDE = 16, AFSTAND = 6, HOJDE = 40;
   const soejler = raekke.map((u, i) => {
     const h = u.dage ? Math.max(2, (u.snit / maks) * HOJDE) : 1;

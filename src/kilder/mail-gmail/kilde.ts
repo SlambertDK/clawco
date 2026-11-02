@@ -26,6 +26,8 @@
 
 import { KildeFejl, type Helbred, type Kilde, type KildeKontekst, type KildeKort } from '../types.ts';
 import { googleOpsaetTrin, googleTilfoejTrin } from '../google/opsaet.ts';
+import { googleTekst } from '../google/tekster.ts';
+import { gmailTekst } from './tekster.ts';
 import { byttKode, forny, GoogleFejl, lavVerifier, MAIL_KRAV, samtykkeUrl, SCOPE_ADRESSE, SCOPE_MAIL, tilbagekald, udfordring, type Hent, type Klient } from '../google/oauth.ts';
 import { GOOGLE_KALENDER_ID } from '../google-kalender/kilde.ts';
 import { laesKonto, type Adgang, type Konto } from '../mail-imap/imap.ts';
@@ -43,10 +45,6 @@ const SCOPES = [SCOPE_MAIL, ...SCOPE_ADRESSE];
 /** The redirect address Google must be told: the app's own address + the registry's return route (KC-0132). */
 export const tilbageAdresse = (adresse: string): string => `${adresse.replace(/\/+$/, '')}/api/kilder/${MAIL_GMAIL_ID}/tilbage`;
 const absolut = (u: string): boolean => /^https?:\/\/[^/]/.test(u);
-
-const FULD_ADGANG = 'Google kalder tilladelsen "fuld adgang til din Gmail", fordi Google ikke har en smallere tilladelse til mail over IMAP. '
-  + 'Clawco bruger den kun til at læse afsender, emne og tid, aldrig selve mailen, og kan hverken sende, flytte eller slette; det sørger Clawcos egen kode for.';
-const ALTERNATIV = 'Vil du ikke give den tilladelse, kan du i stedet vælge Mail og Gmail (app-adgangskode); det kræver bekræftelse i to trin hos Google.';
 
 /** The card is text: anything from outside is shown without < or >. */
 const vis = (v: string): string => v.replace(/[<>]/g, '');
@@ -77,7 +75,7 @@ export function mailGmail(o: {
   };
   const kraevKlient = (): Klient => {
     const k = klient();
-    if (!k) throw new KildeFejl(409, 'Google-appen er ikke sat op endnu: klient-id og klienthemmelighed mangler. Følg trinene på kortet.');
+    if (!k) throw new KildeFejl(409, googleTekst().appIkkeSat);
     return k;
   };
 
@@ -140,13 +138,15 @@ export function mailGmail(o: {
 
     async kort(ctx): Promise<KildeKort> {
       const tilbage = o.adresse && absolut(o.adresse) ? tilbageAdresse(o.adresse) : null;
+      const t = gmailTekst();
+      const g = googleTekst();
       if (!klient()) {
         return {
-          titel: NAVN, handling: 'Gem og log ind med Google', trin: googleOpsaetTrin({ tilbage, scope: SCOPE_MAIL }),
-          tekst: `Første gang laver du din egen lille Google-app, så din mail går direkte fra Google til Clawco, uden en app-adgangskode. Det tager fem minutter, ét trin ad gangen. ${FULD_ADGANG} ${ALTERNATIV}`,
+          titel: NAVN, handling: t.handlingGemOgLogInd, trin: googleOpsaetTrin({ tilbage, scope: SCOPE_MAIL }),
+          tekst: t.opsaetTekst(t.fuldAdgang, t.alternativ),
           felter: [
-            { navn: 'klient_id', etiket: 'Klient-id', type: 'tekst', paakraevet: true, maks: 300, miljoe: 'KC_GOOGLE_CLIENT_ID' },
-            { navn: 'klient_hemmelighed', etiket: 'Klienthemmelighed', type: 'hemmelig', paakraevet: true, maks: 300, miljoe: 'KC_GOOGLE_CLIENT_SECRET' },
+            { navn: 'klient_id', etiket: g.klientIdEtiket, type: 'tekst', paakraevet: true, maks: 300, miljoe: 'KC_GOOGLE_CLIENT_ID' },
+            { navn: 'klient_hemmelighed', etiket: g.klientHemmelighedEtiket, type: 'hemmelig', paakraevet: true, maks: 300, miljoe: 'KC_GOOGLE_CLIENT_SECRET' },
           ],
         };
       }
@@ -154,25 +154,25 @@ export function mailGmail(o: {
       if (hem?.['refresh_token']) {
         const fejl = sidsteFejl();
         if (fejl?.status === 'log-ind-igen') {
-          return { titel: NAVN, tekst: `${fejl.tekst} ${FULD_ADGANG}`, felter: [], handling: 'Log ind med Google igen' };
+          return { titel: NAVN, tekst: t.loginIgenTekst(fejl.tekst, t.fuldAdgang), felter: [], handling: t.handlingLogIndIgen };
         }
-        const hvem = hem['adresse'] ? `Forbundet som ${vis(hem['adresse'])}. ` : 'Forbundet. ';
-        return { titel: NAVN, tekst: `${hvem}${FULD_ADGANG}`, felter: [], handling: 'Skift Google-konto' };
+        const hvem = hem['adresse'] ? t.forbundetSom(vis(hem['adresse'])) : t.forbundet;
+        return { titel: NAVN, tekst: t.forbundetTekst(hvem, t.fuldAdgang), felter: [], handling: t.handlingSkiftKonto };
       }
       if (await ctx.erForbundet?.(GOOGLE_KALENDER_ID)) {
         return {
-          titel: NAVN, felter: [], handling: 'Giv adgang til mail', trin: googleTilfoejTrin({ tilbage, scope: SCOPE_MAIL }),
-          tekst: `Google er allerede koblet: kun mail mangler. Clawco bruger den samme Google-app og beder kun om tilladelse til mail; kalenderen røres ikke. ${FULD_ADGANG} ${ALTERNATIV}`,
+          titel: NAVN, felter: [], handling: t.handlingGivAdgang, trin: googleTilfoejTrin({ tilbage, scope: SCOPE_MAIL }),
+          tekst: t.tilfoejTekst(t.fuldAdgang, t.alternativ),
         };
       }
       return {
-        titel: NAVN, felter: [], handling: 'Log ind med Google',
-        tekst: `Log ind med din Google-konto, så står dine ulæste og ventende mails i Nu. Du skal ikke lave en app-adgangskode. ${FULD_ADGANG} ${ALTERNATIV}`,
+        titel: NAVN, felter: [], handling: t.handlingLogInd,
+        tekst: t.logIndTekst(t.fuldAdgang, t.alternativ),
       };
     },
 
     async helbred(ctx): Promise<Helbred> {
-      if (!klient()) return { status: 'nede', tekst: 'Google-appen mangler klient-id eller klienthemmelighed.' };
+      if (!klient()) return { status: 'nede', tekst: googleTekst().appMangler };
       const hem = await ctx.hemmelighed();
       if (!hem?.['refresh_token']) return { status: 'log-ind-igen', tekst: GMAIL_FEJLTEKST.tom };
       const fejl = sidsteFejl();
@@ -183,14 +183,14 @@ export function mailGmail(o: {
         return { status: 'ok' };
       } catch (err) {
         const k = sidsteFejl();
-        return { status: k?.status ?? 'nede', tekst: k?.tekst ?? (err instanceof KildeFejl ? err.message : 'Gmail svarer ikke.') };
+        return { status: k?.status ?? 'nede', tekst: k?.tekst ?? (err instanceof KildeFejl ? err.message : gmailTekst().gmailSvarerIkke) };
       }
     },
 
     oauth: {
       async start(state, tilbage, ctx) {
         const k = kraevKlient();
-        if (!absolut(tilbage)) throw new KildeFejl(409, 'Clawco kender ikke sin egen adresse (KC_ADRESSE), så Google ikke kan sende dig tilbage. Ejeren skal sætte den først.');
+        if (!absolut(tilbage)) throw new KildeFejl(409, googleTekst().ingenAdresse);
         const nu = ur().getTime();
         for (const [s, v] of venter) if (v.udloeber < nu) venter.delete(s);
         const verifier = lavVerifier();
@@ -202,9 +202,9 @@ export function mailGmail(o: {
       async tilbage(kode, ctx, state) {
         const v = venter.get(state);
         venter.delete(state);
-        if (!v || v.udloeber < ur().getTime()) throw new KildeFejl(400, 'Login med Google kunne ikke bekræftes. Prøv igen.');
+        if (!v || v.udloeber < ur().getTime()) throw new KildeFejl(400, googleTekst().loginIkkeBekraeftet);
         const t = await byttKode({ hent, klient: kraevKlient(), kode, verifier: v.verifier, tilbage: v.tilbage, krav: MAIL_KRAV });
-        if (!t.adresse) throw new KildeFejl(502, 'Google sagde ikke, hvilken Gmail-adresse der loggede ind. Prøv at logge ind igen.');
+        if (!t.adresse) throw new KildeFejl(502, gmailTekst().ingenAdresse);
         cache = { refresh: t.refresh, adgang: t.adgang, udloeber: ctx.nu.getTime() + t.udloeberMs };
         afvist = null;
         tilstand = {};

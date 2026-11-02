@@ -13,6 +13,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { KildeFejl } from '../types.ts';
+import { googleTekst } from './tekster.ts';
 
 export type Hent = typeof fetch;
 export type Klient = { id: string; hemmelighed: string };
@@ -67,15 +68,16 @@ export const fletScopes = (...lister: (readonly string[])[]): string[] => [...ne
 export type ScopeKrav = { kraevet: string; afvis(scope: string): boolean; mangler: string; formeget: string };
 export const KALENDER_KRAV: ScopeKrav = {
   kraevet: SCOPE_KALENDER, afvis: (x) => /\/auth\/calendar/.test(x),
-  mangler: 'Clawco fik ikke lov til at se kalenderen. Log ind igen, og sæt flueben ved kalenderen.',
-  formeget: 'Google gav mere end læseadgang til kalenderen. Clawco tager kun imod læseadgang.',
+  // KC-0170: read when a grant is refused, in the language of that request (not frozen at load).
+  get mangler() { return googleTekst().kalenderMangler; },
+  get formeget() { return googleTekst().kalenderFormeget; },
 };
 /** Mail tolerates the address scopes (Google answers `email` as userinfo.email) and the read-only calendar a merged grant brings along. */
 const MAIL_TILLADT: ReadonlySet<string> = new Set([...SCOPE_ADRESSE, 'https://www.googleapis.com/auth/userinfo.email', SCOPE_KALENDER]);
 export const MAIL_KRAV: ScopeKrav = {
   kraevet: SCOPE_MAIL, afvis: (x) => !MAIL_TILLADT.has(x),
-  mangler: 'Clawco fik ikke lov til at læse din mail. Log ind igen, og sæt flueben ved mail.',
-  formeget: 'Google gav mere end mail og din adresse. Clawco tager kun imod det, den bad om.',
+  get mangler() { return googleTekst().mailMangler; },
+  get formeget() { return googleTekst().mailFormeget; },
 };
 
 /** The verified address in an ID token received straight from the token endpoint over TLS (Google: no signature check needed then). */
@@ -98,17 +100,17 @@ async function tokenKald(hent: Hent, krop: Record<string, string>): Promise<Toke
   let svar: Response;
   try {
     svar = await hent(ENDPOINTS.token, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(krop).toString() });
-  } catch { throw new GoogleFejl('nede', 'Google kunne ikke nås. Prøv igen om lidt.'); }
+  } catch { throw new GoogleFejl('nede', googleTekst().googleUtilgaengelig); }
   let json: TokenSvar = {};
   try { json = (await svar.json()) as TokenSvar; } catch { /* an empty or non-JSON body is classified by status */ }
   if (svar.ok) return json;
-  if (json.error === 'invalid_grant') throw new GoogleFejl('afvist', 'Google har trukket adgangen tilbage eller ladet den udløbe. Log ind med Google igen.');
-  if (json.error === 'invalid_client' || json.error === 'unauthorized_client') throw new GoogleFejl('klient', 'Google kender ikke Clawcos nøgle til kalenderen. Tjek klient-id og hemmelighed.');
-  throw new GoogleFejl('nede', `Google svarede med fejl ${svar.status}.`);
+  if (json.error === 'invalid_grant') throw new GoogleFejl('afvist', googleTekst().adgangenTrukketTilbage);
+  if (json.error === 'invalid_client' || json.error === 'unauthorized_client') throw new GoogleFejl('klient', googleTekst().ukendtKlient);
+  throw new GoogleFejl('nede', googleTekst().googleFejl(svar.status));
 }
 
 function adgangFra(j: TokenSvar): { adgang: string; udloeberMs: number } {
-  if (typeof j.access_token !== 'string' || !j.access_token) throw new GoogleFejl('nede', 'Google sendte ingen adgang.');
+  if (typeof j.access_token !== 'string' || !j.access_token) throw new GoogleFejl('nede', googleTekst().ingenAdgangSendt);
   const sek = typeof j.expires_in === 'number' && j.expires_in > 0 ? j.expires_in : 3600;
   return { adgang: j.access_token, udloeberMs: sek * 1000 };
 }
@@ -124,7 +126,7 @@ export async function byttKode(o: { hent: Hent; klient: Klient; kode: string; ve
   const j = await tokenKald(o.hent, {
     grant_type: 'authorization_code', code: o.kode, code_verifier: o.verifier, redirect_uri: o.tilbage, client_id: o.klient.id, client_secret: o.klient.hemmelighed,
   });
-  if (typeof j.refresh_token !== 'string' || !j.refresh_token) throw new KildeFejl(502, 'Google gav ikke en varig adgang. Prøv at logge ind igen.');
+  if (typeof j.refresh_token !== 'string' || !j.refresh_token) throw new KildeFejl(502, googleTekst().ingenVarigAdgang);
   const scopes = scopesFra(j.scope);
   tjekScope(scopes, o.krav);
   const adresse = adresseFraIdToken(j.id_token);

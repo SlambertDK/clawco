@@ -1,0 +1,17 @@
+<section class="stack" data-danmark-pakke data-gruppe="Danmark-pakke"><h3 class="eyebrow">Danmark-pakke</h3><article class="card kort" data-blok="kort" data-post-start data-element="Danmark-pakke: Få besked, når der er ny Digital Post">
+    <div class="kort-head"><span class="chip tilstand-rolig">Valgfrit</span><span class="row-title">Få besked, når der er ny Digital Post</span></div>
+    <p>Clawco kan lægge et kort i Nu, når Digital Post har sendt dig en notifikation om ny post. Det sker ved at læse den mail, Digital Post selv sender.</p>
+    <p class="row-title">1. Slå notifikationen til</p>
+    <p class="row-note">Åbn Digital Post (på mit.dk, e-Boks eller borger.dk), og slå «Notifikation på e-mail» til. Giv den e-mailadresse, som Clawco læser.</p>
+    <form id="post-form" class="nyt-form" onsubmit="return false" autocomplete="off">
+    <p class="row-title">2. Vælg afsenderen</p>
+    <p class="row-note">Det er adressen, notifikationsmailen kommer fra. Her er de adresser i din indbakke, der ligner Digital Post.</p>
+    <div class="stack" role="radiogroup" aria-label="Afsenderadresse"><label class="field-check"><input type="radio" name="afsender" value="noreply@digitalpost.example.com" checked><span class="mono">noreply@digitalpost.example.com</span></label><label class="field-check"><input type="radio" name="afsender" value="info@post.example.com"><span class="mono">info@post.example.com</span></label></div>
+    <label class="field"><span class="row-note">Eller skriv adressen (den skal slutte på digitalpost.example.com, post.example.com)</span><input name="egen" type="text" inputmode="email" spellcheck="false" maxlength="200" autocomplete="off" data-uden-stemme></label>
+    <p class="row-title">3. Hvor læser du din Digital Post?</p>
+    <p class="row-note">Det er dit link i kortet i Nu. Clawco logger aldrig ind dér.</p>
+    <div class="stack" role="radiogroup" aria-label="Postkasse"><label class="field-check"><input type="radio" name="viser" value="mitdk" checked><span>mit.dk</span></label><label class="field-check"><input type="radio" name="viser" value="eboks"><span>e-Boks</span></label></div>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="post-afsender-gem" data-form="post-form" data-status="gemmer">Gem</button><button type="button" class="btn btn-ghost" data-aktion="post-ikke-nu" data-status="lægger væk">Ikke nu</button></div>
+  </form>
+    <p class="row-note" data-post-staaende>Clawco ser kun notifikationen: hverken brevet eller mailens tekst.</p>
+  </article></section>

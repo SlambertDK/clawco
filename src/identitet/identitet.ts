@@ -11,6 +11,7 @@
 import type { Husstand, Person } from './husstand.ts';
 import { verificerKonto, type KontoIndstilling } from './konto.ts';
 import { stoettePerson, type StoetteAdgang } from './stoette.ts';
+import { IDENTITET_TEKSTER, identitetTekst } from './tekster.ts';
 
 export type { Person } from './husstand.ts';
 /** `log` (konto only): which check failed, for the server log; never shown, never the header value. */
@@ -35,14 +36,17 @@ export function erLoopback(peer: string | undefined): boolean {
 /** Public Funnel traffic: Clawco is never public. */
 export const erFunnel = (h: Headers): boolean => h.has('tailscale-funnel-request');
 
-const AFVIST_FUNNEL: AfvistAdgang = { afvist: 403, hvorfor: 'Clawco kan kun åbnes fra dit eget Tailscale-net, ikke fra internettet.' };
-const AFVIST_UKENDT: AfvistAdgang = { afvist: 401, hvorfor: 'Clawco ved ikke, hvem du er. Åbn siden over Tailscale fra din egen enhed.' };
+// KC-0170: the words are read when a request is refused (never at module load), so they follow the request's language.
+const afvistFunnel = (): AfvistAdgang => ({ afvist: 403, hvorfor: identitetTekst().tailnetKun });
+const afvistUkendt = (): AfvistAdgang => ({ afvist: 401, hvorfor: identitetTekst().ukendtPerson });
 /** KC-0154: a login the household does not know — a plain page with no data (the person may simply not be invited yet). */
-const AFVIST_FREMMED: AfvistAdgang = { afvist: 403, hvorfor: 'Du er ikke inviteret endnu. Bed ejeren af husstanden om en invitation.' };
+const afvistFremmed = (): AfvistAdgang => ({ afvist: 403, hvorfor: identitetTekst().ikkeInviteret });
 /** A household file that exists but cannot be read, or (konto) no household at all: nobody can be told apart. */
-export const HUSSTAND_ULAESELIG = 'Husstanden kunne ikke læses, så Clawco ved ikke, hvem du er. Ejeren skal rette husstand.json.';
+export const husstandUlaeselig = (): string => identitetTekst().husstandUlaeselig;
+/** The Danish sentence, for a caller that still holds the constant (it cannot follow the request's language: use husstandUlaeselig()). */
+export const HUSSTAND_ULAESELIG = IDENTITET_TEKSTER.da.husstandUlaeselig;
 // Konto: the same wording as the tailnet refusals, without the Tailscale hint (Sky has none).
-const KONTO_UKENDT = 'Clawco ved ikke, hvem du er.';
+const kontoUkendt = (): string => identitetTekst().kontoUkendt;
 
 /** The household member with this login (case and surrounding space ignored). */
 const medLogin = (personer: Person[], login: string): Person | undefined => {
@@ -51,16 +55,16 @@ const medLogin = (personer: Person[], login: string): Person | undefined => {
 };
 
 export function hvemKigger(a: Anmodning, husstand: Husstand | null): Person | AfvistAdgang {
-  if (erFunnel(a.headers)) return AFVIST_FUNNEL;
+  if (erFunnel(a.headers)) return afvistFunnel();
   const login = erLoopback(a.peer) ? (a.headers.get('tailscale-user-login') ?? '').trim().toLowerCase() : '';
   const personer = husstand?.personer ?? [];
   // KC-0154: the single user carries the login Serve vouched for, so his first invitation can name him as the owner.
   if (personer.length === 0) return login ? { ...ENEBRUGER, login } : ENEBRUGER;
   const hit = medLogin(personer, login);
   if (hit) return hit;
-  if (login) return AFVIST_FREMMED;
+  if (login) return afvistFremmed();
   if (personer.length === 1 && personer[0]) return personer[0];
-  return AFVIST_UKENDT;
+  return afvistUkendt();
 }
 
 /**
@@ -72,12 +76,12 @@ export type StoetteLokal = StoetteAdgang | null | 'ulaeselig';
 
 export function hvemKontoKigger(a: Anmodning, husstand: Husstand | null, k: KontoIndstilling, nuSek: number, stoette?: StoetteLokal): Person | AfvistAdgang {
   const v = verificerKonto(a, k, nuSek);
-  if (!v.ok) return { afvist: 401, hvorfor: KONTO_UKENDT, log: `konto afvist: ${v.grund}` };
+  if (!v.ok) return { afvist: 401, hvorfor: kontoUkendt(), log: `konto afvist: ${v.grund}` };
   const personer = husstand?.personer ?? [];
-  if (personer.length === 0) return { afvist: 503, hvorfor: HUSSTAND_ULAESELIG, log: 'konto: ingen husstand' };
+  if (personer.length === 0) return { afvist: 503, hvorfor: husstandUlaeselig(), log: 'konto: ingen husstand' };
   // KC-0188: a support session is accepted only beside this tenant's own live record of the same grant (fail closed).
-  if (v.stoette) return stoettePerson(v.stoette, stoette, personer, nuSek) ?? { afvist: 401, hvorfor: KONTO_UKENDT, log: 'konto: støtteadgangen er ikke åben her' };
-  return medLogin(personer, v.email) ?? { ...AFVIST_FREMMED, log: 'konto: e-mailen er ikke i husstanden' };
+  if (v.stoette) return stoettePerson(v.stoette, stoette, personer, nuSek) ?? { afvist: 401, hvorfor: kontoUkendt(), log: 'konto: støtteadgangen er ikke åben her' };
+  return medLogin(personer, v.email) ?? { ...afvistFremmed(), log: 'konto: e-mailen er ikke i husstanden' };
 }
 
 export type Kigger = (a: Anmodning, husstand: Husstand | null, stoette?: StoetteLokal) => Person | AfvistAdgang;
@@ -87,7 +91,7 @@ export type Identitetsvalg = { fast: Person } | { konto: KontoIndstilling };
 export function vaelgKigger(valg: Identitetsvalg | undefined, nu: () => Date): Kigger {
   if (!valg) return hvemKigger;
   // A fixed person (the test world) still never answers Funnel traffic.
-  if ('fast' in valg) return (a) => (erFunnel(a.headers) ? AFVIST_FUNNEL : valg.fast);
+  if ('fast' in valg) return (a) => (erFunnel(a.headers) ? afvistFunnel() : valg.fast);
   return (a, husstand, stoette) => hvemKontoKigger(a, husstand, valg.konto, Math.floor(nu().getTime() / 1000), stoette);
 }
 

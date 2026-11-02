@@ -6,6 +6,7 @@
 
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { beskederTekst } from './tekster.ts';
 
 export const KANALER = ['telegram', 'whatsapp', 'signal'] as const;
 export type Kanal = (typeof KANALER)[number];
@@ -40,7 +41,7 @@ function enLinje(raw: unknown): RaaBesked | null {
   if (afsenderNavn) ud.afsenderNavn = afsenderNavn;
   if (Array.isArray(raw['vedhaeftning'])) {
     const v = raw['vedhaeftning'].filter(erObj).slice(0, 10)
-      .map((a) => ({ navn: tekstFelt(a['navn'], MAKS_NAVN) ?? 'vedhæftning', type: tekstFelt(a['type'], 80) ?? 'ukendt' }));
+      .map((a) => ({ navn: tekstFelt(a['navn'], MAKS_NAVN) ?? beskederTekst().vedhaeftning, type: tekstFelt(a['type'], 80) ?? beskederTekst().ukendtType }));
     if (v.length) ud.vedhaeftning = v;
   }
   return ud;

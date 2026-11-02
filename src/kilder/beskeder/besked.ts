@@ -8,10 +8,12 @@ import type { DataZone } from '../../identitet/zoner.ts';
 import type { Besked } from '../types.ts';
 import type { RaaBesked } from './jsonl.ts';
 import { findAfsender, type Kontakt } from './afsender.ts';
+import { BESKEDER_TEKSTER, beskederTekst } from './tekster.ts';
 import { erId, samtaleNoegle, standardNavn } from './valg.ts';
 
 export const MAKS_TEKST = 500;
-export const UKENDT = 'ukendt afsender';
+/** The placeholder for an unknown sender in Danish; a read writes it in the language of the request (beskederTekst().ukendtAfsender). */
+export const UKENDT = BESKEDER_TEKSTER.da.ukendtAfsender;
 
 export type { Kontakt };
 
@@ -31,17 +33,17 @@ function findKontakt(r: RaaBesked, kontakter: readonly Kontakt[]): Kontakt | und
 /** Phone numbers (6+ digits with phone punctuation), platform addresses and @handles out of a text. */
 export function skjulIder(tekst: string, ider: readonly string[] = []): string {
   let t = tekst;
-  for (const id of ider) if (id.length >= 3) t = t.split(id).join('[skjult]');
+  for (const id of ider) if (id.length >= 3) t = t.split(id).join(beskederTekst().skjult);
   return t
-    .replace(/\S+@(?:s\.whatsapp\.net|g\.us|c\.us|lid)\b/gi, '[skjult]')
-    .replace(/\+?\d[\d\s().-]{4,}\d/g, (m) => (m.replace(/\D/g, '').length >= 6 ? '[nummer]' : m))
-    .replace(/(^|[^\w.])@[A-Za-z0-9_]{3,}/g, '$1[skjult]');
+    .replace(/\S+@(?:s\.whatsapp\.net|g\.us|c\.us|lid)\b/gi, beskederTekst().skjult)
+    .replace(/\+?\d[\d\s().-]{4,}\d/g, (m) => (m.replace(/\D/g, '').length >= 6 ? beskederTekst().nummer : m))
+    .replace(/(^|[^\w.])@[A-Za-z0-9_]{3,}/g, (_m, foer: string) => `${foer}${beskederTekst().skjult}`);
 }
 
 export function tilBesked(r: RaaBesked, o: { kontakter: readonly Kontakt[]; zone: DataZone; laest?: boolean }): Besked {
   const k = findKontakt(r, o.kontakter);
   const visNavn = r.afsenderNavn && !erId(r.afsenderNavn) ? r.afsenderNavn : undefined;
-  const afsender = k ? { navn: k.relation ? `${k.navn} (${k.relation})` : k.navn, personId: k.id } : { navn: visNavn ?? UKENDT };
+  const afsender = k ? { navn: k.relation ? `${k.navn} (${k.relation})` : k.navn, personId: k.id } : { navn: visNavn ?? beskederTekst().ukendtAfsender };
   const samtaleNavn = r.samtaleNavn && !erId(r.samtaleNavn) ? r.samtaleNavn : !r.gruppe && k ? k.navn : standardNavn(r.kanal, r.gruppe);
   const id = `b-${createHash('sha256').update(`${r.kanal}\u0000${r.samtale}\u0000${r.afsender}\u0000${r.tid}\u0000${r.tekst}`).digest('hex').slice(0, 16)}`;
   const ud: Besked = {

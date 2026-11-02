@@ -1,19 +1,14 @@
-// KC-0134: a failed mail connection as one Danish sentence and a health
+// KC-0134: a failed mail connection as one sentence (Danish or English, KC-0170) and a health
 // status. The texts are fixed: never the server's own words (untrusted, and
 // a server may echo what it was sent) and never the password.
 
 import type { HelbredStatus } from '../types.ts';
+import { sproglig } from '../tekst-hjaelp.ts';
+import { IMAP_TEKSTER, type ImapTekster } from './tekster.ts';
 import { PinFejl } from './presets.ts';
 
-export const FEJLTEKST = {
-  adgangskode: 'Forkert adgangskode. Brug en app-adgangskode fra din mailudbyder; med Proton er det adgangskoden, Bridge viser.',
-  bridge: 'Bridge kører ikke. Start Proton Mail Bridge på denne maskine, og prøv igen.',
-  svarer: 'Mailserveren svarer ikke. Tjek serveradressen og din internetforbindelse.',
-  certifikat: 'Mailserverens certifikat kunne ikke bekræftes, så Clawco forbinder ikke.',
-  pin: 'Bridge-certifikatet er et andet end sidst. Har du selv geninstalleret Bridge, så forbind igen.',
-  kryptering: 'Mailserveren tilbyder ikke kryptering, så Clawco forbinder ikke.',
-  ukendt: 'Mailen kunne ikke hentes.',
-} as const;
+/** The fixed sentences, in the language of the request (read at the time they are used, KC-0170). */
+export const FEJLTEKST: ImapTekster['fejl'] = sproglig({ da: IMAP_TEKSTER.da.fejl, en: IMAP_TEKSTER.en.fejl });
 
 export type Klassifikation = { status: Extract<HelbredStatus, 'log-ind-igen' | 'nede'>; tekst: string; http: 400 | 502 };
 

@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { SchemaError } from '../dagen/schema.ts';
 import { parseIkon, type IkonNavn } from '../../shell/visuel.ts';
 import { zoneFra, ZoneFejl, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
+import { universTekst } from './tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
 export const KORSEL: DataZone = 'privat';
@@ -218,7 +219,7 @@ export function parseForberedelse(raw: unknown): ForberedelseSvar {
   if (par.some((p) => p.ikon)) svar.talepunktIkoner = par.map((p) => p.ikon);
   const p = f['praesentation'];
   if (isObj(p) && typeof p['html'] === 'string' && p['html'].trim()) {
-    svar.praesentation = { titel: str(p['titel'], 200) || 'Præsentation', html: p['html'].slice(0, MAX_HTML) };
+    svar.praesentation = { titel: str(p['titel'], 200) || universTekst().praesentation, html: p['html'].slice(0, MAX_HTML) };
   }
   return svar;
 }

@@ -3,16 +3,18 @@
 // is rendered for someone who is not in it. Dark tokens of public/app.css.
 
 import { html } from './html.ts';
+import { tekst } from './tekster.ts';
 
 export function renderIngenAdgang(hvorfor: string): string {
+  const T = tekst();
   return String(html`<!doctype html>
-<html lang="da">
+<html lang="${T.lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#0E1210">
-<title>Ingen adgang</title>
+<title>${T.srv.ingenAdgang}</title>
 <style>
 :root { color-scheme: dark; --ground: #121614; --surface: #1C211E; --line: #2F3733; --ink: #E8EBE7; --muted: #9AA39D; }
 * { box-sizing: border-box; }
@@ -24,7 +26,7 @@ p { margin: 0; color: var(--muted); }
 </head>
 <body data-adgang="afvist">
 <main>
-<h1>Ingen adgang</h1>
+<h1>${T.srv.ingenAdgang}</h1>
 <p>${hvorfor}</p>
 </main>
 </body>

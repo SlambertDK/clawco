@@ -1,8 +1,9 @@
 // KC-0170 slice 2, Husstanden: the room's screens in English or Danish. One table per language (src/hushold/tekster.ts),
 // Danish when no language is chosen, so Henrik's installation renders byte for byte as before (the goldens in
 // test/fixtures/sprog-husstand/ were captured before the strings moved); English has no Danish word left on the screens
-// of the room — except the two things that are not the screen's: the exact message that goes out on a member's channel
-// (the household's, Danish for now) and the reasons kanal.ts/invitation.ts give for a refused send.
+// of the room, the message that goes out on a member's channel (previewed on the card) and the reasons for a refused
+// send included (KC-0170 slice 3; the actions, the log lines and the refusals are in sprog-handlinger.test.ts and
+// sprog-regler.test.ts).
 
 import { after, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -35,7 +36,7 @@ test('English has exactly Danish\'s keys and shapes; no string is empty', () => 
 });
 
 /** The same in both languages on purpose: a name, or a word English borrows. */
-const ENS = new Set(['drop', 'weekend', 'book', 'slagsNavn.person', 'ugeBogstaver.0', 'ugeBogstaver.1', 'ugeBogstaver.2', 'ugeBogstaver.4', 'ugeBogstaver.5']);
+const ENS = new Set(['drop', 'weekend', 'book', 'slagsNavn.person', 'slagsBare.person', 'rolleOrd.stoette', 'ugeBogstaver.0', 'ugeBogstaver.1', 'ugeBogstaver.2', 'ugeBogstaver.4', 'ugeBogstaver.5']);
 
 test('English is actually English: no Danish string copied over', () => {
   const ens = ensStrenge(HUSSTAND_TEKSTER.da as unknown as Record<string, unknown>, HUSSTAND_TEKSTER.en as unknown as Record<string, unknown>);
@@ -71,22 +72,17 @@ test('the date and clock words: Danish as before (the default), English when ask
 
 // ---- English: no Danish on the screens -----------------------------------------------------------------------------
 
-/** What the owner reads is the screen's; the exact message to a member's channel and kanal.ts' reasons are not (see the head). */
-const udenBeskeder = (doc: string): string => doc
-  .replace(/<p class="row-note kanal-tekst"[^>]*>[\s\S]*?<\/p>/g, '')
-  .replace(/<p class="row-note" data-(?:kanal|invitation)-ikke>[\s\S]*?<\/p>/g, '');
-
 for (const [navn, lav] of Object.entries(HUSSTAND)) {
   test(`English: ${navn} has no Danish word`, () => {
     const doc = medSprog('en', lav);
-    assert.deepEqual(danskeLinjer(udenBeskeder(doc)), []);
+    assert.deepEqual(danskeLinjer(doc), []);
     // The attributes the screen reader and the dialogs show are not text nodes: check them directly.
     for (const m of doc.matchAll(/\s(?:data-confirm|data-prompt|data-gruppe|data-status)="([^"]*)"/g)) assert.doesNotMatch(m[1]!, /[æøåÆØÅ]|\b(?:og|ikke|hun|hvad)\b/, m[0]);
   });
 }
 
 test('the detector works: the Danish owner\'s room is full of Danish lines', () => {
-  assert.ok(danskeLinjer(udenBeskeder(HUSSTAND['ejer-hele-rummet']!())).length > 40);
+  assert.ok(danskeLinjer(HUSSTAND['ejer-hele-rummet']!()).length > 40);
 });
 
 test('English: the room, the week and who is in it', () => {

@@ -18,7 +18,7 @@ const rod = path.dirname(fileURLToPath(import.meta.url));
 const fixtur = (navn: string): string => readFileSync(path.join(rod, '../fixtures/sprog-univers', navn), 'utf8');
 
 /** Strings that are the same in both languages on purpose (names, and words English borrows). */
-const ENS = new Set<string>([]);
+const ENS = new Set<string>(['elementNavn.note.0']);
 
 test('English has exactly Danish\'s keys and shapes; no string is empty; no Danish string copied over', () => {
   assert.deepEqual(form(UNIVERS_TEKSTER.en), form(UNIVERS_TEKSTER.da));
@@ -39,11 +39,9 @@ test('Henrik\'s installation: with no language chosen, and with Danish chosen, e
   }
 });
 
-/** data-element is the context handed to Hermes with "Spørg"/"Skriv om" (prompt.ts and room.ts match its Danish prefixes), not what the user reads. */
-const udenElement = (doc: string): string => doc.replace(/ data-element="[^"]*"/g, '');
 
 test('English: no Danish word on any Univers screen', () => {
-  for (const [k, lav] of Object.entries(UNIVERS)) assert.deepEqual(danskeLinjer(udenElement(medSprog('en', lav))), [], k);
+  for (const [k, lav] of Object.entries(UNIVERS)) assert.deepEqual(danskeLinjer(medSprog('en', lav)), [], k);
 });
 
 test('English: the room speaks English, with times, counts and plurals in English too', () => {

@@ -9,6 +9,7 @@
 // WHATWG URL's normalised host, so 2852039166 and 0xa9fea9fe are 169.254.169.254.
 
 import { isIP } from 'node:net';
+import { rssTekst } from './tekster.ts';
 
 export type Oprindelse = 'bruger' | 'ekstern';
 
@@ -69,14 +70,14 @@ function klassificer(ip: string): Klasse {
 /** Throws AdresseFejl when `ip` (a resolved or literal address) may not be called by `o.oprindelse`. */
 export function tjekIp(ip: string, o: { oprindelse: Oprindelse }): void {
   const k = klassificer(ip);
-  if (k === 'forbudt') throw new AdresseFejl('Adressen peger på en intern tjeneste, som Clawco ikke må kalde.');
-  if (k === 'lokal' && o.oprindelse !== 'bruger') throw new AdresseFejl('Adressen peger på dit lokale netværk. Skriv den selv ind, hvis det er meningen.');
+  if (k === 'forbudt') throw new AdresseFejl(rssTekst().intern);
+  if (k === 'lokal' && o.oprindelse !== 'bruger') throw new AdresseFejl(rssTekst().lokalt);
 }
 
 function tjekNavn(vaert: string, o: { oprindelse: Oprindelse }): void {
   const v = vaert.toLowerCase().replace(/\.$/, '');
-  if (FORBUDTE_NAVNE.has(v)) throw new AdresseFejl('Adressen peger på en intern tjeneste, som Clawco ikke må kalde.');
-  if ((v === 'localhost' || v.endsWith('.localhost')) && o.oprindelse !== 'bruger') throw new AdresseFejl('Adressen peger på dit lokale netværk. Skriv den selv ind, hvis det er meningen.');
+  if (FORBUDTE_NAVNE.has(v)) throw new AdresseFejl(rssTekst().intern);
+  if ((v === 'localhost' || v.endsWith('.localhost')) && o.oprindelse !== 'bruger') throw new AdresseFejl(rssTekst().lokalt);
 }
 
 /**
@@ -85,13 +86,13 @@ function tjekNavn(vaert: string, o: { oprindelse: Oprindelse }): void {
  */
 export function tjekAdresse(raa: string, o: { oprindelse: Oprindelse }): URL {
   const t = raa.trim();
-  if (!t || t.length > 2000) throw new AdresseFejl('Adressen er tom eller for lang.');
-  if (IKKE_HTTP.test(t)) throw new AdresseFejl('Adressen skal begynde med http:// eller https://.');
+  if (!t || t.length > 2000) throw new AdresseFejl(rssTekst().tomEllerLang);
+  if (IKKE_HTTP.test(t)) throw new AdresseFejl(rssTekst().skalBegynde);
   let u: URL;
-  try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`); } catch { throw new AdresseFejl('Adressen kan ikke læses.'); }
-  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new AdresseFejl('Adressen skal begynde med http:// eller https://.');
-  if (u.username || u.password) throw new AdresseFejl('Adressen må ikke indeholde brugernavn eller adgangskode.');
-  if (!u.hostname) throw new AdresseFejl('Adressen mangler et værtsnavn.');
+  try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`); } catch { throw new AdresseFejl(rssTekst().kanIkkeLaeses); }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') throw new AdresseFejl(rssTekst().skalBegynde);
+  if (u.username || u.password) throw new AdresseFejl(rssTekst().ingenLogin);
+  if (!u.hostname) throw new AdresseFejl(rssTekst().mangerVaert);
   const vaert = u.hostname.startsWith('[') ? u.hostname.slice(1, -1) : u.hostname;
   if (isIP(vaert)) tjekIp(vaert, o); else tjekNavn(vaert, o);
   return u;

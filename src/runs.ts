@@ -10,9 +10,11 @@ import type { IgangRaekke } from './shell/sprog.ts';
 import type { DataZone } from './identitet/zoner.ts';
 import { omslutData } from './agent/prompt.ts';
 import { STANDARD_VERB, VERB_NU, vaerktoejTilladt } from './graenser/opsyn.ts';
-import { lavPause, PauseFejl, PAUSE_TEKST, type Pause, type PauseTilstand } from './graenser/nodstop.ts';
+import { lavPause, PauseFejl, pauseTekst, type Pause, type PauseTilstand } from './graenser/nodstop.ts';
 import type { Profil } from './store/profil.ts';
 import { redigeres } from './graenser/redaktion.ts';
+import { medSprog, sprogNu } from './store/sprog.ts';
+import { tekst } from './shell/tekster.ts';
 
 export type RunEvent =
   | { type: 'status'; text: string }
@@ -103,23 +105,19 @@ function returInput(output: string, fejl: string, zone: DataZone): { input: stri
     { kilde: 'dit-svar', zone, tillid: 'afledt', tekst: `Dit forrige svar var:\n${svar}` },
   ]);
 }
-const TOOL_NAMES: Record<string, string> = {
-  terminal: 'kører en kommando', read_file: 'læser en fil', write_file: 'skriver en fil', patch: 'retter en fil',
-  web_search: 'søger på nettet', web_extract: 'læser en side', browser_navigate: 'åbner en side', search_files: 'søger i filer',
-  delegate_task: 'sætter en hjælper i gang', todo: 'noterer', memory: 'husker',
-};
-
+/** What a tool call is called on a Kø row; the words are the shell table's (tekst().vaerktoej), in the language being rendered. */
 function statusText(e: AgentEvent): string | undefined {
+  const T = tekst();
   if (e.type === 'tool.started') {
-    const what = TOOL_NAMES[e.tool] ?? e.tool;
+    const what = T.vaerktoej[e.tool] ?? e.tool;
     return e.preview ? `${what}: ${e.preview.slice(0, 80)}` : what;
   }
-  if (e.type === 'tool.completed') return e.error ? `${e.tool} fejlede, prøver videre` : 'tænker';
+  if (e.type === 'tool.completed') return e.error ? T.vaerktoejFejlede(e.tool) : T.taenker;
   return undefined;
 }
 
 /** What a run stopped by "Stop alt" ends with (KC-0124). */
-const STOPPET = `Stoppet: ${PAUSE_TEKST}.`;
+const stoppet = (): string => tekst().stoppet(pauseTekst());
 
 /**
  * `pause` (KC-0124): the kill switch's state; absent = in memory only (tests without a data dir). `personer`: the
@@ -207,7 +205,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
       emit(id, e);
     };
     const stop = new AbortController();
-    aktive.set(id, (grund = STOPPET) => { stop.abort(); settle({ status: 'failed', error: grund }, { type: 'error', text: grund }); });
+    aktive.set(id, (grund = stoppet()) => { stop.abort(); settle({ status: 'failed', error: grund }, { type: 'error', text: grund }); });
 
     void (async () => {
       let fikPlads = false;
@@ -218,7 +216,12 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
         rec.status = 'running';
         rec.begyndtAt = nu().getTime();
         // KC-0126: read synchronously, so a run reaches Hermes as soon as before; a profile that cannot be read is left out.
-        const profilLinje = omProfil(opts.profil?.() ?? null);
+        const profil = opts.profil?.() ?? null;
+        const profilLinje = omProfil(profil);
+        // KC-0170: everything the run says or writes (row words, Hermes' error words, the room's log lines) follows the
+        // profile's language, also for a run no request started (the scheduler).
+        const sprog = profil?.sprog ?? sprogNu();
+        await medSprog(sprog, async () => {
         const spec: { input: string; instructions: string; sessionId?: string; model?: string; provider?: string } = { input: o.spec.input, instructions: `${o.spec.instructions}\n\n${mennesker()}${profilLinje ? `\n\n${profilLinje}` : ''}` };
         if (o.spec.sessionId) spec.sessionId = o.spec.sessionId;
         const model = models[o.tier ?? tierFor(o.kind)];
@@ -247,7 +250,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
           // One correction, no tools: the answer goes back with the reason (KC-0050).
           console.warn(`[runs] ${o.kind}: svaret kunne ikke bruges (${err.message}), sendt tilbage til Hermes`);
           rec.hosHermes = true;
-          emit(id, { type: 'status', text: 'retter sit svar' });
+          emit(id, { type: 'status', text: tekst().retterSvar });
           // Its text is not streamed: the chat bubble keeps the first answer until `done` replaces it.
           const retur = returInput(output, err.message, rec.zone ?? 'privat');
           const instructions = [spec.instructions, RET_REGEL, retur.linje].filter((d): d is string => Boolean(d)).join('\n\n');
@@ -258,6 +261,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
           result = await skrivning(o.onDone(rettet.output));
         }
         settle({ status: 'done', result }, { type: 'done', ...result });
+        });
       } catch (err) {
         const text = redigeres(err instanceof Error ? err.message : String(err));
         settle({ status: 'failed', error: text }, { type: 'error', text }); // a no-op after "Stop alt"

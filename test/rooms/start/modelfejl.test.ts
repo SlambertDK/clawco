@@ -23,6 +23,11 @@ const TILFAELDE: [string, ModelFejlArt][] = [
   ['Hermes svarede ikke i tide', 'tid'],
   ['Hermes afviste kørslen: HTTP 401 unauthorized', 'agent-afvist'],
   ['Clawco har ingen nøgle til Hermes endnu', 'agent-noegle'],
+  // The agent's connection errors in English (src/agent speaks the screen language).
+  ['Clawco has no key to Hermes yet', 'agent-noegle'],
+  ['Hermes rejected the run: HTTP 401 unauthorized', 'agent-afvist'],
+  ['Hermes rejected the run: HTTP 403', 'agent-afvist'],
+  ['Hermes rejected the run: HTTP 500', 'ukendt'],
   ['noget helt andet', 'ukendt'],
 ];
 

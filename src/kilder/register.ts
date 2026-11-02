@@ -20,6 +20,7 @@ import { afgoer, type Kontekst } from '../graenser/afgoer.ts';
 import type { Kanal, Revisionslog } from '../graenser/revisionslog.ts';
 import { fjernKildeHemmelighed, gemKildeHemmelighed, HemmelighedFejl, laesKildeHemmelighed, saetMiljoeNoegle } from './hemmeligheder.ts';
 import { antalI, renLaesning } from './laesning.ts';
+import { kilderTekst, slagsNavn } from './tekster.ts';
 import { AUTH, erSlags, KildeFejl, KILDE_ID, virker, type Felt, type Helbred, type Kilde, type KildeKontekst, type KildeKort, type Laesning, type Resultat, type Slags } from './types.ts';
 
 /** The live-bus channel a successful first read is announced on (KC-0128 listens). */
@@ -153,22 +154,22 @@ function tjekKilde(k: Kilde): void {
 /** Checks a connect body against the card's declared fields. Returns options (kilder.json), secrets (secret file) and app keys (env file, KC-0133) apart. */
 function tjekFelter(felter: Felt[], raw: unknown): { valg: Record<string, string>; hemmelige: Record<string, string>; miljoe: Record<string, string> } {
   const ind = raw === undefined ? {} : raw;
-  if (!erObj(ind)) throw new KildeFejl(400, 'felter skal være et objekt');
+  if (!erObj(ind)) throw new KildeFejl(400, kilderTekst().feltetSkalVaereObjekt);
   const kendte = new Map(felter.map((f) => [f.navn, f]));
-  for (const navn of Object.keys(ind)) if (!kendte.has(navn) || kendte.get(navn)?.skjult) throw new KildeFejl(400, `ukendt felt: ${navn.slice(0, 40)}`);
+  for (const navn of Object.keys(ind)) if (!kendte.has(navn) || kendte.get(navn)?.skjult) throw new KildeFejl(400, kilderTekst().ukendtFelt(navn.slice(0, 40)));
   const valg: Record<string, string> = {};
   const hemmelige: Record<string, string> = {};
   const miljoe: Record<string, string> = {};
   for (const f of felter) {
     const v = ind[f.navn];
     if (v === undefined || v === '') {
-      if (f.paakraevet) throw new KildeFejl(400, `${f.etiket} mangler`);
+      if (f.paakraevet) throw new KildeFejl(400, kilderTekst().feltMangler(f.etiket));
       continue;
     }
     // KC-0137: a file or a several-lines field carries line breaks and tabs; nothing else below space is allowed anywhere.
     const kontrol = f.type === 'fil' || f.flere ? /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/ : /[\u0000-\u001f\u007f]/;
-    if (typeof v !== 'string' || v.length > (f.maks ?? FELT_MAKS) || kontrol.test(v)) throw new KildeFejl(400, `${f.etiket} er ugyldig`);
-    if (f.muligheder && !f.muligheder.some((m) => m.vaerdi === v.trim())) throw new KildeFejl(400, `${f.etiket} er ikke et af valgene`);
+    if (typeof v !== 'string' || v.length > (f.maks ?? FELT_MAKS) || kontrol.test(v)) throw new KildeFejl(400, kilderTekst().feltUgyldigt(f.etiket));
+    if (f.muligheder && !f.muligheder.some((m) => m.vaerdi === v.trim())) throw new KildeFejl(400, kilderTekst().feltIkkeEtAfValgene(f.etiket));
     if (f.miljoe) { miljoe[f.miljoe] = v.trim(); continue; }
     (f.type === 'hemmelig' ? hemmelige : valg)[f.navn] = f.type === 'hemmelig' ? v : v.trim();
   }
@@ -184,7 +185,7 @@ export function lavRegister(deps: RegisterDeps) {
 
   const hentKilde = (id: string): Kilde => {
     const k = kilder.get(id);
-    if (!k) throw new KildeFejl(404, 'Ukendt forbindelse');
+    if (!k) throw new KildeFejl(404, kilderTekst().ukendtForbindelse);
     return k;
   };
   const post = async (id: string): Promise<KonfigPost | undefined> => (await laesKonfig(deps.dataDir)).kilder.find((p) => p.id === id);
@@ -208,7 +209,7 @@ export function lavRegister(deps: RegisterDeps) {
       let raw: unknown;
       try { raw = await k.read(kontekst(k, p)); } catch (err) {
         if (err instanceof KildeFejl) throw err;
-        throw new KildeFejl(502, `${k.navn} kunne ikke læses`);
+        throw new KildeFejl(502, kilderTekst().kunneIkkeLaeses(k.navn));
       }
       l = renLaesning(k, raw);
     } catch (err) { await meld(k.id, false); throw err; }
@@ -231,7 +232,7 @@ export function lavRegister(deps: RegisterDeps) {
     if (Object.keys(hemmelige).length) await gemKildeHemmelighed(deps.dataDir, k.id, hemmelige);
     const p: KonfigPost = { id: k.id, status: 'forbundet', zone, valg, tid: nu().toISOString(), af: person.id };
     await gemPost(p);
-    await deps.store.appendLog(KILDER_LOG, { kilde: 'henrik', tekst: `${person.navn} forbandt ${k.navn} (${k.slags}).${opsat ? ` ${opsat}` : ''}`, zone, ejer: person.id });
+    await deps.store.appendLog(KILDER_LOG, { kilde: 'henrik', tekst: kilderTekst().logForbandt(person.navn, k.navn, slagsNavn(k.slags), opsat ?? ''), zone, ejer: person.id });
     let foerste: FoersteLaesning | null = null;
     let laesning: Laesning | null = null;
     try {
@@ -252,7 +253,7 @@ export function lavRegister(deps: RegisterDeps) {
     const valg = erObj(o['valg']) ? o['valg'] : null;
     const ok = typeof o['tekst'] === 'string' && valg !== null
       && Object.entries(valg).every(([n, v]) => tilladt.has(n) && typeof v === 'string' && v.length <= (tilladt.get(n) ?? FELT_MAKS) && !/[\u0000-\u001f\u007f]/.test(v));
-    if (!ok) throw new KildeFejl(502, `${k.navn} svarede med ugyldige valg`);
+    if (!ok) throw new KildeFejl(502, kilderTekst().ugyldigeValg(k.navn));
     return { tekst: (o['tekst'] as string).slice(0, 500), valg: valg as Record<string, string> };
   }
 
@@ -262,7 +263,7 @@ export function lavRegister(deps: RegisterDeps) {
     let r: unknown;
     try { r = await k.opsaet(ctx); } catch (err) {
       if (err instanceof KildeFejl) throw err;
-      throw new KildeFejl(502, `${k.navn} kunne ikke sættes op`);
+      throw new KildeFejl(502, kilderTekst().kunneIkkeSaettesOp(k.navn));
     }
     return renValg(k, felter, r);
   }
@@ -323,8 +324,8 @@ export function lavRegister(deps: RegisterDeps) {
     async laes(id: string): Promise<Laesning> {
       const k = hentKilde(id);
       const p = await post(id);
-      if (!forbundet(k, p)) throw new KildeFejl(409, `${k.navn} er ikke forbundet`);
-      if (!virker(await maalHelbred(k, kontekst(k, p)))) throw new KildeFejl(502, `${k.navn} virker ikke lige nu`);
+      if (!forbundet(k, p)) throw new KildeFejl(409, kilderTekst().ikkeForbundet(k.navn));
+      if (!virker(await maalHelbred(k, kontekst(k, p)))) throw new KildeFejl(502, kilderTekst().virkerIkkeNu(k.navn));
       return laesRen(k, p);
     },
 
@@ -350,9 +351,9 @@ export function lavRegister(deps: RegisterDeps) {
      */
     async forbind(id: string, body: unknown, person: Person): Promise<Forbundet | { omdiriger: string }> {
       const k = hentKilde(id);
-      if (!erObj(body)) throw new KildeFejl(400, 'ugyldig forespørgsel');
-      for (const navn of Object.keys(body)) if (navn !== 'felter' && navn !== 'zone') throw new KildeFejl(400, `ukendt felt: ${navn.slice(0, 40)}`);
-      if (body['zone'] !== undefined && !erDataZone(body['zone'])) throw new KildeFejl(400, 'ukendt zone');
+      if (!erObj(body)) throw new KildeFejl(400, kilderTekst().ugyldigForespoergsel);
+      for (const navn of Object.keys(body)) if (navn !== 'felter' && navn !== 'zone') throw new KildeFejl(400, kilderTekst().ukendtFelt(navn.slice(0, 40)));
+      if (body['zone'] !== undefined && !erDataZone(body['zone'])) throw new KildeFejl(400, kilderTekst().ukendtZone);
       const p = await post(id);
       const zone = (body['zone'] as DataZone | undefined) ?? p?.zone ?? k.zone;
       const kort = await k.kort(kontekst(k, p));
@@ -383,13 +384,13 @@ export function lavRegister(deps: RegisterDeps) {
     async tilbage(id: string, state: string, kode: string, person: Person): Promise<Forbundet> {
       const k = hentKilde(id);
       const v = venter.get(state);
-      if (!v || v.id !== id || v.person !== person.id || v.udloeber < nu().getTime() || !k.oauth) throw new KildeFejl(400, 'Forbindelsen kunne ikke bekræftes. Prøv at forbinde igen.');
+      if (!v || v.id !== id || v.person !== person.id || v.udloeber < nu().getTime() || !k.oauth) throw new KildeFejl(400, kilderTekst().forbindelsenIkkeBekraeftet);
       venter.delete(state);
-      if (!kode || kode.length > 2000) throw new KildeFejl(400, 'Udbyderen sendte ingen kode tilbage.');
+      if (!kode || kode.length > 2000) throw new KildeFejl(400, kilderTekst().ingenKode);
       let adgang: Record<string, string>;
       try { adgang = await k.oauth.tilbage(kode, { ...kontekst(k, await post(id)), zone: v.zone, valg: v.valg }, state); } catch (err) {
         if (err instanceof KildeFejl) throw err;
-        throw new KildeFejl(502, `${k.navn} afviste forbindelsen`);
+        throw new KildeFejl(502, kilderTekst().afvisteForbindelsen(k.navn));
       }
       return blivForbundet(k, person, v.zone, v.valg, { ...v.hemmelige, ...adgang });
     },
@@ -404,16 +405,16 @@ export function lavRegister(deps: RegisterDeps) {
       const k = hentKilde(id);
       const gang = (aendringer.get(id) ?? Promise.resolve()).catch(() => undefined).then(async (): Promise<T> => {
         const p = await post(id);
-        if (!forbundet(k, p)) throw new KildeFejl(409, `${k.navn} er ikke forbundet`);
+        if (!forbundet(k, p)) throw new KildeFejl(409, kilderTekst().ikkeForbundet(k.navn));
         const ctx = kontekst(k, p);
         let svar: T;
         try { svar = await fn(ctx); } catch (err) {
           if (err instanceof KildeFejl) throw err;
-          throw new KildeFejl(502, `${k.navn} kunne ikke ændres`);
+          throw new KildeFejl(502, kilderTekst().kunneIkkeAendres(k.navn));
         }
         const ren = renValg(k, (await k.kort(ctx)).felter, svar);
         await gemPost({ id, status: 'forbundet', zone: ctx.zone, valg: ren.valg, tid: p?.tid ?? nu().toISOString(), af: p?.af ?? person.id });
-        await deps.store.appendLog(KILDER_LOG, { kilde: 'henrik', tekst: `${person.navn} ændrede ${k.navn}: ${ren.tekst}`, zone: ctx.zone, ejer: person.id });
+        await deps.store.appendLog(KILDER_LOG, { kilde: 'henrik', tekst: kilderTekst().logAendrede(person.navn, k.navn, ren.tekst), zone: ctx.zone, ejer: person.id });
         return svar;
       });
       aendringer.set(id, gang);
@@ -424,9 +425,9 @@ export function lavRegister(deps: RegisterDeps) {
     async frakobl(id: string, person: Person): Promise<void> {
       const k = hentKilde(id);
       const p = await post(id);
-      if (!forbundet(k, p)) throw new KildeFejl(409, `${k.navn} er ikke forbundet`);
+      if (!forbundet(k, p)) throw new KildeFejl(409, kilderTekst().ikkeForbundet(k.navn));
       const zone = p?.zone ?? k.zone;
-      await deps.store.appendLog(KILDER_LOG, { kilde: 'henrik', tekst: `${person.navn} frakoblede ${k.navn} (${k.slags}); adgangen er fjernet.`, zone, ejer: person.id });
+      await deps.store.appendLog(KILDER_LOG, { kilde: 'henrik', tekst: kilderTekst().logFrakoblede(person.navn, k.navn, slagsNavn(k.slags)), zone, ejer: person.id });
       await gemPost({ id, status: 'frakoblet', zone, valg: p?.valg ?? {}, tid: nu().toISOString(), af: person.id });
       if (k.frakobl) { try { await k.frakobl(kontekst(k, p)); } catch { /* the provider may keep the grant; ours is gone below */ } }
       await fjernKildeHemmelighed(deps.dataDir, id);
@@ -436,9 +437,9 @@ export function lavRegister(deps: RegisterDeps) {
     async handl(id: string, navn: string, args: unknown, i: { person: Person; kanal: Kontekst['kanal'] }): Promise<Resultat> {
       const k = hentKilde(id);
       const spec = k.verber && Object.hasOwn(k.verber, navn) ? k.verber[navn] : undefined;
-      if (!spec || !k.act) throw new KildeFejl(400, `${k.navn} kan ikke ${navn.slice(0, 40)}`);
+      if (!spec || !k.act) throw new KildeFejl(400, kilderTekst().kanIkke(k.navn, navn.slice(0, 40)));
       const p = await post(id);
-      if (!forbundet(k, p)) throw new KildeFejl(409, `${k.navn} er ikke forbundet`);
+      if (!forbundet(k, p)) throw new KildeFejl(409, kilderTekst().ikkeForbundet(k.navn));
       const ctx = kontekst(k, p);
       const a = afgoer({ rum: `kilde:${id}`, id: navn, verb: spec.verb, zoner: [ctx.zone] }, { person: i.person, kanal: i.kanal, ja: false });
       await deps.revision?.skriv({

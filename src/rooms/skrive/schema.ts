@@ -4,6 +4,7 @@
 import { randomUUID } from 'node:crypto';
 import { SchemaError } from '../dagen/schema.ts';
 import type { DataZone } from '../../identitet/zoner.ts';
+import { skriveTekst } from './tekster.ts';
 
 // KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones.
 export const KORSEL: DataZone = 'privat';
@@ -102,7 +103,7 @@ export function dokumentTekst(dok: Dokument): string {
 
 export function dokumentTilMarkdown(dok: Dokument): string {
   const body = dokumentTekst(dok);
-  const kilder = dok.kilder.length ? `\n\n## Kilder\n${dok.kilder.map((k) => `- ${k}`).join('\n')}\n` : '\n';
+  const kilder = dok.kilder.length ? `\n\n## ${skriveTekst().kilderOverskrift}\n${dok.kilder.map((k) => `- ${k}`).join('\n')}\n` : '\n';
   return `# ${dok.titel}\n\n${body}\n${kilder}`;
 }
 

@@ -4,11 +4,10 @@
 import { AFBRUDT, AgentError } from './types.ts';
 import type { AgentClient, AgentEvent, AgentRunRequest, AgentRunResult, AgentStatus, NoegleSvar } from './types.ts';
 import { parseSseChunks } from './sse.ts';
+import { agentTekst } from './tekster.ts';
 
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 const HEALTH_TIMEOUT_MS = 5000;
-const TIMEOUT_MESSAGE = 'Hermes svarede ikke i tide';
-const MANGLER_NOEGLE = 'Clawco har ingen nøgle til Hermes endnu';
 const VENT_MS = 30_000;
 
 /**
@@ -78,7 +77,7 @@ export function createHermesHttp(opts: {
 
   async function run(req: AgentRunRequest): Promise<AgentRunResult> {
     // KC-0127 (KC-0156): no key yet — fail closed, nothing sent.
-    if (!noegle()) throw new AgentError(MANGLER_NOEGLE);
+    if (!noegle()) throw new AgentError(agentTekst().manglerNoegle);
     const controller = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -96,7 +95,7 @@ export function createHermesHttp(opts: {
       return await execute();
     } catch (err) {
       if (afbrudt) throw new AgentError(AFBRUDT, runId);
-      if (timedOut) throw new AgentError(TIMEOUT_MESSAGE, runId);
+      if (timedOut) throw new AgentError(agentTekst().hermesTid, runId);
       if (err instanceof AgentError) throw err;
       throw new AgentError(err instanceof Error ? err.message : String(err), runId);
     } finally {
@@ -116,15 +115,15 @@ export function createHermesHttp(opts: {
         body: JSON.stringify(body),
         signal: controller.signal,
       });
-      if (!post.ok) throw await httpError('Hermes afviste kørslen', post);
+      if (!post.ok) throw await httpError(agentTekst().afvisteKoerslen, post);
       let started: unknown;
       try {
         started = await post.json();
       } catch {
-        throw new AgentError('Hermes svarede uden run_id');
+        throw new AgentError(agentTekst().udenRunId);
       }
       const id = isRecord(started) ? str(started['run_id']) : undefined;
-      if (!id) throw new AgentError('Hermes svarede uden run_id');
+      if (!id) throw new AgentError(agentTekst().udenRunId);
       runId = id;
 
       const emit = (e: AgentEvent): void => {
@@ -139,8 +138,8 @@ export function createHermesHttp(opts: {
         headers: { ...authHeaders(), accept: 'text/event-stream' },
         signal: controller.signal,
       });
-      if (!events.ok) throw await httpError('Hermes event-stream fejlede', events, id);
-      if (!events.body) throw new AgentError('Hermes event-stream uden indhold', id);
+      if (!events.ok) throw await httpError(agentTekst().eventStreamFejlede, events, id);
+      if (!events.body) throw new AgentError(agentTekst().eventStreamTom, id);
 
       let deltas = '';
       const handle = (payload: string): AgentRunResult | undefined => {
@@ -174,12 +173,12 @@ export function createHermesHttp(opts: {
             return { runId: id, output };
           }
           case 'run.failed': {
-            const error = str(parsed['error']) ?? 'Hermes-kørslen fejlede';
+            const error = str(parsed['error']) ?? agentTekst().koerslenFejlede;
             emit({ type: 'run.failed', error });
             throw new AgentError(error, id);
           }
           case 'run.cancelled': {
-            const error = 'Hermes-kørslen blev annulleret';
+            const error = agentTekst().annulleret;
             emit({ type: 'run.failed', error });
             throw new AgentError(error, id);
           }
@@ -213,7 +212,7 @@ export function createHermesHttp(opts: {
         headers: authHeaders(),
         signal: controller.signal,
       });
-      if (!status.ok) throw await httpError('Hermes status fejlede', status, id);
+      if (!status.ok) throw await httpError(agentTekst().statusFejlede, status, id);
       const info: unknown = await status.json().catch(() => undefined);
       const state = isRecord(info) ? str(info['status']) : undefined;
       if (isRecord(info) && state === 'completed') {
@@ -224,7 +223,7 @@ export function createHermesHttp(opts: {
       }
       const error =
         (isRecord(info) ? str(info['error']) : undefined) ??
-        `Hermes-kørslen sluttede uden svar (status: ${state ?? 'ukendt'})`;
+        agentTekst().sluttedeUdenSvar(state ?? agentTekst().ukendtStatus);
       emit({ type: 'run.failed', error });
       throw new AgentError(error, id);
     }

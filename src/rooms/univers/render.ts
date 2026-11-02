@@ -122,7 +122,7 @@ function opgaveRow(o: Opgave, state: UniversState, kunFaerdigKnap = false): Mark
   const moede = o.moedeId ? state.moeder.find((m) => m.id === o.moedeId) : undefined;
   const T = universTekst();
   const knapper = flyt()[o.status].filter(([til]) => !kunFaerdigKnap || til === 'faerdig');
-  return html`<div class="row uv-opgave" data-element="Opgave: ${o.titel}">
+  return html`<div class="row uv-opgave" data-element="${T.elOpgave(o.titel)}">
     <span class="row-main"><span class="row-title">${o.titel}</span>${o.note ? html`<span class="row-note">${o.note}</span>` : ''}${moede ? html`<span class="chip chip-muted">${T.moedeChip}${moede.titel}</span>` : ''}</span>
     <span class="actions actions-small">${knapper.map(([til, label]) => html`<button type="button" class="btn btn-ghost" data-aktion="opgaveStatus" data-arg="${arg({ opgaveId: o.id, status: til })}" data-status="${T.flytter}">${label}</button>`)}</span>
   </div>`;
@@ -145,7 +145,7 @@ function moedeKort(slug: string, m: Moede, now: Date): Markup {
   const f = m.forberedelse;
   const kommer = kommende(m, now);
   const T = universTekst();
-  return html`<article class="card uv-moede-kort" data-element="Møde: ${m.titel}">
+  return html`<article class="card uv-moede-kort" data-element="${T.elMoede(m.titel)}">
     <div class="card-head"><h3>${m.titel}</h3><span class="mono muted">${tidsrum(m, now)}</span></div>
     ${m.sted ? html`<p class="row-note">${m.sted}</p>` : ''}
     ${ansigter(m)}
@@ -163,7 +163,7 @@ function moedeKort(slug: string, m: Moede, now: Date): Markup {
 
 function dokumentKort(slug: string, d: Dokument, now: Date): Markup {
   const T = universTekst();
-  return html`<article class="card uv-dok" data-element="Dokument: ${d.titel}"${zoneData(d)}>
+  return html`<article class="card uv-dok" data-element="${T.elDokument(d.titel)}"${zoneData(d)}>
     <div class="card-head"><h3>${d.titel}</h3>${zoneChip(d)}<span class="mono muted">${T.aendret}${tid(d.aendret, now)} · ${T.nVersioner(d.versioner.length + 1)}</span></div>
     ${fold(T.forhaandsvisning, ramme(slug, d, 'uv-forhaand'), `dok-${d.id}`)}
     <div class="actions"><a class="btn" href="${visUrl(slug, d.id)}" target="_blank" rel="noopener noreferrer">${T.aabnKnap}</a></div>
@@ -175,7 +175,7 @@ function dokumentKort(slug: string, d: Dokument, now: Date): Markup {
 function kandidatKort(k: MoedeKandidat, i: number, aktive: UniversInfo[], now: Date): Markup {
   const id = `placer-${i}`;
   const T = universTekst();
-  return html`<form id="${id}" class="card uv-kandidat" onsubmit="return false" data-element="Nyt møde: ${k.titel}">
+  return html`<form id="${id}" class="card uv-kandidat" onsubmit="return false" data-element="${T.elNytMoede(k.titel)}">
     <div class="card-head"><h3>${k.titel}</h3><span class="mono muted">${tidsrum(k, now)}</span></div>
     <p class="row-note">${k.deltagere.length ? navne(k.deltagere) : T.ingenDeltagere}${k.sted ? html` · ${k.sted}` : ''}</p>
     ${aktive.length ? html`
@@ -194,7 +194,7 @@ function kandidatKort(k: MoedeKandidat, i: number, aktive: UniversInfo[], now: D
 export function renderOversigt(indeks: UniversIndeks, stats: Record<string, UniversStat>, now: Date, igang: IgangRaekke[] = [], o: { husstand?: boolean } = {}): Markup {
   const T = universTekst();
   const aktive = indeks.univers.filter((u) => !u.arkiveret);
-  const husstand = o.husstand ? html`<a class="tile" href="/rum/husstand" data-element="Husstanden">
+  const husstand = o.husstand ? html`<a class="tile" href="/rum/husstand" data-element="${T.elHusstanden}">
         <span class="tile-name">${tekst().rum['husstand']}</span>
         <span class="row-note">${T.husstandOm}</span>
       </a>` : '';
@@ -203,7 +203,7 @@ export function renderOversigt(indeks: UniversIndeks, stats: Record<string, Univ
     ${!aktive.length && o.husstand ? html`<div class="tiles">${husstand}</div>` : ''}
     ${aktive.length ? html`<div class="tiles">${husstand}${aktive.map((u) => {
       const s = stats[u.id];
-      return medId(`univers:${u.id}`, html`<a class="tile" href="/rum/${universRum(u.id)}" data-element="Univers: ${u.navn}">
+      return medId(`univers:${u.id}`, html`<a class="tile" href="/rum/${universRum(u.id)}" data-element="${T.elUnivers(u.navn)}">
         <span class="tile-name">${u.navn}</span>
         ${u.om ? html`<span class="row-note">${u.om}</span>` : ''}
         ${s ? html`<span class="mono muted">${T.nMoeder(s.moeder)} · ${T.nAabneOpgaver(s.aabneOpgaver)}</span>` : ''}
@@ -236,7 +236,7 @@ function naeste(state: UniversState, slug: string, now: Date): Markup {
   const naesteMoede = state.moeder.filter((m) => kommende(m, now)).sort((a, b) => a.start.localeCompare(b.start))[0];
   const abne = aabne(state.opgaver).length;
   const T = universTekst();
-  return html`<section class="card" data-element="Næste i universet">
+  return html`<section class="card" data-element="${T.elNaeste}">
     <div class="card-head"><h2 class="eyebrow">${T.naeste}</h2><span class="muted mono">${T.nAabneOpgaver(abne)}</span></div>
     ${naesteMoede ? html`<div class="row"><span class="mono time">${tid(naesteMoede.start, now)}</span><span class="row-main"><span class="row-title">${naesteMoede.titel}</span><span class="row-note">${naesteMoede.forberedelse ? T.forberedt : T.ikkeForberedtEndnu}</span></span>${naesteMoede.forberedelse ? html`<a class="btn" href="/moede/${encodeURIComponent(slug)}/${encodeURIComponent(naesteMoede.id)}">${T.aabnKnap}</a>` : ''}</div>` : html`<p class="muted row">${T.ingenKommende}</p>`}
   </section>`;
@@ -295,12 +295,12 @@ export function renderUnivers(info: UniversInfo, state: UniversState, now: Date,
 
   <section class="stack">
     <div class="card-head"><h2 class="eyebrow">${T.noter}</h2><span class="muted mono">${noter.length}</span></div>
-    ${noter.length ? noter.map((n) => medId(`note:${n.id}`, html`<article class="card" data-element="Note: ${n.titel}"${zoneData(n)}><div class="card-head"><h3>${n.titel}</h3>${zoneChip(n)}<span class="mono muted">${tid(n.oprettet, now)}</span></div><p>${n.tekst}</p></article>`)) : html`<p class="muted">${T.ingenNoterEndnu}</p>`}
+    ${noter.length ? noter.map((n) => medId(`note:${n.id}`, html`<article class="card" data-element="${T.elNote(n.titel)}"${zoneData(n)}><div class="card-head"><h3>${n.titel}</h3>${zoneChip(n)}<span class="mono muted">${tid(n.oprettet, now)}</span></div><p>${n.tekst}</p></article>`)) : html`<p class="muted">${T.ingenNoterEndnu}</p>`}
   </section>
 
   ${nytMoedeForm()}`;
   return html`
-  <header class="room-head" data-element="Univers: ${info.navn}">
+  <header class="room-head" data-element="${T.elUnivers(info.navn)}">
     <div><a class="muted" href="/rum/univers">${T.alleUniverser}</a><h1>${info.navn}</h1>${info.om ? html`<p class="muted">${info.om}</p>` : ''}</div>
   </header>
 
@@ -335,7 +335,7 @@ export function renderMoedeVisning(info: UniversInfo, moede: Moede, state: Unive
   const rest = resterende(moede, now);
   const T = universTekst();
   return html`
-  <header class="room-head uv-moedehoved" data-element="Mødet: ${moede.titel}">
+  <header class="room-head uv-moedehoved" data-element="${T.elMoedet(moede.titel)}">
     <div>
       <p class="muted">${info.navn}</p>
       <h1>${moede.titel}</h1>
@@ -347,17 +347,17 @@ export function renderMoedeVisning(info: UniversInfo, moede: Moede, state: Unive
 
   ${f ? html`
   <div class="uv-moedevisning">
-    ${slide ? html`<section class="uv-slides" data-element="Præsentationen: ${slide.titel}">${fold(T.praesentationenFold, ramme(info.id, slide, 'uv-praesentation'), 'praesentation')}</section>` : ''}
+    ${slide ? html`<section class="uv-slides" data-element="${T.elPraesentation(slide.titel)}">${fold(T.praesentationenFold, ramme(info.id, slide, 'uv-praesentation'), 'praesentation')}</section>` : ''}
     <div class="uv-side stack">
-      <section class="card" data-element="Talepunkter">
+      <section class="card" data-element="${T.elTalepunkter}">
         <div class="card-head"><h2 class="eyebrow">${T.talepunkter}</h2></div>
         ${talepunkter(f)}
       </section>
-      <section class="card" data-element="Deltagerne">
+      <section class="card" data-element="${T.elDeltagerne}">
         <div class="card-head"><h2 class="eyebrow">${T.deltagere}</h2></div>
         ${f.deltagere.length ? f.deltagere.map((d) => html`<div class="row uv-deltager">${avatar(d.navn)}<span class="row-main"><span class="row-title">${d.navn}</span>${d.hvem ? html`<span class="row-note">${d.hvem}</span>` : ''}${d.baggrund || d.vil ? mere(html`${d.baggrund ? html`<p class="row-note">${d.baggrund}</p>` : ''}${d.vil ? html`<p class="row-note">${T.vilSandsynligvis}${d.vil}</p>` : ''}`, T.baggrund) : ''}</span></div>`) : ansigter(moede)}
       </section>
-      <section class="card" data-element="Mødets opgaver">
+      <section class="card" data-element="${T.elMoedetsOpgaver}">
         <div class="card-head"><h2 class="eyebrow">${T.opgaverTilMoedet}</h2><span class="muted mono">${opgaver.length}</span></div>
         ${opgaver.length ? html`<div class="card-list">${opgaver.map((o) => opgaveRow(o, state, true))}</div>` : html`<p class="muted row">${T.ingenAabneTilMoedet}</p>`}
       </section>

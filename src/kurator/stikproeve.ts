@@ -12,6 +12,7 @@ import { extractForslagBlok, laegTil, pauseForslag } from '../tillid/forslag.ts'
 import { endreKurator, HJEM } from './kurator.ts';
 import { gemRegelforslag, kanForeslaa, meldForslag } from './regelforslag.ts';
 import { buildSkjultRun } from './kortprompt.ts';
+import { kuratorTekst } from './tekster.ts';
 
 /** The proposal's card: the hidden item (one proposal per item, like one per corrected card). */
 export const skjultKort = (p: Skjult): { id: string; titel: string; zone: 'privat' } => ({ id: `skjult:${p.id}`, titel: p.titel, zone: 'privat' });
@@ -37,11 +38,11 @@ export async function skulleVises(d: RoomDeps, p: Skjult): Promise<RunRecord> {
   return d.runs.start({
     kind: 'laer',
     room: HJEM,
-    label: 'Nu: lærer af søndagstjekket',
+    label: kuratorTekst().labelLaererStikproeve,
     spec: buildSkjultRun(p, regel, d.now(), regler),
     onDone: async (output) => {
       const { tekst, blok } = forslag ? extractForslagBlok(output) : { tekst: output, blok: undefined };
-      const text = tekst.trim().slice(0, 600) || 'Noteret.';
+      const text = tekst.trim().slice(0, 600) || kuratorTekst().noteret;
       await d.store.appendLog(HJEM, { kilde: 'hermes', tekst: text });
       if (forslag) await gemRegelforslag(d, { kort, art: 'ret', blok, ...(regel ? { pauser: regel.id } : {}) }).catch((err: unknown) => console.error('regelforslag:', err instanceof Error ? err.message : err));
       return { text };

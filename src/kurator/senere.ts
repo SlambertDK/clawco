@@ -6,6 +6,7 @@
 // The invariant: a card counts as waiting for Henrik only while synligeKort says it is visible.
 
 import { udloebet, udsatNu, type Kort } from '../rooms/hjem/kort.ts';
+import { kuratorTekst } from './tekster.ts';
 import type { Senere } from '../rooms/hjem/kort.ts';
 
 export { aftenMulig, SENERE, senereTid, udsatNu, type Senere } from '../rooms/hjem/kort.ts';
@@ -19,4 +20,4 @@ export function synligeKort(kort: readonly Kort[], now: Date): Kort[] {
 }
 
 /** The log line of a snooze, e.g. "Udsat til i morgen kl. 07: <title>". */
-export const senereTekst = (til: Senere, titel: string): string => `Udsat til ${til === 'aften' ? 'i aften kl. 18' : 'i morgen kl. 07'}: ${titel}`;
+export const senereTekst = (til: Senere, titel: string): string => kuratorTekst().logSenere(til, titel);

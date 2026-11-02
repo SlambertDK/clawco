@@ -1,0 +1,537 @@
+{
+  "velkommen-ikkeEjer": {
+    "fejl": "Kun ejeren kan gemme profilen.",
+    "log": []
+  },
+  "velkommen-udenLager": {
+    "fejl": "Clawco har ingen datamappe, så profilen kan ikke gemmes.",
+    "log": []
+  },
+  "velkommen-ugyldig": {
+    "fejl": "Skriv hvad du hedder",
+    "log": []
+  },
+  "velkommen-gem": {
+    "label": "Start: gemmer profilen",
+    "tekst": "Gemt. Velkommen.",
+    "log": [
+      "Gemte profilen: Alma, Hermes svarer på dansk, alene."
+    ]
+  },
+  "velkommen-gemHusstand": {
+    "label": "Start: gemmer profilen",
+    "tekst": "Gemt. Velkommen.",
+    "log": [
+      "Gemte profilen: Alma, Hermes svarer på engelsk, en husstand."
+    ]
+  },
+  "velkommen-gemLaptop": {
+    "label": "Start: gemmer profilen",
+    "tekst": "Gemt. Velkommen.",
+    "log": [
+      "Gemte profilen: Alma, Hermes svarer på dansk."
+    ]
+  },
+  "velkommen-fortryd": {
+    "tekst": "Fortrudt.",
+    "label": "Start: fortryder",
+    "log": [
+      "Fjernede profilen igen.",
+      "Gemte profilen: Alma, Hermes svarer på dansk, alene."
+    ]
+  },
+  "velkommen-fortrydTilbage": {
+    "tekst": "Fortrudt.",
+    "label": "Start: fortryder",
+    "log": [
+      "Gemte profilen: Alma, Hermes svarer på dansk, alene.",
+      "Satte profilen tilbage til Bo."
+    ]
+  },
+  "forslag-ukendt": {
+    "fejl": "Forslaget findes ikke i rummet",
+    "log": []
+  },
+  "forslag-afvis": {
+    "label": "Start: lægger forslaget væk",
+    "tekst": "Lagt væk.",
+    "log": [
+      "Lagde forslaget om Calendar væk i 30 dage."
+    ]
+  },
+  "ret-ikkeEjer": {
+    "fejl": "Kun ejeren kan springe trinnet over.",
+    "log": []
+  },
+  "ret-klaret": {
+    "fejl": "Trinnet er allerede klaret.",
+    "log": []
+  },
+  "ret-alleredeSprunget": {
+    "fejl": "Trinnet er allerede sprunget over.",
+    "log": []
+  },
+  "ret-springOver": {
+    "label": "Start: springer et trin over",
+    "tekst": "Sprunget over.",
+    "log": [
+      "Sprang »Ret én ting« over. Rejsen er først færdig, når du har rettet noget."
+    ]
+  },
+  "ret-hoert": {
+    "tekst": "true",
+    "log": [
+      "Du rettede »The electricity bill«. Tak."
+    ]
+  },
+  "ret-hoertIkkeRelevant": {
+    "tekst": "true",
+    "log": [
+      "Du sagde ikke relevant til »The electricity bill«. Tak."
+    ]
+  },
+  "kilde-ikkeEjer": {
+    "fejl": "Kun ejeren vælger kilderne.",
+    "log": []
+  },
+  "kilde-ukendt": {
+    "fejl": "Kilden er ikke tilbudt i rummet",
+    "log": []
+  },
+  "kilde-springOver": {
+    "label": "Start: springer en kilde over",
+    "tekst": "News er sprunget over.",
+    "log": [
+      "Sprang News over."
+    ]
+  },
+  "kilde-foersteLaesning": {
+    "log": [
+      "Første kig fra Calendar efter N ms: 1 aftale i dag."
+    ]
+  },
+  "kilde-foersteLaesningLang": {
+    "log": [
+      "Første kig fra Mail efter N s: Ingen ulæste."
+    ]
+  },
+  "kilde-springOverDirekte": {
+    "tekst": "News",
+    "log": [
+      "Sprang News over."
+    ]
+  },
+  "kilde-springOverUkendt": {
+    "fejl": "Kilden er ikke tilbudt i rummet",
+    "log": []
+  },
+  "post-ikkeEjer": {
+    "fejl": "Kun ejeren vælger afsenderen.",
+    "log": []
+  },
+  "post-udenDanmark": {
+    "fejl": "Clawco har ingen datamappe, så valget kan ikke gemmes.",
+    "log": []
+  },
+  "post-ikkeNu": {
+    "label": "Start: lægger Digital Post-trinnet væk",
+    "tekst": "Lagt væk.",
+    "log": [
+      "Lagde trinnet om Digital Post væk i 30 dage."
+    ]
+  },
+  "post-gem": {
+    "label": "Start: gemmer Digital Post-afsenderen",
+    "tekst": "Gemt. Nu lægger Clawco et kort i Nu, når der kommer ny Digital Post.",
+    "log": [
+      "Valgte afsenderen til Digital Post: noreply@digitalpost.example.com."
+    ]
+  },
+  "aula-ikkeEjer": {
+    "fejl": "Kun ejeren vælger kilderne.",
+    "log": []
+  },
+  "aula-udenDanmark": {
+    "fejl": "Clawco har ingen datamappe, så valget kan ikke gemmes.",
+    "log": []
+  },
+  "aula-ikkeNu": {
+    "label": "Start: lægger Aula-kortet væk",
+    "tekst": "Lagt væk.",
+    "log": [
+      "Lagde Aula-kortet væk i 30 dage."
+    ]
+  },
+  "ts-udenVindue": {
+    "fejl": "Clawco kan ikke dele på tailnettet fra den her installation.",
+    "log": []
+  },
+  "ts-ikkeEjer": {
+    "fejl": "Kun ejeren kan dele Clawco på tailnettet.",
+    "log": []
+  },
+  "ts-forkertPort": {
+    "fejl": "Knappen passer ikke til Clawcos port (8750). Åbn Start igen.",
+    "log": []
+  },
+  "ts-ikkeKlar": {
+    "fejl": "Clawco kan kun deles, når Tailscale er logget ind, og Clawco ikke allerede er delt.",
+    "log": []
+  },
+  "ts-delt": {
+    "label": "Start: deler Clawco på tailnettet",
+    "tekst": "Clawco er delt på dit tailnet.",
+    "log": [
+      "Delte Clawco på tailnettet (tailscale serve --bg 8750): https://laptop.example.ts.net."
+    ]
+  },
+  "ts-deltUdenAdresse": {
+    "label": "Start: deler Clawco på tailnettet",
+    "tekst": "Clawco er delt på dit tailnet.",
+    "log": [
+      "Delte Clawco på tailnettet (tailscale serve --bg 8750)."
+    ]
+  },
+  "ts-kommandoKoert": {
+    "label": "Start: deler Clawco på tailnettet",
+    "tekst": "Kommandoen er kørt. Åbn Start igen for at se, om Tailscale har delt Clawco.",
+    "log": [
+      "Delte Clawco på tailnettet (tailscale serve --bg 8750)."
+    ]
+  },
+  "ts-fejl": {
+    "label": "Start: deler Clawco på tailnettet",
+    "fejlede": "Tailscale did not answer.",
+    "log": [
+      "Ikke gjort: Tailscale did not answer."
+    ]
+  },
+  "model-ikkeEjer": {
+    "fejl": "Kun ejeren kan vælge modellen.",
+    "log": []
+  },
+  "model-udenVindue": {
+    "fejl": "Clawco har ingen datamappe, så modellen kan ikke gemmes.",
+    "log": []
+  },
+  "model-agentNoegleTom": {
+    "fejl": "Indsæt nøglen til Hermes.",
+    "log": []
+  },
+  "model-agentNoegle": {
+    "label": "Start: gemmer nøglen til Hermes",
+    "tekst": "Gemt (10 tegn).",
+    "log": [
+      "Gemte nøglen til Hermes (10 tegn)."
+    ]
+  },
+  "model-manglerNoegle": {
+    "fejl": "Clawco har ingen nøgle til Hermes endnu. Indsæt den først.",
+    "log": []
+  },
+  "model-ukendtNiveau": {
+    "fejl": "Ukendt niveau",
+    "log": []
+  },
+  "model-vaelgFoerst": {
+    "fejl": "Vælg en model først.",
+    "log": []
+  },
+  "model-testOk": {
+    "label": "Start: prøver modellen",
+    "tekst": "Virker · N s",
+    "log": []
+  },
+  "model-testFejl": {
+    "label": "Start: prøver modellen",
+    "tekst": "Nøglen er afvist. Tjek, at du har kopieret hele nøglen, og at den stadig findes hos udbyderen.",
+    "log": []
+  },
+  "model-ukendtUdbyder": {
+    "fejl": "Vælg en udbyder fra listen.",
+    "log": []
+  },
+  "model-forkertAdresse": {
+    "fejl": "Adressen skal være en http-adresse, fx http://127.0.0.1:11434.",
+    "log": []
+  },
+  "model-noegleForLang": {
+    "fejl": "Nøglen er for lang.",
+    "log": []
+  },
+  "model-gemOk": {
+    "label": "Start: gemmer og prøver modellen",
+    "tekst": "Virker: den hurtige svarede på N s, den grundige på N s.",
+    "log": [
+      "Valgte Anthropic, nøglen er givet til Hermes (11 tegn): claude-haiku-4-5 og claude-sonnet-4-5."
+    ]
+  },
+  "model-gemLokal": {
+    "label": "Start: gemmer og prøver modellen",
+    "tekst": "Virker: den hurtige svarede på N s, den grundige på N s.",
+    "log": [
+      "Valgte Ollama på din egen maskine, adressen http://127.0.0.1:11434/v1: qwen3:8b og qwen3:14b."
+    ]
+  },
+  "model-gemKommando": {
+    "label": "Start: gemmer og prøver modellen",
+    "tekst": "Kør kommandoen på Hermes’ maskine, og tryk så Test.",
+    "log": [
+      "Valgte Anthropic: claude-haiku-4-5 og claude-sonnet-4-5."
+    ]
+  },
+  "model-gemFejl": {
+    "label": "Start: gemmer og prøver modellen",
+    "tekst": "Serveren svarer ikke. Tjek, at den kører, og at adressen er rigtig.",
+    "log": [
+      "Valgte Anthropic, nøglen er givet til Hermes (11 tegn): claude-haiku-4-5 og claude-sonnet-4-5."
+    ]
+  },
+  "imp-ikkeEjer": {
+    "fejl": "Kun ejeren kan tage noget med.",
+    "log": []
+  },
+  "imp-udenSkriver": {
+    "fejl": "Clawco har ingen notemappe, så importen kan ikke gemme noget.",
+    "log": []
+  },
+  "imp-mappeTom": {
+    "fejl": "Vælg først en mappe til dine noter. Importen gemmer sine filer dér.",
+    "log": []
+  },
+  "imp-intetValgt": {
+    "fejl": "Indsæt en tekst, eller vælg mindst én fil.",
+    "log": []
+  },
+  "imp-filerUlaesbar": {
+    "fejl": "Filerne kunne ikke læses.",
+    "log": []
+  },
+  "imp-forkertType": {
+    "fejl": "Filtypen på »a.exe« kan ikke læses. Tag .vcf, .csv, .md, .txt eller .html.",
+    "log": []
+  },
+  "imp-forMange": {
+    "fejl": "Højst 200 filer ad gangen.",
+    "log": []
+  },
+  "imp-filnavn": {
+    "fejl": "Filnavnet kan ikke bruges.",
+    "log": []
+  },
+  "imp-filUlaeselig": {
+    "fejl": "Filen kunne ikke læses.",
+    "log": []
+  },
+  "imp-ingenIndhold": {
+    "fejl": "Der stod ingen kontakter eller noter i filerne.",
+    "log": []
+  },
+  "imp-laes": {
+    "label": "Start: læser importen",
+    "tekst": "Her er forslagene. Intet er gemt endnu.",
+    "log": [
+      "Læste Claude og lavede 1 forslag. Intet er gemt, før du trykker Gem."
+    ]
+  },
+  "imp-laesFiler": {
+    "label": "Start: læser importen",
+    "tekst": "Her er forslagene. Intet er gemt endnu.",
+    "log": [
+      "Læste dine kontakter og lavede 1 forslag. Intet er gemt, før du trykker Gem."
+    ]
+  },
+  "imp-gem": {
+    "label": "Start: gemmer importen",
+    "tekst": "Gemte 1 fil.",
+    "log": [
+      "Gemte 1 fil fra ChatGPT (kilde: import-chatgpt): People/Alma.md."
+    ]
+  },
+  "imp-gemProfil": {
+    "label": "Start: gemmer importen",
+    "tekst": "Gemte 1 fil.",
+    "log": [
+      "Gemte 1 fil fra ChatGPT (kilde: import-chatgpt): Profile.md."
+    ]
+  },
+  "imp-gemAlle": {
+    "label": "Start: gemmer importen",
+    "tekst": "Gemte 2 filer.",
+    "log": [
+      "Gemte 2 filer fra ChatGPT (kilde: import-chatgpt): People/Alma.md, Profile.md."
+    ]
+  },
+  "imp-gemFindes": {
+    "fejl": "Den findes allerede i din mappe, og Clawco ændrer ikke en fil, du har.",
+    "log": []
+  },
+  "imp-gemUkendt": {
+    "fejl": "Forslaget findes ikke i rummet",
+    "log": []
+  },
+  "imp-gemAlleIntet": {
+    "fejl": "Der er intet at gemme.",
+    "log": []
+  },
+  "imp-gemFejl": {
+    "label": "Start: gemmer importen",
+    "tekst": "Intet nyt at gemme. Kunne ikke gemme Alma: Disk full.",
+    "log": []
+  },
+  "imp-gemKollision": {
+    "label": "Start: gemmer importen",
+    "tekst": "Intet nyt at gemme. 1 findes allerede og er ikke ændret.",
+    "log": []
+  },
+  "imp-opdater": {
+    "label": "Start: opdaterer en person",
+    "tekst": "Opdaterede Bo.",
+    "log": [
+      "Opdaterede Bo (People/Bo.md) med det nye fra ChatGPT (kilde: import-chatgpt): relation »a« → »b«."
+    ]
+  },
+  "imp-opdaterSprunget": {
+    "label": "Start: opdaterer en person",
+    "tekst": "Opdaterede Bo.",
+    "log": [
+      "Opdaterede Bo (People/Bo.md) med det nye fra ChatGPT (kilde: import-chatgpt): relation »a« → »b«. org, relation er ikke ændret, fordi du har rettet dem siden."
+    ]
+  },
+  "imp-opdaterForandret": {
+    "label": "Start: opdaterer en person",
+    "tekst": "Bo er ændret, siden forslaget blev lavet, så Clawco har ikke rørt filen. Behold din fil, eller læs importen igen.",
+    "log": []
+  },
+  "imp-opdaterUaendret": {
+    "label": "Start: opdaterer en person",
+    "tekst": "Bo står allerede, som importen siger.",
+    "log": []
+  },
+  "imp-opdaterFejl": {
+    "label": "Start: opdaterer en person",
+    "tekst": "Kunne ikke opdatere Bo: Disk full",
+    "log": []
+  },
+  "imp-opdaterUkendt": {
+    "fejl": "Forslaget findes ikke i rummet",
+    "log": []
+  },
+  "imp-opdaterNy": {
+    "fejl": "Kun en person, der allerede findes i din mappe, kan opdateres.",
+    "log": []
+  },
+  "imp-spring": {
+    "label": "Start: springer et forslag over",
+    "tekst": "Sprunget over.",
+    "log": [
+      "Sprang Alma over: det bliver ikke gemt."
+    ]
+  },
+  "imp-springFindes": {
+    "label": "Start: springer et forslag over",
+    "tekst": "Sprunget over.",
+    "log": [
+      "Beholdt din fil for Bo."
+    ]
+  },
+  "imp-springUkendt": {
+    "fejl": "Forslaget findes ikke i rummet",
+    "log": []
+  },
+  "imp-springIkkeEjer": {
+    "fejl": "Kun ejeren kan vælge, hvad der tages med.",
+    "log": []
+  },
+  "imp-annuller": {
+    "label": "Start: smider forslagene væk",
+    "tekst": "Forslagene er væk.",
+    "log": [
+      "Smed forslagene væk. Intet blev gemt, og det du uploadede er slettet."
+    ]
+  },
+  "imp-annullerTom": {
+    "label": "Start: smider forslagene væk",
+    "tekst": "Der var intet at smide væk.",
+    "log": []
+  },
+  "imp-annullerIkkeEjer": {
+    "fejl": "Kun ejeren kan vælge, hvad der tages med.",
+    "log": []
+  },
+  "imp-springTrinOver": {
+    "label": "Start: springer et trin over",
+    "tekst": "Sprunget over.",
+    "log": [
+      "Sprang »Tag det med« over."
+    ]
+  },
+  "imp-springTrinIkkeEjer": {
+    "fejl": "Kun ejeren kan springe trinnet over.",
+    "log": []
+  },
+  "imp-springTrinKlaret": {
+    "fejl": "Trinnet er allerede klaret.",
+    "log": []
+  },
+  "imp-springTrinAlleredeSprunget": {
+    "fejl": "Trinnet er allerede sprunget over.",
+    "log": []
+  },
+  "imp-lavMappe": {
+    "label": "Start: laver notemappen",
+    "tekst": "Mappen er lavet.",
+    "log": [
+      "Lavede en mappe til dine noter."
+    ]
+  },
+  "imp-lavMappeFindes": {
+    "fejl": "Der er allerede en notemappe.",
+    "log": []
+  },
+  "imp-lavMappeKanIkke": {
+    "fejl": "Forbind Noter under Kilder først; så ligger importen dér.",
+    "log": []
+  },
+  "imp-fortryd": {
+    "tekst": "Fortrudt.",
+    "label": "Start: fortryder importen",
+    "log": [
+      "Fortrød importen: fjernede 1 fil.",
+      "Gemte 1 fil fra ChatGPT (kilde: import-chatgpt): People/Alma.md."
+    ]
+  },
+  "imp-fortrydOpdater": {
+    "tekst": "Fortrudt.",
+    "label": "Start: fortryder importen",
+    "log": [
+      "Fortrød importen: satte 1 fil tilbage.",
+      "Opdaterede Bo (People/Bo.md) med det nye fra ChatGPT (kilde: import-chatgpt): relation »a« → »b«."
+    ]
+  },
+  "imp-fortrydBeholdt": {
+    "tekst": "Fortrudt.",
+    "label": "Start: fortryder importen",
+    "log": [
+      "Fortrød importen: fjernede 0 filer; beholdt People/Alma.md, fordi du har rettet den.",
+      "Gemte 1 fil fra ChatGPT (kilde: import-chatgpt): People/Alma.md."
+    ]
+  },
+  "rejse-gennemfoert": {
+    "log": [
+      "Rejsen er gennemført."
+    ]
+  },
+  "nu-linjer": {
+    "tekst": "[{\"roomId\":\"start\",\"tekst\":\"Start: Velkommen\"},{\"roomId\":\"start\",\"tekst\":\"Start: Vælg din model\"},{\"roomId\":\"start\",\"tekst\":\"Start: Første kilde\"},{\"roomId\":\"start\",\"tekst\":\"Start: Ret én ting\"}]",
+    "log": []
+  },
+  "chat-tomtSvar": {
+    "tekst": "hi | (intet svar)",
+    "log": []
+  },
+  "forslag-grund": {
+    "tekst": "Du har fået 3 invitationer i mailen de sidste 14 dage. Med kalenderen kan Hermes se, hvornår du er optaget.",
+    "log": []
+  }
+}

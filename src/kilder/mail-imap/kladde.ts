@@ -6,6 +6,7 @@
 // refused rather than repaired. The body is the user's own text, in base64.
 
 import { KildeFejl } from '../types.ts';
+import { imapTekst } from './tekster.ts';
 
 /** A plain address: no space, quote, angle bracket, comma, colon or semicolon (so never a second recipient or header). */
 const ADRESSE = /^[^\s@<>()",;:\\[\]]{1,64}@[^\s@<>()",;:\\[\]]{1,190}$/;
@@ -33,10 +34,10 @@ function hovedVaerdi(v: string): string {
 const dato = (nu: Date): string => nu.toUTCString().replace(/GMT$/, '+0000');
 
 export function kladdeBesked(o: { fra: string; til: string; emne: string; messageId?: string; tekst: string; nu: Date; id: string }): string {
-  if (!ADRESSE.test(o.til)) throw new KildeFejl(409, 'Mailen har ingen afsender, Clawco kan skrive en kladde til.');
-  if (!ADRESSE.test(o.fra)) throw new KildeFejl(409, 'Mailkontoens adresse er ugyldig.');
+  if (!ADRESSE.test(o.til)) throw new KildeFejl(409, imapTekst().ingenAfsender);
+  if (!ADRESSE.test(o.fra)) throw new KildeFejl(409, imapTekst().kontoAdresseUgyldig);
   if (!/^[A-Za-z0-9-]{1,80}$/.test(o.id)) throw new Error('ugyldigt kladde-id');
-  const emne = ren(o.emne) || '(uden emne)';
+  const emne = ren(o.emne) || imapTekst().udenEmne;
   const svarEmne = /^re:/i.test(emne) ? emne : `Re: ${emne}`;
   const messageId = o.messageId && MESSAGE_ID.test(o.messageId) ? o.messageId : undefined;
   const domaene = o.fra.slice(o.fra.indexOf('@') + 1);

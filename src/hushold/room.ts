@@ -49,9 +49,9 @@ import { html } from '../shell/html.ts';
 import { HusholdFejl, KORSEL, parseHusstandState, RUM, TOM_HUSSTAND, type HusstandState, type Medlem } from './schema.ts';
 import { maaSeHusstand, medlemmerAf } from './personer.ts';
 import { faellesUge, ugeDage, type FaellesDag } from './uge.ts';
-import { datoLinje, datoVis, klokke, klokkeVis, renderHusstand, renderIkkeHer } from './render.ts';
+import { datoVis, klokkeVis, renderHusstand, renderIkkeHer } from './render.ts';
 import { husstandTekst } from './tekster.ts';
-import { tekst } from '../shell/tekster.ts';
+import { sprogNu, tekst } from '../shell/tekster.ts';
 import { buildForespForslagRun, buildHusstandChatRun, parseForespForslag } from './prompt.ts';
 import { parseBookingSvar, udkastAabent, valider, type BookingOensker, type BookingUdkast } from './bil.ts';
 import {
@@ -60,12 +60,12 @@ import {
 } from './foresp.ts';
 import { forespLog, forespMarkoer, forespSektion, linjeKanFortrydes } from './foresp-render.ts';
 import {
-  aabenSammenfald, andenPart, dobbeltBooket, erEjer, erPartI, hvorforIkkeFjernes, iSaetning, indsaet, loesSammenfald, maaRetteRessource, nySammenfald, OPRET_SLAGS, overlapper, parterI, sammenfald as overlappende, valgNeutralt,
+  aabenSammenfald, andenPart, dobbeltBooket, erEjer, erPartI, hvorforIkkeFjernes, indsaet, loesSammenfald, maaRetteRessource, nySammenfald, OPRET_SLAGS, overlapper, parterI, sammenfald as overlappende, valgNeutralt,
   type Booking, type OpretSlags, type Ressource, type Sammenfald, type Slags, type Valg,
 } from './ressource.ts';
 import { ejerAtSpoerge, ressourceSektion } from './ressource-render.ts';
 import { buildSammenfaldForslagRun, parseSammenfaldForslag } from './prompt.ts';
-import { blokkeFraKalendere, erPartIKonflikt, konfliktResume, konfliktStatus, nytKonflikt, parseKonfliktTekst, valgTitel, weekendKonflikter, andenIKonflikt, type Konflikt } from './konflikt.ts';
+import { blokkeFraKalendere, erPartIKonflikt, konfliktStatus, nytKonflikt, parseKonfliktTekst, valgTitel, weekendKonflikter, andenIKonflikt, type Konflikt } from './konflikt.ts';
 import { konfliktSektion, konfliktTekstVis, tidSagVis } from './konflikt-render.ts';
 import { buildKonfliktRun } from './prompt.ts';
 import type { LogEntry } from '../store/types.ts';
@@ -76,7 +76,7 @@ import { AKTION_HANDLING, maaHandle, maaSe } from './rettigheder.ts';
 import { aktiverIndgang, fjernPerson, InvitationFejl, MAX_PERSONER, navnFra, nyPerson, nytMedlem, parseInvitation, skiftRolle, slug, vurderInvitation } from './invitation.ts';
 import { invitationSektion, renderInviter } from './invitation-render.ts';
 import { anvendIntern, type InternOp } from './intern.ts';
-import { erRolle, ROLLE_NAVN } from '../identitet/roller.ts';
+import { erRolle } from '../identitet/roller.ts';
 import type { Person } from '../identitet/husstand.ts';
 
 /** The stored state; a file that does not validate reads as empty (and is said in the journal), never as a crash. */
@@ -141,7 +141,7 @@ async function endre<T>(deps: RoomDeps, fn: (s: HusstandState) => { state: Husst
     const r = fn(await laesState(deps));
     if ('state' in r) {
       // KC-0150: the last check before anything is written — no code path stores a double booking.
-      if (r.state.ressourcer.some(dobbeltBooket)) throw new ActionError('Det ville give en dobbeltbooking, så intet er gemt.', 409);
+      if (r.state.ressourcer.some(dobbeltBooket)) throw new ActionError(husstandTekst().fejl.dobbeltbooking, 409);
       await deps.store.writeState(RUM, r.state);
     }
     return r.ud;
@@ -149,7 +149,8 @@ async function endre<T>(deps: RoomDeps, fn: (s: HusstandState) => { state: Husst
 }
 
 const FEJL_STATUS: Record<Fejl, 400 | 403 | 409> = { 'ikke-part': 403, 'ikke-din-tur': 403, afgjort: 409, 'ikke-endnu': 400, intet: 409 };
-const navnAf = (medlemmer: readonly Medlem[], id: string): string => medlemmer.find((m) => m.id === id)?.navn ?? 'en i husstanden';
+/** A member's name; a stranger is "someone in the household" in the language being served. */
+const navnAf = (medlemmer: readonly Medlem[], id: string): string => medlemmer.find((m) => m.id === id)?.navn ?? husstandTekst().ukendtMedlem;
 const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '');
 const KL = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
 const DAG = /^\d{4}-\d{2}-\d{2}$/;
@@ -159,7 +160,7 @@ const GEM_AFGJORTE_MS = 30 * 24 * 3600_000;
 /** The request's members and state for an action, or a 404 that names nobody. */
 async function forAktion(deps: RoomDeps): Promise<{ medlemmer: Medlem[]; state: HusstandState }> {
   const h = await forPersonen(deps);
-  if (!h) throw new ActionError('Husstanden findes ikke her', 404);
+  if (!h) throw new ActionError(husstandTekst().ikkeHerTitel, 404);
   return h;
 }
 
@@ -187,10 +188,10 @@ function notify(deps: RoomDeps): void {
 function tidFra(body: Record<string, unknown>, now: Date): Tidsrum | undefined {
   const dag = str(body['dag']), start = str(body['start']), slut = str(body['slut']);
   if (!dag && !start && !slut) return undefined;
-  if (!DAG.test(dag) || !KL.test(start) || !KL.test(slut)) throw new ActionError('Vælg dag, fra og til — eller lad alle tre stå tomme.');
+  if (!DAG.test(dag) || !KL.test(start) || !KL.test(slut)) throw new ActionError(husstandTekst().fejl.vaelgDagFraTilTom);
   const s = koebenhavnTilIso(`${dag}T${start}`), e = koebenhavnTilIso(`${dag}T${slut}`);
-  if (!s || !e || Date.parse(e) <= Date.parse(s)) throw new ActionError('Til skal være efter fra.');
-  if (Date.parse(s) <= now.getTime()) throw new ActionError('Tidspunktet er allerede gået.');
+  if (!s || !e || Date.parse(e) <= Date.parse(s)) throw new ActionError(husstandTekst().fejl.tilEfterFra);
+  if (Date.parse(s) <= now.getTime()) throw new ActionError(husstandTekst().fejl.tidGaaet);
   return { start: s, slut: e };
 }
 
@@ -199,7 +200,7 @@ function medPlads(s: HusstandState, now: Date): HusstandState {
   if (s.forespoergsler.length < MAX_FORESP) return s;
   const gammel = (f: Forespoergsel): boolean => beslutter(f) === null && !ubesvaret(f) && now.getTime() - Date.parse(f.historik.at(-1)?.tid ?? f.oprettet) > GEM_AFGJORTE_MS;
   const forespoergsler = s.forespoergsler.filter((f) => !gammel(f));
-  if (forespoergsler.length >= MAX_FORESP) throw new ActionError('Der er for mange forespørgsler i gang. Afslut nogle først.', 409);
+  if (forespoergsler.length >= MAX_FORESP) throw new ActionError(husstandTekst().fejl.forMangeForesp, 409);
   return { ...s, forespoergsler };
 }
 
@@ -220,7 +221,7 @@ function startForslag(deps: RoomDeps, f: Forespoergsel, medlemmer: Medlem[], uge
           });
           notify(deps);
         }
-        return { text: 'Hermes har foreslået svar.' };
+        return { text: husstandTekst().ud.hermesSvar };
       },
     });
   } catch (err) {
@@ -238,13 +239,14 @@ async function opretOgSpoerg(deps: RoomDeps, h: { medlemmer: Medlem[] }, o: { ti
     return { state: { ...s, forespoergsler: [...s.forespoergsler, ny] }, ud: ny };
   });
   const fra = navnAf(h.medlemmer, f.fra), til = navnAf(h.medlemmer, f.til);
-  await logBegge(deps, f, (p) => (p === f.fra ? `Du spurgte ${til}: ${f.titel}` : `${fra} spurgte dig: ${f.titel}`), { fortrydAf: f.fra });
+  const L = husstandTekst().log;
+  await logBegge(deps, f, (p) => (p === f.fra ? L.duSpurgte(til, f.titel) : L.spurgteDig(fra, f.titel)), { fortrydAf: f.fra });
   notify(deps);
   const uge = await ugen(deps, h.medlemmer, await laesState(deps));
   return deps.runs.local('opret', async () => {
     const run = startForslag(deps, f, h.medlemmer, uge);
     if (run) await run.finished;
-    return faerdig(deps, `Spurgt. ${til} ser det nu.`);
+    return faerdig(deps, husstandTekst().ud.spurgt(til));
   });
 }
 
@@ -252,12 +254,13 @@ const SVAR: Record<string, Haendelse['slags']> = { ja: 'ja', nej: 'nej', alterna
 
 /** What a step says, from each party's side. */
 function trinTekst(f: Forespoergsel, slags: Haendelse['slags'], af: PersonId, medlemmer: readonly Medlem[]): (p: PersonId) => string {
-  const hvem = (p: PersonId): string => (p === af ? 'Du' : navnAf(medlemmer, af));
-  const kl = f.alternativ ? `kl. ${klokke(f.alternativ.start)}` : 'det andet tidspunkt';
+  const L = husstandTekst().log;
+  const hvem = (p: PersonId): string => (p === af ? husstandTekst().du(true) : navnAf(medlemmer, af));
+  const kl = f.alternativ ? klokkeVis(f.alternativ.start) : null;
   const verbum: Record<Haendelse['slags'], string> = {
-    ja: 'sagde ja', nej: 'sagde nej', alternativ: `foreslog ${kl}`, 'tag-imod': `tog imod ${kl}`, afslaa: `sagde nej tak til ${kl}`, traek: 'trak forespørgslen tilbage', udloeb: '',
+    ja: L.verbJa, nej: L.verbNej, alternativ: L.verbForeslog(kl), 'tag-imod': L.verbTogImod(kl), afslaa: L.verbAfslog(kl), traek: L.verbTrak, udloeb: '',
   };
-  return (p) => `${hvem(p)} ${verbum[slags]}: ${f.titel}`;
+  return (p) => L.trin(hvem(p), verbum[slags], f.titel);
 }
 
 /** A party's tap on a request: validated against the stored state, logged per party, the step undoable by its author. */
@@ -266,8 +269,8 @@ async function tryk(deps: RoomDeps, id: string, h: { medlemmer: Medlem[] }, lav:
   const person = deps.person.id;
   const r = await endre<{ f: Forespoergsel; aendret: boolean; slags: Haendelse['slags']; bookinger: Bookinger | null } | ActionError>(deps, (s) => {
     const f = s.forespoergsler.find((x) => x.id === id);
-    if (!f) return { ud: new ActionError('Forespørgslen findes ikke (længere).', 404) };
-    if (!erPart(f, person)) return { ud: new ActionError('Forespørgslen er ikke din.', 403) };
+    if (!f) return { ud: new ActionError(husstandTekst().fejl.foresp404, 404) };
+    if (!erPart(f, person)) return { ud: new ActionError(husstandTekst().fejl.forespIkkeDin, 403) };
     const haendelse = lav(f);
     if (haendelse instanceof ActionError) return { ud: haendelse };
     const u = anvend(f, haendelse, now);
@@ -286,21 +289,21 @@ async function tryk(deps: RoomDeps, id: string, h: { medlemmer: Medlem[] }, lav:
     if (r.bookinger) await logBookinger(deps, r.bookinger, h.medlemmer);
     notify(deps);
   }
-  return deps.runs.local('foresp', () => faerdig(deps, r.aendret ? 'Gjort.' : 'Allerede gjort.'));
+  return deps.runs.local('foresp', () => faerdig(deps, r.aendret ? husstandTekst().ud.gjort : husstandTekst().ud.alleredeGjort));
 }
 
 /** The asker's card on an expired, unanswered request: drop it, or ask again (a new request). */
 async function lukUdloebet(deps: RoomDeps, id: string): Promise<Forespoergsel> {
   const s = await laesState(deps);
   const f = s.forespoergsler.find((x) => x.id === id);
-  if (!f) throw new ActionError('Forespørgslen findes ikke (længere).', 404);
-  if (f.fra !== deps.person.id) throw new ActionError('Forespørgslen er ikke din.', 403);
-  if (!ubesvaret(f)) throw new ActionError('Kun en forespørgsel uden svar kan droppes eller sendes igen.', 409);
+  if (!f) throw new ActionError(husstandTekst().fejl.foresp404, 404);
+  if (f.fra !== deps.person.id) throw new ActionError(husstandTekst().fejl.forespIkkeDin, 403);
+  if (!ubesvaret(f)) throw new ActionError(husstandTekst().fejl.kunUdenSvar, 409);
   return f;
 }
 const lukket = (id: string, now: Date) => (s: HusstandState): HusstandState => {
   const f = s.forespoergsler.find((x) => x.id === id);
-  if (!f || !ubesvaret(f)) throw new ActionError('Forespørgslen er allerede ordnet.', 409);
+  if (!f || !ubesvaret(f)) throw new ActionError(husstandTekst().fejl.forespOrdnet, 409);
   return { ...s, forespoergsler: s.forespoergsler.map((x) => (x.id === id ? { ...x, lukket: now.toISOString() } : x)) };
 };
 
@@ -328,7 +331,7 @@ export async function kanalSend(deps: RoomDeps, kanal: KanalClient, id: string, 
     const medlemmer = medlemmerAf(await deps.husstand!.personer(), s.medlemmer);
     const v = vurderSend({ forespoergsler: s.forespoergsler, medlemmer }, id, slags, deps.person.id);
     if (!v.ok) throw new ActionError(v.hvorfor, v.status);
-    if (v.tekst !== tekst) throw new ActionError('Beskeden er ændret siden du så den. Se den igen, før du sender.', 409);
+    if (v.tekst !== tekst) throw new ActionError(husstandTekst().fejl.beskedAendret, 409);
     await kanal.send(v.til, v.tekst);
     const tid = now.toISOString();
     const forespoergsler = s.forespoergsler.map((x) => (x.id === id ? { ...x, kanal: { sendt: [...(x.kanal?.sendt ?? []), { tid, slags }], beskeder: x.kanal?.beskeder ?? [] } } : x));
@@ -336,10 +339,10 @@ export async function kanalSend(deps: RoomDeps, kanal: KanalClient, id: string, 
     return v;
   });
   const til = navnAf(h.medlemmer, v.f.til), fra = navnAf(h.medlemmer, v.f.fra);
-  const hvad = slags === 'paamindelse' ? 'en påmindelse om' : 'forespørgslen';
-  await logBegge(deps, v.f, (p) => (p === v.f.fra ? `Du sendte ${hvad} til ${til} på ${v.kanalNavn}: ${v.f.titel}` : `${fra} sendte dig ${hvad} på ${v.kanalNavn}: ${v.f.titel}`));
+  const L = husstandTekst().log;
+  await logBegge(deps, v.f, (p) => (p === v.f.fra ? L.sendteDu(slags, til, v.kanalNavn, v.f.titel) : L.sendteDig(slags, fra, v.kanalNavn, v.f.titel)));
   notify(deps);
-  return deps.runs.local('kanal-send', () => faerdig(deps, `Sendt til ${til} på ${v.kanalNavn}.`));
+  return deps.runs.local('kanal-send', () => faerdig(deps, husstandTekst().ud.sendt(til, v.kanalNavn)));
 }
 
 type KanalHaendelse =
@@ -396,7 +399,7 @@ async function laesKanalSvar(deps: RoomDeps): Promise<void> {
       const maal = aabne.length === 1 ? aabne[0]! : null;
       if (maal && svar.slags !== 'tekst') {
         const h: Haendelse | null = svar.slags === 'kl'
-          ? (() => { const alt = alternativFraKl(maal, svar.kl, `Kan ${svar.kl.replace(':', '.')}`); return alt ? { slags: 'alternativ', af: m.id, alternativ: alt } : null; })()
+          ? (() => { const alt = alternativFraKl(maal, svar.kl, husstandTekst().alternativTekst(svar.kl)); return alt ? { slags: 'alternativ', af: m.id, alternativ: alt } : null; })()
           : { slags: svar.slags, af: m.id };
         const u = h ? anvend(maal, h, now) : null;
         if (h && u?.ok && u.aendret) {
@@ -420,14 +423,15 @@ async function laesKanalSvar(deps: RoomDeps): Promise<void> {
   });
   if (fremmede) console.info(`husstand: ${fremmede} besked(er) fra afsendere uden for husstanden blev ignoreret`);
   const medlemmer = medlemmerAf(personer, (await laesState(deps)).medlemmer);
+  const L = husstandTekst().log;
   for (const e of haendelser) {
     const navn = navnAf(medlemmer, e.af);
-    if (e.slags === 'svar') await logBegge(deps, e.f, (p) => `${trinTekst(e.f, e.haendelse, e.af, medlemmer)(p)} (på ${e.kanalNavn})`);
-    else if (e.slags === 'tekst') await deps.store.appendLog(RUM, { kilde: 'system', tekst: `${navn} skrev på ${e.kanalNavn}: ${e.tekst}`.slice(0, 300), zone: 'privat', ejer: e.f.fra });
+    if (e.slags === 'svar') await logBegge(deps, e.f, (p) => `${trinTekst(e.f, e.haendelse, e.af, medlemmer)(p)}${L.paaKanal(e.kanalNavn)}`);
+    else if (e.slags === 'tekst') await deps.store.appendLog(RUM, { kilde: 'system', tekst: L.skrevPaa(navn, e.kanalNavn, e.tekst).slice(0, 300), zone: 'privat', ejer: e.f.fra });
     else {
-      const tekst = e.slags === 'stop' ? `${navn} skrev stop på ${e.kanalNavn}. Clawco sender ikke flere beskeder til ${navn}.`
-        : e.slags === 'nej-tak' ? `${navn} sagde nej tak til invitationen på ${e.kanalNavn}. Clawco sender ikke mere.`
-          : `${navn} sagde ja til beskeder fra Clawco på ${e.kanalNavn}.`;
+      const tekst = e.slags === 'stop' ? L.skrevStop(navn, e.kanalNavn)
+        : e.slags === 'nej-tak' ? L.nejTakInvitation(navn, e.kanalNavn)
+          : L.sagdeJaBeskeder(navn, e.kanalNavn);
       for (const p of e.til) await deps.store.appendLog(RUM, { kilde: 'system', tekst, zone: 'privat', ejer: p });
     }
   }
@@ -447,7 +451,7 @@ function somAktion<T>(fn: () => T): T {
 /** The household's persons are written only here, inside the room's queue (husstand.json through the identity port). */
 function gemmer(deps: RoomDeps): (personer: Person[]) => Promise<void> {
   const gem = deps.husstand?.gemPersoner;
-  if (!gem) throw new ActionError('Husstanden kan ikke ændres herfra.', 409);
+  if (!gem) throw new ActionError(husstandTekst().fejl.kanIkkeAendres, 409);
   return gem;
 }
 
@@ -465,7 +469,7 @@ async function inviter(deps: RoomDeps, body: Record<string, unknown>): Promise<R
   const p = await iKoe(async () => {
     let personer = await deps.husstand!.personer();
     if (!personer.length) {
-      if (!af.login) throw new ActionError('Åbn Clawco over Tailscale fra din egen enhed først, så Clawco kan kende dig igen, når I er flere.', 409);
+      if (!af.login) throw new ActionError(husstandTekst().fejl.aabnTailscale, 409);
       const navn = somAktion(() => navnFra(body['mitNavn'] ?? af.navn));
       personer = [{ id: af.id, login: af.login, navn, rolle: 'ejer' }];
     }
@@ -475,10 +479,11 @@ async function inviter(deps: RoomDeps, body: Record<string, unknown>): Promise<R
     await gem([...personer, p]);
     return p;
   });
-  const hvordan = ny.slags === 'egen' ? 'med egen indgang' : `på ${KANAL_NAVN[ny.kanal]}`;
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du inviterede ${p.navn} som ${ROLLE_NAVN[p.rolle]} ${hvordan}.`.slice(0, 300), zone: 'privat', ejer: af.id });
+  const T = husstandTekst();
+  const hvordan = ny.slags === 'egen' ? T.log.hvordanEgen : T.log.hvordanPaa(KANAL_NAVN[ny.kanal]);
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.inviterede(p.navn, husstandTekst().rolleOrd[p.rolle], hvordan).slice(0, 300), zone: 'privat', ejer: af.id });
   notify(deps);
-  return deps.runs.local('inviter', async () => ({ ...(await faerdig(deps, `${p.navn} er inviteret.`)), url: '/rum/husstand' }));
+  return deps.runs.local('inviter', async () => ({ ...(await faerdig(deps, T.ud.inviteret(p.navn))), url: '/rum/husstand' }));
 }
 
 /** The owner gives another person a role (stored on the person in husstand.json, KC-0148); a line to each of them. */
@@ -486,7 +491,7 @@ async function rolle(deps: RoomDeps, body: Record<string, unknown>): Promise<Run
   const af = deps.person;
   const id = str(body['id']);
   const ny = body['rolle'];
-  if (!erRolle(ny)) throw new ActionError('Ukendt rolle.');
+  if (!erRolle(ny)) throw new ActionError(husstandTekst().fejl.ukendtRolle);
   const gem = gemmer(deps);
   const p = await iKoe(async () => {
     const personer = await deps.husstand!.personer();
@@ -496,10 +501,12 @@ async function rolle(deps: RoomDeps, body: Record<string, unknown>): Promise<Run
     if (s.medlemmer.some((m) => m.id === id)) await deps.store.writeState(RUM, { ...s, medlemmer: s.medlemmer.map((m) => (m.id === id ? { ...m, rolle: ny } : m)) });
     return efter.find((x) => x.id === id)!;
   });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `${p.navn} er nu ${ROLLE_NAVN[ny]}.`, zone: 'privat', ejer: af.id });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `${af.navn} gjorde dig til ${ROLLE_NAVN[ny]} i husstanden.`.slice(0, 300), zone: 'privat', ejer: p.id });
+  const L = husstandTekst().log;
+  const rolleNavn = husstandTekst().rolleOrd[ny];
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: L.rolleNu(p.navn, rolleNavn), zone: 'privat', ejer: af.id });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: L.gjordeDigTil(af.navn, rolleNavn).slice(0, 300), zone: 'privat', ejer: p.id });
   notify(deps);
-  return deps.runs.local('rolle', () => faerdig(deps, `${p.navn} er nu ${ROLLE_NAVN[ny]}.`));
+  return deps.runs.local('rolle', () => faerdig(deps, husstandTekst().ud.nuEr(p.navn, rolleNavn)));
 }
 
 /**
@@ -519,9 +526,9 @@ async function fjernMedlem(deps: RoomDeps, body: Record<string, unknown>): Promi
     await gem(efter);
     return personer.find((x) => x.id === id)!;
   });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du fjernede ${p.navn} fra husstanden. Hendes adgang og beskeder fra Clawco er stoppet; det, I har delt, står der stadig.`.slice(0, 300), zone: 'privat', ejer: af.id });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: husstandTekst().log.fjernedeDu(p.navn).slice(0, 300), zone: 'privat', ejer: af.id });
   notify(deps);
-  return deps.runs.local('fjern-medlem', () => faerdig(deps, `${p.navn} er fjernet fra husstanden.`));
+  return deps.runs.local('fjern-medlem', () => faerdig(deps, husstandTekst().ud.erFjernet(p.navn)));
 }
 
 /**
@@ -547,11 +554,12 @@ export async function internMedlem(deps: RoomDeps, op: InternOp): Promise<{ aend
   });
   if (!r.aendret || !r.person) return { aendret: false };
   const p = r.person;
-  const tekst = op.op === 'tilfoej' ? `${p.navn} tog imod invitationen og er med i husstanden som ${ROLLE_NAVN[p.rolle]}.`
-    : op.op === 'fjern' ? `${p.navn} er ikke længere med i husstanden. Det, I har delt, står der stadig.`
-      : `${p.navn} er nu ${ROLLE_NAVN[p.rolle]}.`;
+  const L = husstandTekst().log;
+  const linje = op.op === 'tilfoej' ? L.internTogImod(p.navn, husstandTekst().rolleOrd[p.rolle])
+    : op.op === 'fjern' ? L.internForlod(p.navn)
+      : L.rolleNu(p.navn, husstandTekst().rolleOrd[p.rolle]);
   for (const ejer of r.personer.filter((x) => x.rolle === 'ejer')) {
-    await deps.store.appendLog(RUM, { kilde: 'system', tekst: tekst.slice(0, 300), zone: 'privat', ejer: ejer.id });
+    await deps.store.appendLog(RUM, { kilde: 'system', tekst: linje.slice(0, 300), zone: 'privat', ejer: ejer.id });
   }
   notify(deps);
   return { aendret: true };
@@ -576,15 +584,15 @@ export async function invitationSend(deps: RoomDeps, kanal: KanalClient, id: str
     const s = await laesState(deps);
     const v = vurderInvitation(medlemmerAf(await deps.husstand!.personer(), s.medlemmer), id, deps.person);
     if (!v.ok) throw new ActionError(v.hvorfor, v.status);
-    if (v.tekst !== tekst) throw new ActionError('Beskeden er ændret siden du så den. Se den igen, før du sender.', 409);
+    if (v.tekst !== tekst) throw new ActionError(husstandTekst().fejl.beskedAendret, 409);
     await kanal.send(v.til, v.tekst);
     const tid = deps.now().toISOString();
     await deps.store.writeState(RUM, { ...s, medlemmer: s.medlemmer.map((m) => (m.id === id && m.kanal ? { ...m, kanal: { ...m.kanal, inviteret: tid } } : m)) });
     return v;
   });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du sendte invitationen til ${v.navn} på ${v.kanalNavn}.`.slice(0, 300), zone: 'privat', ejer: deps.person.id });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: husstandTekst().log.sendteInvitation(v.navn, v.kanalNavn).slice(0, 300), zone: 'privat', ejer: deps.person.id });
   notify(deps);
-  return deps.runs.local('invitation-send', () => faerdig(deps, `Invitationen er sendt til ${v.navn} på ${v.kanalNavn}.`));
+  return deps.runs.local('invitation-send', () => faerdig(deps, husstandTekst().ud.invitationSendt(v.navn, v.kanalNavn)));
 }
 
 /**
@@ -604,7 +612,7 @@ export async function vedBesoeg(deps: RoomDeps): Promise<void> {
   });
   if (!m) return;
   for (const p of (deps.husstand ? await deps.husstand.personer() : []).filter((x) => maaSe(x, { slags: 'invitation' }))) {
-    await deps.store.appendLog(RUM, { kilde: 'system', tekst: `${m.navn} er kommet ind i Clawco med sin egen indgang.`.slice(0, 300), zone: 'privat', ejer: p.id });
+    await deps.store.appendLog(RUM, { kilde: 'system', tekst: husstandTekst().log.kommetInd(m.navn).slice(0, 300), zone: 'privat', ejer: p.id });
   }
   notify(deps);
 }
@@ -669,36 +677,37 @@ function flyttedeAf(foer: readonly Ressource[], booket: readonly Booking[]): Rec
   }
   return ud;
 }
-const tidKort = (t: Tidsrum, now: Date): string => `${datoLinje(idagKbh(new Date(t.start)), now).toLowerCase()} kl. ${klokke(t.start)}–${klokke(t.slut)}`;
-const rNavnAf = (ressourcer: readonly Ressource[], id: string): string => ressourcer.find((r) => r.id === id)?.navn ?? 'Tingen';
-// The Nu lines are read on a screen, so they follow the language being rendered (KC-0170); the log lines above keep Danish.
-const tidKortVis = (t: Tidsrum, now: Date): string => { const T = husstandTekst(); return T.tidsrum(T.midt(datoVis(idagKbh(new Date(t.start)), now)), klokkeVis(t.start), klokkeVis(t.slut)); };
-const rNavnVis = (ressourcer: readonly Ressource[], id: string): string => ressourcer.find((r) => r.id === id)?.navn ?? husstandTekst().ukendtTing;
-const navnVis = (medlemmer: readonly Medlem[], id: string): string => medlemmer.find((m) => m.id === id)?.navn ?? husstandTekst().ukendtMedlem;
+// The time and the thing in a sentence, in the language being served (KC-0170): the Nu lines, the log lines and the titles
+// of the requests the room makes all read them from here ("lørdag 7. nov kl. 09.00–13.00" / "Saturday 7 Nov at 09:00–13:00").
+const tidKort = (t: Tidsrum, now: Date): string => { const T = husstandTekst(); return T.tidsrum(T.midt(datoVis(idagKbh(new Date(t.start)), now)), klokkeVis(t.start), klokkeVis(t.slut)); };
+/** The same inside a sentence ("on Saturday 7 Nov at 09:00–13:00"; Danish needs no "on"): the log lines and the request titles. */
+const tidSaetning = (t: Tidsrum, now: Date): string => husstandTekst().paa(tidKort(t, now));
+const rNavnAf = (ressourcer: readonly Ressource[], id: string): string => ressourcer.find((r) => r.id === id)?.navn ?? husstandTekst().ukendtTing;
 const ren = (v: unknown): string => str(v).replace(/[\u0000-\u001f\u007f]/g, ' ');
 
 /** One line per booking to its booker (with Fortryd), one per released booking, and one per party for a settled clash. */
 async function logBookinger(deps: RoomDeps, b: Bookinger, medlemmer: readonly Medlem[]): Promise<void> {
   const now = deps.now();
+  const T = husstandTekst();
   const r = b.state.ressourcer;
   for (const x of b.booket) {
     const fra = b.flyttet?.[x.id];
     if (fra) {
-      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Din booking er flyttet til ${iSaetning(rNavnAf(r, x.ressourceId))} ${tidKort(x, now)}: ${x.titel}`.slice(0, 300), zone: 'privat', ejer: x.af, fortryd: flytMarkoer(x.id, fra) });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.bookingFlyttet(T.iSaet(rNavnAf(r, x.ressourceId)), tidSaetning(x, now), x.titel).slice(0, 300), zone: 'privat', ejer: x.af, fortryd: flytMarkoer(x.id, fra) });
       continue;
     }
-    await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Booket: ${rNavnAf(r, x.ressourceId)} ${tidKort(x, now)}: ${x.titel}`.slice(0, 300), zone: 'privat', ejer: x.af, fortryd: bookingMarkoer(x.id) });
+    await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.booket(rNavnAf(r, x.ressourceId), tidSaetning(x, now), x.titel).slice(0, 300), zone: 'privat', ejer: x.af, fortryd: bookingMarkoer(x.id) });
   }
   for (const x of b.fjernet) {
-    await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du gav slip på ${iSaetning(rNavnAf(r, x.ressourceId))} ${tidKort(x, now)}: ${x.titel}`.slice(0, 300), zone: 'privat', ejer: x.af });
+    await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.gavSlip(T.iSaet(rNavnAf(r, x.ressourceId)), tidSaetning(x, now), x.titel).slice(0, 300), zone: 'privat', ejer: x.af });
   }
   if (b.loest) {
     const { s, valgId } = b.loest;
     const valg = s.valg.find((v) => v.id === valgId);
     for (const p of parterI(s)) {
-      const navn = (id: string): string => (id === p ? 'du' : navnAf(medlemmer, id));
-      const tekst = valg ? valgNeutralt(s, valg, navn, r) : 'løst';
-      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Dobbeltbookingen af ${iSaetning(rNavnAf(r, s.ressourceId))} er løst: ${tekst}`.slice(0, 300), zone: 'privat', ejer: p });
+      const navn = (id: string): string => (id === p ? T.duSmaa : navnAf(medlemmer, id));
+      const tekst = valg ? valgNeutralt(s, valg, navn, r, T) : T.log.loestUdenValg;
+      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.sammenfaldLoest(T.iSaet(rNavnAf(r, s.ressourceId)), tekst).slice(0, 300), zone: 'privat', ejer: p });
     }
   }
 }
@@ -707,34 +716,38 @@ async function logBookinger(deps: RoomDeps, b: Bookinger, medlemmer: readonly Me
 function bookVedJa(s: HusstandState, f: Forespoergsel, person: PersonId, now: Date): Bookinger | ActionError {
   const sf = s.sammenfald.find((x) => x.forespId === f.id);
   if (sf) {
-    if (!aabenSammenfald(sf, now)) return new ActionError('Dobbeltbookingen er allerede løst.', 409);
+    if (!aabenSammenfald(sf, now)) return new ActionError(husstandTekst().fejl.dobbeltLoest, 409);
     const valg = sf.valg.find((v) => v.id === sf.forespValg);
-    if (!valg || valg.hvem !== person) return new ActionError('Det valg er ikke dit.', 403);
+    if (!valg || valg.hvem !== person) return new ActionError(husstandTekst().fejl.valgIkkeDit, 403);
     const l = loesSammenfald(s.ressourcer, sf, valg.id, nyBookingId(), { foresporgselId: f.id });
     if (!l.ok) return new ActionError(l.hvorfor, 409);
     const afgjort: Sammenfald = { ...sf, afgjort: { valg: valg.id, af: person, tid: now.toISOString() } };
     return { state: { ...s, ressourcer: l.ressourcer, sammenfald: s.sammenfald.map((x) => (x.id === sf.id ? afgjort : x)) }, booket: l.booket, fjernet: l.fjernet, loest: { s: afgjort, valgId: valg.id }, flyttet: flyttedeAf(s.ressourcer, l.booket) };
   }
   const t = aftaleTid(f);
-  if (!t || !f.ressourceId) return new ActionError('Forespørgslen har intet tidspunkt at booke.', 409);
+  if (!t || !f.ressourceId) return new ActionError(husstandTekst().fejl.intetTidspunktBooke, 409);
   const b: Booking = { id: nyBookingId(), ressourceId: f.ressourceId, af: f.fra, start: t.start, slut: t.slut, titel: f.titel.replace(LAAN, '').slice(0, 200) || f.titel, foresporgselId: f.id };
   const i = indsaet(s.ressourcer, b);
   if (!i.ok) return new ActionError(i.hvorfor, 409);
   return { state: { ...s, ressourcer: i.ressourcer }, booket: [b], fjernet: [] };
 }
 
-/** A non-owner's request: "Må jeg låne den lille bil? Spejder" — the booking keeps only "Spejder". */
-const LAAN = /^Må jeg låne [^?]{1,80}\? /;
-const laaneTitel = (r: Ressource, titel: string): string => `Må jeg låne ${iSaetning(r.navn)}? ${titel}`.slice(0, 200);
+/**
+ * A non-owner's request: "Må jeg låne den lille bil? Spejder" / "May I borrow the little car? Scouts" — the booking keeps
+ * only "Spejder". The stored title is in the language of the request that made it, so both openings are recognised
+ * whichever language the install speaks now.
+ */
+const LAAN = /^(?:Må jeg låne|May I borrow) [^?]{1,80}\? /;
+const laaneTitel = (r: Ressource, titel: string): string => husstandTekst().laaneTitel(husstandTekst().iSaet(r.navn), titel).slice(0, 200);
 
 /** The booking asked for: the resource, a day with from and to in the future, a title. Throws ActionError. */
 function bookingInput(s: HusstandState, body: Record<string, unknown>, now: Date): { r: Ressource; tid: Tidsrum; titel: string } {
   const r = s.ressourcer.find((x) => x.id === str(body['ressourceId']));
-  if (!r) throw new ActionError('Den ting findes ikke (længere).', 404);
+  if (!r) throw new ActionError(husstandTekst().fejl.tingFindesIkke, 404);
   const tid = tidFra(body, now);
-  if (!tid) throw new ActionError('Vælg dag, fra og til.');
+  if (!tid) throw new ActionError(husstandTekst().fejl.vaelgDagFraTil);
   const titel = ren(body['titel']);
-  if (!titel || titel.length > 200) throw new ActionError('Skriv, hvad du skal bruge den til (højst 200 tegn).');
+  if (!titel || titel.length > 200) throw new ActionError(husstandTekst().fejl.skrivBrug);
   return { r, tid, titel };
 }
 
@@ -742,29 +755,27 @@ function bookingInput(s: HusstandState, body: Record<string, unknown>, now: Date
 function medPladsSammenfald(liste: readonly Sammenfald[], now: Date): Sammenfald[] {
   if (liste.length < MAX_SAMMENFALD) return [...liste];
   const aabne = liste.filter((x) => aabenSammenfald(x, now));
-  if (aabne.length >= MAX_SAMMENFALD) throw new ActionError('Der er for mange dobbeltbookinger i gang. Løs nogle først.', 409);
+  if (aabne.length >= MAX_SAMMENFALD) throw new ActionError(husstandTekst().fejl.forMangeSammenfald, 409);
   return aabne;
 }
 
 /** An open clash the person is a party to, from the stored state. Throws ActionError (404 · 403 · 409). */
 function findSammenfald(s: HusstandState, id: string, person: PersonId, now: Date): Sammenfald {
   const sf = s.sammenfald.find((x) => x.id === id);
-  if (!sf) throw new ActionError('Dobbeltbookingen findes ikke (længere).', 404);
-  if (!erPartI(sf, person)) throw new ActionError('Dobbeltbookingen er ikke din.', 403);
-  if (!aabenSammenfald(sf, now)) throw new ActionError('Det er allerede afgjort.', 409);
+  if (!sf) throw new ActionError(husstandTekst().fejl.sammenfald404, 404);
+  if (!erPartI(sf, person)) throw new ActionError(husstandTekst().fejl.sammenfaldIkkeDin, 403);
+  if (!aabenSammenfald(sf, now)) throw new ActionError(husstandTekst().fejl.alleredeAfgjort, 409);
   return sf;
 }
 
 /** What the request from a clash card asks the other person, from the asker's side. */
 function spoergTitel(sf: Sammenfald, valg: Valg, ressourcer: readonly Ressource[], now: Date): string {
-  const r = iSaetning(rNavnAf(ressourcer, sf.ressourceId));
-  const tid = tidKort(sf.ny, now);
+  const T = husstandTekst();
+  const r = T.iSaet(rNavnAf(ressourcer, sf.ressourceId));
+  const tid = tidSaetning(sf.ny, now);
   const holder = valg.hvem === sf.mod.af;
-  if (valg.slags === 'anden') {
-    const r2 = iSaetning(rNavnAf(ressourcer, valg.ressourceId));
-    return (holder ? `Kan du tage ${r2} i stedet, så jeg kan få ${r} ${tid}?` : `Kan du tage ${r2} i stedet for ${r} ${tid}?`).slice(0, 200);
-  }
-  return (holder ? `Kan vi bytte? Jeg vil gerne have ${r} ${tid} (${sf.ny.titel}).` : `Kan du droppe ${r} ${tid}? Jeg har den (${sf.mod.titel}).`).slice(0, 200);
+  if (valg.slags === 'anden') return T.spoergTitelAnden(holder, T.iSaet(rNavnAf(ressourcer, valg.ressourceId)), r, tid).slice(0, 200);
+  return T.spoergTitelAfgiv(holder, r, tid, holder ? sf.ny.titel : sf.mod.titel).slice(0, 200);
 }
 
 /** Hermes orders a clash's options (lille tier) — advice beside the clash; a bad answer writes nothing. */
@@ -786,7 +797,7 @@ function startSammenfaldForslag(deps: RoomDeps, sf: Sammenfald, medlemmer: reado
           });
           notify(deps);
         }
-        return { text: 'Hermes har foreslået en løsning.' };
+        return { text: husstandTekst().ud.hermesLoesning };
       },
     });
   } catch (err) {
@@ -831,20 +842,20 @@ async function bookKerne(deps: RoomDeps, h: { medlemmer: Medlem[] }, inp: BookIn
     let s = s0;
     if ('udkastId' in inp) {
       const u = s0.udkast.find((x) => x.id === inp.udkastId && x.af === person);
-      if (!u) throw new ActionError('Kortet findes ikke (længere).', 404);
-      if (!udkastAabent(u, now)) throw new ActionError('Kortet er udløbet. Spørg på ny.', 409);
+      if (!u) throw new ActionError(husstandTekst().fejl.kort404, 404);
+      if (!udkastAabent(u, now)) throw new ActionError(husstandTekst().fejl.kortUdloebet, 409);
       const r = s0.ressourcer.find((x) => x.id === u.ressourceId);
-      if (!r) throw new ActionError('Den ting findes ikke (længere).', 404);
+      if (!r) throw new ActionError(husstandTekst().fejl.tingFindesIkke, 404);
       b = { r, tid: { start: u.start, slut: u.slut }, titel: u.titel };
       s = { ...s0, udkast: s0.udkast.filter((x) => x.id !== u.id) };
     } else b = inp;
     const rr = s.ressourcer.find((x) => x.id === b.r.id);
-    if (!rr) throw new ActionError('Den ting findes ikke (længere).', 404);
+    if (!rr) throw new ActionError(husstandTekst().fejl.tingFindesIkke, 404);
     const ny: Booking = { id: nyBookingId(), ressourceId: rr.id, af: person, start: b.tid.start, slut: b.tid.slut, titel: b.titel };
     const mod = overlappende(ny, rr.kalender);
     if (!erEjer(rr, person)) {
-      if (mode === 'book') throw new ActionError(`Du er ikke ejer af ${iSaetning(rr.navn)}. Spørg en ejer.`, 403);
-      if (mod.length) throw new ActionError(`${rr.navn} er optaget i det tidsrum.`, 409);
+      if (mode === 'book') throw new ActionError(husstandTekst().fejl.ikkeEjer(husstandTekst().iSaet(rr.navn)), 403);
+      if (mod.length) throw new ActionError(husstandTekst().fejl.optaget(rr.navn), 409);
       const u: BookingUdkast = { id: nytUdkastId(), af: person, ressourceId: rr.id, start: ny.start, slut: ny.slut, titel: ny.titel, oprettet: now.toISOString() };
       return { state: medUdkast(s, u, now), ud: { slags: 'udkast', u } };
     }
@@ -857,9 +868,9 @@ async function bookKerne(deps: RoomDeps, h: { medlemmer: Medlem[] }, inp: BookIn
       if (!i.ok) throw new ActionError(i.hvorfor, 409);
       return { state: { ...s, ressourcer: i.ressourcer }, ud: { slags: 'booket', state: { ...s, ressourcer: i.ressourcer }, ny, navn: rr.navn } };
     }
-    if (mod.some((m) => m.af === person)) throw new ActionError(`Du har allerede ${iSaetning(rr.navn)} i det tidsrum.`, 409);
-    if (mod.length > 1) throw new ActionError(`${rr.navn} er booket flere gange i det tidsrum. Vælg et andet tidspunkt.`, 409);
-    if (s.sammenfald.some((x) => aabenSammenfald(x, now) && x.ny.af === person && x.mod.id === mod[0]!.id && overlapper(x.ny, ny))) throw new ActionError('Der er allerede et kort om det.', 409);
+    if (mod.some((m) => m.af === person)) throw new ActionError(husstandTekst().fejl.harAllerede(husstandTekst().iSaet(rr.navn)), 409);
+    if (mod.length > 1) throw new ActionError(husstandTekst().fejl.flereGange(rr.navn), 409);
+    if (s.sammenfald.some((x) => aabenSammenfald(x, now) && x.ny.af === person && x.mod.id === mod[0]!.id && overlapper(x.ny, ny))) throw new ActionError(husstandTekst().fejl.alleredeKort, 409);
     const sf = nySammenfald({ id: `s-${randomUUID().slice(0, 8)}`, ny, mod: mod[0]!, ressourcer: s.ressourcer, nu: now });
     return { state: { ...s, sammenfald: [...medPladsSammenfald(s.sammenfald, now), sf] }, ud: { slags: 'sammenfald', sf, ressourcer: s.ressourcer, navn: rr.navn, holder: navnAf(h.medlemmer, sf.mod.af) } };
   });
@@ -870,9 +881,10 @@ async function bookKerne(deps: RoomDeps, h: { medlemmer: Medlem[] }, inp: BookIn
     return { slags: 'booket', b, navn: ud.navn };
   }
   if (ud.slags === 'sammenfald') {
+    const L = husstandTekst().log;
     for (const p of parterI(ud.sf)) {
-      const tekst = p === person ? `${ud.navn} er optaget af ${ud.holder} ${tidKort(ud.sf.mod, now)}. I har begge fået et kort.` : `${navnAf(h.medlemmer, person)} ville også have ${iSaetning(ud.navn)} ${tidKort(ud.sf.ny, now)}. I har begge fået et kort.`;
-      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: tekst.slice(0, 300), zone: 'privat', ejer: p });
+      const linje = p === person ? L.optagetAfDig(ud.navn, ud.holder, tidSaetning(ud.sf.mod, now)) : L.villeOgsaa(navnAf(h.medlemmer, person), husstandTekst().iSaet(ud.navn), tidSaetning(ud.sf.ny, now));
+      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: linje.slice(0, 300), zone: 'privat', ejer: p });
     }
   }
   notify(deps);
@@ -882,27 +894,27 @@ async function bookKerne(deps: RoomDeps, h: { medlemmer: Medlem[] }, inp: BookIn
 /** An owner books: free = booked (with Fortryd); one other person's booking in the way = one clash card for the two. `udkastId`: a tap on a card (KC-0151). */
 async function book(deps: RoomDeps, h: { medlemmer: Medlem[]; state: HusstandState }, body: Record<string, unknown>, udkastId?: string): Promise<RunRecord> {
   const ud = await bookKerne(deps, h, udkastId ? { udkastId } : bookingInput(h.state, body, deps.now()), 'book');
-  if (ud.slags === 'booket') return deps.runs.local('book', () => faerdig(deps, `Booket: ${ud.navn}.`));
+  if (ud.slags === 'booket') return deps.runs.local('book', () => faerdig(deps, husstandTekst().ud.booket(ud.navn)));
   if (ud.slags === 'sammenfald') {
     return deps.runs.local('book', async () => {
       const run = startSammenfaldForslag(deps, ud.sf, h.medlemmer, ud.ressourcer);
       if (run) await run.finished;
-      return faerdig(deps, `${ud.navn} er optaget af ${ud.holder}. I har begge fået et kort.`);
+      return faerdig(deps, husstandTekst().ud.optagetKort(ud.navn, ud.holder));
     });
   }
-  throw new ActionError('Kortet kunne ikke bruges.', 409);
+  throw new ActionError(husstandTekst().fejl.kortKunneIkke, 409);
 }
 
 /** A non-owner asks the first owner for the slot (a request, red); `udkastId` is the card it came from, taken away in the same step. */
 async function bookSpoerg(deps: RoomDeps, h: { medlemmer: Medlem[]; state: HusstandState }, inp: BookInput, udkastId?: string): Promise<RunRecord> {
   const person = deps.person.id;
   const { r, tid, titel } = inp;
-  if (erEjer(r, person)) throw new ActionError('Du er ejer, så du kan booke direkte.');
+  if (erEjer(r, person)) throw new ActionError(husstandTekst().fejl.ejerBookDirekte);
   const ejer = ejerAtSpoerge(r, person, h.medlemmer);
-  if (!ejer) throw new ActionError(`Der er ingen ejer af ${iSaetning(r.navn)} at spørge.`, 409);
-  if (overlappende({ id: '', ...tid }, r.kalender).length) throw new ActionError(`${r.navn} er optaget i det tidsrum.`, 409);
+  if (!ejer) throw new ActionError(husstandTekst().fejl.ingenEjerAtSpoerge(husstandTekst().iSaet(r.navn)), 409);
+  if (overlappende({ id: '', ...tid }, r.kalender).length) throw new ActionError(husstandTekst().fejl.optaget(r.navn), 409);
   return opretOgSpoerg(deps, h, { til: ejer.id, titel: laaneTitel(r, titel), tid, ressourceId: r.id }, udkastId ? (s) => {
-    if (!s.udkast.some((x) => x.id === udkastId && x.af === person)) throw new ActionError('Kortet findes ikke (længere).', 404);
+    if (!s.udkast.some((x) => x.id === udkastId && x.af === person)) throw new ActionError(husstandTekst().fejl.kort404, 404);
     return { ...s, udkast: s.udkast.filter((x) => x.id !== udkastId) };
   } : undefined);
 }
@@ -910,16 +922,16 @@ async function bookSpoerg(deps: RoomDeps, h: { medlemmer: Medlem[]; state: Husst
 /** The person's own open card, from the stored state. Throws ActionError (404 · 409). */
 function findUdkast(s: HusstandState, id: string, person: PersonId, now: Date): { u: BookingUdkast; r: Ressource } {
   const u = s.udkast.find((x) => x.id === id && x.af === person);
-  if (!u) throw new ActionError('Kortet findes ikke (længere).', 404);
-  if (!udkastAabent(u, now)) throw new ActionError('Kortet er udløbet. Spørg på ny.', 409);
+  if (!u) throw new ActionError(husstandTekst().fejl.kort404, 404);
+  if (!udkastAabent(u, now)) throw new ActionError(husstandTekst().fejl.kortUdloebet, 409);
   const r = s.ressourcer.find((x) => x.id === u.ressourceId);
-  if (!r) throw new ActionError('Den ting findes ikke (længere).', 404);
+  if (!r) throw new ActionError(husstandTekst().fejl.tingFindesIkke, 404);
   return { u, r };
 }
 
 /** A chat answer's booking block → at most one card for the person (never a booking); the note says why there is none, else null. */
 async function bookingKort(deps: RoomDeps, h: { medlemmer: Medlem[] }, oensk: BookingOensker): Promise<string | null> {
-  const nej = (hvorfor: string): string => `Jeg lagde ikke noget kort frem: ${hvorfor}`;
+  const nej = (hvorfor: string): string => husstandTekst().ud.ikkeKort(hvorfor);
   const v = valider(oensk, (await laesState(deps)).ressourcer, deps.now());
   if (!v.ok) return nej(v.hvorfor);
   try {
@@ -934,28 +946,25 @@ async function bookingKort(deps: RoomDeps, h: { medlemmer: Medlem[] }, oensk: Bo
 
 const MAX_RESSOURCER = 50;
 
-const SLAGS_ORD: Record<Slags, string> = { bil: 'en bil', rum: 'et rum', ting: 'en ting', person: 'en person' };
-const SLAGS_BARE: Record<Slags, string> = { bil: 'bil', rum: 'rum', ting: 'ting', person: 'person' };
-
 /** The owner checkboxes `ejer-<id>` of a form: household members who are not guests (a stranger or a guest is never an owner). */
 function ejereFraBody(medlemmer: readonly Medlem[], body: Record<string, unknown>): PersonId[] {
   const valgt = (id: string): boolean => { const v = body[`ejer-${id}`]; return v !== undefined && v !== null && v !== false && v !== '' && v !== 'off' && v !== 'false'; };
   const ejere = medlemmer.filter((m) => m.rolle !== 'gaest' && valgt(m.id)).map((m) => m.id);
-  if (!ejere.length) throw new ActionError('Vælg mindst én ejer.');
+  if (!ejere.length) throw new ActionError(husstandTekst().fejl.vaelgEjer);
   return ejere;
 }
 const navnFraBody = (body: Record<string, unknown>): string => {
   const navn = ren(body['navn']).replace(/ {2,}/g, ' ').trim();
-  if (!navn || navn.length > 80) throw new ActionError('Skriv navnet (højst 80 tegn).');
+  if (!navn || navn.length > 80) throw new ActionError(husstandTekst().fejl.skrivNavn);
   return navn;
 };
 /** A kind from a form: empty = bil; only the kinds a person can create (KC-0215). */
 function opretSlagsFraBody(v: unknown): OpretSlags {
   if (v === undefined || v === null || v === '') return 'bil';
   if (typeof v === 'string' && (OPRET_SLAGS as readonly string[]).includes(v)) return v as OpretSlags;
-  throw new ActionError('Vælg bil, rum eller ting.');
+  throw new ActionError(husstandTekst().fejl.vaelgSlags);
 }
-const ordListe = (navne: string[]): string => (navne.length <= 1 ? (navne[0] ?? '') : `${navne.slice(0, -1).join(', ')} og ${navne.at(-1)}`);
+const ordListe = (navne: string[]): string => (navne.length <= 1 ? (navne[0] ?? '') : `${navne.slice(0, -1).join(', ')} ${husstandTekst().og} ${navne.at(-1)}`);
 /** A line to every owner of the circle except the actor (zone privat, each as their own). */
 async function logTilEjere(deps: RoomDeps, ejere: readonly PersonId[], medlemmer: readonly Medlem[], tekst: string): Promise<void> {
   for (const e of new Set(ejere)) {
@@ -968,22 +977,22 @@ const erVoksen = (m: Medlem | undefined): m is Medlem => !!m && (m.rolle === 'ej
 /** "Tilføj ting" (KC-0151 "Tilføj bil", KC-0215 with a kind): a member who is not a child names it, picks bil, rum or ting, and its owners. */
 async function tilfoejRessource(deps: RoomDeps, h: { medlemmer: Medlem[] }, body: Record<string, unknown>): Promise<RunRecord> {
   const person = deps.person.id;
-  if (!erVoksen(h.medlemmer.find((m) => m.id === person))) throw new ActionError('Kun voksne i husstanden kan tilføje noget.', 403);
+  if (!erVoksen(h.medlemmer.find((m) => m.id === person))) throw new ActionError(husstandTekst().fejl.kunVoksne, 403);
   const navn = navnFraBody(body);
   const slags = opretSlagsFraBody(body['slags']);
   const ejere = ejereFraBody(h.medlemmer, body);
   const r = await endre<Ressource>(deps, (s) => {
-    if (s.ressourcer.length >= MAX_RESSOURCER) throw new ActionError('Der er for mange ting i huset. Fjern nogle først.', 409);
-    if (s.ressourcer.some((x) => x.navn.toLowerCase() === navn.toLowerCase())) throw new ActionError('Der er allerede en ting, der hedder det.', 409);
+    if (s.ressourcer.length >= MAX_RESSOURCER) throw new ActionError(husstandTekst().fejl.forMangeTing, 409);
+    if (s.ressourcer.some((x) => x.navn.toLowerCase() === navn.toLowerCase())) throw new ActionError(husstandTekst().fejl.navnFindes, 409);
     const grund = slug(navn, 'bil');
     let id = grund;
     for (let i = 2; s.ressourcer.some((x) => x.id === id); i++) id = `${grund.slice(0, 36)}-${i}`;
     const ny: Ressource = { id, navn, slags, ejere, kalender: [] };
     return { state: { ...s, ressourcer: [...s.ressourcer, ny] }, ud: ny };
   });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du tilføjede ${SLAGS_ORD[r.slags]}: ${r.navn}`.slice(0, 300), zone: 'privat', ejer: person, fortryd: bilMarkoer(r.id) });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: husstandTekst().log.tilfoejede(husstandTekst().slagsOrd[r.slags], r.navn).slice(0, 300), zone: 'privat', ejer: person, fortryd: bilMarkoer(r.id) });
   notify(deps);
-  return deps.runs.local('tilfoej-ressource', () => faerdig(deps, `Tilføjet: ${r.navn}.`));
+  return deps.runs.local('tilfoej-ressource', () => faerdig(deps, husstandTekst().ud.tilfoejet(r.navn)));
 }
 
 /** "Ret": name, kind and owners of a resource, by an owner of it (or the household's owner). Bookings stay as they are. */
@@ -995,36 +1004,37 @@ async function retRessource(deps: RoomDeps, h: { medlemmer: Medlem[] }, body: Re
   const ejere = ejereFraBody(h.medlemmer, body);
   const ud = await endre<{ foer: Ressource; nu: Ressource } | null>(deps, (s) => {
     const foer = s.ressourcer.find((x) => x.id === id);
-    if (!foer) throw new ActionError('Den ting findes ikke (længere).', 404);
-    if (!mig || !maaRetteRessource(foer, mig)) throw new ActionError('Kun en ejer af tingen kan rette den.', 403);
+    if (!foer) throw new ActionError(husstandTekst().fejl.tingFindesIkke, 404);
+    if (!mig || !maaRetteRessource(foer, mig)) throw new ActionError(husstandTekst().fejl.kunEjerRette, 403);
     // A person-resource keeps its kind (it stands for a member); the others choose among the kinds of the list.
     const oenskes = body['slags'];
     const uaendret = oenskes === undefined || oenskes === null || oenskes === '';
     let slags: Slags = foer.slags;
-    if (foer.slags === 'person') { if (!uaendret && oenskes !== 'person') throw new ActionError('En person kan ikke blive til en ting.'); }
+    if (foer.slags === 'person') { if (!uaendret && oenskes !== 'person') throw new ActionError(husstandTekst().fejl.personBlivTing); }
     else if (!uaendret) slags = opretSlagsFraBody(oenskes);
-    if (s.ressourcer.some((x) => x.id !== foer.id && x.navn.toLowerCase() === navn.toLowerCase())) throw new ActionError('Der er allerede en ting, der hedder det.', 409);
+    if (s.ressourcer.some((x) => x.id !== foer.id && x.navn.toLowerCase() === navn.toLowerCase())) throw new ActionError(husstandTekst().fejl.navnFindes, 409);
     const nu: Ressource = { ...foer, navn, slags, ejere };
     // Nobody keeps an open "Tag <denne ting>" option after they stopped owning it: they would book what is not theirs.
     for (const fjernet of foer.ejere.filter((e) => !ejere.includes(e))) {
       if (s.sammenfald.some((x) => aabenSammenfald(x, deps.now()) && x.valg.some((v) => v.slags === 'anden' && v.hvem === fjernet && v.ressourceId === foer.id))) {
-        throw new ActionError(`${navnAf(h.medlemmer, fjernet)} har et åbent kort, hvor ${iSaetning(foer.navn)} er et valg. Afgør det først.`, 409);
+        throw new ActionError(husstandTekst().fejl.aabentKortValg(navnAf(h.medlemmer, fjernet), husstandTekst().iSaet(foer.navn)), 409);
       }
     }
     if (nu.navn === foer.navn && nu.slags === foer.slags && nu.ejere.length === foer.ejere.length && nu.ejere.every((e, i) => e === foer.ejere[i])) return { ud: null };
     return { state: { ...s, ressourcer: s.ressourcer.map((x) => (x.id === foer.id ? nu : x)) }, ud: { foer, nu } };
   });
-  if (!ud) return deps.runs.local('ret-ressource', () => faerdig(deps, 'Ingen ændringer.'));
+  if (!ud) return deps.runs.local('ret-ressource', () => faerdig(deps, husstandTekst().ud.ingenAendringer));
   const { foer, nu } = ud;
+  const T = husstandTekst();
   const aendret = [
-    ...(nu.navn !== foer.navn ? [`hed før ${foer.navn}`] : []),
-    ...(nu.slags !== foer.slags ? [`er nu ${SLAGS_ORD[nu.slags]}`] : []),
-    ...(nu.ejere.join() !== foer.ejere.join() ? [`ejere: ${ordListe(nu.ejere.map((e) => navnAf(h.medlemmer, e)))}`] : []),
+    ...(nu.navn !== foer.navn ? [T.log.hedFoer(foer.navn)] : []),
+    ...(nu.slags !== foer.slags ? [T.log.erNuSlags(T.slagsOrd[nu.slags])] : []),
+    ...(nu.ejere.join() !== foer.ejere.join() ? [T.log.ejereListe(ordListe(nu.ejere.map((e) => navnAf(h.medlemmer, e))))] : []),
   ].join(', ');
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du rettede ${nu.navn} (${aendret})`.slice(0, 300), zone: 'privat', ejer: person });
-  await logTilEjere(deps, [...foer.ejere, ...nu.ejere], h.medlemmer, `${navnAf(h.medlemmer, person)} rettede ${nu.navn} (${aendret})`);
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.rettedeDu(nu.navn, aendret).slice(0, 300), zone: 'privat', ejer: person });
+  await logTilEjere(deps, [...foer.ejere, ...nu.ejere], h.medlemmer, T.log.rettedeAndre(navnAf(h.medlemmer, person), nu.navn, aendret));
   notify(deps);
-  return deps.runs.local('ret-ressource', () => faerdig(deps, `Rettet: ${nu.navn}.`));
+  return deps.runs.local('ret-ressource', () => faerdig(deps, husstandTekst().ud.rettet(nu.navn)));
 }
 
 /** "Fjern": the thing goes, with the actor's own upcoming bookings; refused while anyone else's booking, an open clash or an open request depends on it. */
@@ -1035,19 +1045,18 @@ async function fjernRessource(deps: RoomDeps, h: { medlemmer: Medlem[] }, body: 
   const now = deps.now();
   const r = await endre<{ r: Ressource; egne: number; gamle: number }>(deps, (s) => {
     const x = s.ressourcer.find((y) => y.id === id);
-    if (!x) throw new ActionError('Den ting findes ikke (længere).', 404);
-    if (!mig || !maaRetteRessource(x, mig)) throw new ActionError('Kun en ejer af tingen kan fjerne den.', 403);
+    if (!x) throw new ActionError(husstandTekst().fejl.tingFindesIkke, 404);
+    if (!mig || !maaRetteRessource(x, mig)) throw new ActionError(husstandTekst().fejl.kunEjerFjerne, 403);
     const hvorfor = hvorforIkkeFjernes(x, { person, nu: now, sammenfald: s.sammenfald, forespoergsler: s.forespoergsler });
     if (hvorfor) throw new ActionError(hvorfor, 409);
     const egne = x.kalender.filter((b) => Date.parse(b.slut) > now.getTime()).length;
     return { state: { ...s, ressourcer: s.ressourcer.filter((y) => y.id !== id), udkast: s.udkast.filter((u) => u.ressourceId !== id) }, ud: { r: x, egne, gamle: x.kalender.length - egne } };
   });
-  const dele = [...(r.egne ? [`${r.egne} kommende ${r.egne === 1 ? 'booking' : 'bookinger'}`] : []), ...(r.gamle ? [`${r.gamle} overstået${r.gamle === 1 ? '' : 'e'} ${r.gamle === 1 ? 'booking' : 'bookinger'}`] : [])];
-  const bookinger = dele.length ? `, med ${dele.join(' og ')}` : '';
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du fjernede ${r.r.navn} (${SLAGS_BARE[r.r.slags]})${bookinger}`.slice(0, 300), zone: 'privat', ejer: person });
-  await logTilEjere(deps, r.r.ejere, h.medlemmer, `${navnAf(h.medlemmer, person)} fjernede ${r.r.navn}`);
+  const T = husstandTekst();
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.fjernedeRessource(r.r.navn, T.slagsBare[r.r.slags], T.log.bookingerMed(r.egne, r.gamle)).slice(0, 300), zone: 'privat', ejer: person });
+  await logTilEjere(deps, r.r.ejere, h.medlemmer, T.log.fjernedeAndres(navnAf(h.medlemmer, person), r.r.navn));
   notify(deps);
-  return deps.runs.local('fjern-ressource', () => faerdig(deps, `Fjernet: ${r.r.navn}.`));
+  return deps.runs.local('fjern-ressource', () => faerdig(deps, T.ud.fjernet(r.r.navn)));
 }
 
 /** A party's own option of a clash, applied at once; a request already sent from the card is withdrawn (or, its recipient, a no). */
@@ -1057,8 +1066,8 @@ async function vaelg(deps: RoomDeps, h: { medlemmer: Medlem[] }, id: string, val
   const ud = await endre<{ b: Bookinger; lukket: { f: Forespoergsel; slags: Haendelse['slags'] } | null }>(deps, (s) => {
     const sf = findSammenfald(s, id, person, now);
     const valg = sf.valg.find((v) => v.id === valgId);
-    if (!valg) throw new ActionError('Ukendt valg.');
-    if (valg.hvem !== person) throw new ActionError(`Det valg er ${navnAf(h.medlemmer, valg.hvem)}s. Spørg i stedet.`);
+    if (!valg) throw new ActionError(husstandTekst().fejl.ukendtValg);
+    if (valg.hvem !== person) throw new ActionError(husstandTekst().fejl.valgAndens(navnAf(h.medlemmer, valg.hvem)));
     const l = loesSammenfald(s.ressourcer, sf, valg.id, nyBookingId());
     if (!l.ok) throw new ActionError(l.hvorfor, 409);
     const afgjort: Sammenfald = { ...sf, afgjort: { valg: valg.id, af: person, tid: now.toISOString() } };
@@ -1076,7 +1085,7 @@ async function vaelg(deps: RoomDeps, h: { medlemmer: Medlem[] }, id: string, val
   await logBookinger(deps, ud.b, h.medlemmer);
   if (ud.lukket) await logBegge(deps, ud.lukket.f, trinTekst(ud.lukket.f, ud.lukket.slags, person, h.medlemmer));
   notify(deps);
-  return deps.runs.local('sammenfald', () => faerdig(deps, 'Løst.'));
+  return deps.runs.local('sammenfald', () => faerdig(deps, husstandTekst().ud.loest));
 }
 
 /** The other party's option of a clash: a request to them (red), linked to the card so their yes applies it. */
@@ -1085,12 +1094,12 @@ async function spoergAnden(deps: RoomDeps, h: { medlemmer: Medlem[]; state: Huss
   const person = deps.person.id;
   const sf = findSammenfald(h.state, id, person, now);
   const valg = sf.valg.find((v) => v.id === valgId);
-  if (!valg) throw new ActionError('Ukendt valg.');
-  if (valg.hvem === person) throw new ActionError('Det valg er dit eget. Tryk på det direkte.');
+  if (!valg) throw new ActionError(husstandTekst().fejl.ukendtValg);
+  if (valg.hvem === person) throw new ActionError(husstandTekst().fejl.valgDitEget);
   return opretOgSpoerg(deps, h, { til: valg.hvem, titel: spoergTitel(sf, valg, h.state.ressourcer, now), ressourceId: sf.ressourceId }, (s, ny) => {
     const x = findSammenfald(s, id, person, now);
     const f = x.forespId ? s.forespoergsler.find((y) => y.id === x.forespId) : undefined;
-    if (f && beslutter(f) !== null) throw new ActionError(`${navnAf(h.medlemmer, f.fra === person ? f.til : f.fra)} er allerede spurgt. Vent på svaret.`, 409);
+    if (f && beslutter(f) !== null) throw new ActionError(husstandTekst().fejl.alleredeSpurgt(navnAf(h.medlemmer, f.fra === person ? f.til : f.fra)), 409);
     return { ...s, sammenfald: s.sammenfald.map((y) => (y.id === x.id ? { ...y, forespId: ny.id, forespValg: valg.id } : y)) };
   });
 }
@@ -1110,11 +1119,11 @@ export function kommendeWeekend(nu: Date): [string, string] {
 /** An open card the person is a party to. Throws ActionError (404 · 403 · 409). */
 function findKonflikt(s: HusstandState, id: string, person: PersonId, now: Date): Konflikt {
   const k = s.konflikter.find((x) => x.id === id);
-  if (!k) throw new ActionError('Kortet findes ikke (længere).', 404);
-  if (!erPartIKonflikt(k, person)) throw new ActionError('Kortet er ikke dit.', 403);
+  if (!k) throw new ActionError(husstandTekst().fejl.kort404, 404);
+  if (!erPartIKonflikt(k, person)) throw new ActionError(husstandTekst().fejl.kortIkkeDit, 403);
   const status = konfliktStatus(k, s.forespoergsler, now);
-  if (status === 'venter') throw new ActionError('Der er allerede spurgt. Vent på svaret.', 409);
-  if (status !== 'aaben') throw new ActionError('Det er allerede afgjort.', 409);
+  if (status === 'venter') throw new ActionError(husstandTekst().fejl.alleredeSpurgtKort, 409);
+  if (status !== 'aaben') throw new ActionError(husstandTekst().fejl.alleredeAfgjort, 409);
   return k;
 }
 
@@ -1124,7 +1133,7 @@ async function konfliktValg(deps: RoomDeps, h: { medlemmer: Medlem[]; state: Hus
   const person = deps.person.id;
   const k = findKonflikt(h.state, id, person, now);
   const valg = k.valg.find((v) => v.id === valgId);
-  if (!valg) throw new ActionError('Ukendt valg.', 400);
+  if (!valg) throw new ActionError(husstandTekst().fejl.ukendtValg, 400);
   // A window that has already begun is asked about in words only, so the request does not expire before it is answered.
   const tid = Date.parse(k.tid.start) > now.getTime() ? { start: k.tid.start, slut: k.tid.slut } : undefined;
   return opretOgSpoerg(deps, h, { til: andenIKonflikt(k, person), titel: valgTitel(k, valg, person), tid }, (s, ny) => {
@@ -1150,7 +1159,7 @@ function startKonfliktTekst(deps: RoomDeps, k: Konflikt, medlemmer: readonly Med
           });
           notify(deps);
         }
-        return { text: 'Hermes har formuleret weekendkortet.' };
+        return { text: husstandTekst().ud.hermesWeekend };
       },
     });
   } catch (err) {
@@ -1188,8 +1197,9 @@ export async function weekendTjek(deps: RoomDeps): Promise<{ nye: Konflikt[]; ru
   });
   const runs: RunRecord[] = [];
   for (const k of nye) {
-    const t = konfliktResume(k, medlemmer);
-    for (const party of k.parter) await deps.store.appendLog(RUM, { kilde: 'system', tekst: `Weekend: ${t.resume} ${t.spoergsmaal}`.slice(0, 300), zone: 'privat', ejer: party });
+    // The card's words in the language being served; Hermes' prompt (prompt.ts) keeps konfliktResume, which is Danish.
+    const t = konfliktTekstVis(k, medlemmer);
+    for (const party of k.parter) await deps.store.appendLog(RUM, { kilde: 'system', tekst: husstandTekst().log.weekendLinje(t.resume, t.spoergsmaal).slice(0, 300), zone: 'privat', ejer: party });
     const run = startKonfliktTekst(deps, k, medlemmer);
     if (run) runs.push(run);
   }
@@ -1213,12 +1223,13 @@ async function fortrydBooking(deps: RoomDeps, h: { medlemmer: Medlem[] }, linje:
   });
   if (!r) return null;
   await deps.store.updateLog(RUM, linje.id, { fortrudt: now.toISOString() });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Fortrudt: ${linje.tekst}`.slice(0, 300), zone: 'privat', ejer: person });
+  const T = husstandTekst();
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.fortrudt(linje.tekst).slice(0, 300), zone: 'privat', ejer: person });
   for (const sf of r.bortfaldne) {
-    await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `${navnAf(h.medlemmer, person)} gav slip på ${iSaetning(r.res.navn)} ${tidKort(r.b, now)}, så du kan booke den nu.`.slice(0, 300), zone: 'privat', ejer: andenPart(sf, person) });
+    await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: T.log.gavSlipSaaBook(navnAf(h.medlemmer, person), T.iSaet(r.res.navn), tidSaetning(r.b, now)).slice(0, 300), zone: 'privat', ejer: andenPart(sf, person) });
   }
   notify(deps);
-  return deps.runs.local('fortryd', () => faerdig(deps, 'Fortrudt.'));
+  return deps.runs.local('fortryd', () => faerdig(deps, T.ud.fortrudt));
 }
 
 /** Fortryd of "your booking was moved": it goes back to its car, but only while that slot is free there (nobody is displaced). Null = cannot. */
@@ -1235,9 +1246,9 @@ async function fortrydFlyt(deps: RoomDeps, linje: LogEntry, f: { id: string; fra
   });
   if (!ok) return null;
   await deps.store.updateLog(RUM, linje.id, { fortrudt: now.toISOString() });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Fortrudt: ${linje.tekst}`.slice(0, 300), zone: 'privat', ejer: person });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: husstandTekst().log.fortrudt(linje.tekst).slice(0, 300), zone: 'privat', ejer: person });
   notify(deps);
-  return deps.runs.local('fortryd', () => faerdig(deps, 'Fortrudt.'));
+  return deps.runs.local('fortryd', () => faerdig(deps, husstandTekst().ud.fortrudt));
 }
 
 /** Fortryd of "you added a car": it goes again while nothing is booked in it (a card or clash about it goes with it). Null = cannot. */
@@ -1252,16 +1263,16 @@ async function fortrydBil(deps: RoomDeps, linje: LogEntry, bilId: string): Promi
   });
   if (!ok) return null;
   await deps.store.updateLog(RUM, linje.id, { fortrudt: now.toISOString() });
-  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Fortrudt: ${linje.tekst}`.slice(0, 300), zone: 'privat', ejer: person });
+  await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: husstandTekst().log.fortrudt(linje.tekst).slice(0, 300), zone: 'privat', ejer: person });
   notify(deps);
-  return deps.runs.local('fortryd', () => faerdig(deps, 'Fortrudt.'));
+  return deps.runs.local('fortryd', () => faerdig(deps, husstandTekst().ud.fortrudt));
 }
 
 async function startAction(deps: RoomDeps, name: string, body: Record<string, unknown>): Promise<RunRecord | null> {
   if (!(name in AKTION_VERBER)) return null;
   // KC-0154: the role decides first (rettigheder.ts); the invite also works before there is a household to see.
   const handling = AKTION_HANDLING[name];
-  if (!handling || !maaHandle(deps.person, { slags: handling })) throw new ActionError('Din rolle i husstanden må ikke det her.', 403);
+  if (!handling || !maaHandle(deps.person, { slags: handling })) throw new ActionError(husstandTekst().fejl.rolleMaaIkke, 403);
   if (name === 'inviter') return inviter(deps, body);
   const h = await forAktion(deps);
   const person = deps.person.id;
@@ -1269,20 +1280,20 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
   switch (name) {
     case 'opret': {
       const til = h.medlemmer.find((m) => m.id === str(body['til']));
-      if (!til || til.id === person) throw new ActionError('Vælg en anden i husstanden.');
+      if (!til || til.id === person) throw new ActionError(husstandTekst().fejl.vaelgAnden);
       const titel = str(body['titel']).replace(/[\u0000-\u001f\u007f]/g, ' ');
-      if (!titel || titel.length > 200) throw new ActionError('Skriv, hvad du spørger om (højst 200 tegn).');
+      if (!titel || titel.length > 200) throw new ActionError(husstandTekst().fejl.skrivSpoergsmaal);
       return opretOgSpoerg(deps, h, { til: til.id, titel, tid: tidFra(body, deps.now()) });
     }
     case 'svar': {
       const slags = SVAR[str(body['svar'])];
-      if (!slags) throw new ActionError('Ukendt svar.');
+      if (!slags) throw new ActionError(husstandTekst().fejl.ukendtSvar);
       return tryk(deps, id, h, (f) => {
         if (slags !== 'alternativ') return { slags, af: person } as Haendelse;
         if (beslutter(f) !== person) return { slags: 'alternativ', af: person, alternativ: { start: '', slut: '', tekst: '' } };
         const kl = str(body['kl']);
-        const alt = alternativFraKl(f, kl, `Kan ${kl.replace(':', '.')}`);
-        if (!alt) return new ActionError(f.tid ? 'Skriv et klokkeslæt, fx 16.30.' : 'Forespørgslen har intet tidspunkt at flytte.');
+        const alt = alternativFraKl(f, kl, husstandTekst().alternativTekst(kl));
+        if (!alt) return new ActionError(f.tid ? husstandTekst().fejl.skrivKl : husstandTekst().fejl.intetTidspunktFlytte);
         return { slags: 'alternativ', af: person, alternativ: alt };
       });
     }
@@ -1291,9 +1302,9 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     case 'drop': {
       const f = await lukUdloebet(deps, id);
       await endre(deps, (s) => ({ state: lukket(id, deps.now())(s), ud: null }));
-      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: `Du droppede: ${f.titel}`.slice(0, 300), zone: 'privat', ejer: person });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', tekst: husstandTekst().log.droppede(f.titel).slice(0, 300), zone: 'privat', ejer: person });
       notify(deps);
-      return deps.runs.local('foresp', () => faerdig(deps, 'Droppet.'));
+      return deps.runs.local('foresp', () => faerdig(deps, husstandTekst().ud.droppet));
     }
     case 'book':
       return book(deps, h, body);
@@ -1307,11 +1318,11 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     }
     case 'udkast-drop': {
       await endre(deps, (s) => {
-        if (!s.udkast.some((x) => x.id === id && x.af === person)) throw new ActionError('Kortet findes ikke (længere).', 404);
+        if (!s.udkast.some((x) => x.id === id && x.af === person)) throw new ActionError(husstandTekst().fejl.kort404, 404);
         return { state: { ...s, udkast: s.udkast.filter((x) => x.id !== id) }, ud: null };
       });
       notify(deps);
-      return deps.runs.local('udkast', () => faerdig(deps, 'Droppet.'));
+      return deps.runs.local('udkast', () => faerdig(deps, husstandTekst().ud.droppet));
     }
     case 'tilfoej-ressource':
       return tilfoejRessource(deps, h, body);
@@ -1331,7 +1342,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
       return fjernMedlem(deps, body);
     case 'spoerg-igen': {
       const f = await lukUdloebet(deps, id);
-      if (f.tid && Date.parse(f.tid.start) <= deps.now().getTime()) throw new ActionError('Tidspunktet er gået. Spørg på ny med et nyt tidspunkt.', 409);
+      if (f.tid && Date.parse(f.tid.start) <= deps.now().getTime()) throw new ActionError(husstandTekst().fejl.tidGaaetSpoergNy, 409);
       return opretOgSpoerg(deps, h, { til: f.til, titel: f.titel, tid: f.tid }, lukket(id, deps.now()));
     }
   }
@@ -1378,9 +1389,10 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
   if (!r) return null;
   await deps.store.updateLog(RUM, logId, { fortrudt: now.toISOString() });
   const navn = navnAf(h.medlemmer, person);
-  await logBegge(deps, r, (p) => (m.n === 1 ? (p === person ? `Du trak forespørgslen tilbage: ${r.titel}` : `${navn} trak forespørgslen tilbage: ${r.titel}`) : (p === person ? `Du fortrød dit svar: ${r.titel}` : `${navn} fortrød sit svar: ${r.titel}`)));
+  const L = husstandTekst().log;
+  await logBegge(deps, r, (p) => (m.n === 1 ? (p === person ? L.duTrakTilbage(r.titel) : L.hunTrakTilbage(navn, r.titel)) : (p === person ? L.duFortrod(r.titel) : L.hunFortrod(navn, r.titel))));
   notify(deps);
-  return deps.runs.local('fortryd', () => faerdig(deps, 'Fortrudt.'));
+  return deps.runs.local('fortryd', () => faerdig(deps, husstandTekst().ud.fortrudt));
 }
 
 /** Kræver dig on Nu: what the person decides now, and an expired request of theirs nobody answered. */
@@ -1393,21 +1405,21 @@ async function hjemVenter(deps: RoomDeps): Promise<{ roomId: string; tekst: stri
   const now = deps.now();
   // KC-0150: an open clash is a decision for exactly its two parties.
   const sammenfald = h.state.sammenfald.filter((s) => erPartI(s, p) && aabenSammenfald(s, now)).map((s) => ({
-    roomId: RUM, tekst: T.nuDobbeltbooket(rNavnVis(h.state.ressourcer, s.ressourceId), tidKortVis(s.ny, now), navnVis(h.medlemmer, andenPart(s, p))),
+    roomId: RUM, tekst: T.nuDobbeltbooket(rNavnAf(h.state.ressourcer, s.ressourceId), tidKort(s.ny, now), navnAf(h.medlemmer, andenPart(s, p))),
   }));
   // KC-0151: a booking card waits for this person's tap.
   const kort = h.state.udkast.filter((u) => u.af === p && udkastAabent(u, now) && h.state.ressourcer.some((r) => r.id === u.ressourceId)).map((u) => ({
-    roomId: RUM, tekst: T.nuBekraeft(rNavnVis(h.state.ressourcer, u.ressourceId), tidKortVis(u, now)),
+    roomId: RUM, tekst: T.nuBekraeft(rNavnAf(h.state.ressourcer, u.ressourceId), tidKort(u, now)),
   }));
   // KC-0152: an open weekend card is a decision for exactly its two adults (once a request waits, that request is the line).
   const weekend = h.state.konflikter.filter((k) => erPartIKonflikt(k, p) && konfliktStatus(k, h.state.forespoergsler, now) === 'aaben').map((k) => ({
-    roomId: RUM, tekst: T.nuWeekend(konfliktTekstVis(k, h.medlemmer).spoergsmaal, tidSagVis(k), navnVis(h.medlemmer, andenIKonflikt(k, p))),
+    roomId: RUM, tekst: T.nuWeekend(konfliktTekstVis(k, h.medlemmer).spoergsmaal, tidSagVis(k), navnAf(h.medlemmer, andenIKonflikt(k, p))),
   }));
   return [...kort, ...sammenfald, ...weekend, ...h.state.forespoergsler.flatMap((f) => {
     const mind = erPaamindet(f) ? T.nuPaamindelse : '';
-    if (beslutter(f) === p && f.tilstand === 'spurgt') return [{ roomId: RUM, tekst: T.nuSpoerger(mind, navnVis(h.medlemmer, f.fra), f.titel) }];
-    if (beslutter(f) === p && f.tilstand === 'alternativ') return [{ roomId: RUM, tekst: T.nuForeslaar(mind, navnVis(h.medlemmer, f.til), f.titel) }];
-    if (f.fra === p && ubesvaret(f)) return [{ roomId: RUM, tekst: T.nuIngenSvar(navnVis(h.medlemmer, f.til), f.titel) }];
+    if (beslutter(f) === p && f.tilstand === 'spurgt') return [{ roomId: RUM, tekst: T.nuSpoerger(mind, navnAf(h.medlemmer, f.fra), f.titel) }];
+    if (beslutter(f) === p && f.tilstand === 'alternativ') return [{ roomId: RUM, tekst: T.nuForeslaar(mind, navnAf(h.medlemmer, f.til), f.titel) }];
+    if (f.fra === p && ubesvaret(f)) return [{ roomId: RUM, tekst: T.nuIngenSvar(navnAf(h.medlemmer, f.til), f.titel) }];
     return [];
   })];
 }
@@ -1421,7 +1433,7 @@ async function hjemIgang(deps: RoomDeps): Promise<{ roomId: string; tekst: strin
   return h.state.forespoergsler.flatMap((f) => {
     const b = beslutter(f);
     if (b === null || b === p || !erPart(f, p)) return [];
-    return [{ roomId: RUM, tekst: f.tilstand === 'spurgt' ? T.nuIkkeSvaretEndnu(navnVis(h.medlemmer, f.til), f.titel) : T.nuIkkeSvaretPaaForslag(navnVis(h.medlemmer, f.fra), f.titel) }];
+    return [{ roomId: RUM, tekst: f.tilstand === 'spurgt' ? T.nuIkkeSvaretEndnu(navnAf(h.medlemmer, f.til), f.titel) : T.nuIkkeSvaretPaaForslag(navnAf(h.medlemmer, f.fra), f.titel) }];
   });
 }
 
@@ -1439,7 +1451,7 @@ async function tik(deps: RoomDeps): Promise<void> {
     });
     return aendret ? { state: { ...s, forespoergsler }, ud: { aendret, udloebne } } : { ud: { aendret, udloebne } };
   });
-  for (const f of udloebne.udloebne) await logBegge(deps, f, () => `Udløb uden svar: ${f.titel}`, { kilde: 'system' });
+  for (const f of udloebne.udloebne) await logBegge(deps, f, () => husstandTekst().log.udloeb(f.titel), { kilde: 'system' });
   if (udloebne.aendret) notify(deps);
   // KC-0153: replies on the go-between's channel (read only; the clock never sends).
   await laesKanalSvar(deps);
@@ -1462,7 +1474,7 @@ async function fil(deps: RoomDeps, name: string): Promise<{ content: string; con
     await endre(deps, (s) => ({ state: { ...s, forespoergsler: s.forespoergsler.map((x) => (x.id === f.id ? { ...x, iKalender: [...new Set([...(x.iKalender ?? []), person])] } : x)) }, ud: null }));
     notify(deps);
   }
-  const content = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Clawco//Husstanden//DA', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+  const content = ['BEGIN:VCALENDAR', 'VERSION:2.0', `PRODID:-//Clawco//Husstanden//${sprogNu().toUpperCase()}`, 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
     `UID:${f.id}@clawco`, `DTSTAMP:${icsTid(deps.now().toISOString())}`, `DTSTART:${icsTid(t.start)}`, `DTEND:${icsTid(t.slut)}`,
     `SUMMARY:${icsTekst(f.titel)}`, 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
   return { content, contentType: 'text/calendar; charset=utf-8', filename: name };
@@ -1470,14 +1482,14 @@ async function fil(deps: RoomDeps, name: string): Promise<{ content: string; con
 
 async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
   const h = await forPersonen(deps);
-  if (!h) throw new ActionError('Husstanden findes ikke her');
+  if (!h) throw new ActionError(husstandTekst().ikkeHerTitel);
   const uge = await ugen(deps, h.medlemmer, h.state);
   await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
   return deps.runs.start({
     kind: 'chat',
     spec: buildHusstandChatRun(besked, kontekst, h.medlemmer, uge, h.state.ressourcer, deps.now()),
     onDone: async (output) => {
-      let text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || '(intet svar)';
+      let text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || husstandTekst().ud.ingenSvar;
       // KC-0151: only the four fields of a booking block count; the app turns them into a card, or says why not.
       const oensk = parseBookingSvar(output);
       if (oensk) {

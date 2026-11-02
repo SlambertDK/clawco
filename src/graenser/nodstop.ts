@@ -11,12 +11,15 @@ import path from 'node:path';
 import { kan } from '../identitet/roller.ts';
 import type { Person } from '../identitet/husstand.ts';
 import type { Kanal, Revisionslog } from './revisionslog.ts';
+import { GRAENSER_TEKSTER, graenserTekst } from './tekster.ts';
 
-export const PAUSE_TEKST = 'Clawco er sat på pause';
+/** The pause sentence in Danish (the constant a caller compares with); `pauseTekst()` is the one in the language of the request (KC-0170). */
+export const PAUSE_TEKST = GRAENSER_TEKSTER.da.pause;
+export const pauseTekst = (): string => graenserTekst().pause;
 
 /** A run asked for while Clawco is paused. The server answers 503 with the message. */
 export class PauseFejl extends Error {
-  constructor() { super(PAUSE_TEKST); this.name = 'PauseFejl'; }
+  constructor() { super(pauseTekst()); this.name = 'PauseFejl'; }
 }
 
 /** A person whose role may not stop or resume. The server answers 403 with the message. */
@@ -84,17 +87,17 @@ type Hvem = { runs: Stopbar; revision?: Revisionslog | undefined; person: Person
 
 /** "Stop alt": any non-guest. Stops everything, then writes one audit line. Returns how many runs were stopped. */
 export async function stopAlt(o: Hvem): Promise<number> {
-  if (!kan(o.person.rolle, 'nodstop')) throw new NodstopNaegtet('Din rolle i husstanden kan ikke stoppe Clawco.');
+  if (!kan(o.person.rolle, 'nodstop')) throw new NodstopNaegtet(graenserTekst().rolleKanIkkeStoppe);
   const stoppede = await o.runs.stopAlle(o.person.id);
-  await o.revision?.skriv({ person: o.person.id, kanal: o.kanal, rum: 'alle', verb: 'stop', udfald: 'stop', hvorfor: stoppede === 0 ? 'Stop alt: intet var i gang.' : stoppede === 1 ? 'Stop alt: 1 opgave blev standset.' : `Stop alt: ${stoppede} opgaver blev standset.`, zoner: [], kilde: 'nodstop' });
+  await o.revision?.skriv({ person: o.person.id, kanal: o.kanal, rum: 'alle', verb: 'stop', udfald: 'stop', hvorfor: stoppede === 0 ? graenserTekst().stopIntet : stoppede === 1 ? graenserTekst().stopEn : graenserTekst().stopFlere(stoppede), zoner: [], kilde: 'nodstop' });
   return stoppede;
 }
 
 /** "Start igen": the owner only. A resume when nothing is paused does nothing and writes nothing. Returns whether it resumed. */
 export async function startIgen(o: Hvem): Promise<boolean> {
-  if (!kan(o.person.rolle, 'genoptag')) throw new NodstopNaegtet('Kun ejeren kan starte Clawco igen.');
+  if (!kan(o.person.rolle, 'genoptag')) throw new NodstopNaegtet(graenserTekst().kunEjerenStarter);
   if (!o.runs.paaPause()) return false;
   await o.runs.genoptag(o.person.id);
-  await o.revision?.skriv({ person: o.person.id, kanal: o.kanal, rum: 'alle', verb: 'genoptag', udfald: 'genoptag', hvorfor: 'Start igen: Clawco arbejder igen.', zoner: [], kilde: 'nodstop' });
+  await o.revision?.skriv({ person: o.person.id, kanal: o.kanal, rum: 'alle', verb: 'genoptag', udfald: 'genoptag', hvorfor: graenserTekst().startIgen, zoner: [], kilde: 'nodstop' });
   return true;
 }

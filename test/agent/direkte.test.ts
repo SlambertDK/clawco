@@ -6,7 +6,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createDirekte, TID, UDEN_VAERKTOEJ, type DirekteFejlArt, type DirekteUdbyder } from '../../src/agent/direkte.ts';
+import { createDirekte, UDEN_VAERKTOEJ, type DirekteFejlArt, type DirekteUdbyder } from '../../src/agent/direkte.ts';
 import { envNoegleLager, type NoegleLager } from '../../src/agent/noeglelager.ts';
 import { AFBRUDT, AgentError, type AgentEvent } from '../../src/agent/types.ts';
 import { anthropicStream, openaiStream, startFalskUdbyder, type FalskSvar, type Modtaget } from '../helpers/falsk-udbyder.ts';
@@ -152,7 +152,7 @@ test("the agent's own timer stops a model that never finishes: the Danish time s
     await s.lager.saet('anthropic', NOEGLE);
     const err = await s.agent.run({ instructions: 'S', input: 'I', model: 'm', provider: 'anthropic' }).catch((e: unknown) => e);
     assert.ok(err instanceof AgentError);
-    assert.equal(err.message, TID);
+    assert.equal(err.message, 'Modellen svarede ikke i tide.');
   }, { timeoutMs: 150 });
 });
 

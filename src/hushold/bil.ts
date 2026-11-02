@@ -4,6 +4,7 @@
 // only a person's tap on the card books. Pure: no I/O, the clock passed in.
 
 import { koebenhavnTilIso } from '../shell/tid.ts';
+import { husstandTekst } from './tekster.ts';
 import type { PersonId, Ressource, Tidsrum } from './ressource.ts';
 
 /** How far ahead a booking may be asked for, and how long one may last. */
@@ -48,15 +49,16 @@ const afvist = (hvorfor: string): Afvist => ({ ok: false, hvorfor });
 
 /** The wish checked against the stored resources and the clock: a known resource, readable times, start before end, in the future, at most 14 days ahead. */
 export function valider(o: BookingOensker, ressourcer: readonly Ressource[], nu: Date): Valideret | Afvist {
+  const T = husstandTekst();
   const r = ressourcer.find((x) => x.id === o.ressource);
-  if (!r) return afvist('Den ting findes ikke (længere).');
+  if (!r) return afvist(T.fejl.tingFindesIkke);
   const start = tidAf(o.start), slut = tidAf(o.slut);
-  if (!start || !slut) return afvist('Jeg kunne ikke læse tidspunktet.');
-  if (Date.parse(slut) <= Date.parse(start)) return afvist('Slut skal være efter start.');
-  if (Date.parse(start) <= nu.getTime()) return afvist('Tidspunktet er allerede gået.');
-  if (Date.parse(start) > nu.getTime() + MAX_FREM_DAGE * 86_400_000) return afvist(`Jeg booker højst ${MAX_FREM_DAGE} dage frem.`);
-  if (Date.parse(slut) - Date.parse(start) > MAX_VARIGHED_DAGE * 86_400_000) return afvist(`Bookingen er for lang (højst ${MAX_VARIGHED_DAGE} dage).`);
-  return { ok: true, r, tid: { start, slut }, titel: ren(o.titel).slice(0, 200) || 'Tur' };
+  if (!start || !slut) return afvist(T.fejl.kunneIkkeLaese);
+  if (Date.parse(slut) <= Date.parse(start)) return afvist(T.fejl.slutEfterStart);
+  if (Date.parse(start) <= nu.getTime()) return afvist(T.fejl.tidGaaet);
+  if (Date.parse(start) > nu.getTime() + MAX_FREM_DAGE * 86_400_000) return afvist(T.fejl.maxFrem(MAX_FREM_DAGE));
+  if (Date.parse(slut) - Date.parse(start) > MAX_VARIGHED_DAGE * 86_400_000) return afvist(T.fejl.forLang(MAX_VARIGHED_DAGE));
+  return { ok: true, r, tid: { start, slut }, titel: ren(o.titel).slice(0, 200) || T.turTitel };
 }
 
 /** A draft shows until its start, and for 24 hours. */
