@@ -122,7 +122,7 @@ export function vogt(m: RoomModule, o: { tegn?: Tegn; rapporter?: Sink } = {}): 
     vogtet.aktion = async (d, name, body, i) => {
       const verb = m.aktionVerber?.[name];
       if (!verb) return null; // an action the room does not name a verb for never runs
-      return gennem(d, f(aktionId(name, body), verb), 'aktion', i, () => startAction.call(m, d, name, body), o);
+      return gennem(d, { ...f(aktionId(name, body), verb), ...(m.aktionTap?.includes(name) ? { tap: true as const } : {}) }, 'aktion', i, () => startAction.call(m, d, name, body), o);
     };
   }
   return vogtet;

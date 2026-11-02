@@ -12,7 +12,9 @@
 # CLAWCO_LABEL. opdater.sh sources this file with CLAWCO_FUNKTIONER=1 (main then
 # returns at once) so the service handling exists in one place. Test hooks only:
 # CLAWCO_GENSTART (a command that replaces the service restart),
-# CLAWCO_HEALTH_KOMMANDO (replaces the /health probe), CLAWCO_VENTETID (s), CLAWCO_VENTEPAUSE (s).
+# CLAWCO_HEALTH_KOMMANDO (replaces the /health probe), CLAWCO_VENTETID (s), CLAWCO_VENTEPAUSE (s),
+# CLAWCO_TAILSCALE (ingen|findes: replaces the Tailscale lookup) and CLAWCO_BAERBAR_SVAR (j|n: answers the
+# laptop-mode question without a terminal; never read together with --yes).
 # Must stay bash 3.2 compatible (macOS /bin/bash): no associative arrays.
 set -euo pipefail
 
@@ -26,7 +28,7 @@ Brug: install.sh [valg]
   --yes            ingen spørgsmål; standardværdier
   --dry-run        vis planen, ændr intet
   --no-service     installer ikke baggrundstjenesten
-  --laptop         bærbar-tilstand (kommer senere)
+  --laptop         bærbar-tilstand: kun denne maskine, én bruger, ingen Tailscale nødvendig
   --port N         porten Clawco lytter på
   --data-dir DIR   brugermappen (dine data)
   --agent-url URL  (avanceret) adressen på din agent; nøglen læses skjult
@@ -84,12 +86,20 @@ spoerg() {
   printf '%s' "${svar:-$2}"
 }
 
+# Whether Tailscale is on this machine: the CLI on PATH, or the Mac app that bundles it (CLAWCO_TAILSCALE replaces this in tests).
+har_tailscale() {
+  case "${CLAWCO_TAILSCALE:-}" in findes) return 0;; ingen) return 1;; esac
+  command -v tailscale >/dev/null 2>&1 || [ -x /Applications/Tailscale.app/Contents/MacOS/Tailscale ]
+}
+
 # The value the installer sets for KEY (in VAERDI), or return 1 to leave it out.
 vaerdi_for() {
   case "$1" in
     KC_PORT) VAERDI=$PORT;;
     KC_DATA_DIR) VAERDI=$DATA;;
     KC_ENV_FILE) VAERDI=$ENV_FIL;;
+    KC_LAPTOP) [ "$BAERBAR" = 1 ] || return 1; VAERDI=ja;;
+    KC_HOST) [ "$BAERBAR" = 1 ] || return 1; VAERDI=127.0.0.1;;
     KC_AGENT) [ -n "$AGENT_URL" ] || return 1; VAERDI=hermes-http;;
     KC_HERMES_URL) [ -n "$AGENT_URL" ] || return 1; VAERDI=$AGENT_URL;;
     KC_HERMES_API_KEY) [ -n "$AGENT_URL" ] || return 1; VAERDI=$NOEGLE;;
@@ -116,7 +126,7 @@ skriv_env() {
       esac
     done <"$eksempel"
   } >>"$tmp"
-  for noegle in KC_PORT KC_DATA_DIR KC_ENV_FILE KC_AGENT KC_HERMES_URL KC_HERMES_API_KEY; do
+  for noegle in KC_PORT KC_DATA_DIR KC_ENV_FILE KC_LAPTOP KC_HOST KC_AGENT KC_HERMES_URL KC_HERMES_API_KEY; do
     vaerdi_for "$noegle" || continue
     case "$saet" in *" $noegle "*) ;; *) rm -f "$tmp"; fejl "Installeren og .env.example er uenige: $noegle findes ikke i $eksempel.";; esac
   done
@@ -219,9 +229,15 @@ vent_paa_health() {
   return 1
 }
 
+# What laptop mode means for the phone, in plain words (printed when the install is done, with or without the service).
+baerbar_besked() {
+  info "Bærbar-tilstand: Clawco lytter kun på denne maskine (127.0.0.1), som én bruger. Uden Tailscale kan telefonen ikke nå Clawco; med Tailscale kan den, men kun når den bærbare er vågen. Start-rummet viser, hvordan."
+  info "Vil du holde den bærbare vågen, er det dit eget valg (fx med caffeinate på en Mac); Clawco gør det aldrig i det skjulte."
+}
+
 main() {
   [ -z "${CLAWCO_FUNKTIONER:-}" ] || return 0 # sourced by opdater.sh: only the functions are wanted
-  local JA=0 TOER=0 UDEN_SERVICE=0 BAERBAR=0 PORT='' DATA='' AGENT_URL='' NOEGLE='' VAERDI='' NODE_VERSION=''
+  local JA=0 TOER=0 UDEN_SERVICE=0 BAERBAR=0 PORT='' DATA='' AGENT_URL='' NOEGLE='' VAERDI='' NODE_VERSION='' ENV_BAERBAR='' SVAR=''
   while [ $# -gt 0 ]; do
     case "$1" in
       --yes|-y) JA=1;;
@@ -256,18 +272,28 @@ main() {
   local INTERAKTIV=0
   if [ "$JA" = 0 ] && [ "$TOER" = 0 ] && (exec </dev/tty) 2>/dev/null; then INTERAKTIV=1; fi
   if [ -f "$ENV_FIL" ]; then
-    [ -z "$PORT$DATA$AGENT_URL" ] || info "Bemærk: $ENV_FIL findes og bestemmer port, brugermappe og agent; dine valg på kommandolinjen bruges ikke."
+    ENV_BAERBAR=$(vaerdi_i KC_LAPTOP "$ENV_FIL")
+    if [ -n "$PORT$DATA$AGENT_URL" ] || { [ "$BAERBAR" = 1 ] && [ "$ENV_BAERBAR" != ja ]; }; then
+      info "Bemærk: $ENV_FIL findes og bestemmer port, brugermappe, agent og bærbar-tilstand; dine valg på kommandolinjen bruges ikke."
+    fi
     PORT=$(vaerdi_i KC_PORT "$ENV_FIL"); DATA=$(vaerdi_i KC_DATA_DIR "$ENV_FIL"); AGENT_URL=''
+    BAERBAR=0; [ "$ENV_BAERBAR" != ja ] || BAERBAR=1
   elif [ "$INTERAKTIV" = 1 ]; then
     [ -n "$PORT" ] || PORT=$(spoerg "Hvilken port skal Clawco lytte på? (Enter = standard)" "")
     [ -n "$DATA" ] || DATA=$(spoerg "Hvor skal dine data ligge (brugermappen)?" "$HJEM/data")
+  fi
+  # KC-0160: no Tailscale here: suggest laptop mode. Only the user's own yes turns it on (never --yes alone).
+  if [ ! -f "$ENV_FIL" ] && [ "$BAERBAR" = 0 ] && [ "$TOER" = 0 ] && [ "$JA" = 0 ] && { [ "$INTERAKTIV" = 1 ] || [ -n "${CLAWCO_BAERBAR_SVAR:-}" ]; } && ! har_tailscale; then
+    info "Tailscale er ikke fundet på denne maskine."
+    info "Bærbar-tilstand installerer Clawco kun til denne maskine og til én bruger. Uden Tailscale kan telefonen ikke nå Clawco; med Tailscale kan den, men kun når den bærbare er vågen."
+    if [ -n "${CLAWCO_BAERBAR_SVAR:-}" ]; then SVAR=$CLAWCO_BAERBAR_SVAR; else SVAR=$(spoerg "Installér i bærbar-tilstand? (j/n)" "n"); fi
+    case "$SVAR" in j|J|ja|Ja|JA|y|Y|yes) BAERBAR=1;; esac
   fi
   DATA=$(absolut "${DATA:-$HJEM/data}")
   case "$PORT" in '') ;; *[!0-9]*) fejl "Porten skal være et tal mellem 1 og 65535 (fik: $PORT).";; *) [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || fejl "Porten skal være et tal mellem 1 og 65535 (fik: $PORT).";; esac
   case "$DATA/" in "$APP/"*) fejl "Brugermappen ($DATA) må ikke ligge i kodemappen ($APP): koden udskiftes ved opdatering, dine data må ikke.";; esac
   case "$APP/" in "$DATA/"*) fejl "Brugermappen ($DATA) må ikke indeholde kodemappen ($APP). Vælg en anden mappe med --data-dir.";; esac
   case "$AGENT_URL" in ''|http://*|https://*) ;; *) fejl "--agent-url skal begynde med http:// eller https:// (fik: $AGENT_URL).";; esac
-  [ "$BAERBAR" = 0 ] || info "Bærbar-tilstand (--laptop) kommer senere; Clawco installeres som almindeligt."
 
   local VIS_PORT=$PORT
   if [ -z "$VIS_PORT" ] && [ -f "$APP/.env.example" ]; then VIS_PORT=$(vaerdi_i KC_PORT "$APP/.env.example"); fi
@@ -279,6 +305,7 @@ main() {
     info "  3. Afhængigheder: npm ci --omit=dev i $APP"
     if [ -f "$ENV_FIL" ]; then info "  4. Brugermappe: $DATA; indstillinger: $ENV_FIL findes og beholdes"
     else info "  4. Brugermappe: $DATA; indstillinger: $ENV_FIL (ny, kun læsbar for dig)"; fi
+    if [ "$BAERBAR" = 1 ]; then info "     Bærbar-tilstand: Clawco lytter kun på 127.0.0.1 (kun denne maskine), som én bruger uden login (KC_LAPTOP=ja i .env)"; fi
     if [ "$UDEN_SERVICE" = 1 ]; then info "  5. Baggrundstjeneste: springes over (--no-service)"
     elif [ "$OS" = Darwin ]; then info "  5. Baggrundstjeneste: launchd-agent $SERVICE_FIL"
     else info "  5. Baggrundstjeneste: systemd-brugertjeneste $SERVICE_FIL"; fi
@@ -345,6 +372,7 @@ main() {
   if [ "$UDEN_SERVICE" = 1 ]; then
     trin 5 "Baggrundstjeneste: springes over (--no-service)"
     info "Start Clawco selv med: cd \"$APP\" && node --env-file=\"$ENV_FIL\" src/server.ts"
+    if [ "$BAERBAR" = 1 ]; then baerbar_besked; fi
     return 0
   fi
   trin 5 "Baggrundstjeneste"
@@ -358,7 +386,8 @@ main() {
   SHA=$(vent_paa_health "$URL/health" "$(git -C "$APP" rev-parse --short HEAD)") || fejl "Clawco svarer ikke på $URL/health efter 30 sekunder." "Se loggen: $([ "$OS" = Darwin ] && echo "$LOGMAPPE/clawco.log" || echo "journalctl --user -u $LABEL")"
   SHA=${SHA%% *}
   info "Clawco kører (version $SHA). Åbn: $URL/"
-  if command -v tailscale >/dev/null 2>&1; then
+  if [ "$BAERBAR" = 1 ]; then baerbar_besked
+  elif command -v tailscale >/dev/null 2>&1; then
     info "Tailscale fundet: 'tailscale serve --bg $PORT' gør Clawco tilgængelig på dit tailnet."
   fi
 }

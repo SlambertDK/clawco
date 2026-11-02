@@ -24,6 +24,7 @@ import { KILDE_TILSTANDE } from '../../src/shell/kilder.ts';
 import { OMKOSTNING_SAMLET } from '../../src/shell/omkostninger.ts';
 import { alleTrin } from '../../src/rooms/start/trin.ts';
 import { TILSTANDE as FORESP_TILSTANDE } from '../../src/hushold/foresp.ts';
+import { TS_TILSTANDE } from '../../src/shell/tailscale.ts';
 
 const rod = await mkdtemp(path.join(tmpdir(), 'kc-daekning-'));
 after(() => rm(rod, { recursive: true, force: true }));
@@ -67,7 +68,7 @@ test('DAEKNING lists every value of every derived source, each once', () => {
     ['rum', [...ROOMS.filter((r) => r.built).map((r) => r.id), ...ROOM_MODULES.map((m) => m.id)]],
     ['tone', TONER], ['zone', ZONER], ['billede', BILLEDER],
     ['kort', TYPER], ['regnskab', HVOR], ['art', ART], ['opgave', STATUSSER], ['rolle', ROLLER], ['husstand-rolle', ROLLER], ['datazone', DATAZONER],
-    ['situation', SITUATION_IDER], ['blok', BYGGET], ['kilde-tilstand', KILDE_TILSTANDE], ['omkostninger', OMKOSTNING_SAMLET], ['foresp', FORESP_TILSTANDE],
+    ['situation', SITUATION_IDER], ['blok', BYGGET], ['kilde-tilstand', KILDE_TILSTANDE], ['omkostninger', OMKOSTNING_SAMLET], ['foresp', FORESP_TILSTANDE], ['tailscale', TS_TILSTANDE],
   ];
   for (const [praefiks, vaerdier] of kilder) {
     for (const v of vaerdier) {

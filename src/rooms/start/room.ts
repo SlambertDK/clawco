@@ -26,6 +26,8 @@ import { kildeKontekst, kildeVisning, springOver } from './vaerdi.ts';
 import { flereKilderKoe } from './trin.ts';
 import { IMPORT_AKTIONER, IMPORT_LABEL, importAktion, importFortryd, importKvitteringer, rydGamleUploads, type Hjaelp as ImportHjaelp } from './import/handlinger.ts';
 import type { ImportVisning } from './import/render.ts';
+import { visTailscaleKort } from './tailscalekort.ts';
+import { TsFejl } from '../../shell/tailscale.ts';
 
 const RUM = 'start';
 /** How long worked-out suggestions are kept before the sources are asked again. */
@@ -128,6 +130,13 @@ async function importSyn(deps: RoomDeps, s: StartState, model: ModelSyn | undefi
   } };
 }
 
+/** KC-0161: the Tailscale card's data — the CLI's state now, shown only while it is relevant (tailscalekort.ts visTailscaleKort). */
+async function tailscaleSyn(deps: RoomDeps, faerdig: boolean): Promise<Pick<StartVisning, 'tailscale'>> {
+  const syn = await deps.tailscale?.laes().catch(() => null);
+  if (!syn || !visTailscaleKort(syn, faerdig)) return {};
+  return { tailscale: { syn, kanDele: kan(deps.person.rolle, 'aendre-indstillinger') } };
+}
+
 async function view(deps: RoomDeps): Promise<RoomView> {
   let s = await laesState(deps);
   if (!s) { s = ny(deps.now()); await deps.store.writeState(RUM, s); } // the first visit: the journey has begun
@@ -150,6 +159,8 @@ async function view(deps: RoomDeps): Promise<RoomView> {
     main: renderStart({
       foersteRet: await foersteRetSyn(deps, s),
       ...(await importSyn(deps, s, ctx.model)),
+      ...(await tailscaleSyn(deps, faerdig)),
+      ...(deps.laptop?.() ? { laptop: true } : {}),
       trin, profil: ctx.profil, forslag, log, now: deps.now(), igang: deps.runs.igang(RUM), venter,
       standardNavn: p.rolle === 'ejer' && p.id !== ENEBRUGER.id ? p.navn : '',
       kanGemme: kan(p.rolle, 'aendre-indstillinger') && Boolean(deps.profil),
@@ -189,7 +200,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
       // AGENTS §1: the undo restores the previous profile (none = back to no profile).
       await deps.store.appendLog(RUM, {
         kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'velkommen-gem', fortryd: `lokal:${JSON.stringify({ forrige })}`,
-        tekst: `Gemte profilen: ${profil.navn}, Hermes svarer på ${SPROG_NAVN[profil.sprog]}, ${profil.husstand === 'husstand' ? 'en husstand' : 'alene'}.`,
+        tekst: `Gemte profilen: ${profil.navn}, Hermes svarer på ${SPROG_NAVN[profil.sprog]}${deps.laptop?.() ? '' : `, ${profil.husstand === 'husstand' ? 'en husstand' : 'alene'}`}.`, // KC-0160: no household wording in laptop mode
       });
       return faerdigt(deps, 'Gemt. Velkommen.');
     }, { room: RUM, label: 'Start: gemmer profilen' });
@@ -226,6 +237,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     return importAktion(deps, name, body, importHjaelp, { status: t?.status, titel: t?.trin.titel ?? 'Tag det med' });
   }
   if (name === 'model-gem' || name === 'model-test' || name === 'model-agent-noegle') return modelAktion(deps, name, body);
+  if (name === 'tailscale-del') return tailscaleDel(deps, body);
   if (name === 'kilde-spring-over') {
     if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren vælger kilderne.');
     const kildeId = str(body['kildeId'], 40);
@@ -235,6 +247,32 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     return deps.runs.local('afvis', async () => faerdigt(deps, `${await springOver(deps, kildeId, ctx)} er sprunget over.`), { room: RUM, label: 'Start: springer en kilde over' });
   }
   return null;
+}
+
+/**
+ * KC-0161: "Del Clawco på dit tailnet" — `tailscale serve --bg <port>` for the configured port, nothing else. It got
+ * here only through the policy layer with a redeemed human-tap token (aktionTap); the body must name exactly the port
+ * the card showed, and the state must still be klar. Tailscale's own text never reaches the page (TsFejl is ours).
+ */
+async function tailscaleDel(deps: RoomDeps, body: Record<string, unknown>): Promise<RunRecord> {
+  const p = deps.person;
+  const t = deps.tailscale;
+  if (!t) throw new ActionError('Clawco kan ikke dele på tailnettet fra den her installation.');
+  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError('Kun ejeren kan dele Clawco på tailnettet.');
+  const felter = Object.keys(body).filter((k) => k !== 'ja');
+  if (felter.length !== 1 || felter[0] !== 'port' || body['port'] !== t.port) throw new ActionError(`Knappen passer ikke til Clawcos port (${t.port}). Åbn Start igen.`);
+  if ((await t.laes()).tilstand !== 'klar') throw new ActionError('Clawco kan kun deles, når Tailscale er logget ind, og Clawco ikke allerede er delt.');
+  return deps.runs.local('gem', async () => {
+    try {
+      const efter = await t.del();
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'tailscale-del', tekst: `Delte Clawco på tailnettet (tailscale serve --bg ${t.port})${efter.adresse ? `: ${efter.adresse}` : ''}.` });
+      return faerdigt(deps, efter.tilstand === 'delt' ? 'Clawco er delt på dit tailnet.' : 'Kommandoen er kørt. Åbn Start igen for at se, om Tailscale har delt Clawco.');
+    } catch (err) {
+      if (!(err instanceof TsFejl)) throw err;
+      await deps.store.appendLog(RUM, { kilde: 'system', zone: KORSEL, ejer: p.id, handlingId: 'tailscale-del', tekst: `Ikke gjort: ${err.message}` });
+      throw new Error(err.message);
+    }
+  }, { room: RUM, label: 'Start: deler Clawco på tailnettet' });
 }
 
 /** KC-0130: the user's Ja or Nej on E4's proposal. Only the proposal on offer now matches; a Ja calls E4's opretRegel once. */
@@ -386,7 +424,8 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
 export const startRoom: RoomModule = {
   id: RUM,
   korsel: KORSEL,
-  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'regel-ja': 'bogfoer', 'regel-nej': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer' },
+  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'regel-ja': 'bogfoer', 'regel-nej': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd' },
+  aktionTap: ['tailscale-del'],
   view,
   startOpdater: async () => null,
   startHandling: async () => null,

@@ -26,6 +26,7 @@ import { udpak } from '../../agent/udtroet.ts';
 import type { AgentRunRequest } from '../../agent/types.ts';
 import type { ImportBunke } from '../../rooms/start/schema.ts';
 import { fenced } from './faelles.ts';
+import { erTailscaleMoment, KOLD_TAILSCALE } from './tailscale.ts'; // KC-0161
 
 /** KC-0135: the cold moment where the Google calendar is connected (so the world's Google app is set up) and mail is not. */
 export const KOLD_GOOGLE = 'kold-google';
@@ -55,6 +56,7 @@ export const KOLD_START: readonly Moment[] = [
   { id: 'kold-model-fejl', tid: '09:10', navn: 'Kold start: nøglen afvist', url: '/rum/start', replik: 'Hvorfor virker den ikke?' },
   { id: 'kold-model', tid: '09:12', navn: 'Kold start: modellen virker', url: '/rum/start', replik: 'Virker den nu?' },
   ...KOLD_KILDER,
+  ...KOLD_TAILSCALE, // KC-0161: one moment per state of the Tailscale card
 ];
 
 /** KC-0127: the moment where the scripted Hermes rejects the key on every live test. */
@@ -102,6 +104,7 @@ function koldMailState(f: Fakta): MailState {
 export function koldFroe(momentId: string, f: Fakta): Froe {
   const tom: Froe = { rum: {}, mappe: {}, avis: null, mailPlan: null, husstand: TEST_HUSSTAND };
   if (momentId === 'kold') return tom;
+  if (erTailscaleMoment(momentId)) return koldFroe('kold-velkommen', f); // KC-0161: the cold start a few minutes in; the moment sets the Tailscale state
   if (KOLD_KILDER.some((m) => m.id === momentId)) return kildeFroe(momentId, f);
   const gemt = f.iso('09:03');
   const kilder: KilderKonfig = { kilder: [{ id: 'falsk-mail', status: 'forbundet', zone: 'privat', valg: { brugernavn: 'henrik' }, tid: f.iso('09:05'), af: TEST_EJER.id }] };

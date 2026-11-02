@@ -45,13 +45,14 @@ function nyHome(): string {
 
 type Resultat = { code: number | null; out: string; err: string };
 
-function koer(home: string, args: string[], opts: { input?: string; pathForan?: string; script?: string; underVejs?: () => void } = {}): Promise<Resultat> {
+function koer(home: string, args: string[], opts: { input?: string; pathForan?: string; script?: string; underVejs?: () => void; env?: Record<string, string> } = {}): Promise<Resultat> {
   return new Promise((resolve) => {
     const env: Record<string, string> = {
       PATH: (opts.pathForan ? opts.pathForan + ':' : '') + (process.env['PATH'] ?? ''),
       HOME: home,
       CLAWCO_REPO: bare,
       TMPDIR: tmp,
+      ...(opts.env ?? {}),
     };
     const p = spawn('bash', [opts.script ?? SCRIPT, ...args], { env, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
@@ -60,6 +61,8 @@ function koer(home: string, args: string[], opts: { input?: string; pathForan?: 
     p.stderr.on('data', (d) => { err += String(d); });
     const tik = opts.underVejs ? setInterval(opts.underVejs, 15) : undefined;
     p.on('close', (code) => { if (tik) clearInterval(tik); resolve({ code, out, err }); });
+    // A script that exits before reading stdin (a truncated download) closes the pipe: EPIPE is expected, not a failure.
+    p.stdin.on('error', () => {});
     p.stdin.end(opts.input ?? '');
   });
 }
@@ -207,11 +210,76 @@ test('an unknown flag stops before anything happens', async () => {
   assert.deepEqual(readdirSync(home), []);
 });
 
-test('--laptop is accepted and says it comes later (KC-0160)', async () => {
+// ---- KC-0160: laptop mode ----
+
+test('--laptop --dry-run plans a loopback-only, one-user install with the service and no Tailscale step', async () => {
   const home = nyHome();
-  const r = await koer(home, ['--dry-run', '--yes', '--laptop']);
+  const r = await koer(home, ['--dry-run', '--yes', '--laptop', '--port', PORT]);
   assert.equal(r.code, 0, r.err);
-  assert.match(r.out, /kommer senere/);
+  assert.match(r.out, /Bærbar-tilstand/);
+  assert.match(r.out, /127\.0\.0\.1/);
+  assert.match(r.out, /kun denne maskine/);
+  assert.doesNotMatch(r.out, /tailscale/i, 'no Tailscale step in the plan');
+  assert.doesNotMatch(r.out, /kommer senere/);
+  assert.ok(r.out.includes(process.platform === 'darwin' ? 'launchd-agent' : 'systemd-brugertjeneste'), r.out);
+  assert.deepEqual(readdirSync(home), [], '--dry-run must not change anything');
+});
+
+test('--laptop writes KC_LAPTOP=ja and KC_HOST=127.0.0.1 into .env; without it neither is set', async () => {
+  const baerbar = nyHome();
+  const r = await koer(baerbar, ['--yes', '--no-service', '--laptop', '--port', PORT]);
+  assert.equal(r.code, 0, r.out + r.err);
+  const env = readFileSync(path.join(baerbar, '.clawco', '.env'), 'utf8').split('\n');
+  assert.ok(env.includes('KC_LAPTOP=ja'), 'laptop mode on');
+  assert.ok(env.includes('KC_HOST=127.0.0.1'), 'loopback only, written out');
+  assert.match(r.out, /med Tailscale kan den, men kun når den bærbare er vågen/, 'the phone limit is said even without the service');
+  const almindelig = nyHome();
+  const a = await koer(almindelig, ['--yes', '--no-service', '--port', PORT]);
+  assert.equal(a.code, 0, a.out + a.err);
+  const env2 = readFileSync(path.join(almindelig, '.clawco', '.env'), 'utf8').split('\n');
+  assert.ok(!env2.includes('KC_LAPTOP=ja'), 'a plain install is not laptop mode');
+  assert.ok(env2.includes('# KC_LAPTOP='), 'the key is there, commented');
+});
+
+test('a finished laptop install says honestly what the phone can and cannot do, and does not push Tailscale', async () => {
+  const home = nyHome();
+  const sha = git(bare, 'rev-parse', '--short', 'HEAD');
+  const helbred = path.join(falskBin('helbred', `echo '{"sha":"${sha}","uptimeSec":3}'`), 'helbred');
+  const genstart = path.join(falskBin('genstart', 'exit 0'), 'genstart');
+  const r = await koer(home, ['--yes', '--laptop', '--port', PORT], { env: { CLAWCO_GENSTART: genstart, CLAWCO_HEALTH_KOMMANDO: helbred, CLAWCO_VENTETID: '5' } });
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.match(r.out, /Uden Tailscale kan telefonen ikke nå Clawco; med Tailscale kan den, men kun når den bærbare er vågen/);
+  assert.doesNotMatch(r.out, /Tailscale fundet/);
+});
+
+test('--laptop on an install that already has a .env changes nothing and says .env decides', async () => {
+  const home = nyHome();
+  assert.equal((await koer(home, ['--yes', '--no-service', '--port', PORT])).code, 0);
+  const envFil = path.join(home, '.clawco', '.env');
+  const foer = readFileSync(envFil, 'utf8');
+  const r = await koer(home, ['--yes', '--no-service', '--laptop']);
+  assert.match(r.out, /findes og bestemmer/);
+  assert.equal(readFileSync(envFil, 'utf8'), foer);
+});
+
+test('no Tailscale found: the installer suggests laptop mode and only the user\'s yes turns it on; non-interactive never does', async () => {
+  const laptopSat = (home: string): boolean => readFileSync(path.join(home, '.clawco', '.env'), 'utf8').split('\n').includes('KC_LAPTOP=ja');
+  const ja = nyHome();
+  const r = await koer(ja, ['--no-service', '--port', PORT, '--data-dir', path.join(ja, '.clawco', 'data')], { env: { CLAWCO_TAILSCALE: 'ingen', CLAWCO_BAERBAR_SVAR: 'j' } });
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.ok(laptopSat(ja), 'yes turns it on');
+  const nej = nyHome();
+  const n = await koer(nej, ['--no-service', '--port', PORT, '--data-dir', path.join(nej, '.clawco', 'data')], { env: { CLAWCO_TAILSCALE: 'ingen', CLAWCO_BAERBAR_SVAR: 'n' } });
+  assert.equal(n.code, 0, n.out + n.err);
+  assert.ok(!laptopSat(nej), 'no leaves it off');
+  const stille = nyHome();
+  const s = await koer(stille, ['--yes', '--no-service', '--port', PORT], { env: { CLAWCO_TAILSCALE: 'ingen', CLAWCO_BAERBAR_SVAR: 'j' } });
+  assert.equal(s.code, 0, s.out + s.err);
+  assert.ok(!laptopSat(stille), '--yes alone never picks laptop mode, whatever a hook says');
+  const med = nyHome();
+  const m = await koer(med, ['--no-service', '--port', PORT, '--data-dir', path.join(med, '.clawco', 'data')], { env: { CLAWCO_TAILSCALE: 'findes', CLAWCO_BAERBAR_SVAR: 'j' } });
+  assert.equal(m.code, 0, m.out + m.err);
+  assert.ok(!laptopSat(med), 'with Tailscale there is nothing to suggest');
 });
 
 test('shellcheck finds nothing in install.sh', (t) => {

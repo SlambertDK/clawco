@@ -25,6 +25,7 @@ import type { RegelSeam } from './start/regelforslag.ts';
 import type { ImportSkriver } from './start/import/skriver.ts';
 import type { KildeFriskhed } from '../shell/friskhed.ts';
 import type { RssNyheder } from './nyheder/source.ts';
+import type { TsSyn } from '../shell/tailscale.ts';
 
 export type RoomDeps = {
   store: RumLager;
@@ -97,6 +98,10 @@ export type RoomDeps = {
   regelforslag?: RegelSeam;
   /** KC-0129: Start's step 5 writes people and the profile through the notes connector's writers, never itself. Absent = no import. */
   importSkriver?: ImportSkriver;
+  /** KC-0160: laptop mode now (one person on this machine only): Start leaves the household question out. */
+  laptop?: () => boolean;
+  /** KC-0161: Start's window on the local Tailscale (read-only state, and the one share command on a tap), wired by the composition root. Absent = no card (Sky, no wiring). */
+  tailscale?: TailscaleVindue;
   /** KC-0129: the one folder raw uploads live in while a proposal is made (default `<os tmp>/clawco-import`); emptied when the proposals are saved or cancelled, and after an hour. */
   importTmp?: string;
 };
@@ -113,6 +118,18 @@ export type MailForbindelse = {
   laes(): Promise<{ id: string; emne: string; fra: string; fraEmail?: string; modtaget: string; laest: boolean; flag: boolean; vedhaeftning: boolean; messageId?: string }[]>;
   /** One declared verb through the connector registry (policy layer + audit line). `fortryd`: how to undo it, the same way. */
   handl(navn: 'flyt' | 'kladde', args: Record<string, string>, i: { person: Person; kanal: 'knap' | 'stemme' | 'chat' | 'baggrund' }): Promise<{ ok: boolean; tekst: string; fortryd?: { navn: string; args: Record<string, string> } }>;
+};
+
+/** KC-0161: Start's window on Tailscale. The runner behind it only ever runs the three allow-listed commands (src/shell/tailscale.ts). */
+export type TailscaleVindue = {
+  /** The port the app listens on: what the one button shares, and what the posted body must name. */
+  port: number;
+  /** A laptop install (KC-0160): one user, loopback only; Start leaves the household question out. */
+  laptop(): boolean;
+  /** The state now, from the local CLI; never throws (`ukendt`). */
+  laes(): Promise<TsSyn>;
+  /** `tailscale serve --bg <port>` and the new state; throws TsFejl with a plain sentence. */
+  del(): Promise<TsSyn>;
 };
 
 /** KC-0127: Start's window on the model settings. Clawco keeps no model key; that goes through the agent (AgentClient.saetModelNoegle). */
@@ -199,6 +216,8 @@ export interface RoomModule {
   readonly korsel: DataZone;
   /** KC-0122: the verb of every startAction name the room offers; a name missing here never runs. */
   readonly aktionVerber?: Readonly<Record<string, Verb>>;
+  /** KC-0161: the startAction names that need a human tap (the red-button token bound to this exact press), though their verb is not a limit; the card's button carries data-kraever-ja. */
+  readonly aktionTap?: readonly string[];
   /** KC-0122: the verb and zones of a handling in the stored state, as the person sees it; null = not there (nothing runs). */
   handlingVerb?(deps: RoomDeps, id: string): Promise<{ verb: string; zoner: DataZone[] } | null>;
   view(deps: RoomDeps): Promise<RoomView>;

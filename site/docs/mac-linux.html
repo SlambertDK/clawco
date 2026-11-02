@@ -83,7 +83,14 @@ rm ~/Clawco-backups/clawco-backup-2026-11-02-0930.tar.gz</code></pre>
 <li><code>--no-service</code> <span data-i="ml.opt.nosvc">installs no background service</span></li>
 <li><code>--port N</code> <span data-i="ml.opt.port">the port Clawco listens on</span></li>
 <li><code>--data-dir DIR</code> <span data-i="ml.opt.data">where your data lives</span></li>
+<li><code>--laptop</code> <span data-i="ml.opt.laptop">installs for one person on this machine only: Clawco listens on 127.0.0.1, with no sign-in, and Tailscale is not needed</span></li>
 </ul>
+<h2 data-i="ml.laptop.h">Laptop mode</h2>
+<p data-i="ml.laptop.p1">Use laptop mode when Clawco is for you alone on your own laptop, with no server and no Tailscale. Add --laptop to the install command:</p>
+<pre><code>curl -fsSL https://clawco.work/install.sh | bash -s -- --laptop</code></pre>
+<p data-i="ml.laptop.p2">Clawco then listens on this machine only (127.0.0.1), so nobody else on the same Wi-Fi can open it. It opens straight away as you, with no sign-in and no household questions, starts when you log in, and is restarted if it stops. If the installer finds no Tailscale, it suggests laptop mode and asks you to confirm; with --yes it never turns it on by itself.</p>
+<p data-i="ml.laptop.p3">Your phone: without Tailscale, the phone cannot reach Clawco. With Tailscale on the laptop and on the phone it can, but only while the laptop is awake. Keeping the laptop awake, for example with caffeinate on a Mac or in the power settings, is your choice; Clawco never does it silently. Clawco treats everything that reaches it through Tailscale as you, so share it only on a Tailscale network that is yours alone.</p>
+<p class="muted" data-i="ml.laptop.p4">To leave laptop mode, remove the line KC_LAPTOP=ja from ~/.clawco/.env and restart Clawco.</p>
 <h2 data-i="ml.update.h">Update</h2>
 <p data-i="ml.update.p">Run the install command again. The code is fast-forwarded; your settings file and your data are never overwritten.</p>
 <h2 data-i="ml.remove.h">Remove</h2>

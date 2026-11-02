@@ -13,7 +13,9 @@ import type { ReglerLaest } from '../tillid/lager.ts';
  * A handling about to run: which room, which element/handling, its verb and the zones of the data it touches.
  * `gaelder` (KC-0143): the source and kind it acts on, which Henrik's rules are matched against when it runs on its own.
  */
-export type Forslag = { rum: string; id: string; verb: string; zoner: DataZone[]; gaelder?: Gaelder };
+export type Forslag = { rum: string; id: string; verb: string; zoner: DataZone[]; gaelder?: Gaelder;
+  /** KC-0161: needs a human tap (a redeemed token for exactly this press) although its verb is not a limit; never on its own, never by voice. */
+  tap?: true };
 /**
  * Who asks and how. `ja` = a valid human-tap token was redeemed for exactly this handling. `regler` (KC-0143): the
  * rules file as read now; only `baggrund` (nobody tapped) consults it, and without it nothing above trin 0 runs.
@@ -27,9 +29,15 @@ export function afgoer(f: Forslag, ctx: Kontekst): Afgoerelse {
   if (!erVerb(verb)) return { udfald: 'afvis', hvorfor: 'Clawco gjorde det ikke: handlingen siger ikke, hvad den gør, så den bliver ikke kørt.' };
   if (verb === 'betal') return { udfald: 'afvis', hvorfor: 'Clawco betaler aldrig noget. Det gør du selv.' };
   if (verb === 'kopier-paa-tvaers' || blandetZoner(f.zoner)) return { udfald: 'afvis', hvorfor: 'Clawco flytter eller kopierer aldrig noget mellem zonerne privat, arbejde og husstand.' };
+  // KC-0161: a handling that needs a tap is never done by nobody-asked, whatever the rules say.
+  if (f.tap === true && ctx.kanal === 'baggrund') return { udfald: 'kraever-ja', hvorfor: 'Clawco gør aldrig det her af sig selv. Det kræver dit eget tryk på knappen.' };
   // KC-0143: nobody asked (timers, Kuratoren, which run as INGEN): the owner's rules are the authority, not a role.
   if (ctx.kanal === 'baggrund') return afSigSelv(f, verb, ctx.regler) ?? { udfald: 'tillad', hvorfor: 'Inden for grænserne.' };
   if (!kan(ctx.person.rolle, verb === 'laes' ? 'laese' : 'handle')) return { udfald: 'afvis', hvorfor: 'Din rolle i husstanden må ikke sætte det her i gang.' };
+  if (f.tap === true) {
+    if (ctx.kanal === 'stemme') return { udfald: 'afvis', hvorfor: 'Clawco gør ikke det her på et ord fra stemmen. Tryk selv på knappen på skærmen.' };
+    if (!ctx.ja) return { udfald: 'kraever-ja', hvorfor: 'Clawco gør kun det her, når du selv har trykket ja på knappen.' };
+  }
   if (verb === 'send-til-andre' || verb === 'slet') {
     const hvad = verb === 'slet' ? 'slette noget' : 'skrive til andre';
     if (ctx.kanal === 'stemme') return { udfald: 'afvis', hvorfor: `Clawco må ikke ${hvad} på et ord fra stemmen. Tryk selv på knappen på skærmen.` };

@@ -23,6 +23,7 @@ import { INVITATIONER } from '../hushold/invitation.ts';
 import { OMKOSTNING_SAMLET } from '../shell/omkostninger.ts';
 import { alleTrin } from '../rooms/start/trin.ts';
 import { TRIN } from '../tillid/trin.ts';
+import { TS_TILSTANDE } from '../shell/tailscale.ts';
 
 export type Daekning = { id: string; marker: string; kilde: 'afledt' | 'haand' };
 
@@ -126,6 +127,7 @@ const HAAND: [string, string][] = [
   ['start-import-form', 'id="import-form"'],                                  // KC-0129: step 5's form with the provider named (the moment "Kold start: tag det med, åbent")
   ['start-import-mappe-mangler', 'data-import-mappe="mangler"'],              // KC-0129: step 5 before a notes folder exists
   ['start-import-findes', 'data-import-status="findes"'],                     // KC-0129: a name already in the register: "opdater?" with the diff, never a write
+  ['tailscale-offentlig', 'data-tailscale-offentlig'],                        // KC-0161: the delt card when Tailscale reports Clawco open to the internet (the moment "Tailscale: åbent for internettet")
   ['start-import-gemt', 'data-import-gemt'],                                  // KC-0129: what was taken with, after a saved import (the moment "Kold start: importen gemt")
   ['ugetal', 'data-ugetal="linje"'],                                           // KC-0147: the week's number (Nu on a Monday — the moment "Mandag morgen" — and always on /viden)
   ['ugetal-soejler', 'data-ugetal="soejler"'],                                  // KC-0147: the eight-week row of bars with its text alternative (/viden)
@@ -167,6 +169,7 @@ export const DAEKNING: readonly Daekning[] = [
     { id: `start-trin-${t.id}-aaben`, marker: `data-trin="${t.id}" data-trin-status="ikke-startet"`, kilde: 'afledt' },
     { id: `start-trin-${t.id}-klaret`, marker: `data-trin="${t.id}" data-trin-status="klaret"`, kilde: 'afledt' },
   ]),
+  ...afledt('tailscale', TS_TILSTANDE, (t) => `data-tailscale="${t}"`), // KC-0161: Start's Tailscale card in every state (the moments "Tailscale: …", indhold/tailscale.ts)
   ...afledt('foresp', FORESP_TILSTANDE, (t) => `data-foresp-tilstand="${t}"`), // KC-0149: a request in every state (indhold/husstand.ts)
   ...afledt('ressource', RESSOURCE_SLAGS, (s) => `data-ressource-slags="${s}"`), // KC-0150: a resource of every kind (indhold/husstand.ts)
   ...afledt('trin', TRIN.map((t) => String(t.trin)), (t) => `data-regel-trin="${t}"`), // KC-0143: a rule on every trin in Viden (indhold/tillid.ts)

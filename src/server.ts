@@ -74,7 +74,7 @@ import { gemRegelforslag, kanForeslaa } from './kurator/regelforslag.ts';
 import { fortrydLog, luk, regnskabFlyt, regnskabFortryd, regnskabVaelg, startKortHandling, udsaet, type Udfald } from './kurator/kortHandlinger.ts';
 import { SENERE, synligeKort, type Senere } from './kurator/senere.ts';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { erAfvist, HUSSTAND_ULAESELIG, INGEN, kunSigneret, peerAf, vaelgKigger, type Identitetsvalg, type Person } from './identitet/identitet.ts';
+import { ENEBRUGER, erAfvist, HUSSTAND_ULAESELIG, INGEN, kunSigneret, peerAf, vaelgKigger, type Identitetsvalg, type Person } from './identitet/identitet.ts';
 import { kontoFraMiljoe } from './identitet/konto.ts';
 import { husstandSynlig, invitationKlar, invitationSend, inviterView, kanalSend, kanalSendKlar, vedBesoeg, weekendTjek } from './hushold/room.ts';
 import { maaSe } from './hushold/rettigheder.ts';
@@ -86,6 +86,8 @@ import { synligFor, zoneAf } from './identitet/zoner.ts';
 import { agentGulv, type Verb } from './graenser/verber.ts';
 import { KORSEL as KORT_KORSEL } from './rooms/hjem/kort.ts';
 import { aktionId, gennem, GraenseAfvist, TEGN } from './graenser/port.ts';
+import { laptopFraMiljoe } from './identitet/laptop.ts';
+import { delPaaTailnet, laesTailscale, lavTsKoerer, type TsKoerer, type TsSyn } from './shell/tailscale.ts';
 import { HusstandFejl, laesHusstand, skrivHusstand } from './identitet/husstand.ts';
 import { renderIngenAdgang } from './shell/adgang.ts';
 import { lavPause, NodstopNaegtet, PauseFejl, PAUSE_TEKST, startIgen, stopAlt } from './graenser/nodstop.ts';
@@ -199,6 +201,14 @@ export type AppDeps = {
    * the rooms' clock gets its read side alone. Absent = no Send on a request (the route answers 503).
    */
   kanal?: KanalClient;
+  /**
+   * KC-0161: the local Tailscale for Start's card. `koerer` runs the CLI (src/shell/tailscale.ts; tests inject a stub),
+   * `port` is what the button shares, `laptop` (KC-0160) says this is a laptop install, `cacheMs` how long a read is kept
+   * (default none; the real app keeps 5 s so a page view is not two process starts). Absent = no card.
+   */
+  tailscale?: { koerer: TsKoerer; port: number; laptop?: () => boolean; cacheMs?: number };
+  /** KC-0160: laptop mode (KC_LAPTOP=ja, src/identitet/laptop.ts): one owner, the identity header ignored, Start without the household question. */
+  laptop?: boolean;
   /** KC-0201: under Clawco Sky (KC_SKY=ja, shell/hjaelp.ts) the account app's help page; the Kø panel shows "Få hjælp". Absent = no link. */
   hjaelp?: { href: string };
 };
@@ -250,7 +260,10 @@ export function createApp(deps: AppDeps) {
   const live = createLiveBus(Date.now());
   // KC-0117: the person of the request being served; `d.person` reads it, so rooms need no extra parameter.
   const hvemNu = new AsyncLocalStorage<Person>();
+  /** KC-0160: laptop mode now (the test world's moments set it by a function, the real app by KC_LAPTOP at start). */
+  const laptopNu = (): boolean => (deps.tailscale?.laptop ? deps.tailscale.laptop() : deps.laptop === true);
   const d: RoomDeps = {
+    laptop: laptopNu,
     get person(): Person { return hvemNu.getStore() ?? INGEN; },
     live,
     store: deps.store, hermes: deps.hermes, runs, now,
@@ -268,6 +281,23 @@ export function createApp(deps: AppDeps) {
     ...(deps.regelforslag ? { regelforslag: deps.regelforslag } : {}),
     ...(deps.importTmp ? { importTmp: deps.importTmp } : {}),
   };
+  // KC-0161: Start's Tailscale card — the read-only state and the one share command, both through the allow-listed runner.
+  if (deps.tailscale) {
+    const t = deps.tailscale;
+    const laptop = laptopNu;
+    let husket: { tid: number; syn: TsSyn } | undefined;
+    d.tailscale = {
+      port: t.port,
+      laptop,
+      async laes() {
+        if (t.cacheMs && husket && Date.now() - husket.tid < t.cacheMs) return husket.syn;
+        const syn = await laesTailscale(t.koerer, { port: t.port, laptop: laptop() });
+        husket = t.cacheMs ? { tid: Date.now(), syn } : undefined;
+        return syn;
+      },
+      async del() { husket = undefined; return delPaaTailnet(t.koerer, { port: t.port, laptop: laptop() }); },
+    };
+  }
   // KC-0130: Start's step 6 hears the first Ret / Ikke relevant (Luk, and Hjem's chat about a card).
   d.retBus!.lyt(modtagRet);
   // KC-0127: Start's window on the model settings (one store with the Kø panel); none without a data dir.
@@ -522,7 +552,8 @@ export function createApp(deps: AppDeps) {
   // The person comes only from the identity headers of a loopback peer (Tailscale Serve) or single-user mode,
   // or (KC-0179, konto) from the Sky gateway's signature.
   const husstandDir = deps.dataDir ?? './data';
-  const kigger = vaelgKigger(deps.identitet, now);
+  // KC-0160: laptop mode (one person, loopback only) ignores every identity header: the one owner, unless the caller fixed a person.
+  const kigger = vaelgKigger(deps.laptop === true && !deps.identitet ? { fast: ENEBRUGER } : deps.identitet, now);
   app.use('/*', async (c, next) => {
     if (c.req.path === '/health') return next();
     let husstand;
@@ -1912,6 +1943,8 @@ export async function main(): Promise<void> {
   const mode = agentValg(process.env);
   // KC-0179: KC_IDENTITET=konto (Clawco Sky) — a missing or invalid key refuses to start, naming the key.
   const konto = kontoFraMiljoe(process.env);
+  // KC-0160: KC_LAPTOP=ja — one owner, loopback only; a LAN address or konto mode refuses to start, naming the key.
+  const laptop = laptopFraMiljoe(process.env);
   const hermes = lavAgent(process.env);
   const here = path.dirname(fileURLToPath(import.meta.url));
   const publicDir = path.relative(process.cwd(), path.join(here, '..', 'public')) || 'public';
@@ -1954,6 +1987,9 @@ export async function main(): Promise<void> {
     // KC-0212: the operator's ledger (absent in a tenant image: no card). No paid customers are read yet, so MRR is 0.
     omkostninger: { laes: () => laesOmkostningsfil(env('KC_OMKOSTNINGER', OMKOSTNINGSFIL)), mrr: () => 0 },
     ...(konto ? { identitet: { konto } } : {}),
+    // KC-0161: Start's Tailscale card reads the local CLI (argv, never a shell; 4 s timeout). A Sky tenant has none and no card.
+    ...(laptop ? { laptop: true } : {}),
+    ...(konto ? {} : { tailscale: { koerer: lavTsKoerer({ timeoutMs: 4000 }), port, cacheMs: 5000 } }),
     ...(kanal ? { kanal } : {}),
     // KC-0201: "Få hjælp" in the settings, only under Clawco Sky (KC_SKY=ja plus KC_SKY_URL).
     ...(hjaelp ? { hjaelp } : {}),
@@ -1971,7 +2007,7 @@ export async function main(): Promise<void> {
   const dispatcher = medTesttilstand(app, lav);
   const fetch = konto ? kunSigneret(konto, () => new Date(), dispatcher, app) : dispatcher.fetch;
   serve({ fetch, port, hostname }, (info) => {
-    console.log(`${PRODUKT} lytter på http://${info.address}:${info.port} (agent: ${mode}, stemme: ${stemme ? stemme.mode : 'fra'}, identitet: ${konto ? 'konto' : 'tailnet'})`);
+    console.log(`${PRODUKT} lytter på http://${info.address}:${info.port} (agent: ${mode}, stemme: ${stemme ? stemme.mode : 'fra'}, identitet: ${konto ? 'konto' : laptop ? 'laptop' : 'tailnet'})`);
   });
 }
 

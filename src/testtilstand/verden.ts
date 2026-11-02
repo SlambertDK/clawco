@@ -26,6 +26,7 @@ import { idagKbh, lavUr, type Ur } from './ur.ts';
 import { skrivFroe, testMailRunner } from './skriv.ts';
 import { ALLE_MOMENTER, froe as lavFroe, MOMENTER, svar } from './indhold.ts';
 import { erKold, KOLD_GOOGLE, modelTestUdfald } from './indhold/start.ts';
+import { falskTailscale, tailscaleLaptop } from './indhold/tailscale.ts'; // KC-0161
 import { fakta, momentNr, momentPlus, plusDag } from './indhold/fakta.ts';
 import { familiekalender, TEST_EJER, testKanal } from './indhold/husstand.ts';
 import { lavReglerLager } from '../tillid/lager.ts';
@@ -178,6 +179,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
   const store = createFileStore(dir, { now: ur.now });
   /** KC-0139: the sources the person connected again at this moment: they read ok from then on (emptied by every jump). */
   const repareret = new Set<Slags>();
+  /** KC-0161: the moments where the user tapped "Del Clawco på dit tailnet" (the stand-in CLI then reports it shared; emptied by every jump). */
+  const tailscaleDelt = new Set<string>();
   // KC-0133: the world's fake Google — the story's calendar; it knows every moment's seeded refresh token and refuses them in GOOGLE_AFVIST.
   // KC-0135: the cold moment with the calendar connected has the Google app set up (it could not be connected otherwise).
   const harGoogleApp = (): boolean => !erKold(nu.id) || nu.id === KOLD_GOOGLE;
@@ -210,6 +213,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     adresse: 'https://testverden.example',
     // KC-0116: the test world always runs as its one fictional owner; no cookie or header can pick another person.
     identitet: { fast: TEST_EJER },
+    // KC-0161: the Tailscale card reads a scripted CLI per moment; the real one is never run from the test world.
+    tailscale: { koerer: falskTailscale(() => ({ id: nu.id, kold: erKold(nu.id) }), tailscaleDelt), port: 8750, laptop: () => tailscaleLaptop(nu.id) },
     // No run queue: the generation is captured when a run reaches Hermes, so a run queued before a jump must not
     // wait until after it (it would carry the new generation and write into the new moment).
     maxParallel: Number.MAX_SAFE_INTEGER,
@@ -284,6 +289,7 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
   function saetMoment(m: Moment): Promise<{ url: string }> {
     gen += 1;
     repareret.clear();
+    tailscaleDelt.clear();
     for (const t of timere) clearTimeout(t);
     timere.clear();
     const arbejde = laas.then(async () => {

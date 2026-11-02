@@ -18,6 +18,7 @@ import { kildeIndhold, type KildeVisning } from './kilderender.ts';
 import { renderTillidskort } from './tillidskort.ts';
 import { renderRegelforslag, type Tilbud } from './regelforslag.ts';
 import { importIndhold, type ImportVisning } from './import/render.ts';
+import { renderTailscaleKort, type TailscaleVisning } from './tailscalekort.ts';
 
 const TZ = 'Europe/Copenhagen';
 const FORTRYD_TIMER = 24;
@@ -45,8 +46,15 @@ export type StartVisning = {
   /** KC-0129: step 5 — the import card's data; absent = no import (no notes writer wired). */
   import?: ImportVisning;
   /** KC-0130: step 6 — what is in Nu to point at (`punkt` null = Nu is empty), the recorded first Ret, E4's proposal on offer. Absent = nothing. */
+  /** KC-0160: laptop mode — one person on this machine: no household question or wording (the profile is saved as alone). */
+  laptop?: boolean;
+  /** KC-0161: the Tailscale card under the steps (absent = none: no CLI wired, or nothing to ask for after the journey is Done). */
+  tailscale?: TailscaleVisning;
   foersteRet?: { punkt: { titel: string | null } | null; ret?: StartRet; forslag?: Tilbud; kanSpringeOver: boolean };
 };
+
+/** KC-0160: step 1's sentence in laptop mode (trin.ts's names the household). */
+const LAPTOP_VELKOMMEN = 'Fortæl Clawco, hvad du hedder, og hvilket sprog Hermes skal svare på.';
 
 const NIVEAU_TEKST: Record<Niveau, string> = { lille: 'Den hurtige', taenker: 'Den grundige' };
 const sek = (ms: number): string => (ms / 1000).toLocaleString('da-DK', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -134,11 +142,11 @@ function valg<T extends string>(navn: string, etiket: string, tekster: Record<T,
 }
 
 /** Step 1's form: name, language, alone or household. */
-function velkommenForm(p: Profil | null, standardNavn: string, knaptekst: string): Markup {
+function velkommenForm(p: Profil | null, standardNavn: string, knaptekst: string, laptop = false): Markup {
   return html`<form id="velkommen-form" class="nyt-form" onsubmit="return false" autocomplete="off">
     <label class="field"><span class="row-note">Hvad hedder du?</span><input name="navn" type="text" maxlength="${NAVN_MAKS}" required value="${p?.navn ?? standardNavn}" placeholder="Fx Alma"></label>
     ${valg('sprog', 'Hvilket sprog skal Hermes svare på?', { da: 'Dansk', en: 'Engelsk' }, p?.sprog ?? 'da')}
-    ${valg('husstand', 'Er du alene, eller er I en husstand?', { alene: 'Alene', husstand: 'En husstand' }, p?.husstand ?? 'alene')}
+    ${laptop ? html`<input type="hidden" name="husstand" value="alene">` : valg('husstand', 'Er du alene, eller er I en husstand?', { alene: 'Alene', husstand: 'En husstand' }, p?.husstand ?? 'alene')}
     <div class="actions"><button type="button" class="btn btn-primary" data-aktion="velkommen-gem" data-form="velkommen-form" data-status="gemmer">${knaptekst}</button></div>
   </form>`;
 }
@@ -170,17 +178,17 @@ function indholdAf(t: Trin, status: TrinStatus, v: StartVisning): Markup {
   if (v.kilder && (t.id === 'foerste-kilde' || t.id === 'flere-kilder')) return kildeIndhold(t.id, status, v.kilder, v.now ?? new Date());
   if (t.id !== 'velkommen') return html``;
   if (status !== 'klaret' || !v.profil) {
-    return v.kanGemme ? velkommenForm(v.profil, v.standardNavn, 'Gem') : html`<p class="row-note">Ejeren fortæller Clawco, hvem I er.</p>`;
+    return v.kanGemme ? velkommenForm(v.profil, v.standardNavn, 'Gem', v.laptop) : html`<p class="row-note">Ejeren fortæller Clawco, hvem I er.</p>`;
   }
   const p = v.profil;
-  return html`<p class="row-note">Du hedder ${p.navn} · Hermes svarer på ${SPROG_TEKST[p.sprog]} · du er ${HUSSTAND_TEKST[p.husstand]}.</p>${v.kanGemme ? mere(velkommenForm(p, v.standardNavn, 'Gem ændringen'), 'Ret profilen') : ''}`;
+  return html`<p class="row-note">Du hedder ${p.navn} · Hermes svarer på ${SPROG_TEKST[p.sprog]}${v.laptop ? '' : html` · du er ${HUSSTAND_TEKST[p.husstand]}`}.</p>${v.kanGemme ? mere(velkommenForm(p, v.standardNavn, 'Gem ændringen', v.laptop), 'Ret profilen') : ''}`;
 }
 
 function trinKort(t: Trin, status: TrinStatus, v: StartVisning): Markup {
   const chip = status === 'klaret' ? tilstandChip('ordnet', 'Klaret') : tilstandChip(t.krav === 'obligatorisk' ? 'kraever' : 'rolig', t.krav === 'valgfri' && status === 'ikke-startet' ? 'Valgfrit' : STATUS_TEKST[status]);
   return html`<article class="card kort trin-kort" data-blok="kort" data-trin="${t.id}" data-trin-status="${status}" data-element="Trin: ${t.titel}">
     <div class="kort-head">${chip}<span class="row-title">${t.titel}</span></div>
-    ${status === 'klaret' ? '' : html`<p>${t.tekst}</p>`}
+    ${status === 'klaret' ? '' : html`<p>${v.laptop && t.id === 'velkommen' ? LAPTOP_VELKOMMEN : t.tekst}</p>`}
     ${indholdAf(t, status, v)}
   </article>`;
 }
@@ -208,7 +216,7 @@ export function renderStart(v: StartVisning): Markup {
   const aabne = v.trin.filter((x) => x.status !== 'klaret' && x.status !== 'sprunget-over');
   const rest = v.trin.filter((x) => x.status === 'klaret' || x.status === 'sprunget-over');
   const venter = v.venter ?? aabne.filter((x) => x.trin.krav === 'obligatorisk').length;
-  const bunke = html`<div class="stack" data-trin-bunke>${[...aabne, ...rest].map((x) => html`${trinKort(x.trin, x.status, v)}${x.trin.id === 'foerste-ret' ? efterRet(v) : ''}`)}</div>`;
+  const bunke = html`<div class="stack" data-trin-bunke>${[...aabne, ...rest].map((x) => html`${trinKort(x.trin, x.status, v)}${x.trin.id === 'foerste-ret' ? efterRet(v) : ''}`)}${v.tailscale ? renderTailscaleKort(v.tailscale) : ''}</div>`;
   // Optional, so not under Kræver dig: a source worth adding sits under the steps, one line each (a bunke).
   const forslag = v.forslag.length ? html`<div class="card card-list gruppe" data-blok="bunke" data-gruppe="Værd at tilføje"><div class="card-head"><h3 class="eyebrow">Værd at tilføje</h3><span class="muted mono">${v.forslag.length}</span></div>${v.forslag.map(forslagRaekke)}</div>` : '';
   return html`
