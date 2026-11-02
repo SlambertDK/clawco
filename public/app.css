@@ -320,6 +320,14 @@ button[data-beta-vurdering][aria-pressed="true"], button[data-beta-betale][aria-
 .kilde-valg { gap: 0; }
 .kilde-valg > * + * { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 14px; }
 .kilde-frakobl[data-bekraeft] { color: var(--graense); border-color: var(--graense-line); background: var(--graense-bg); }
+/* KC-0222: a source's own list under its row (the news feeds): name, Fjern, and the add field */
+.kilde-feeds { padding: 4px 0 10px; }
+.kilde-feeds > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; padding-left: 12px; }
+.kilde-feed { padding-left: 12px; }
+.kilde-feed-fjern { min-height: 44px; min-width: 44px; }
+.kilde-feed-fjern[data-bekraeft] { color: var(--graense); border-color: var(--graense-line); background: var(--graense-bg); }
+.kilde-feed-tilfoej { display: flex; flex-direction: column; gap: 8px; padding: 8px 0 0 12px; }
+.kilde-feed-tilfoej .btn { align-self: flex-start; min-height: 44px; }
 /* KC-0212: the owner's cost card in the Kø panel — total per month, the paid lines, the free ones in one row. */
 .omkostninger-panel { border-top: 1px solid var(--raised); margin-top: 6px; }
 .omkostninger-panel .omkostninger { background: transparent; border: none; padding: 0; }

@@ -1074,7 +1074,44 @@
   });
   // KC-0120: "Kilder" — the server renders the connected sources (escaped) while the panel is open; Frakobl takes two taps.
   var kilderPanel = document.querySelector('[data-kilder="panel"]');
+  // KC-0222: a source's own list (the news feeds): Fjern takes two taps; the add field posts its address. The list is rendered again at once.
+  function feedFejl(inde, tekst) {
+    var note = inde && inde.querySelector('[data-kilde-feed-fejl]');
+    if (!note) return;
+    note.textContent = tekst || '';
+    note.hidden = !tekst;
+  }
+  function feedKald(kildeId, metode, sti, body) {
+    return fetch('/api/kilder/' + encodeURIComponent(kildeId) + '/feeds' + sti, { method: metode, headers: { 'content-type': 'application/json' }, body: body })
+      .then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status); return j; }); });
+  }
+  if (kilderPanel) kilderPanel.addEventListener('submit', function (e) {
+    var f = e.target.closest('[data-kilde-feed-tilfoej]');
+    if (!f) return;
+    e.preventDefault();
+    var inde = f.closest('[data-kilde-feeds]');
+    var felt = f.querySelector('[data-kilde-feed-adresse]');
+    var knap = f.querySelector('[data-kilde-feed-ny]');
+    var adresse = felt ? felt.value.trim() : '';
+    if (!adresse || (knap && knap.disabled)) return;
+    if (knap) knap.disabled = true;
+    feedFejl(inde, '');
+    feedKald(f.getAttribute('data-kilde-feed-tilfoej'), 'POST', '', JSON.stringify({ adresse: adresse }))
+      .then(function () { loadKoe(true); })
+      .catch(function (err) { if (knap) knap.disabled = false; feedFejl(inde, err.message); });
+  });
   if (kilderPanel) kilderPanel.addEventListener('click', function (e) {
+    var fjern = e.target.closest('[data-kilde-feed-fjern]');
+    if (fjern) {
+      if (fjern.disabled) return;
+      if (!fjern.hasAttribute('data-bekraeft')) { fjern.setAttribute('data-bekraeft', ''); fjern.textContent = tk('fjernKildeTryk'); return; }
+      var inde = fjern.closest('[data-kilde-feeds]');
+      fjern.disabled = true;
+      feedKald(inde.getAttribute('data-kilde-feeds'), 'DELETE', '/' + encodeURIComponent(fjern.getAttribute('data-kilde-feed-fjern')))
+        .then(function () { loadKoe(true); })
+        .catch(function (err) { fjern.disabled = false; fjern.removeAttribute('data-bekraeft'); fjern.textContent = tk('fjernKilde'); feedFejl(inde, err.message); });
+      return;
+    }
     var b = e.target.closest('[data-kilde-frakobl]');
     if (!b || b.disabled) return;
     if (!b.hasAttribute('data-bekraeft')) { b.setAttribute('data-bekraeft', ''); b.textContent = 'Frakobl? Tryk igen'; return; }
@@ -1088,13 +1125,21 @@
       });
   });
   var omkostningerPanel = document.querySelector('[data-omkostninger="panel"]');
-  function loadKoe() {
+  // `tving`: the panel's own change (a source added or removed) is shown at once, whatever is open or half typed.
+  function loadKoe(tving) {
     var medKilder = kilderPanel && koePanel && !koePanel.hidden;
     fetch('/api/koe' + (medKilder ? '?kilder=1' : '')).then(function (r) { return r.json(); }).then(function (d) {
       renderKoe(d.runs, d.nu); // the server's clock: a phone running minutes off still reads "startet for 2 min siden" right
       if (revisionListe && typeof d.revision === 'string' && d.revision) revisionListe.innerHTML = d.revision;
       // A tap waiting for its confirmation is not swept away by the 15-second refresh.
-      if (kilderPanel && typeof d.kilder === 'string' && !kilderPanel.querySelector('[data-bekraeft]:not([disabled])')) { kilderPanel.innerHTML = d.kilder; kilderPanel.hidden = !d.kilder; }
+      // KC-0222: nor is an address half typed in a source's add field; an open list stays open.
+      var adresseFelt = kilderPanel && kilderPanel.querySelector('[data-kilde-feed-adresse]');
+      var skriver = !!adresseFelt && (adresseFelt.value !== '' || document.activeElement === adresseFelt);
+      if (kilderPanel && typeof d.kilder === 'string' && (tving === true || (!kilderPanel.querySelector('[data-bekraeft]:not([disabled])') && !skriver))) {
+        var aabne = [].map.call(kilderPanel.querySelectorAll('details[open][data-kilde-feeds]'), function (n) { return n.getAttribute('data-kilde-feeds'); });
+        kilderPanel.innerHTML = d.kilder; kilderPanel.hidden = !d.kilder;
+        aabne.forEach(function (id) { var n = kilderPanel.querySelector('details[data-kilde-feeds="' + id + '"]'); if (n) n.setAttribute('open', ''); });
+      }
       // KC-0212: the owner's cost card, rendered (escaped) by the server while the panel is open; '' = no card.
       if (omkostningerPanel && typeof d.omkostninger === 'string') { omkostningerPanel.innerHTML = d.omkostninger; omkostningerPanel.hidden = !d.omkostninger; }
       var active = d.runs.filter(function (r) { return r.status === 'running' || r.status === 'queued'; }).length;

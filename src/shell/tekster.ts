@@ -168,6 +168,11 @@ const da = {
   svarerLangsomt: 'Svarer langsomt',
   sidstLaest: (naar: string): string => `Sidst læst ${naar}`,
   frakobl: 'Frakobl',
+  // kilder.ts (KC-0222): a source's own list in the panel — the news feeds
+  egneKilder: (antal: number): string => `Dine kilder (${antal})`,
+  fjernKilde: 'Fjern',
+  tilfoejKildeEtiket: 'Adressen på en kilde (et feed eller en side med et feed)',
+  tilfoejKilde: 'Tilføj kilde',
   // kilde-helbred.ts: the failing connection's card
   fjernForbindelsen: 'Fjern forbindelsen',
   forbindelse: 'Forbindelse',
@@ -179,6 +184,9 @@ const da = {
   /** What public/app.js shows; embedded in the page as window.KC_TEKST (strings only). */
   klient: {
     fortryd: 'Fortryd',
+    fjernKildeTryk: 'Fjern? Tryk igen',
+    fjernKilde: 'Fjern',
+    tilfoejKilde: 'Tilføj kilde',
     /** public/naeste.js: the countdown's words, the same as omTekst's (test/client/naeste.test.ts compares the two). */
     omNu: 'nu',
     omOm: 'om',
@@ -344,6 +352,10 @@ const en: Tekster = {
   svarerLangsomt: 'Answering slowly',
   sidstLaest: (naar) => `Last read ${naar}`,
   frakobl: 'Disconnect',
+  egneKilder: (antal) => `Your sources (${antal})`,
+  fjernKilde: 'Remove',
+  tilfoejKildeEtiket: 'The address of a source (a feed, or a page with a feed)',
+  tilfoejKilde: 'Add source',
   fjernForbindelsen: 'Remove the connection',
   forbindelse: 'Connection',
   forbindelsen: (navn) => `The connection: ${navn}`,
@@ -352,6 +364,9 @@ const en: Tekster = {
   ejerenKanLoese: 'The owner can fix it.',
   klient: {
     fortryd: 'Undo',
+    fjernKildeTryk: 'Remove? Tap again',
+    fjernKilde: 'Remove',
+    tilfoejKilde: 'Add source',
     omNu: 'now',
     omOm: 'in',
     omMin: 'min',

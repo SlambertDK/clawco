@@ -12,7 +12,7 @@ import { trimNyheder, type KildeStatus } from '../../rooms/nyheder/source.ts';
 import type { Slags, SlagsData } from '../../kilder/types.ts';
 import type { FalskData, FalskTilstand } from '../../kilder/falsk/falsk.ts';
 import type { KilderKonfig, KonfigPost } from '../../kilder/register.ts';
-import type { PersonFil } from '../../kilder/noter/personer.ts';
+import type { Kanaler, PersonFil } from '../../kilder/noter/personer.ts';
 import { NOTER_ID } from '../../kilder/noter/stier.ts';
 import { FAMILIEKALENDER, TEST_EJER } from './husstand.ts';
 import type { DataZone } from '../../identitet/zoner.ts';
@@ -153,6 +153,9 @@ export const TEST_PERSONER: (PersonFil & { mappe: string })[] = [
   { navn: 'Tømrer Holm', relation: 'håndværker', zone: 'privat', mappe: 'andre', tekst: '## Vigtige fakta\n- Skal se på tagrenden' },
 ];
 
+/** KC-0225: the ids Ella has in her person file (`kanaler:`, hand-written in the world): her Signal number, so a line with no display name still reads as her. */
+export const TEST_KANALER: Record<string, Kanaler> = { Ella: { signal: '+4500000002' } };
+
 /** What each fake connector reads at room moment `n` (rumNr) of the day `f`: the same story the rooms are seeded with. */
 export function kildeData(n: number, f: Fakta): { [S in Slags]: SlagsData[S] } {
   const m = mappe(rumNr(n), f);
@@ -227,10 +230,12 @@ export function rssStatus(momentId: string): KildeStatus {
 
 // ---------- KC-0138: messages that reached Hermes (the world's inbound log, as the gateway hook writes it) ----------
 
-/** The three conversations Hermes sees in the world, from the moment each first wrote (numbers and ids are invented). */
+/** The three conversations Hermes sees (four lines: Ella wrote twice) in the world, from the moment each first wrote (numbers and ids are invented). */
 const BESKEDER: { fra: number; hhmm: string; r: Omit<RaaBesked, 'tid'> }[] = [
   { fra: 0, hhmm: '06:40', r: { kanal: 'whatsapp', samtale: '+4500000001', gruppe: false, afsender: '+4500000001', afsenderNavn: 'Maja', tekst: 'Jeg sover til kl. 14 efter nattevagten.' } },
   { fra: 1, hhmm: '08:10', r: { kanal: 'telegram', samtale: '-1000000003', gruppe: true, afsender: '5000000004', afsenderNavn: 'Søren', samtaleNavn: 'Vejens grillaften', tekst: 'Grillaften lørdag kl. 18 hos nr. 12?' } },
+  // KC-0225: the channel gives no display name here, only the number: Ella's register entry names her.
+  { fra: 5, hhmm: '19:35', r: { kanal: 'signal', samtale: '+4500000002', gruppe: false, afsender: '+4500000002', tekst: 'Jeg er hjemme om en halv time.' } },
   { fra: 5, hhmm: '19:50', r: { kanal: 'signal', samtale: '+4500000002', gruppe: false, afsender: '+4500000002', afsenderNavn: 'Ella', tekst: 'Må jeg tage cyklen i skole i morgen? Det skal ikke regne.' } },
 ];
 const raaBesked = (b: (typeof BESKEDER)[number], f: Fakta): RaaBesked => ({ ...b.r, tid: f.iso(b.hhmm) });
@@ -239,7 +244,7 @@ export const BESKEDER_FRA = 5;
 const BESKED_VALG: Record<string, string> = { [samtaleNoegle('signal', '+4500000002')]: 'privat', [samtaleNoegle('whatsapp', '+4500000001')]: 'husstand' };
 /** Ella's question as Kuratoren gets it: the id the connector gives her line, and her name from the register. */
 export const ellasBesked = (f: Fakta): { id: string; kanal: string; samtaleNavn: string; afsender: { navn: string }; tid: string; tekst: string } => {
-  const r = raaBesked(BESKEDER[2]!, f);
+  const r = raaBesked(BESKEDER[3]!, f);
   return { id: tilBesked(r, { kontakter: [], zone: 'privat' }).id ?? '', kanal: r.kanal, samtaleNavn: 'Ella', afsender: { navn: 'Ella (familie)' }, tid: r.tid, tekst: r.tekst };
 };
 /** The hook's two files at moment `n`: the log lines written so far, and the channels the gateway came up with. */

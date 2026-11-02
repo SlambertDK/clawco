@@ -24,7 +24,7 @@ export const PERSON_MAPPER = ['familie', 'venner', 'arbejde', 'andre'] as const;
 
 export type PersonFil = { navn: string; relation: string; org?: string; foedselsdag?: string; zone: DataZone; kilde?: string; importeret?: string; tekst?: string };
 /** A person as read for a room: no body. `mappe` = the relation folder ('' at the register's root), `sti` relative to it. */
-export type PersonPost = Omit<PersonFil, 'tekst'> & { mappe: string; sti: string };
+export type PersonPost = Omit<PersonFil, 'tekst'> & { mappe: string; sti: string; kanaler?: Kanaler };
 /** What a handling keeps to undo its write: the file and the hash of what it wrote (and what was there before, if any). */
 export type Kvittering = { sti: string; sha256: string; forrige?: string };
 export type Forskel = { felt: string; nu: string; ny: string };
@@ -81,6 +81,58 @@ function somPerson(felter: Record<string, string>, fil: string, mappe: string, z
   return ud;
 }
 
+// ---------- per-channel ids (KC-0225) ----------
+
+/**
+ * The ids a person has on the message channels, written by hand in the person's own file as ONE line of flow-style
+ * frontmatter (Obsidian reads it as a property):
+ *   kanaler: { signal: "+45 12 34 56 78", whatsapp: "+4512345678", telegram: "@maja_dk", telefon: "+4512345678" }
+ * Keys are lowercase words (the channel, or `telefon` = a phone number for any phone channel); values are text, quoted
+ * when they hold a comma or start with @. Clawco only reads it, to name a sender; the ids never leave the register.
+ */
+export type Kanaler = Record<string, string>;
+const KANAL_NOEGLE = /^[a-z][a-z0-9_-]{1,19}$/;
+const KANAL_VAERDI_MAKS = 80;
+const KANALER_MAKS = 8;
+
+/** Splits on commas outside quotes; null when a quote is never closed. */
+function delKanalPar(inde: string): string[] | null {
+  const dele: string[] = [];
+  let nu = '';
+  let q: string | null = null;
+  for (let i = 0; i < inde.length; i += 1) {
+    const c = inde[i] as string;
+    if (q) {
+      nu += c;
+      if (c === '\\' && q === '"') { nu += inde[i + 1] ?? ''; i += 1; } else if (c === q) q = null;
+    } else if (c === '"' || c === "'") { q = c; nu += c; } else if (c === ',') { dele.push(nu); nu = ''; } else nu += c;
+  }
+  if (q) return null;
+  dele.push(nu);
+  return dele;
+}
+
+/** The `kanaler` value of a person file's frontmatter; undefined when absent or not a one-line map. Bad pairs are dropped; never throws. */
+export function laesKanaler(raa: string | undefined): Kanaler | undefined {
+  const t = (raa ?? '').trim();
+  if (!t.startsWith('{') || !t.endsWith('}')) return undefined;
+  const dele = delKanalPar(t.slice(1, -1));
+  if (!dele) return undefined;
+  const ud: Kanaler = {};
+  for (const del of dele) {
+    const m = /^\s*(["']?)([^:"']+)\1\s*:\s*(.*?)\s*$/s.exec(del);
+    if (!m) continue;
+    const noegle = (m[2] as string).trim().toLowerCase();
+    const v = vaerdi(m[3] as string);
+    if (!KANAL_NOEGLE.test(noegle) || noegle in ud || !v || v.length > KANAL_VAERDI_MAKS || KONTROL.test(v) || Object.keys(ud).length >= KANALER_MAKS) continue;
+    ud[noegle] = v;
+  }
+  return Object.keys(ud).length ? ud : undefined;
+}
+
+/** The frontmatter line for `k` (what laesKanaler reads back). */
+export const somKanalLinje = (k: Kanaler): string => `kanaler: { ${Object.entries(k).map(([n, v]) => `${n}: ${JSON.stringify(v)}`).join(', ')} }`;
+
 // ---------- reading ----------
 
 /** The register's person files: `.md` at the root and one folder down; never symlinks; frontmatter from the first 4 KB only. */
@@ -115,7 +167,9 @@ export async function laesPersoner(dir: string, o: { zone: DataZone }): Promise<
     const sti = f.mappe ? `${f.mappe}/${f.navn}` : f.navn;
     let hoved: string;
     try { hoved = await forhoved(await iRod(dir, sti)); } catch { continue; }
-    ud.push({ ...somPerson(delFil(hoved).felter, f.navn, f.mappe, o.zone), mappe: f.mappe, sti: sti.normalize('NFC') });
+    const { felter } = delFil(hoved);
+    const kanaler = laesKanaler(felter['kanaler']);
+    ud.push({ ...somPerson(felter, f.navn, f.mappe, o.zone), mappe: f.mappe, sti: sti.normalize('NFC'), ...(kanaler ? { kanaler } : {}) });
   }
   return ud.sort((a, b) => (a.sti < b.sti ? -1 : a.sti > b.sti ? 1 : 0));
 }

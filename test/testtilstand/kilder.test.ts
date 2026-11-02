@@ -5,11 +5,12 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { FORBUDT, MOMENTER, froe } from '../../src/testtilstand/indhold.ts';
 import { KILDE_TILSTAND, kildeData, TEST_PERSONER } from '../../src/testtilstand/indhold/kilder.ts';
+import { samtaleNoegle } from '../../src/kilder/beskeder/valg.ts';
 import { laesPersoner } from '../../src/kilder/noter/personer.ts';
 import { fakta, momentNr } from '../../src/testtilstand/indhold/fakta.ts';
 import { skrivFroe } from '../../src/testtilstand/skriv.ts';
@@ -73,6 +74,14 @@ test('the test world offers four fakes, Google, the own news feeds, Gmail and Be
     const nu = await (await verden.app.request('/rum/hjem')).text();
     assert.match(nu, /data-besked-kanal="signal">Besked fra Ella \(familie\) på Signal/);
     assert.ok(!nu.includes('+4500000002'));
+    // KC-0225: a line from Ella with no display name, only her number, reads as her: the world's person file carries `kanaler:`.
+    const vault = await readFile(path.join(rod, 'data-test', 'vault', '40-Mennesker', 'People', 'familie', 'Ella.md'), 'utf8').catch(() => '');
+    assert.match(vault, /^---\nkanaler: \{ signal: "\+4500000002" \}\n/);
+    const igen = await verden.app.request('/api/kilder/beskeder/forbind', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ felter: { [samtaleNoegle('signal', '+4500000002')]: 'privat' } }) });
+    assert.equal(igen.status, 200, await igen.clone().text());
+    const laest = JSON.parse(await readFile(path.join(rod, 'data-test', 'beskeder-clawco', 'laest.json'), 'utf8')) as { beskeder: { tekst: string; afsender: { navn: string } }[] };
+    assert.equal(laest.beskeder.find((b) => b.tekst === 'Jeg er hjemme om en halv time.')?.afsender.navn, 'Ella (familie)');
+    assert.ok(!JSON.stringify(laest).includes('4500000002'));
     const [moment, slags] = Object.entries(KILDE_TILSTAND).flatMap(([m, t]) => Object.entries(t ?? {}).filter(([, v]) => v === 'log-ind-igen').map(([s]) => [m, s] as const))[0]!;
     await verden.hop(moment);
     assert.equal((await liste()).find((k) => k.id === `falsk-${slags}`)?.helbred?.status, 'log-ind-igen');

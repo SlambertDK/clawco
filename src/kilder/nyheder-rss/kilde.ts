@@ -35,6 +35,14 @@ const NEDE_LEVETID_MS = 10 * 60_000;
 const MAPPE = 'nyheder-rss';
 
 type Feed = { url: string; navn?: string; tilfoejet: string; lokal?: true };
+/** KC-0222: a feed on the list as the Kø panel shows it. */
+export type FeedVisning = { id: string; navn: string };
+/** The connector with the functions that change its list after the connection (KC-0222); the registry writes what they answer (aendreValg). */
+export interface NyhederRssKilde extends Kilde {
+  feeds(valg: Readonly<Record<string, string>>): FeedVisning[];
+  tilfoejFeed(raa: string, ctx: KildeKontekst): Promise<{ tekst: string; valg: Record<string, string>; feed: FeedVisning }>;
+  fjernFeed(id: string, ctx: KildeKontekst): Promise<{ tekst: string; valg: Record<string, string>; feed: FeedVisning }>;
+}
 type Tilstand = { ok?: { tid: number }; fejl?: { tid: number; tekst: string } };
 type Gemt = { etag?: string; sidstRettet?: string; titel: string; nyheder: Nyhed[] };
 
@@ -65,6 +73,13 @@ function vaert(url: string): string {
   try { return new URL(url).hostname.slice(0, 80); } catch { return url.slice(0, 80); }
 }
 const navnFor = (f: Feed): string => f.navn || vaert(f.url);
+/** The id of a feed in routes and markup: a hash of its normalised address, so two spellings are one and no address travels in a path. */
+export function feedId(url: string): string {
+  let n = url;
+  try { n = normaliserAdresse(new URL(url)); } catch { /* a stored record that is no address keeps its own text */ }
+  return `f-${createHash('sha256').update(n).digest('hex').slice(0, 12)}`;
+}
+const feedNoegle = (url: string): string => { try { return normaliserAdresse(new URL(url)); } catch { return url; } };
 
 /** The stored list, defensively: whatever kilder.json holds that is not a feed record is left out. */
 function laesFeeds(valg: Readonly<Record<string, string>>): Feed[] {
@@ -88,7 +103,7 @@ function adresserFra(tekst: string): string[] {
   return tekst.split(/(?<=\w)(?=https?:\/\/)|[\s,;]+/i).map((x) => x.trim()).filter(Boolean);
 }
 
-export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: string } = {}): Kilde {
+export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: string } = {}): NyhederRssKilde {
   const hent = o.hent ?? lavHenter({ agent: `Clawco/${o.version ?? version()}` });
   const tilstand = new Map<string, Tilstand>();
   const hukommelse = new Map<string, Gemt>();
@@ -118,6 +133,14 @@ export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: strin
       await writeFile(tmp, JSON.stringify(g), 'utf8');
       await rename(tmp, fil);
     } catch { /* the cache is an optimisation; the next read fetches in full */ }
+  }
+
+  /** A removed feed leaves nothing behind: its cached items, in memory and on disk, and what was remembered of its last answer. */
+  async function glemFeed(url: string): Promise<void> {
+    hukommelse.delete(url);
+    tilstand.delete(url);
+    const fil = cacheFil(url);
+    if (fil) await rm(fil, { force: true });
   }
 
   /** One feed, remembering the outcome. Never throws. */
@@ -272,6 +295,36 @@ export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: strin
       if (forMange) dele.push(`Højst ${MAKS_FEEDS} kilder: ${forMange} var for mange og blev ikke tilføjet.`);
       dele.push(`I alt ${antalTekst(liste.length)}.`);
       return { tekst: dele.join(' '), valg: { feeds: JSON.stringify(liste) } };
+    },
+
+    feeds: (valg) => laesFeeds(valg).map((f) => ({ id: feedId(f.url), navn: vis(navnFor(f)) })),
+
+    /** KC-0222: one more source, checked as the card checks a pasted address (tilfoej()); the list's cap and duplicates are judged here. */
+    async tilfoejFeed(raa, ctx) {
+      const adresser = adresserFra(raa);
+      if (!adresser.length) throw new KildeFejl(400, 'Indsæt adressen på en nyhedskilde.');
+      if (adresser.length > 1) throw new KildeFejl(400, 'Indsæt én adresse ad gangen. Har du mange, så brug en OPML-fil, når du forbinder.');
+      const gamle = laesFeeds(ctx.valg);
+      if (gamle.length >= MAKS_FEEDS) throw new KildeFejl(400, `Højst ${MAKS_FEEDS} kilder. Fjern en, før du tilføjer en ny.`);
+      const fandtes = (url: string): Feed | undefined => gamle.find((f) => feedNoegle(f.url) === feedNoegle(url));
+      const dublet = (f: Feed): KildeFejl => new KildeFejl(409, `${vis(navnFor(f))} har du allerede.`);
+      // The address as typed is compared before anything is fetched, so a repeat costs no request.
+      try { const u = tjekAdresse(adresser[0] ?? '', { oprindelse: 'bruger' }); const f = fandtes(u.href); if (f) throw dublet(f); } catch (err) { if (err instanceof KildeFejl) throw err; /* tilfoej() says why the address is refused */ }
+      const ny = await tilfoej(adresser[0] ?? '', ctx.nu);
+      const f = fandtes(ny.url);
+      if (f) throw dublet(f);
+      return { tekst: `Tilføjede ${vis(navnFor(ny))}. I alt ${antalTekst(gamle.length + 1)}.`, valg: { feeds: JSON.stringify([...gamle, ny]) }, feed: { id: feedId(ny.url), navn: vis(navnFor(ny)) } };
+    },
+
+    /** KC-0222: one source off the list, by id; its cached items go too. The last one stays: with none the connection has nothing to read (Frakobl is for that). */
+    async fjernFeed(id, ctx) {
+      const gamle = laesFeeds(ctx.valg);
+      const f = gamle.find((x) => feedId(x.url) === id);
+      if (!f) throw new KildeFejl(404, 'Den kilde findes ikke længere.');
+      if (gamle.length === 1) throw new KildeFejl(409, 'Det er din sidste kilde. Vil du ikke have flere, så frakobl Nyhedskilder.');
+      await glemFeed(f.url);
+      const rest = gamle.filter((x) => x !== f);
+      return { tekst: `Fjernede ${vis(navnFor(f))} (${f.url.slice(0, 200)}). I alt ${antalTekst(rest.length)}.`, valg: { feeds: JSON.stringify(rest) }, feed: { id, navn: vis(navnFor(f)) } };
     },
 
     async frakobl(): Promise<void> {

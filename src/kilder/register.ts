@@ -245,14 +245,8 @@ export function lavRegister(deps: RegisterDeps) {
     return { forbundet: true, foersteLaesning: foerste, ...(opsat ? { opsat } : {}) };
   }
 
-  /** KC-0136: the source's own setup before it is recorded; what it returns must be the card's non-secret options. */
-  async function opsaet(k: Kilde, ctx: KildeKontekst, felter: Felt[]): Promise<{ tekst: string; valg: Record<string, string> } | null> {
-    if (!k.opsaet) return null;
-    let r: unknown;
-    try { r = await k.opsaet(ctx); } catch (err) {
-      if (err instanceof KildeFejl) throw err;
-      throw new KildeFejl(502, `${k.navn} kunne ikke sættes op`);
-    }
+  /** What a setup or a later change of options may answer: a sentence and options that are the card's own non-secret fields, within their size, without control characters. */
+  function renValg(k: Kilde, felter: Felt[], r: unknown): { tekst: string; valg: Record<string, string> } {
     const tilladt = new Map(felter.filter((f) => f.type !== 'hemmelig').map((f) => [f.navn, f.maks ?? FELT_MAKS]));
     const o = erObj(r) ? r : {};
     const valg = erObj(o['valg']) ? o['valg'] : null;
@@ -261,6 +255,20 @@ export function lavRegister(deps: RegisterDeps) {
     if (!ok) throw new KildeFejl(502, `${k.navn} svarede med ugyldige valg`);
     return { tekst: (o['tekst'] as string).slice(0, 500), valg: valg as Record<string, string> };
   }
+
+  /** KC-0136: the source's own setup before it is recorded; what it returns must be the card's non-secret options. */
+  async function opsaet(k: Kilde, ctx: KildeKontekst, felter: Felt[]): Promise<{ tekst: string; valg: Record<string, string> } | null> {
+    if (!k.opsaet) return null;
+    let r: unknown;
+    try { r = await k.opsaet(ctx); } catch (err) {
+      if (err instanceof KildeFejl) throw err;
+      throw new KildeFejl(502, `${k.navn} kunne ikke sættes op`);
+    }
+    return renValg(k, felter, r);
+  }
+
+  /** KC-0222: changes of one source's options run one after the other (each reads the options the one before wrote). */
+  const aendringer = new Map<string, Promise<unknown>>();
 
   return {
     registrer(k: Kilde): void {
@@ -384,6 +392,32 @@ export function lavRegister(deps: RegisterDeps) {
         throw new KildeFejl(502, `${k.navn} afviste forbindelsen`);
       }
       return blivForbundet(k, person, v.zone, v.valg, { ...v.hemmelige, ...adgang });
+    },
+
+    /**
+     * KC-0222: changes the options of a connected source after the connection (e.g. the news feeds), by the connector's
+     * own function: it gets the connection as it is now and answers the options to store and a sentence for the log
+     * (a KildeFejl passes through and nothing is written); the options are checked as a setup's are. The connection's
+     * time and owner stay. Serial per source. Returns what the function answered.
+     */
+    async aendreValg<T extends { tekst: string; valg: Record<string, string> }>(id: string, person: Person, fn: (ctx: KildeKontekst) => Promise<T>): Promise<T> {
+      const k = hentKilde(id);
+      const gang = (aendringer.get(id) ?? Promise.resolve()).catch(() => undefined).then(async (): Promise<T> => {
+        const p = await post(id);
+        if (!forbundet(k, p)) throw new KildeFejl(409, `${k.navn} er ikke forbundet`);
+        const ctx = kontekst(k, p);
+        let svar: T;
+        try { svar = await fn(ctx); } catch (err) {
+          if (err instanceof KildeFejl) throw err;
+          throw new KildeFejl(502, `${k.navn} kunne ikke ændres`);
+        }
+        const ren = renValg(k, (await k.kort(ctx)).felter, svar);
+        await gemPost({ id, status: 'forbundet', zone: ctx.zone, valg: ren.valg, tid: p?.tid ?? nu().toISOString(), af: p?.af ?? person.id });
+        await deps.store.appendLog(KILDER_LOG, { kilde: 'henrik', tekst: `${person.navn} ændrede ${k.navn}: ${ren.tekst}`, zone: ctx.zone, ejer: person.id });
+        return svar;
+      });
+      aendringer.set(id, gang);
+      return gang;
     },
 
     /** Disconnects: logs first (AGENTS §4 r5), then marks it frakoblet, lets the connector revoke (KC-0133, best effort) and removes its credentials. */

@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fjernPerson, laesPersoner, PERSON_MAPPER, skrivPerson, type PersonFil } from '../../../src/kilder/noter/personer.ts';
+import { fjernPerson, laesKanaler, laesPersoner, PERSON_MAPPER, skrivPerson, somKanalLinje, type PersonFil } from '../../../src/kilder/noter/personer.ts';
 import { fjernProfil, laesProfil, skrivProfil } from '../../../src/kilder/noter/profil.ts';
 import { lavNyVault } from '../../../src/kilder/noter/vault.ts';
 import { KildeFejl } from '../../../src/kilder/types.ts';
@@ -128,4 +128,41 @@ test('the profile in a vault without one is created and Fortryd removes it', () 
   assert.ok(s.udfald === 'oprettet');
   assert.equal(await fjernProfil(dir, s.kvittering), true);
   assert.equal(await laesProfil(dir), null);
+}));
+
+// ---------- KC-0225: per-channel ids ----------
+
+test('laesKanaler reads the one-line map by hand: quoted or bare values, keys case-folded, first of a duplicate wins', () => {
+  assert.deepEqual(laesKanaler('{ signal: "+45 12 34 56 78", WhatsApp: \'+4512345678\', telegram: "@maja_dk", telefon: +4512345678 }'), {
+    signal: '+45 12 34 56 78', whatsapp: '+4512345678', telegram: '@maja_dk', telefon: '+4512345678',
+  });
+  assert.deepEqual(laesKanaler('{signal: "a, b", signal: "c"}'), { signal: 'a, b' });
+});
+
+test('laesKanaler never throws: anything that is not a one-line map, and every bad pair, is ignored', () => {
+  for (const raa of [undefined, '', 'signal', '[signal, whatsapp]', '{', '{ }', '{ signal }', '{ signal: }', '{ : "x" }', '{ "unterminated: 1 }', '+4512345678']) assert.equal(laesKanaler(raa), undefined, String(raa));
+  assert.deepEqual(laesKanaler('{ signal: "+4512345678", 9: "x", a: "y", boer-ikke: , whatsapp: "\u0007" }'), { signal: '+4512345678' });
+  assert.deepEqual(Object.keys(laesKanaler(`{ ${Array.from({ length: 12 }, (_, i) => `k${i}: "v${i}"`).join(', ')} }`) ?? {}).length, 8);
+  assert.equal(laesKanaler(`{ signal: "${'9'.repeat(200)}" }`), undefined);
+});
+
+test('somKanalLinje writes what laesKanaler reads, on one line', () => {
+  const k = { signal: '+4512345678', telegram: '@maja "dk"' };
+  const linje = somKanalLinje(k);
+  assert.ok(!linje.includes('\n'));
+  assert.match(linje, /^kanaler: \{ signal: /);
+  assert.deepEqual(laesKanaler(linje.slice('kanaler: '.length)), k);
+});
+
+test('a person file edited by hand with kanaler: is read with the ids, other keys and the body untouched; no kanaler = no field', () => medTmp(async (dir) => {
+  await mkdir(path.join(dir, 'familie'));
+  await writeFile(path.join(dir, 'familie', 'Maja.md'), '---\nrelation: kone\nkanaler: { signal: "+45 12 34 56 78", whatsapp: "+4512345678" }\ntags: [person]\n---\n## Vigtige fakta\n- Nattevagter\n');
+  await writeFile(path.join(dir, 'familie', 'Ella.md'), '---\nrelation: datter\nkanaler: ikke et kort\n---\n');
+  await writeFile(path.join(dir, 'familie', 'Soeren.md'), '---\nrelation: ven\n---\n');
+  const p = await laesPersoner(dir, { zone: 'privat' });
+  assert.deepEqual(p.find((x) => x.navn === 'Maja')?.kanaler, { signal: '+45 12 34 56 78', whatsapp: '+4512345678' });
+  assert.ok(!('kanaler' in (p.find((x) => x.navn === 'Ella') ?? {})));
+  assert.ok(!('kanaler' in (p.find((x) => x.navn === 'Soeren') ?? {})));
+  assert.equal(p.find((x) => x.navn === 'Maja')?.relation, 'kone');
+  assert.ok(!JSON.stringify(p).includes('Nattevagter'));
 }));

@@ -122,13 +122,13 @@ import { lavHelbredStyring, type HelbredStyring } from './kilder/helbred-fil.ts'
 import { genforbindFelter, stemmeSaetning } from './kilder/helbred-tekst.ts';
 import type { KildeHelbredKort } from './shell/kilde-helbred.ts';
 import { erFrisk, kildeFriskhed, type KildeFriskhed } from './shell/friskhed.ts';
-import { KildeFejl, type Kilde } from './kilder/types.ts';
+import { KildeFejl, type Kilde, type KildeKontekst } from './kilder/types.ts';
 import { falskeKilder, kilderFraMiljoe, parseFalskTilstand } from './kilder/falsk/falsk.ts';
 import { legacyKilder } from './kilder/legacy/legacy.ts';
 import { lavVaultStier, NOTER_ID } from './kilder/noter/stier.ts';
 import { noterKilde } from './kilder/noter/noter.ts';
 import { mailImapKilde } from './kilder/mail-imap/mail-imap.ts';
-import { nyhederRss, NYHEDER_RSS_ID } from './kilder/nyheder-rss/kilde.ts';
+import { nyhederRss, NYHEDER_RSS_ID, type NyhederRssKilde } from './kilder/nyheder-rss/kilde.ts';
 import { beskederKilde } from './kilder/beskeder/kilde.ts';
 import type { Kontakt } from './kilder/beskeder/besked.ts';
 import { mailForbindelse } from './kilder/mail-vindue.ts';
@@ -365,12 +365,12 @@ export function createApp(deps: AppDeps) {
     },
   });
   for (const k of deps.kilder ?? []) kilder.registrer(k);
-  // KC-0138: messages read the people register for their senders (names and relations only; the register has no numbers yet).
+  // KC-0138: messages read the people register for their senders (KC-0225: a person's per-channel ids stay inside the connector; only name and relation come out).
   if (deps.beskeder) {
     kilder.registrer(deps.beskeder({
       kontakter: async () => {
         const dir = personerNu();
-        return dir ? (await laesPersoner(dir, { zone: 'privat' })).map((p) => ({ id: p.sti, navn: p.navn, relation: p.relation, numre: [] })) : [];
+        return dir ? (await laesPersoner(dir, { zone: 'privat' })).map((p) => ({ id: p.sti, navn: p.navn, relation: p.relation, kanaler: p.kanaler ?? {} })) : [];
       },
     }));
   }
@@ -872,12 +872,21 @@ export function createApp(deps: AppDeps) {
   }
   const navne = (c: Context<Env>): Record<string, string> => Object.fromEntries([c.get('person'), ...c.get('husstand')].map((p) => [p.id, p.id === c.get('person').id ? 'Du' : p.navn]));
 
+  /** KC-0222: the news connector with the functions that change its list (null on a host that did not register it). */
+  const rssKilde = (): NyhederRssKilde | null => {
+    const k = kilder.hent(NYHEDER_RSS_ID);
+    return k && 'tilfoejFeed' in k ? (k as NyhederRssKilde) : null;
+  };
+
   /** KC-0120: "Kilder" in the Kø panel, rendered here (escaped); Frakobl only for whoever may change settings. */
   async function kilderPanel(person: Person): Promise<string> {
     try {
       // KC-0139: "last read" survives a restart (helbred.json), else only this run's reads would show.
       const fil = await helbred.laes();
-      const liste = (await kilder.oversigt()).map((o) => ({ ...o, sidstLaest: fil[o.id]?.sidstLaest ?? o.sidstLaest }));
+      // KC-0222: the news sources keep a list of their own, shown (to the owner) under their row.
+      const rss = rssKilde();
+      const feeder = rss ? rss.feeds((await kilder.forbindelse(NYHEDER_RSS_ID))?.valg ?? {}) : null;
+      const liste = (await kilder.oversigt()).map((o) => ({ ...o, sidstLaest: fil[o.id]?.sidstLaest ?? o.sidstLaest, ...(o.id === NYHEDER_RSS_ID && o.forbundet && feeder ? { feeder } : {}) }));
       return String(renderKilder(liste, { nu: now(), maaFrakoble: kan(person.rolle, 'aendre-indstillinger') }));
     } catch (err) {
       if (!(err instanceof KonfigFejl)) throw err;
@@ -980,6 +989,32 @@ export function createApp(deps: AppDeps) {
     const nej = ejerKun(c); if (nej) return nej;
     await kilder.frakobl(c.req.param('id'), c.get('person'));
     return c.json({ forbundet: false });
+  });
+  // KC-0222: the user's own news sources after the connection. The connector checks and changes the list, the registry
+  // writes it; the account of it goes in Nyheder's log (the way back for a removal is adding the same address again).
+  const FEED_BODY = 'Send {"adresse": "…"} med adressen på én nyhedskilde.';
+  async function aendrFeeds(c: Context<Env>, fn: (k: NyhederRssKilde) => (ctx: KildeKontekst) => Promise<{ tekst: string; valg: Record<string, string> }>): Promise<Response> {
+    const nej = ejerKun(c); if (nej) return nej;
+    if (fremmed(c)) return c.json({ error: 'Kilderne kan kun ændres fra Clawco selv.' }, 403);
+    const rss = rssKilde();
+    if (!rss) return c.json({ error: 'Ukendt forbindelse' }, 404);
+    const person = c.get('person');
+    const svar = await kilder.aendreValg(NYHEDER_RSS_ID, person, fn(rss));
+    await deps.store.appendLog('nyheder', { kilde: 'henrik', tekst: `${person.navn} ${svar.tekst.charAt(0).toLowerCase()}${svar.tekst.slice(1)}`, zone: (await kilder.hvor(NYHEDER_RSS_ID)).zone, ejer: person.id });
+    live.notify('nyheder');
+    return c.json({ feeds: rss.feeds(svar.valg), tekst: svar.tekst });
+  }
+  app.post('/api/kilder/nyheder-rss/feeds', async (c) => {
+    let b: unknown;
+    try { b = await c.req.json(); } catch { return c.json({ error: FEED_BODY }, 400); }
+    const adresse = typeof b === 'object' && b !== null && !Array.isArray(b) && Object.keys(b).every((n) => n === 'adresse') ? (b as Record<string, unknown>)['adresse'] : undefined;
+    if (typeof adresse !== 'string' || !adresse.trim() || adresse.length > 2000) return c.json({ error: FEED_BODY }, 400);
+    return aendrFeeds(c, (k) => (ctx) => k.tilfoejFeed(adresse, ctx));
+  });
+  app.delete('/api/kilder/nyheder-rss/feeds/:id', async (c) => {
+    const id = c.req.param('id');
+    if (!/^f-[0-9a-f]{12}$/.test(id)) return c.json({ error: 'Den kilde findes ikke længere.' }, 404);
+    return aendrFeeds(c, (k) => (ctx) => k.fjernFeed(id, ctx));
   });
   app.get('/api/kilder/:id/tilbage', async (c) => {
     const nej = ejerKun(c); if (nej) return nej;

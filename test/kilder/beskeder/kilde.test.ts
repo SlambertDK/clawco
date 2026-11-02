@@ -24,7 +24,7 @@ async function verden(linjer: string[], status?: string[]): Promise<{ dir: strin
   await mkdir(path.join(dir, 'beskeder'), { recursive: true });
   await writeFile(path.join(dir, 'beskeder', LOG_FIL), linjer.join(''));
   if (status) await writeFile(path.join(dir, 'beskeder', STATUS_FIL), JSON.stringify({ platforms: status, tid: '2026-11-01T06:00:00.000Z' }));
-  const k = beskederKilde({ dataDir: dir, kontakter: async () => [{ id: 'maja', navn: 'Maja', relation: 'din kone', numre: ['+4512345678'] }] });
+  const k = beskederKilde({ dataDir: dir, kontakter: async () => [{ id: 'maja', navn: 'Maja', relation: 'din kone', kanaler: { signal: '+4512345678' } }] });
   return { dir, k, ryd: () => rm(dir, { recursive: true, force: true }) };
 }
 const data = async (k: Kilde, valg: Record<string, string>, nu = NU): Promise<Besked[]> => {

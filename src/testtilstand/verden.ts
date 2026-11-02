@@ -6,7 +6,7 @@
 // lavDemoApp (KC-0058). Spec: docs/superpowers/specs/2026-10-30-testtilstand-design.md
 
 import { Hono } from 'hono';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { createApp } from '../server.ts';
 import { createFileStore } from '../store/fileStore.ts';
@@ -32,7 +32,7 @@ import { familiekalender, TEST_EJER, testKanal } from './indhold/husstand.ts';
 import { lavReglerLager } from '../tillid/lager.ts';
 import { falskeKilder } from '../kilder/falsk/falsk.ts';
 import type { Slags } from '../kilder/types.ts';
-import { falskKildeData, GMAIL_AFVIST, GOOGLE_AFVIST, googleKalendere, googleMailRefresh, googleRefresh, KILDE_TILSTAND, kildeData, RSS_DOV, RSS_FEJL, rssXml, TEST_GMAIL, TEST_GOOGLE_KLIENT, TEST_PERSONER } from './indhold/kilder.ts';
+import { falskKildeData, GMAIL_AFVIST, GOOGLE_AFVIST, googleKalendere, googleMailRefresh, googleRefresh, KILDE_TILSTAND, kildeData, RSS_DOV, RSS_FEJL, rssXml, TEST_GMAIL, TEST_GOOGLE_KLIENT, TEST_KANALER, TEST_PERSONER } from './indhold/kilder.ts';
 import { googleKalender, GOOGLE_KALENDER_ID } from '../kilder/google-kalender/kilde.ts';
 import { nyhederRss } from '../kilder/nyheder-rss/kilde.ts';
 import { beskederKilde } from '../kilder/beskeder/kilde.ts';
@@ -44,7 +44,7 @@ import { gemKildeHemmelighed } from '../kilder/hemmeligheder.ts';
 import { noterKilde } from '../kilder/noter/noter.ts';
 import { NOTER_ID } from '../kilder/noter/stier.ts';
 import { adopterVault, STRUKTUR } from '../kilder/noter/vault.ts';
-import { skrivPerson } from '../kilder/noter/personer.ts';
+import { skrivPerson, somKanalLinje } from '../kilder/noter/personer.ts';
 import { testOmkostninger } from './indhold/omkostninger.ts';
 
 export type Testverden = {
@@ -310,7 +310,16 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
       const vaultRod = path.dirname(vaultInbox);
       await mkdir(path.join(vaultRod, '.obsidian'), { recursive: true });
       await adopterVault(vaultRod);
-      for (const { mappe, ...p } of TEST_PERSONER) await skrivPerson(path.join(vaultRod, ...STRUKTUR.personer.split('/')), p, { mappe, zone: 'privat' });
+      for (const { mappe, ...p } of TEST_PERSONER) {
+        const rod = path.join(vaultRod, ...STRUKTUR.personer.split('/'));
+        const skrevet = await skrivPerson(rod, p, { mappe, zone: 'privat' });
+        // KC-0225: `kanaler:` is written by hand in a real vault, so the world adds the line to the file the writer made.
+        const kanaler = TEST_KANALER[p.navn];
+        if (kanaler && skrevet.udfald === 'oprettet') {
+          const fil = path.join(rod, skrevet.sti);
+          await writeFile(fil, (await readFile(fil, 'utf8')).replace(/^---\n/, `---\n${somKanalLinje(kanaler)}\n`), 'utf8');
+        }
+      }
       for (const r of regnskab) await skrivRegnskab(r.fil, r.id, r.linje);
       if (noter.length) await mkdir(vaultInbox, { recursive: true });
       for (const n of noter) await writeFile(n.fil, n.md, 'utf8');

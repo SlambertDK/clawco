@@ -1,30 +1,25 @@
 // KC-0138: one inbound line shaped into the Besked a room or a prompt may see. The text is cut to 500 characters
 // and stripped of phone numbers, platform addresses and @handles; the sender is a person from the register (KC-0136,
-// injected as Kontakt — this folder imports no notes code) matched by number, then by display name; else the
+// injected as Kontakt — this folder imports no notes code) matched by its id on the channel (KC-0225), then by display name; else the
 // channel's display name if it is a name; else "ukendt afsender". Ids and numbers never leave this function.
 
 import { createHash } from 'node:crypto';
 import type { DataZone } from '../../identitet/zoner.ts';
 import type { Besked } from '../types.ts';
 import type { RaaBesked } from './jsonl.ts';
+import { findAfsender, type Kontakt } from './afsender.ts';
 import { erId, samtaleNoegle, standardNavn } from './valg.ts';
 
 export const MAKS_TEKST = 500;
 export const UKENDT = 'ukendt afsender';
 
-/** A person of the register as this connector needs it. `numre`: phone numbers in any format (may be empty). */
-export type Kontakt = { id: string; navn: string; relation: string; numre: string[] };
+export type { Kontakt };
 
-const cifre = (s: string): string => s.replace(/@.*$/, '').replace(/\D/g, '');
-const sidste8 = (s: string): string | null => { const c = cifre(s); return c.length >= 8 ? c.slice(-8) : null; };
 const norm = (s: string): string => s.normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().replace(/\s+/g, ' ').trim();
 
 function findKontakt(r: RaaBesked, kontakter: readonly Kontakt[]): Kontakt | undefined {
-  const nr = sidste8(r.afsender);
-  if (nr) {
-    const k = kontakter.find((x) => x.numre.some((n) => sidste8(n) === nr));
-    if (k) return k;
-  }
+  const paaKanal = findAfsender(kontakter, r.kanal, r.afsender); // KC-0225: the id the register holds for this channel
+  if (paaKanal) return paaKanal;
   if (!r.afsenderNavn) return undefined;
   const n = norm(r.afsenderNavn);
   const hel = kontakter.filter((x) => norm(x.navn) === n);

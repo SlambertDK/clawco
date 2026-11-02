@@ -69,6 +69,8 @@ const HAAND: [string, string][] = [
   ['kilde-noter-mappe-mangler', 'Mappen med dine noter er væk'], // the notes folder is gone: Kilder in Kø says so in the fixed words (KC-0136, KC-0139; the moment "Næste morgen")
   ['kilde-nyheder-kort', 'data-kilde="nyheder-rss"'],            // the user's own news feeds over the world's fake feeds in Kilder (KC-0137; its card is data for Start, KC-0128)
   ['kilde-nyheder-fejl', 'Kilder, der ikke svarede i dag: Den døve avis'], // one of the three feeds does not answer, named calmly in Nyheder (KC-0137; the moment "Næste morgen")
+  ['kilde-nyheder-egne', 'data-kilde-feed="'],                    // KC-0222: the news sources by name in Kilder in Kø, Fjern on each (the world's three feeds)
+  ['kilde-nyheder-tilfoej', 'data-kilde-feed-adresse'],           // KC-0222: the field that adds a source by its address under the same list
   ['kilde-beskeder-kort', 'data-kilde="beskeder"'],                  // KC-0138: Beskeder connected over the world's inbound log in Kilder (from the moment "Aften")
   ['kilde-beskeder-besked', 'data-besked-kanal="'],                  // KC-0138: a card in Nu on one message, sender by name, "Clawco læser kun" (Ella on Signal, "Aften")
   ['kilde-beskeder-log-ind-igen', 'Hermes har mistet en af dine beskedkanaler'], // KC-0138: Signal is gone from Hermes overnight — Nu's connection card in the fixed words (the moment "Lørdag i næste uge")
