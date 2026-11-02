@@ -148,3 +148,12 @@ export async function genopretTilRydning(db: Database, foer: Date): Promise<{ ud
 export async function noterRyddet(db: Database, udrulning: number, slug: string, nu: Date): Promise<void> {
   await db.query('UPDATE drift.udrulning_tenant SET genopret_ryddet = $3 WHERE udrulning = $1 AND slug = $2', [udrulning, slug, nu.toISOString()]);
 }
+
+/** KC-0189: the tenants with an active rollout step — `igang` in an active rollout, and while a whole rollout is being
+ *  rolled back also the upgraded ones still waiting for theirs. The status feed counts them as `opdaterer`, not down. */
+export async function aktiveTrin(db: Database): Promise<Set<string>> {
+  const rows = await db.query<{ slug: string }>(
+    `SELECT t.slug FROM drift.udrulning_tenant t JOIN drift.udrulning u ON u.id = t.udrulning
+     WHERE u.tilstand = ANY($1::text[]) AND (t.tilstand = 'igang' OR (u.tilstand = 'tilbagerulles' AND t.tilstand = 'opgraderet'))`, [AKTIVE]);
+  return new Set(rows.map((r) => r.slug));
+}

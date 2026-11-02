@@ -60,7 +60,7 @@ import { gemProfil, hentProfil, noterTilmeldingstid } from './konto/profil.ts';
 import { LANDE } from './abonnement/lande.ts';
 import { hentKundeRaekke, kontoensCheckout } from './abonnement/kunde.ts';
 import { klargoerKonto } from './fleet/afstem.ts';
-import { hentTenant, klareTilUdrulning, noterKoersel, saetHold, saetOpdateres, tenantForEjer, tenanterTilKopi } from './fleet/tilstand.ts';
+import { hentTenant, klareTilUdrulning, noterKoersel, provisioneringerSiden, saetHold, saetOpdateres, tenantForEjer, tenanterTilKopi } from './fleet/tilstand.ts';
 import { koerBinaer, lokalKopiNode, type KoerselBinaer } from './fleet/kopi.ts';
 import { kopiNoegler, slettedeNoegler } from './hemmeligheder/kopi.ts';
 import { lokalKopiLager, r2KopiLager } from './drift/backup/lager.ts';
@@ -72,9 +72,13 @@ import type { ProeveDeps } from './drift/backup/proeve.ts';
 import type { KopiNode } from './drift/backup/typer.ts';
 import { skyFejlrapport, type Fejlrapport } from './delt/fejlrapport.ts';
 import { alarmer, alarmLoekke, alarmModtager, alarmSignaler } from './drift/alarm.ts';
+import { byggFeed, feedCache, statusOrigin, statusRuter, type StatusDeps } from './drift/helbred/feed.ts';
+import { adgangsProbe, maaltPost, type KomponentDeps } from './drift/helbred/komponenter.ts';
+import { noterPost } from './drift/helbred/historik.ts';
+import { pollerLoekke } from './drift/helbred/poller.ts';
 
 export type DevStripe = Parameters<typeof devStripeRuter>[0];
-export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport };
+export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport; status?: StatusDeps };
 
 export function createSkyApp(deps: SkyDeps): Hono {
   const app = new Hono();
@@ -90,6 +94,8 @@ export function createSkyApp(deps: SkyDeps): Hono {
     const h = await helbred({ db: deps.db, sha: deps.sha, startet: deps.startet, ...(deps.flaade ? { flaade: deps.flaade } : {}), ...(deps.noegler ? { noegler: deps.noegler } : {}), ...(deps.gateway ? { gateway: deps.gateway } : {}) });
     return c.json(h, h.ok ? 200 : 503);
   });
+  // KC-0189: the public status feed (counts only); its handler ends the chain like /health.
+  if (deps.status) app.route('/', statusRuter(deps.status));
   // Billing first: its handlers end the chain, so konto's '*' middleware (64 KB body limit, its own
   // CSP) never runs on the webhook or the plan pages.
   if (deps.abonnement) app.route('/', abonnementRuter(deps.abonnement));
@@ -305,6 +311,31 @@ export function udrulFra(o: { config: SkyConfig; db: Database; ring: Noeglering 
   };
 }
 
+/** KC-0189: the status components' seams — Sky's own health and an account lookup (login), the canary route through
+ *  Sky's own listener (adgang; the intern cohort's tenant first, never the public edge), the fleet's rows (provisioning,
+ *  copy scopes) — wired here so drift/ imports none of fleet/, konto/ or gateway/. */
+export function helbredKomponenter(o: { config: SkyConfig; db: Database; sha: string; startet: number; flaadeKlar: boolean; kopierSlaaetTil: boolean; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler' }): KomponentDeps {
+  const { config, db } = o;
+  return {
+    db,
+    sky: async () => (await helbred({ db, sha: o.sha, startet: o.startet, ...(o.flaade ? { flaade: o.flaade } : {}), ...(o.noegler ? { noegler: o.noegler } : {}), ...(o.gateway ? { gateway: o.gateway } : {}) })).ok,
+    konto: async () => { await db.query('SELECT id FROM konto LIMIT 1'); return true; },
+    adgang: adgangsProbe({
+      port: config.port,
+      vaert: async () => {
+        const k = await klareTilUdrulning(db);
+        const kanari = k.find((t) => t.hold === 'intern') ?? k.find((t) => t.hold === 'kanari') ?? k[0];
+        return kanari ? `${kanari.slug}.${config.basedomain}` : null;
+      },
+    }),
+    kontoOrigin: new URL(config.publicUrl).origin,
+    provisioneringer: (siden) => provisioneringerSiden(db, siden),
+    flaadeKlar: o.flaadeKlar,
+    kopierSlaaetTil: o.kopierSlaaetTil,
+    kopiTenanter: () => tenanterTilKopi(db),
+  };
+}
+
 export type GatewayForbindelse = { noegle: GatewayNoegle | null; fejl: string | null; status: 'ok' | 'mangler'; ruter: RuteTabel; loginVej: LoginVejDeps; stoette: StoetteSeams; stoetteSide: StoetteSideDeps };
 
 export async function forbind(config: SkyConfig, db: Database, env: Record<string, string | undefined>, n: Noegler = noeglering(env)): Promise<{ konto: KontoDeps; abonnement: AbonnementDeps; dev: DevStripe | null; flaade: AfstemDeps | null; noegler: 'ok' | 'mangler'; noeglefejl: string | null; gateway: GatewayForbindelse; adgang: ReturnType<typeof kontoAdgang>; tilmelding: TilmeldingDeps }> {
@@ -316,6 +347,8 @@ export async function forbind(config: SkyConfig, db: Database, env: Record<strin
   const kald = tenantKald({ noegle: gk.noegle });
   const flaade = flaadeDeps(config, db, n.ring, kant(db, ruter), kald);
   const konto = kontoDeps(config, db, haendelser(), flaade, env);
+  // KC-0189: every mail's outcome (a code, never a recipient) feeds the status page's mail component.
+  konto.post = maaltPost(konto.post, (r) => noterPost(db, r));
   const betaling = laesBetaling(env);
   const priser = laesPriser();
   let klient: BetalingsKlient | null = null;
@@ -429,7 +462,8 @@ export function fordeler(o: { kontoVaert: string; basedomain: string; sky: Reque
 export async function main(): Promise<void> {
   const startet = Date.now();
   let config;
-  try { config = laesConfig(process.env); } catch (err) {
+  let statusSide: string | null;
+  try { config = laesConfig(process.env); statusSide = statusOrigin(process.env); } catch (err) {
     console.error(`sky: ${(err as Error).message}`);
     process.exitCode = 1;
     return;
@@ -480,11 +514,28 @@ export async function main(): Promise<void> {
   console.log(`sky: gateway ${f.gateway.noegle ? `nøgle indlæst (id ${f.gateway.noegle.id}), kunder på *.${config.basedomain}` : `${f.gateway.fejl}`}`);
   // KC-0187: the alert rules every 5 min on the signals Sky has (backups, drills, rollouts), by mail to SKY_ALARM_TIL.
   const til = alarmModtager(process.env);
-  const alarm = alarmLoekke({ signaler: (nu) => alarmSignaler(db, nu), alarm: alarmer({ post: f.konto.post, til, rapport: fejl.rapport }), rapport: fejl.rapport, interval: 5 * 60_000 });
+  const regler = alarmer({ post: f.konto.post, til, rapport: fejl.rapport });
+  const alarm = alarmLoekke({ signaler: (nu) => alarmSignaler(db, nu), alarm: regler, rapport: fejl.rapport, interval: 5 * 60_000 });
   // KC-0196: the grace stages' mails (day 7 needs no event; day 0 also goes out from the webhook). A pass now, then every 15 min.
   const fristJob = fristLoekke(koebDeps(f.abonnement), { interval: 15 * 60_000 });
   console.log(`sky: alarmer ${til ? 'mailes til driftsadressen (SKY_ALARM_TIL)' : 'kun i loggen og fejlrapporten (SKY_ALARM_TIL ikke sat)'}`);
-  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, ...(f.flaade ? { flaade: f.flaade.flaade.navn } : {}) });
+  // KC-0189: every minute each klar tenant's /health over the private network, the status components, and the
+  // `tenant-usund` rule fed from the syg streaks (same rules instance, so an alert is never sent twice). Started once
+  // the listener is up: the canary check asks Sky's own port.
+  const fl = f.flaade ? { flaade: f.flaade.flaade.navn } : {};
+  let helbredLoekke: { stop(): void } | null = null;
+  const startHelbred = () => pollerLoekke({
+    db,
+    tenanter: () => klareTilUdrulning(db),
+    sundhed: (adresse) => hentSundhed(adresse),
+    komponenter: helbredKomponenter({ config, db, sha: gitSha(), startet, flaadeKlar: f.flaade !== null && f.noegler === 'ok', kopierSlaaetTil: kopi.deps !== null, noegler: f.noegler, gateway: f.gateway.status, ...fl }),
+    usunde: async (liste, nu) => { await regler.vurder({ usunde: liste }, nu); },
+    nu: () => new Date(),
+    rapport: fejl.rapport,
+  });
+  console.log(`sky: status på ${new URL(config.publicUrl).origin}/status.json${statusSide ? ` (CORS for ${statusSide})` : ' (SKY_STATUS_ORIGIN ikke sat: ingen CORS)'}`);
+  const status: StatusDeps = { feed: feedCache({ bygg: () => byggFeed(db, new Date()) }), origin: statusSide };
+  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, ...fl });
   const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette });
   // KC-0188: Sky's log records each support grant's expiry once (the gateway already refuses it by clock on every request).
   const udloeb = setInterval(() => {
@@ -496,11 +547,12 @@ export async function main(): Promise<void> {
   const server = http.createServer(fordeler({ kontoVaert: new URL(config.publicUrl).hostname, basedomain: config.basedomain, sky: getRequestListener(skyApp.fetch), gateway: gw }));
   server.listen(config.port, '127.0.0.1', () => {
     console.log(`Clawco Sky lytter på http://127.0.0.1:${config.port}`);
+    helbredLoekke = startHelbred();
   });
   // KC-0221: never wait on an open stream; 5 s for busy requests, then exit (a timer or a proxy socket left
   // open must not keep Sky alive past systemd's stop timeout).
   const stop = () => {
-    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); fristJob.stop(); }, efter: () => db.close() })
+    void stopPaaSignal({ server, frist: 5_000, foer: () => { loekke?.stop(); destruktion.stop(); kopiStop(); clearInterval(udloeb); alarm.stop(); fristJob.stop(); helbredLoekke?.stop(); }, efter: () => db.close() })
       .then((kode) => process.exit(kode));
   };
   process.once('SIGTERM', stop);

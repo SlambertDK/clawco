@@ -174,3 +174,10 @@ export async function saetOpdateres(db: Database, slug: string, nu: Date | null)
 export async function noterKoersel(db: Database, slug: string, k: { billede: string; release: string; adresse: string }, nu: Date): Promise<void> {
   await db.query('UPDATE flaade.tenant SET billede = $2, release = $3, adresse = $4, opdateret = $5 WHERE slug = $1', [slug, k.billede, k.release, k.adresse, nu.toISOString()]);
 }
+
+/** KC-0189: every tenant ordered since a time — when, when it became klar (if it did) and its state now — for the
+ *  status feed's provisioning success rate and median time. No slug: the feed needs none. */
+export async function provisioneringerSiden(db: Database, siden: Date): Promise<{ bestilt: Date; klar: Date | null; tilstand: Tilstand }[]> {
+  const rows = await db.query<{ bestilt: Date | string; klar: Date | string | null; tilstand: Tilstand }>('SELECT bestilt, klar, tilstand FROM flaade.tenant WHERE bestilt >= $1', [siden.toISOString()]);
+  return rows.map((r) => ({ bestilt: new Date(r.bestilt), klar: r.klar ? new Date(r.klar) : null, tilstand: r.tilstand }));
+}

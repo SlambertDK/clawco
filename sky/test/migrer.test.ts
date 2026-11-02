@@ -61,10 +61,10 @@ test('a failing migration applies nothing (all or nothing)', async () => {
   await db.close();
 });
 
-test('the real migrations bring an empty database to version 13 (0002 = konti, KC-0177; 0003 = abonnement, KC-0191/KC-0192; 0004 = fleet, KC-0182; 0005 = hemmeligheder, KC-0181; 0006 = gateway, KC-0183; 0007 = tilmelding, KC-0198; 0008 = backup, KC-0185; 0009 = sletning, KC-0206; 0010 = udrulning, KC-0186; 0011 = forbrugerret, KC-0209; 0012 = stoette, KC-0188; 0013 = udsendte_mails, KC-0196)', async () => {
+test('the real migrations bring an empty database to version 14 (0002 = konti, KC-0177; 0003 = abonnement, KC-0191/KC-0192; 0004 = fleet, KC-0182; 0005 = hemmeligheder, KC-0181; 0006 = gateway, KC-0183; 0007 = tilmelding, KC-0198; 0008 = backup, KC-0185; 0009 = sletning, KC-0206; 0010 = udrulning, KC-0186; 0011 = forbrugerret, KC-0209; 0012 = stoette, KC-0188; 0013 = udsendte_mails, KC-0196; 0014 = helbred, KC-0189)', async () => {
   const db = await pgliteDatabase();
-  assert.deepEqual(await migrer(db, MIGRATIONS_DIR), { anvendt: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13], version: 13 });
-  for (const t of ['abonnement.kunde', 'abonnement.stripe_haendelser', 'abonnement.rettigheder', 'abonnement.rettigheds_haendelser', 'flaade.tenant', 'hemmeligheder.tenant_noegle', 'gateway.kode', 'drift.kopi', 'drift.snapshot', 'drift.proeve', 'eksportlink', 'sletkvittering', 'udsendte_mails']) {
+  assert.deepEqual(await migrer(db, MIGRATIONS_DIR), { anvendt: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14], version: 14 });
+  for (const t of ['abonnement.kunde', 'abonnement.stripe_haendelser', 'abonnement.rettigheder', 'abonnement.rettigheds_haendelser', 'flaade.tenant', 'hemmeligheder.tenant_noegle', 'gateway.kode', 'drift.kopi', 'drift.snapshot', 'drift.proeve', 'eksportlink', 'sletkvittering', 'udsendte_mails', 'drift.helbred_maaling', 'drift.helbred_komponent', 'drift.helbred_dag', 'drift.helbred_post', 'drift.helbred_haendelse']) {
     assert.deepEqual(await db.query('SELECT to_regclass($1)::text AS t', [t]), [{ t }]);
   }
   await db.close();

@@ -186,6 +186,22 @@ node --env-file=/srv/sky/.env sky/scripts/refusioner.ts udfoert <nr>    # after 
 The receipt, cancellation and withdrawal mails go through the same Post seam as the login link; the renewal reminder
 (`abonnement/paamindelse.ts`) is built but nothing sends it yet (no scheduler sends mail; a follow-up).
 
+## Status feed (KC-0189)
+
+Every minute Sky asks each klar tenant's `/health` on its private address (the tenant network, never the public edge),
+judges the components (login, adgang via the canary tenant's host on Sky's own port, oprettelse, sikkerhedskopi, mail,
+the tenants' own health) and stores the pass in `drift.helbred_*`. `GET /status.json` on the account host is the
+public feed: counts and percentages only, cached 30 s, CORS for `SKY_STATUS_ORIGIN` only. Five minutes of a tenant
+answering syg raises the `tenant-usund` alert (KC-0187). The daily clean-up logs one line `sky helbred: oprullet …`.
+With backups off (no R2 token, KC-0185) the `sikkerhedskopi` component is `nede`, by design.
+
+```bash
+curl -s https://<account host>/status.json                                               # the feed
+node --env-file=/srv/sky/.env sky/scripts/haendelse.mjs ny "<titel>" "<tekst>"            # an incident (plain text)
+node --env-file=/srv/sky/.env sky/scripts/haendelse.mjs liste                             # with ids
+node --env-file=/srv/sky/.env sky/scripts/haendelse.mjs slut <id>                         # ended now
+```
+
 ## Local run (development)
 
 ```bash
