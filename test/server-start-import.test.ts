@@ -11,6 +11,7 @@ import { createFileStore } from '../src/store/fileStore.ts';
 import { createFakeAgent } from '../src/agent/fake.ts';
 import { falskeKilder } from '../src/kilder/falsk/falsk.ts';
 import { noterKilde } from '../src/kilder/noter/noter.ts';
+import { skrivPerson } from '../src/kilder/noter/personer.ts';
 import { IMPORT_MARKOER } from '../src/rooms/start/import/foreslaa.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import type { StartState } from '../src/rooms/start/schema.ts';
@@ -136,5 +137,31 @@ test('an uploaded vcf, folded into the one `filer` field as the client does, bec
     assert.match(s.sendt[0] ?? '', /Iris Bakke/);
     assert.equal((await state(s)).import?.bunke?.slags, 'kontakter');
     assert.deepEqual(await readdir(s.tmp).catch(() => []), []);
+  });
+});
+
+test('KC-0219 through the real routes: Opdater writes the diff into the existing file (202, not blocked by the policy layer), Fortryd puts the old bytes back', async () => {
+  await medApp(async (s) => {
+    await klargoer(s);
+    await skrivPerson(path.join(s.vault, '40-Mennesker', 'People'), { navn: 'Ingrid', relation: 'hustru', zone: 'privat', tekst: 'Min egen note' }, { mappe: 'familie', zone: 'privat' });
+    const foer = await fil(s, '40-Mennesker/People/familie/Ingrid.md');
+    assert.equal((await post(s, '/api/rum/start/aktion/import-laes', { tekst: 'Ingrid er min kone.', assistent: 'chatgpt' })).status, 202);
+    await rolig(s);
+    const pile = await start(s);
+    assert.match(pile, /data-aktion="import-opdater" data-arg="\{&quot;forslagId&quot;:&quot;p1&quot;\}"/);
+    assert.equal((await post(s, '/api/rum/start/aktion/import-gem', { forslagId: 'p1' })).status, 400, 'Gem never writes over an existing person');
+    const r = await post(s, '/api/rum/start/aktion/import-opdater', { forslagId: 'p1' });
+    assert.equal(r.status, 202, await r.clone().text());
+    await rolig(s);
+    assert.equal(await fil(s, '40-Mennesker/People/familie/Ingrid.md'), '---\nnavn: Ingrid\nrelation: din kone\nzone: privat\nfoedselsdag: 1984-03-12\n---\nMin egen note\n');
+    assert.ok(!(await state(s)).import?.bunke?.forslag.some((f) => f.id === 'p1'));
+    const e = (await log(s)).find((x) => x.handlingId === 'import-opdater')!;
+    assert.match(e.tekst, /Opdaterede Ingrid/);
+    const f = await post(s, `/api/rum/start/log/${e.id}/fortryd`);
+    assert.equal(f.status, 202, await f.clone().text());
+    await rolig(s);
+    assert.equal(await fil(s, '40-Mennesker/People/familie/Ingrid.md'), foer, 'byte for byte as before');
+    assert.ok((await log(s)).find((x) => x.id === e.id)?.fortrudt);
+    assert.equal((await post(s, '/api/rum/start/aktion/import-opdater', { forslagId: 'p9' })).status, 404);
   });
 });

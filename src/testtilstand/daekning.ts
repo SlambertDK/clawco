@@ -129,7 +129,8 @@ const HAAND: [string, string][] = [
   ['start-import-bunke', 'data-import-bunke'],                              // KC-0129: step 5's pile of proposals, one line each with Gem / Spring over (the moment "Kold start: forslag fra importen")
   ['start-import-form', 'id="import-form"'],                                  // KC-0129: step 5's form with the provider named (the moment "Kold start: tag det med, åbent")
   ['start-import-mappe-mangler', 'data-import-mappe="mangler"'],              // KC-0129: step 5 before a notes folder exists
-  ['start-import-findes', 'data-import-status="findes"'],                     // KC-0129: a name already in the register: "opdater?" with the diff, never a write
+  ['start-import-findes', 'data-import-status="findes"'],                     // KC-0129: a name already in the register: "opdater?" with the diff (the moment "Kold start: forslag fra importen")
+  ['start-import-opdater', 'data-aktion="import-opdater"'],                  // KC-0219: Opdater on that line, writing the diff into the file; Fortryd puts the old file back (same moment)
   ['tailscale-offentlig', 'data-tailscale-offentlig'],                        // KC-0161: the delt card when Tailscale reports Clawco open to the internet (the moment "Tailscale: åbent for internettet")
   ['start-import-gemt', 'data-import-gemt'],                                  // KC-0129: what was taken with, after a saved import (the moment "Kold start: importen gemt")
   ['ugetal', 'data-ugetal="linje"'],                                           // KC-0147: the week's number (Nu on a Monday — the moment "Mandag morgen" — and always on /viden)

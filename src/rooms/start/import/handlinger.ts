@@ -20,7 +20,7 @@ import { parseNoter } from './parse-noter.ts';
 import { parseVcard } from './parse-vcard.ts';
 import type { Kontakt } from './typer.ts';
 import { ASSISTENTER, slagsNavn } from './typer.ts';
-import type { Kvittering, ImportSkriver } from './skriver.ts';
+import type { Kvittering, ImportSkriver, Opdateret } from './skriver.ts';
 import { fjernUpload, modtagUpload, rydTmp, TMP_LEVETID_MS, type Upload } from './upload.ts';
 
 export const IMPORT_RUM = 'start';
@@ -37,7 +37,7 @@ export type Hjaelp = {
   korsel: DataZone;
 };
 
-export const IMPORT_AKTIONER = ['import-laes', 'import-gem', 'import-gem-alle', 'import-spring', 'import-annuller', 'import-spring-over', 'import-lav-mappe'] as const;
+export const IMPORT_AKTIONER = ['import-laes', 'import-gem', 'import-gem-alle', 'import-opdater', 'import-spring', 'import-annuller', 'import-spring-over', 'import-lav-mappe'] as const;
 
 export const tmpBase = (deps: RoomDeps): string => deps.importTmp ?? path.join(tmpdir(), 'clawco-import');
 /** Empties upload folders older than an hour (called by the room's clock and on every import). */
@@ -181,6 +181,50 @@ async function gem(deps: RoomDeps, alle: boolean, forslagId: string, h: Hjaelp):
   })), { room: IMPORT_RUM, label: 'Start: gemmer importen' });
 }
 
+// ---------- Opdater (KC-0219) ----------
+
+/**
+ * Opdater: the new from the import written into a person who already stands in the register. Only the fields the pile
+ * showed (relation, org, fødselsdag) and only while the file still says what the diff said; everything the user wrote
+ * stays byte for byte. The previous file travels in the log line's Fortryd (small by the writer's cap), so Fortryd can
+ * put it back exactly (§4 r5, r10). A person Hermes only hears about in the import is never created here.
+ */
+async function opdater(deps: RoomDeps, forslagId: string, h: Hjaelp): Promise<RunRecord> {
+  const skriver = ejerOgSkriver(deps, 'opdatere en fil');
+  const f0 = (await h.laesState(deps))?.import?.bunke?.forslag.find((x) => x.id === forslagId);
+  if (!f0) throw new ActionError('Forslaget findes ikke i rummet', 404);
+  if (f0.art !== 'person' || f0.status !== 'findes') throw new ActionError('Kun en person, der allerede findes i din mappe, kan opdateres.');
+  return deps.runs.local('gem', async () => h.faerdigt(deps, await h.enAdGangen(deps, async () => {
+    const s = (await h.laesState(deps)) ?? h.ny(deps.now());
+    const bunke = s.import?.bunke;
+    const f = bunke?.forslag.find((x) => x.id === forslagId && x.art === 'person' && x.status === 'findes');
+    if (!bunke || !f) return 'Allerede opdateret.'; // a second tap that raced the first writes nothing
+    const diff = visDiff(f.diff ?? [], 'person');
+    let r: Opdateret;
+    try { r = await skriver.opdaterPerson({ navn: f.navn, diff }); } catch (err) { return `Kunne ikke opdatere ${f.navn}: ${err instanceof Error ? err.message : 'kunne ikke gemmes'}`; }
+    if (r.udfald === 'forandret') return `${f.navn} er ændret, siden forslaget blev lavet, så Clawco har ikke rørt filen. Behold din fil, eller læs importen igen.`;
+    const rest = bunke.forslag.filter((x) => x.id !== f.id);
+    let gemt = s.import?.gemt ?? [];
+    let trin = s.trin;
+    let tekst = `${f.navn} står allerede, som importen siger.`;
+    if (r.udfald === 'opdateret') {
+      const kilde = `import-${bunke.slags}`;
+      const hvad = diff.filter((d) => r.felter.includes(d.felt)).map((d) => `${d.felt} ${d.nu ? `»${d.nu}«` : 'stod ikke i filen'} → »${d.ny}«`);
+      const post = await deps.store.appendLog(IMPORT_RUM, {
+        kilde: 'henrik', zone: h.korsel, ejer: deps.person.id, handlingId: 'import-opdater',
+        fortryd: `lokal:${JSON.stringify({ import: { personer: [], opdateret: [r.kvittering] } })}`,
+        tekst: `Opdaterede ${f.navn} (${r.sti}) med det nye fra ${slagsNavn(bunke.slags)} (kilde: ${kilde}): ${hvad.join('; ')}.${r.sprunget.length ? ` ${r.sprunget.join(', ')} er ikke ændret, fordi du har rettet ${r.sprunget.length === 1 ? 'den' : 'dem'} siden.` : ''}`,
+      });
+      gemt = [...gemt, { logId: post.id, tid: deps.now().toISOString(), slags: bunke.slags, antal: 1 }];
+      trin = { ...s.trin, import: { status: 'klaret' as const, tid: deps.now().toISOString() } };
+      tekst = `Opdaterede ${f.navn}.`;
+    }
+    const { import: _gammel, ...udenImport } = s;
+    await deps.store.writeState(IMPORT_RUM, { ...udenImport, ...(rest.length || gemt.length ? { import: { ...(rest.length ? { bunke: { ...bunke, forslag: rest } } : {}), ...(gemt.length ? { gemt } : {}) } } : {}), trin });
+    return tekst;
+  })), { room: IMPORT_RUM, label: 'Start: opdaterer en person' });
+}
+
 // ---------- Spring over, Annuller, mappe ----------
 
 async function springForslag(deps: RoomDeps, forslagId: string, h: Hjaelp): Promise<RunRecord> {
@@ -244,6 +288,7 @@ export async function importAktion(deps: RoomDeps, name: string, body: Record<st
     case 'import-laes': return laes(deps, body, h);
     case 'import-gem': return gem(deps, false, str(body['forslagId'], 10), h);
     case 'import-gem-alle': return gem(deps, true, '', h);
+    case 'import-opdater': return opdater(deps, str(body['forslagId'], 10), h);
     case 'import-spring': return springForslag(deps, str(body['forslagId'], 10), h);
     case 'import-annuller': return annuller(deps, h);
     case 'import-spring-over': return springTrinOver(deps, trin.status, trin.titel, h);
@@ -256,18 +301,24 @@ export async function importAktion(deps: RoomDeps, name: string, body: Record<st
 
 const erKvit = (v: unknown): v is Kvittering => typeof v === 'object' && v !== null && typeof (v as Kvittering).sti === 'string' && /^[0-9a-f]{64}$/.test((v as Kvittering).sha256) && ((v as Kvittering).forrige === undefined || typeof (v as Kvittering).forrige === 'string');
 
+/** KC-0219: the receipt of an update also carries the file as it was. */
+const erOpdKvit = (v: unknown): v is Kvittering & { forrige: string } => erKvit(v) && typeof (v as Kvittering).forrige === 'string';
+
+export type ImportKvitteringer = { personer: Kvittering[]; profil?: Kvittering; opdateret?: Kvittering[] };
+
 /** The receipts a log line carries, or null when the line is not an import's. */
-export function importKvitteringer(fortryd: string | undefined): { personer: Kvittering[]; profil?: Kvittering } | null {
+export function importKvitteringer(fortryd: string | undefined): ImportKvitteringer | null {
   if (!fortryd?.startsWith('lokal:')) return null;
   let o: unknown;
   try { o = (JSON.parse(fortryd.slice(6)) as { import?: unknown }).import; } catch { return null; }
   if (typeof o !== 'object' || o === null) return null;
-  const { personer, profil } = o as { personer?: unknown; profil?: unknown };
-  return { personer: Array.isArray(personer) ? personer.filter(erKvit) : [], ...(erKvit(profil) ? { profil } : {}) };
+  const { personer, profil, opdateret } = o as { personer?: unknown; profil?: unknown; opdateret?: unknown };
+  const opd = Array.isArray(opdateret) ? opdateret.filter(erOpdKvit) : [];
+  return { personer: Array.isArray(personer) ? personer.filter(erKvit) : [], ...(erKvit(profil) ? { profil } : {}), ...(opd.length ? { opdateret: opd } : {}) };
 }
 
-/** Fortryd of one saved import: removes exactly the files written (those still holding what was written) and nothing else. */
-export function importFortryd(deps: RoomDeps, entry: LogEntry, k: { personer: Kvittering[]; profil?: Kvittering }, h: Hjaelp): RunRecord | null {
+/** Fortryd of one saved import: removes exactly the files written and puts back the files updated (those still holding what was written), nothing else. */
+export function importFortryd(deps: RoomDeps, entry: LogEntry, k: ImportKvitteringer, h: Hjaelp): RunRecord | null {
   const skriver = deps.importSkriver;
   if (!skriver || entry.fortrudt || !kan(deps.person.rolle, 'aendre-indstillinger')) return null;
   return deps.runs.local('fortryd', async () => {
@@ -275,6 +326,8 @@ export function importFortryd(deps: RoomDeps, entry: LogEntry, k: { personer: Kv
     const beholdt: string[] = [];
     for (const kv of k.personer) { const ok = await skriver.fjernPerson(kv).catch(() => false); (ok ? fjernet : beholdt).push(kv.sti); }
     if (k.profil) { const ok = await skriver.fjernProfil(k.profil).catch(() => false); (ok ? fjernet : beholdt).push(k.profil.sti); }
+    const gendannet: string[] = [];
+    for (const kv of k.opdateret ?? []) { const ok = await skriver.gendanPerson(kv).catch(() => false); (ok ? gendannet : beholdt).push(kv.sti); }
     await h.enAdGangen(deps, async () => {
       await deps.store.updateLog(IMPORT_RUM, entry.id, { fortrudt: deps.now().toISOString() });
       const s = (await h.laesState(deps)) ?? h.ny(deps.now());
@@ -285,7 +338,7 @@ export function importFortryd(deps: RoomDeps, entry: LogEntry, k: { personer: Kv
     });
     await deps.store.appendLog(IMPORT_RUM, {
       kilde: 'henrik', zone: h.korsel, ejer: deps.person.id,
-      tekst: `Fortrød importen: fjernede ${fjernet.length} ${fjernet.length === 1 ? 'fil' : 'filer'}${beholdt.length ? `; beholdt ${beholdt.join(', ')}, fordi du har rettet ${beholdt.length === 1 ? 'den' : 'dem'}` : ''}.`,
+      tekst: `Fortrød importen: ${[...(!k.opdateret?.length || k.personer.length || k.profil ? [`fjernede ${fjernet.length} ${fjernet.length === 1 ? 'fil' : 'filer'}`] : []), ...(k.opdateret?.length ? [`satte ${gendannet.length} ${gendannet.length === 1 ? 'fil' : 'filer'} tilbage`] : [])].join(' og ')}${beholdt.length ? `; beholdt ${beholdt.join(', ')}, fordi du har rettet ${beholdt.length === 1 ? 'den' : 'dem'}` : ''}.`,
     });
     return h.faerdigt(deps, 'Fortrudt.');
   }, { room: IMPORT_RUM, label: 'Start: fortryder importen' });

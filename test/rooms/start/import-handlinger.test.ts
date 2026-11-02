@@ -240,3 +240,108 @@ test('Spring over is refused once the step is Klaret', async () => {
     await assert.rejects(s.aktion('import-spring-over'), ActionError);
   });
 });
+
+// ---------- KC-0219: Opdater — the new from the import written into a person who already exists ----------
+
+const INGRID = 'Min egen note';
+const medIngrid = (fn: Parameters<typeof medVault>[1]): Promise<void> => medVault({ foer: async (personer) => { await skrivPerson(personer, { navn: 'Ingrid', relation: 'hustru', zone: 'privat', kilde: 'mig', tekst: INGRID }, { mappe: 'familie', zone: 'privat' }); } }, fn);
+const INGRID_FIL = '40-Mennesker/People/familie/Ingrid.md';
+const fortrydRum = async () => (await import('../../../src/rooms/start/room.ts')).startRoom;
+
+test('Opdater writes only what the diff showed into the existing file, leaves the user\'s own text and keys alone, takes the line off the pile, and logs it with a Fortryd', async () => {
+  await medIngrid(async (s) => {
+    const foer = await s.fil(INGRID_FIL);
+    await laes(s);
+    const f = (await s.state())?.import?.bunke?.forslag.find((x) => x.navn === 'Ingrid')!;
+    await s.aktion('import-opdater', { forslagId: f.id });
+    assert.equal(await s.fil(INGRID_FIL), '---\nnavn: Ingrid\nrelation: din kone\nzone: privat\nkilde: mig\nfoedselsdag: 1984-03-12\n---\nMin egen note\n');
+    assert.match(foer!, /relation: hustru/);
+    const st = await s.state();
+    assert.ok(!ider(st).includes(f.id), 'the line is off the pile');
+    assert.deepEqual(ider(st), ['p2', 'p3'], 'the other proposals are still there, nothing else written');
+    assert.deepEqual(await readdir(path.join(s.personer, 'familie')), ['Ingrid.md']);
+    assert.equal(st?.import?.gemt?.length, 1);
+    assert.equal(trinStatus(alleTrin().find((t) => t.id === 'import')!, st, { profil: null }), 'klaret');
+    const e = (await s.d.store.readLog('start', 5)).find((x) => x.handlingId === 'import-opdater')!;
+    assert.match(e.tekst, /Opdaterede Ingrid.*familie\/Ingrid\.md.*import-chatgpt.*relation »hustru« → »din kone«/);
+    assert.equal(e.kilde, 'henrik');
+    assert.ok(e.fortryd?.startsWith('lokal:'), 'it can be undone');
+    assert.equal(st?.import?.gemt?.[0]?.logId, e.id);
+  });
+});
+
+test('Fortryd of an update puts the previous file back byte for byte, marks the line undone, reopens the step; a file edited since is kept', async () => {
+  await medIngrid(async (s) => {
+    const foer = await s.fil(INGRID_FIL);
+    await laes(s);
+    await s.aktion('import-opdater', { forslagId: 'p1' });
+    const id = (await s.d.store.readLog('start', 5)).find((x) => x.handlingId === 'import-opdater')!.id;
+    const room = await fortrydRum();
+    await (await room.startFortryd(s.d, id))?.finished;
+    assert.equal(await s.fil(INGRID_FIL), foer, 'byte for byte as it was');
+    assert.ok((await s.d.store.readLog('start', 20)).find((e) => e.id === id)?.fortrudt);
+    const st = await s.state();
+    assert.equal(st?.import?.gemt, undefined);
+    assert.equal(trinStatus(alleTrin().find((t) => t.id === 'import')!, st, { profil: null }), 'i-gang');
+    assert.match((await s.log())[0]!, /Fortrød importen.*satte 1 fil tilbage/);
+    assert.equal(await room.startFortryd(s.d, id), null, 'no second Fortryd');
+    assert.deepEqual(await readdir(path.join(s.personer, 'familie')), ['Ingrid.md'], 'no leftover file');
+  });
+  await medIngrid(async (s) => {
+    await laes(s);
+    await s.aktion('import-opdater', { forslagId: 'p1' });
+    await writeFile(path.join(s.personer, 'familie', 'Ingrid.md'), 'Jeg har rettet den bagefter.\n');
+    const id = (await s.d.store.readLog('start', 5)).find((x) => x.handlingId === 'import-opdater')!.id;
+    await (await (await fortrydRum()).startFortryd(s.d, id))?.finished;
+    assert.equal(await s.fil(INGRID_FIL), 'Jeg har rettet den bagefter.\n');
+    assert.match((await s.log())[0]!, /beholdt familie\/Ingrid\.md, fordi du har rettet den/);
+  });
+});
+
+test('Opdater is only for a person who exists, only for the owner, and a forged or used id writes nothing', async () => {
+  await medIngrid(async (s) => {
+    await laes(s);
+    const foer = await s.fil(INGRID_FIL);
+    for (const id of ['p9', '../p1', '', 'p2', 'p3']) await assert.rejects(s.aktion('import-opdater', { forslagId: id }), ActionError, `id ${id || '(empty)'}`); // p2 is a new person, p3 the profile
+    assert.equal(await s.fil(INGRID_FIL), foer);
+    await s.aktion('import-opdater', { forslagId: 'p1' });
+    const efter = await s.fil(INGRID_FIL);
+    await assert.rejects(s.aktion('import-opdater', { forslagId: 'p1' }), ActionError, 'a second tap');
+    assert.equal(await s.fil(INGRID_FIL), efter);
+    assert.equal((await s.state())?.import?.gemt?.length, 1, 'one update, not two');
+  });
+  await medVault({ person: 'barn' }, async (s) => { await assert.rejects(s.aktion('import-opdater', { forslagId: 'p1' }), ActionError); });
+});
+
+test('Opdater does not write over a field the user changed since the proposal: nothing is written, the line stays, no log line of an update', async () => {
+  await medIngrid(async (s) => {
+    await laes(s);
+    const rettet = '---\nnavn: Ingrid\nrelation: Ingrid, min kone\nzone: privat\n---\nMin egen note\n';
+    await writeFile(path.join(s.personer, 'familie', 'Ingrid.md'), rettet);
+    await s.aktion('import-opdater', { forslagId: 'p1' });
+    assert.match(await s.fil(INGRID_FIL) ?? '', /relation: Ingrid, min kone/, 'the user\'s change stands');
+    // the birthday was still as the diff said, so it is the one thing written
+    assert.match(await s.fil(INGRID_FIL) ?? '', /foedselsdag: 1984-03-12/);
+    assert.match((await s.d.store.readLog('start', 5)).find((x) => x.handlingId === 'import-opdater')?.tekst ?? '', /relation er ikke ændret, fordi du har rettet den siden/);
+  });
+  await medIngrid(async (s) => {
+    await laes(s);
+    const rettet = '---\nnavn: Ingrid\nrelation: Ingrid, min kone\nfoedselsdag: 1984-03-12\nzone: privat\n---\nMin egen note\n';
+    await writeFile(path.join(s.personer, 'familie', 'Ingrid.md'), rettet);
+    await s.aktion('import-opdater', { forslagId: 'p1' });
+    assert.equal(await s.fil(INGRID_FIL), rettet);
+    assert.ok((await s.state())?.import?.bunke?.forslag.some((x) => x.id === 'p1'), 'it stays on offer');
+    assert.equal((await s.d.store.readLog('start', 10)).find((x) => x.handlingId === 'import-opdater'), undefined);
+    assert.equal((await s.state())?.import?.gemt, undefined);
+  });
+});
+
+test('a person deleted since the proposal: Opdater says so, writes nothing and creates no file', async () => {
+  await medIngrid(async (s) => {
+    await laes(s);
+    await rm(path.join(s.personer, 'familie', 'Ingrid.md'));
+    await s.aktion('import-opdater', { forslagId: 'p1' });
+    assert.deepEqual(await readdir(path.join(s.personer, 'familie')), []);
+    assert.ok((await s.state())?.import?.bunke?.forslag.some((x) => x.id === 'p1'));
+  });
+});

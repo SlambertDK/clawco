@@ -12,6 +12,12 @@ export type Skrevet =
   | { udfald: 'uaendret'; sti: string }
   | { udfald: 'kollision'; sti: string; diff: { felt: string; nu: string; ny: string }[] };
 
+/** KC-0219: what an update of an existing person answers. `kvittering.forrige` = the file as it was, for Fortryd. */
+export type Opdateret =
+  | { udfald: 'opdateret'; sti: string; kvittering: Kvittering & { forrige: string }; felter: string[]; sprunget: string[] }
+  | { udfald: 'uaendret'; sti: string }
+  | { udfald: 'forandret'; sti: string; sprunget: string[] };
+
 /** A person as the register stores one; `kilde` = `import-<slags>`, `importeret` = the date. */
 export type SkrivPerson = { navn: string; relation: string; zone: 'privat' | 'arbejde'; org?: string; foedselsdag?: string; kilde: string; importeret: string; tekst?: string };
 
@@ -26,7 +32,11 @@ export type ImportSkriver = {
   profil(): Promise<string | null>;
   skrivPerson(p: SkrivPerson, mappe: ImportMappe): Promise<Skrevet>;
   skrivProfil(tekst: string): Promise<Skrevet>;
+  /** KC-0219: changes an existing person by the diff the user saw (only those fields, only while the file still says what the diff said). */
+  opdaterPerson(p: { navn: string; diff: { felt: string; nu: string; ny: string }[] }): Promise<Opdateret>;
   /** Fortryd: true when the file was removed (it still held exactly what was written). */
   fjernPerson(k: Kvittering): Promise<boolean>;
   fjernProfil(k: Kvittering): Promise<boolean>;
+  /** KC-0219 Fortryd of an update: true when the previous content was put back (the file still held exactly what the update wrote). */
+  gendanPerson(k: Kvittering): Promise<boolean>;
 };

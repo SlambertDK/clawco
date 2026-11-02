@@ -5,13 +5,15 @@
 // has: the name may live only in the file name, the relation only in the
 // folder, `fødselsdag` is read as `foedselsdag`, other keys are left alone.
 //
-// Invariants: every path goes through iRod (never outside `dir`); a write never
+// Invariants: every path goes through iRod (never outside `dir`); skrivPerson never
 // overwrites — an existing person (any folder, any Unicode form of the name)
 // is a collision answered with a diff; Fortryd (fjernPerson) removes only a
-// file whose bytes are still exactly what the handling wrote.
+// file whose bytes are still exactly what the handling wrote. The one way to
+// change an existing person is opdaterPerson (KC-0219): only the fields the user
+// saw in the diff, in place, atomically, and gendanPerson puts the old bytes back.
 
-import { createHash } from 'node:crypto';
-import { mkdir, open, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { chmod, mkdir, open, readdir, readFile, rename, stat, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { erDataZone, type DataZone } from '../../identitet/zoner.ts';
 import { KildeFejl } from '../types.ts';
@@ -188,5 +190,121 @@ export async function fjernPerson(dir: string, k: Kvittering): Promise<boolean> 
   const nu = await readFile(fil, 'utf8').catch(() => null);
   if (nu === null || sha256(nu) !== k.sha256) return false;
   await unlink(fil);
+  return true;
+}
+
+// ---------- updating (KC-0219) ----------
+
+/** The fields an update may change: the ones a person differs in on the pile. Name, zone, source and body are never touched. */
+const RET_FELTER = ['relation', 'org', 'foedselsdag'] as const;
+type RetFelt = (typeof RET_FELTER)[number];
+const erRetFelt = (f: string): f is RetFelt => (RET_FELTER as readonly string[]).includes(f);
+/** The keys a field may stand under in a file (Henrik's register writes `fødselsdag`). */
+const NOEGLER: Record<RetFelt, string[]> = { relation: ['relation'], org: ['org'], foedselsdag: ['foedselsdag', 'fødselsdag'] };
+/** What Fortryd keeps of the old file in the log line; a bigger file is not updated (it could not be undone from the log). */
+export const OPDATER_MAKS_TEGN = 16_000;
+
+export type Opdateret =
+  | { udfald: 'opdateret'; sti: string; kvittering: Kvittering & { forrige: string }; felter: RetFelt[]; sprunget: RetFelt[] }
+  | { udfald: 'uaendret'; sti: string }
+  /** The file no longer says what the diff said: nothing was written. */
+  | { udfald: 'forandret'; sti: string; sprunget: RetFelt[] };
+
+const FORHOVED = /^(---\r?\n)([\s\S]*?)(\r?\n---[ \t]*(?:\r?\n|$))/;
+const NOEGLE_LINJE = /^([\p{L}_][\p{L}\p{N}_-]*):[ \t]*(.*)$/u;
+
+/** `tekst` with `ret` written into its frontmatter line by line; every other byte stays. A file without frontmatter gets a block on top. */
+function retForhoved(tekst: string, ret: [RetFelt, string][]): string {
+  const m = FORHOVED.exec(tekst);
+  const eol = (m ? m[0] : tekst).includes('\r\n') ? '\r\n' : '\n';
+  const nye: string[] = [];
+  if (!m) {
+    for (const [felt, v] of ret) nye.push(`${felt}: ${yaml(v)}`);
+    return `---${eol}${nye.join(eol)}${eol}---${eol}${tekst}`;
+  }
+  const dele = (m[2] as string).split(/(\r?\n)/); // even index = a line, odd = its line ending
+  for (const [felt, v] of ret) {
+    let i = -1;
+    for (let k = 0; k < dele.length && i < 0; k += 2) {
+      const l = NOEGLE_LINJE.exec(dele[k] as string);
+      if (l && NOEGLER[felt].includes((l[1] as string).normalize('NFC'))) i = k;
+    }
+    if (i < 0) { nye.push(`${felt}: ${yaml(v)}`); continue; }
+    const l = NOEGLE_LINJE.exec(dele[i] as string) as RegExpExecArray;
+    if ((l[2] as string).trim() === '' && /^(?:[ \t]+\S|-[ \t])/.test(dele[i + 2] ?? '')) throw new KildeFejl(409, `${l[1]} har en liste under sig, og Clawco retter den ikke blindt. Ret filen selv.`);
+    dele[i] = `${l[1]}: ${yaml(v)}`;
+  }
+  let hoved = dele.join('');
+  if (nye.length) hoved = hoved === '' ? nye.join(eol) : `${hoved}${eol}${nye.join(eol)}`;
+  return `${m[1]}${hoved}${m[3]}${tekst.slice(m[0].length)}`;
+}
+
+/** tmp + rename in the file's own folder, keeping its mode; the tmp file is removed when anything fails. */
+async function skrivAtomiskFil(fil: string, tekst: string, mode: number): Promise<void> {
+  const tmp = `${fil}.tmp-${randomUUID()}`;
+  try {
+    await writeFile(tmp, tekst, { encoding: 'utf8', flag: 'wx' });
+    await chmod(tmp, mode);
+    await rename(tmp, fil);
+  } catch (err) {
+    await unlink(tmp).catch(() => undefined);
+    throw err;
+  }
+}
+
+/**
+ * KC-0219: changes an existing person to what an import brings. `p.diff` is what the user saw (`nu` → `ny`); only the
+ * fields relation, org and foedselsdag are applied, each only while the file still says `nu` — a field that moved on
+ * since is left (`sprunget`), and when nothing is left the answer is `forandret`/`uaendret` and nothing is written.
+ * Everything else in the file (other keys, their order, the body) stays byte for byte; the write is tmp + rename. The
+ * receipt carries the previous content (`forrige`) for gendanPerson. Refused (KildeFejl): no such person (404), a file
+ * over OPDATER_MAKS_TEGN or one that is not plain UTF-8 text (409 — it could not be put back exactly), a changed file
+ * between reading and writing (409), a bad value (400).
+ */
+export async function opdaterPerson(dir: string, p: { navn: string; diff: Forskel[] }): Promise<Opdateret> {
+  const navn = filnavn(p.navn);
+  const diff = p.diff.filter((d) => erRetFelt(d.felt));
+  for (const d of diff) {
+    const felt = d.felt as RetFelt;
+    if (typeof d.ny !== 'string' || !d.ny.trim() || d.ny.trim().length > MAKS[felt] || KONTROL.test(d.ny)) throw new KildeFejl(400, `Ugyldig ${felt}.`);
+  }
+  const noegle = `${navn}.md`.toLowerCase();
+  const fundet = (await personFiler(dir)).find((f) => f.navn.normalize('NFC').toLowerCase() === noegle);
+  if (!fundet) throw new KildeFejl(404, 'Personen findes ikke længere i din mappe.');
+  const rel = fundet.mappe ? `${fundet.mappe}/${fundet.navn}` : fundet.navn;
+  const sti = rel.normalize('NFC');
+  const fil = await iRod(dir, rel);
+  const raa = await readFile(fil);
+  const gammel = raa.toString('utf8');
+  if (!Buffer.from(gammel, 'utf8').equals(raa) || gammel.includes('\u0000')) throw new KildeFejl(409, 'Filen er ikke ren tekst, så Clawco kan ikke sætte den tilbage præcis. Ret den selv.');
+  if (gammel.length > OPDATER_MAKS_TEGN) throw new KildeFejl(409, 'Filen er for stor til, at en ændring kan fortrydes sikkert. Ret den selv.');
+  const { felter } = delFil(gammel);
+  const nu = somPerson(felter, fundet.navn, fundet.mappe, 'privat');
+  const gaelder = (a: string | undefined, b: string): boolean => (a ?? '').normalize('NFC').trim() === b.normalize('NFC').trim();
+  const ret: [RetFelt, string][] = [];
+  const sprunget: RetFelt[] = [];
+  for (const d of diff) {
+    const felt = d.felt as RetFelt;
+    if (ret.some(([f]) => f === felt) || sprunget.includes(felt)) continue;
+    if (gaelder(nu[felt], d.ny)) continue;
+    if (gaelder(nu[felt], d.nu)) ret.push([felt, d.ny.trim()]); else sprunget.push(felt);
+  }
+  if (!ret.length) return sprunget.length ? { udfald: 'forandret', sti, sprunget } : { udfald: 'uaendret', sti };
+  const ny = retForhoved(gammel, ret);
+  if (ny === gammel) return { udfald: 'uaendret', sti };
+  // Nobody may have saved the file since it was read (Obsidian is open next to Clawco): else we would overwrite their edit.
+  const [igen, st] = await Promise.all([readFile(fil), stat(fil)]);
+  if (!igen.equals(raa)) throw new KildeFejl(409, 'Filen blev ændret, mens Clawco arbejdede. Intet er skrevet; prøv igen.');
+  await skrivAtomiskFil(fil, ny, st.mode & 0o777);
+  return { udfald: 'opdateret', sti, kvittering: { sti, sha256: sha256(ny), forrige: gammel }, felter: ret.map(([f]) => f), sprunget };
+}
+
+/** Fortryd of an update: writes the previous content back (atomically) — only while the file still holds exactly what the update wrote. True when put back. */
+export async function gendanPerson(dir: string, k: Kvittering): Promise<boolean> {
+  if (!k.sti.endsWith('.md') || k.forrige === undefined) throw new KildeFejl(400, 'Kun en opdateret persons fil kan sættes tilbage.');
+  const fil = await iRod(dir, k.sti);
+  const nu = await readFile(fil, 'utf8').catch(() => null);
+  if (nu === null || sha256(nu) !== k.sha256) return false;
+  await skrivAtomiskFil(fil, k.forrige, (await stat(fil)).mode & 0o777);
   return true;
 }

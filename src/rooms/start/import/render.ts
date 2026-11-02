@@ -55,11 +55,13 @@ function forslagRaekke(f: ImportForslag): Markup {
   const tekst = f.tekst ? (f.tekst.length > 280 ? `${f.tekst.slice(0, 280)}…` : f.tekst) : '';
   const hoved = f.art === 'person' && !findes ? html`<span class="row-title">${f.navn}</span>` : f.art === 'profil' ? html`<span class="row-title">${f.navn}</span>` : html`<span class="row-title">Opdater ${f.navn}?</span>`;
   const noter = findes
-    ? html`<span class="row-note">${f.art === 'profil' ? 'Din profil' : f.navn} findes allerede, og Clawco ændrer ikke en fil, du har. Ret den selv i Obsidian, hvis du vil have det med.</span>${(f.diff ? forskelTekst(f.diff) : []).map((d) => html`<span class="row-note" data-import-diff>${d}</span>`)}`
+    ? html`<span class="row-note">${f.art === 'profil'
+      ? 'Din profil findes allerede, og Clawco ændrer ikke en fil, du har. Ret den selv i Obsidian, hvis du vil have det med.'
+      : `${f.navn} findes allerede. Det, importen siger anderledes, står her. Tryk Opdater for at skrive det ind: resten af din fil rører Clawco ikke, og du kan fortryde.`}</span>${(f.diff ? forskelTekst(f.diff) : []).map((d) => html`<span class="row-note" data-import-diff>${d}</span>`)}`
     : html`${linjer ? html`<span class="row-note">${linjer}</span>` : ''}${tekst ? html`<span class="row-note import-tekst">${tekst}</span>` : ''}`;
   return html`<div class="row" data-import-forslag="${f.id}" data-import-status="${f.status}"${f.art === 'person' ? zoneData({ zone: f.zone ?? 'privat' }) : ''} data-element="Importforslag: ${f.navn}">
     <span class="row-main">${hoved}${noter}</span>
-    <span class="vis-smaa">${f.art === 'person' ? zoneChip({ zone: f.zone ?? 'privat' }) : ''}${findes ? '' : knap('import-gem', { forslagId: f.id }, 'Gem', 'gemmer', true)}${knap('import-spring', { forslagId: f.id }, findes ? 'Behold min fil' : 'Spring over', 'lægger det væk')}${spoerg(`Importforslag: ${f.navn}`)}</span>
+    <span class="vis-smaa">${f.art === 'person' ? zoneChip({ zone: f.zone ?? 'privat' }) : ''}${findes ? '' : knap('import-gem', { forslagId: f.id }, 'Gem', 'gemmer', true)}${findes && f.art === 'person' ? knap('import-opdater', { forslagId: f.id }, 'Opdater', 'opdaterer', true) : ''}${knap('import-spring', { forslagId: f.id }, findes ? 'Behold min fil' : 'Spring over', 'lægger det væk')}${spoerg(`Importforslag: ${f.navn}`)}</span>
   </div>`;
 }
 

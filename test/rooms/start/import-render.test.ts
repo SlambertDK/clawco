@@ -12,6 +12,7 @@ const skriver = (o: { klar: boolean; lavMappe?: boolean }): ImportSkriver => ({
   personer: async () => [], profil: async () => null,
   skrivPerson: async () => { throw new Error('ikke her'); }, skrivProfil: async () => { throw new Error('ikke her'); },
   fjernPerson: async () => false, fjernProfil: async () => false,
+  opdaterPerson: async () => { throw new Error('ikke her'); }, gendanPerson: async () => false,
 });
 const model = (udbyder?: string): RoomDepsModel => ({ laes: async () => ({ ...(udbyder ? { udbyder } : {}), modeller: {}, test: {}, rev: { lille: 'a', taenker: 'b' } } as ModelSyn) }) as unknown as RoomDepsModel;
 type RoomDepsModel = NonNullable<Parameters<typeof medStart>[0]['model']>;
@@ -113,5 +114,32 @@ test('after a saved import the card says what was taken with and that the files 
   await medStart({ state: BUNKE, importSkriver: skriver({ klar: true }), person: { id: 'ella', login: null, navn: 'Ella', rolle: 'barn' } as never }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     assert.doesNotMatch(await s.main(), /data-aktion="import-(gem|laes|spring)/);
+  });
+});
+
+test('KC-0219: a person who already exists offers Opdater (primary) beside Behold min fil, with the diff in plain words; nothing else does', async () => {
+  const state: StartState = { ...BUNKE, import: { bunke: { ...BUNKE.import!.bunke!, forslag: [
+    ...BUNKE.import!.bunke!.forslag,
+    { id: 'p5', art: 'profil', status: 'findes', navn: 'Din profil', tekst: 'ny tekst', diff: [{ felt: 'tekst', nu: 'gammel', ny: 'ny tekst' }] },
+  ] } } };
+  await medStart({ state, importSkriver: skriver({ klar: true }), model: model('anthropic') }, async (s) => {
+    s.d.rejse!.kilder = async () => [kilde];
+    const h = await s.main();
+    const raekke = (id: string): string => new RegExp(`<div class="row" data-import-forslag="${id}"[\\s\\S]*?(?=<div class="row" data-import-forslag|<p class="row-note">\\d|<div class="actions">)`).exec(h)?.[0] ?? '';
+    const opd = (id: string): RegExp => new RegExp(`data-aktion="import-opdater" data-arg="\\{&quot;forslagId&quot;:&quot;${id}&quot;\\}"`);
+    assert.match(raekke('p3'), opd('p3'), 'the existing person has Opdater');
+    assert.match(raekke('p3'), /class="btn btn-primary" data-aktion="import-opdater"[^>]*>Opdater</, 'primary');
+    assert.match(raekke('p3'), /data-aktion="import-spring"[^>]*>Behold min fil</, 'Behold min fil stays');
+    assert.match(raekke('p3'), /relation: nu »ven«, importen siger »veninde«/, 'the diff is shown as before');
+    assert.match(raekke('p3'), /resten af din fil/i, 'says the rest of the file is left alone');
+    assert.doesNotMatch(raekke('p3'), /data-aktion="import-gem"/);
+    for (const id of ['p1', 'p2', 'p4']) assert.doesNotMatch(raekke(id), /import-opdater/, `${id} is new: Gem, not Opdater`);
+    assert.doesNotMatch(raekke('p5'), /import-opdater/, 'the profile is never updated here');
+    assert.match(raekke('p5'), /Behold min fil/);
+    assert.equal([...h.matchAll(/data-aktion="import-opdater"/g)].length, 1);
+  });
+  await medStart({ state, importSkriver: skriver({ klar: true }), person: { id: 'ella', login: null, navn: 'Ella', rolle: 'barn' } as never }, async (s) => {
+    s.d.rejse!.kilder = async () => [kilde];
+    assert.doesNotMatch(await s.main(), /import-opdater/);
   });
 });

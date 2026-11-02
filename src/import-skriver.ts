@@ -4,7 +4,7 @@
 // check, collision answer and Fortryd hash check is KC-0136's.
 
 import { stat } from 'node:fs/promises';
-import { fjernPerson, laesPersoner, skrivPerson } from './kilder/noter/personer.ts';
+import { fjernPerson, gendanPerson, laesPersoner, opdaterPerson, skrivPerson } from './kilder/noter/personer.ts';
 import { fjernProfil, laesProfil, skrivProfil } from './kilder/noter/profil.ts';
 import { PROFIL_SKABELON } from './kilder/noter/vault.ts';
 import type { VaultStier } from './kilder/noter/stier.ts';
@@ -40,7 +40,9 @@ export function lavImportSkriver(o: { stier: () => VaultStier; lavMappe?: () => 
       return skrivPerson(personer(), { ...felter, zone }, { mappe, zone: 'privat' });
     },
     skrivProfil: (tekst) => skrivProfil(rod(), tekst),
+    opdaterPerson: (p) => opdaterPerson(personer(), p),
     fjernPerson: (k) => fjernPerson(personer(), k),
     fjernProfil: (k) => fjernProfil(rod(), k),
+    gendanPerson: (k) => gendanPerson(personer(), k),
   };
 }

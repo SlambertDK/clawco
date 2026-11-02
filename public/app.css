@@ -468,6 +468,8 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 .vis-overskrift { font-size: 20px; font-weight: 650; letter-spacing: -0.01em; line-height: 1.2; color: var(--ink); }
 .vis-smaa { margin-left: auto; display: inline-flex; gap: 2px; }
 .vis-smaa .btn { min-height: 32px; padding: 0 10px; } .vis-smaa .btn:not(.spoerg) { color: var(--muted); } .vis-smaa .btn-primary:not(.spoerg) { color: var(--handling-ink); } /* KC-0129: Gem in a pile line stays readable */
+/* KC-0219: a pile line with Opdater + Behold min fil + Spørg is wider than a phone row: its buttons wrap inside it */
+[data-import-forslag] .vis-smaa { flex-wrap: wrap; justify-content: flex-end; max-width: 100%; }
 /* KC-0096: the two choices of Senere, in the card itself; hidden until the quiet Senere button is pressed. */
 .senere-valg { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .senere-valg[hidden] { display: none; }
