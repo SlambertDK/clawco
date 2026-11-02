@@ -21,6 +21,7 @@ UNITS=/etc/systemd/system
 SKY_UNIT=sky.service
 TUNNEL_UNIT=clawco-sky-tunnel.service
 SUDOERS=/etc/sudoers.d/clawco-sky
+JOURNALD_KONF=/etc/systemd/journald.conf.d/clawco-30-dage.conf
 PG_KONF_NAVN=clawco-sky.conf
 PG_SOCKET=/var/run/postgresql
 NODE=/usr/bin/node
@@ -199,6 +200,19 @@ goer_sudoers() {
   rm -f "$tmp"
 }
 
+# The legal texts promise server logs for at most 30 days (KC-0204): the app, Sky and the tenants (Docker's
+# journald log driver) all log to journald, so one retention limit covers them all.
+journald_tekst() { printf '[Journal]\nMaxRetentionSec=30day\n'; }
+tjek_journald() { journald_tekst | cmp -s - "$JOURNALD_KONF"; }
+goer_journald() {
+  install -d -m 755 -o root -g root "$(dirname "$JOURNALD_KONF")"
+  local tmp; tmp="$(mktemp)"
+  journald_tekst > "$tmp"
+  install -m 644 -o root -g root "$tmp" "$JOURNALD_KONF"
+  rm -f "$tmp"
+  systemctl restart systemd-journald
+}
+
 echo "Trin:"
 trin "brugeren $SKY_USER (ingen login-shell, hjem $SKY_HOME)" tjek_bruger goer_bruger
 trin "$SKY_HOME er 0750 og ejes af $SKY_USER" tjek_hjem goer_hjem
@@ -214,4 +228,5 @@ trin "$ENV_FIL er 0600, ejes af $SKY_USER, har SKY_DATABASE_URL og SKY_PORT" tje
 trin "$SKY_UNIT installeret og slået til" tjek_sky_unit goer_sky_unit
 trin "$TUNNEL_UNIT installeret og slået til" tjek_tunnel_unit goer_tunnel_unit
 trin "sudoers-filen $SUDOERS (tjekket med visudo)" tjek_sudoers goer_sudoers
+trin "journald gemmer logs højst 30 dage ($JOURNALD_KONF)" tjek_journald goer_journald
 if [ "$TOER" = 1 ]; then echo "Tørkørsel: intet er ændret."; else echo "Færdig. Næste skridt (agenten): sky/deploy/README.md, \"Efter root-trinnet\"."; fi

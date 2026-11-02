@@ -21,6 +21,7 @@ kira-home showed no Postgres server there; installing it is now a step of the ro
 | `sky.service` | `node src/server.ts` on 127.0.0.1:8781 (`SKY_PORT`) |
 | `clawco-sky-tunnel.service` | `cloudflared tunnel run --token-file …` as `sky`; needs cloudflared ≥ 2025.4.0. The host's own `cloudflared.service` and `cloudflared-petrilab.service` (other sites) are never touched |
 | `/etc/sudoers.d/clawco-sky` | `henrik` may act as `sky` and restart exactly Sky's two units; `sky` may restart `sky` |
+| `/etc/systemd/journald.conf.d/clawco-30-dage.conf` | `MaxRetentionSec=30day`: the legal texts promise server logs for at most 30 days (KC-0204); the app, Sky and the tenants (Docker's `journald` log driver) all log to journald |
 
 `SKY_DATABASE_URL` is written by the root script: `postgres:///sky?host=/var/run/postgresql&port=<cluster port>`.
 

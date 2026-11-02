@@ -27,7 +27,7 @@ const bash = (args: string[], o: { env?: Record<string, string>; input?: string 
 
 function tmp(): string { return fs.mkdtempSync(path.join(os.tmpdir(), 'sky-deploy-')); }
 
-const TRIN = ['brugeren sky', '/srv/sky er 0750', 'sky kan læse /home/henrik/kontrolcenter.git', 'checkout i /srv/sky/kontrolcenter', 'Postgres-serveren installeret uden automatisk klynge', 'én Postgres-klynge til Sky på port 5433', 'Postgres lytter kun på unix-socket', 'Postgres er slået til', 'Postgres-rollen sky', 'databasen sky', '/srv/sky/.env er 0600', 'sky.service installeret', 'clawco-sky-tunnel.service installeret', 'sudoers-filen'];
+const TRIN = ['brugeren sky', '/srv/sky er 0750', 'sky kan læse /home/henrik/kontrolcenter.git', 'checkout i /srv/sky/kontrolcenter', 'Postgres-serveren installeret uden automatisk klynge', 'én Postgres-klynge til Sky på port 5433', 'Postgres lytter kun på unix-socket', 'Postgres er slået til', 'Postgres-rollen sky', 'databasen sky', '/srv/sky/.env er 0600', 'sky.service installeret', 'clawco-sky-tunnel.service installeret', 'sudoers-filen', 'journald gemmer logs højst 30 dage'];
 
 test('opsaet-root.sh --dry-run prints every step and changes nothing (no root needed)', () => {
   const r = bash([ROOT_SCRIPT, '--dry-run']);
@@ -92,6 +92,13 @@ test('opsaet-root.sh: the system Postgres is socket-only before it first starts'
   assert.ok(!kilde.includes('netop én Postgres-klynge'), 'a missing server is a step, not a stop');
   for (const m of kilde.matchAll(/listen_addresses\s*=\s*('[^']*')/g)) assert.equal(m[1], "''", 'never a TCP address');
   assert.ok(!/^\s*port\s*=/m.test(kilde), 'never sets a port');
+});
+
+test('opsaet-root.sh: journald keeps logs at most 30 days, as the legal texts promise (KC-0204)', () => {
+  const kilde = fs.readFileSync(ROOT_SCRIPT, 'utf8');
+  assert.match(kilde, /^JOURNALD_KONF=\/etc\/systemd\/journald\.conf\.d\/clawco-30-dage\.conf$/m);
+  assert.match(kilde, /MaxRetentionSec=30day/);
+  assert.match(kilde, /systemctl restart systemd-journald/);
 });
 
 test('the two foreign cloudflared units are never named outside the guard list', () => {

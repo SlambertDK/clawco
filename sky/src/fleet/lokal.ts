@@ -109,6 +109,8 @@ export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubke
     '--user', BRUGER,
     ...HAERDNING,
     '--memory', '1g', '--memory-swap', '1g', '--cpu-shares', '512', '--pids-limit', '256',
+    // Logs go to journald, whose retention limit (deploy/opsaet-root.sh) keeps the legal texts' 30 days (KC-0204).
+    '--log-driver', 'journald',
     '--env', 'KC_DATA_DIR=/data', '--env', `KC_PORT=${TENANT_PORT}`,
     // Listen on the container's own interface (reached only through the Docker network above).
     '--env', 'KC_HOST=0.0.0.0',

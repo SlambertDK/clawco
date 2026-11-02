@@ -10,8 +10,8 @@ sky/test/abonnement/stripe-klient.test.ts:stripe-access-token:30
 sky/test/abonnement/stripe-klient.test.ts:stripe-access-token:50
 sky/test/abonnement/stripe-klient.test.ts:stripe-access-token:51
 sky/test/abonnement/stripe-klient.test.ts:generic-api-key:25
-sky/test/deploy.test.ts:stripe-access-token:186
-sky/test/deploy.test.ts:generic-api-key:144
+sky/test/deploy.test.ts:stripe-access-token:193
+sky/test/deploy.test.ts:generic-api-key:151
 test/helpers/certifikater/anden.key:private-key:1
 test/helpers/certifikater/bridge.key:private-key:1
 test/kilder/mail-gmail/xoauth2.test.ts:generic-api-key:47

@@ -18,8 +18,8 @@ test('every kept thing names where, what and why; the bookkeeping ones are flagg
     for (const felt of ['sted', 'hvad', 'hvorfor'] as const) assert.ok(b[felt].trim().length > 3, `${b.sted}: ${felt}`);
   }
   assert.equal(new Set(BEHOLDT.map((b) => b.sted)).size, BEHOLDT.length, 'one entry per place');
-  assert.ok(BEHOLDT.some((b) => b.sted === 'stripe' && b.jurist), 'invoices at Stripe: kept for bookkeeping, lawyer to confirm');
-  assert.ok(BEHOLDT.some((b) => b.sted === 'abonnement.kunde' && b.jurist));
+  assert.ok(BEHOLDT.some((b) => b.sted === 'stripe' && b.lovkrav), 'invoices at Stripe: kept because bookkeeping law requires it');
+  assert.ok(BEHOLDT.some((b) => b.sted === 'abonnement.kunde' && b.lovkrav));
 });
 
 test('the account id hash is 64 hex, stable, and differs per account', () => {

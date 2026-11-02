@@ -118,6 +118,7 @@ test('klargoer on a clean host: an ICC-off network, the volume, the household fi
     '--user', '1000:1000',
     '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
     '--memory', '1g', '--memory-swap', '1g', '--cpu-shares', '512', '--pids-limit', '256',
+    '--log-driver', 'journald',
     '--env', 'KC_DATA_DIR=/data', '--env', 'KC_PORT=8750', '--env', 'KC_HOST=0.0.0.0',
     '--env', 'KC_IDENTITET=konto', '--env', 'KC_KONTO_TENANT=hus-abcdefgh', '--env', `KC_KONTO_PUBKEY=${PUBKEY}`,
     '--env', 'KC_KONTO_GATEWAY=172.18.0.1', '--env', 'KC_AGENT=direkte',
