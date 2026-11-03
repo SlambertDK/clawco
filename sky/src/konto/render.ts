@@ -32,18 +32,37 @@ ${a.til && a.til !== '/konto' ? html`<input type="hidden" name="til" value="${a.
 </section>`, { script: true });
 }
 
-export function tjekMailSide(): string {
+/** KC-0246: `fejl` after a wrong try with the code: 'forkert' keeps the field; 'doed' (spent, expired or voided) and 'for-mange'
+ *  leave only the way to a new mail. */
+export function tjekMailSide(a: { fejl?: 'forkert' | 'doed' | 'for-mange' } = {}): string {
+  const doed = a.fejl === 'doed' || a.fejl === 'for-mange';
   return side(T.tjekMailTitel, html`<h1>${T.tjekMailTitel}</h1>
 <p>${T.tjekMailTekst}</p>
-<p><a href="/log-ind">${T.tilbage}</a></p>`);
+${a.fejl ? html`<p class="status" role="alert" data-fejl>${a.fejl === 'forkert' ? T.kodeForkert : a.fejl === 'doed' ? T.kodeDoed : T.kodeForMange}</p>` : ''}
+${doed ? html`<p><a href="/log-ind">${T.bedOmNyt}</a></p>` : html`<section>
+<h2>${T.kodeTitel}</h2>
+<form method="post" action="/log-ind/kode">
+<label for="kode">${T.kodeFelt}</label>
+<input id="kode" type="text" name="kode" autocomplete="one-time-code" autocapitalize="characters" autocorrect="off" spellcheck="false" inputmode="text" maxlength="24" required placeholder="XXXX-XXXX">
+<button type="submit" class="primaer">${T.kodeKnap}</button>
+</form>
+</section>
+<p><a href="/log-ind">${T.tilbage}</a></p>`}`);
 }
 
-/** GET of the mail link: shows a button; only its POST uses the link up (mail scanners only GET). */
-export function linkSide(a: { token: string; gyldig: boolean; afvist?: boolean; nytLink?: string }): string {
+/** GET of the mail link: shows a button; only its POST uses the link up (mail scanners only GET). KC-0246: opened in ANOTHER browser
+ *  than the one that asked (`kode` set), it shows the login code to type in the first window instead of a button that would fail. */
+export function linkSide(a: { token: string; gyldig: boolean; afvist?: boolean; nytLink?: string; kode?: string }): string {
   if (!a.gyldig) {
     return side(T.linkDoedTitel, html`<h1>${T.linkDoedTitel}</h1>
 <p>${a.afvist ? T.linkAfvistTekst : T.linkDoedTekst}</p>
 <p><a href="${a.nytLink ?? '/log-ind'}">${T.bedOmNyt}</a></p>`);
+  }
+  if (a.kode) {
+    return side(T.kodeAndenTitel, html`<h1>${T.kodeAndenTitel}</h1>
+<p>${T.kodeAndenTekst}</p>
+<p class="kode"><strong>${a.kode}</strong></p>
+<p>${T.kodeAndenNote}</p>`);
   }
   return side(T.linkTitel, html`<h1>${T.linkTitel}</h1>
 <p>${T.linkTekst}</p>
@@ -245,7 +264,7 @@ export function galleriSide(navne: string[]): string {
 }
 
 export function udbakkeSide(beskeder: Besked[]): string {
-  const liste = [...beskeder].reverse().map((b) => html`<li><span>${b.til} <small>· ${b.skabelon}</small></span>${b.data['link'] ? html`<a href="${b.data['link']}" data-link>${b.data['link']}</a>` : ''}</li>`);
+  const liste = [...beskeder].reverse().map((b) => html`<li><span>${b.til} <small>· ${b.skabelon}</small></span>${b.data['kode'] ? html`<code data-kode>${b.data['kode']}</code>` : ''}${b.data['link'] ? html`<a href="${b.data['link']}" data-link>${b.data['link']}</a>` : ''}</li>`);
   return side(T.udbakkeTitel, html`<h1>${T.udbakkeTitel}</h1>
 <section>${beskeder.length ? html`<ul class="liste">${liste}</ul>` : html`<p>${T.udbakkeTom}</p>`}</section>`);
 }

@@ -48,10 +48,13 @@
 <p class="muted" data-i="install.danish">The installer's messages are in Danish for now.</p>
 <h2 data-i="install.step2.h">2. Open Clawco</h2>
 <p data-i="install.step2.p">The installer starts Clawco as a background service and prints its address, by default http://127.0.0.1:8750. The Start room asks for a model key and walks you on from there.</p>
+<h2 data-i="install.ai.h">Let your AI run it</h2>
+<p data-i="install.ai.p">Tell Claude Code, Codex or another AI to run this command. It asks no questions, and its last line is one line of JSON that tells the AI the address and what is still missing. You only paste your model key in the Start room.</p>
+<pre><code>curl -fsSL https://clawco.work/install.sh | bash -s -- --fra-ai</code></pre>
 <h2 data-i="install.req.h">What you need</h2>
 <ul>
 <li data-i="install.req.1">A Mac or a Linux machine with Node 22.6 or newer, git and npm. Or Docker with the Compose plugin.</li>
-<li data-i="install.req.2">A key from a model provider, or a model running on your own machine.</li>
+<li data-i="install.req.2">All you need is a key from a model provider, or a model running on your own machine. There is no other agent or program to install.</li>
 <li data-i="install.req.3">Optional: Tailscale, to reach Clawco from your phone.</li>
 </ul>
 <h2 data-i="install.dry.h">Look first</h2>
@@ -61,6 +64,9 @@
 <p data-i="install.docker.p">From a copy of the Clawco source folder, one Compose command starts Clawco as a container, reachable on this machine only.</p>
 <pre><code data-cmd="compose">docker compose up -d --build</code></pre>
 <p class="actions"><a class="btn" href="/docs/docker" data-i="install.docker.link">Read the Docker guide</a> <a class="btn" href="/docs/" data-i="install.docs.link">All documentation</a></p>
+<h2 data-i="install.hermes.h">Advanced: use your own Hermes agent</h2>
+<p data-i="install.hermes.p">Clawco comes with its own agent. If you already run a Hermes agent and want Clawco to use it, add --agent-url with its address. The installer then asks for its key, hidden.</p>
+<pre><code>curl -fsSL https://clawco.work/install.sh | bash -s -- --agent-url http://127.0.0.1:8642</code></pre>
 <h2 data-i="install.cloud.h">Run it in your own cloud</h2>
 <p data-i="install.cloud.p">No machine at home? Clawco can run on a small server in a cloud account you own. It is reachable only on your own Tailscale net, with no open port. Your data lives on that server and never with us.</p>
 <p data-i="install.cloud.cost">Cost: about 4–5 euro a month, paid to Hetzner for its smallest server. Clawco itself and a personal Tailscale account are free.</p>

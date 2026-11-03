@@ -18,7 +18,7 @@ const BRUG = `Brug:
   npm run backup  [-- --til MAPPE] [--med-vault] [--med-noegler]
   npm run restore -- FIL [--erstat]
 Fælles: --data-mappe MAPPE (ellers KC_DATA_DIR), --vault-mappe MAPPE (ellers KC_VAULT_DIR eller den valgte noter-mappe)
-Backup: --til MAPPE (ellers KC_BACKUP_DIR, ellers ~/Clawco-backups), --env-fil FIL (indstillingsfilen, tages kun med --med-noegler)
+Backup: --til MAPPE (ellers KC_BACKUP_DIR, ellers ~/Clawco-backups), --env-fil FIL (indstillingsfilen og nøglefilen KC_HEMMELIGHEDER_FIL tages kun med --med-noegler)
 Restore: --erstat flytter en eksisterende mappe til side (den slettes aldrig), --port N (til sundhedstjekket)`;
 
 /** Flags: `--navn værdi`, `--navn=værdi` and bare switches; everything else is positional. */
@@ -40,7 +40,7 @@ function laesArgs(args, vaerdier, kontakter) {
 }
 
 /** Settings the install keeps in $CLAWCO_HOME/.env: only these names are read, and only when the process has none of them. */
-const NAVNE = ['KC_DATA_DIR', 'KC_VAULT_DIR', 'KC_VAULT_INBOX', 'KC_PORT', 'KC_ENV_FILE', 'KC_BACKUP_DIR'];
+const NAVNE = ['KC_DATA_DIR', 'KC_VAULT_DIR', 'KC_VAULT_INBOX', 'KC_PORT', 'KC_ENV_FILE', 'KC_BACKUP_DIR', 'KC_HEMMELIGHEDER_FIL'];
 function indlaesInstallMiljoe(env) {
   if (env.KC_DATA_DIR?.trim()) return;
   const fil = env.KC_ENV_FILE?.trim() || path.join(env.CLAWCO_HOME?.trim() || path.join(os.homedir(), '.clawco'), '.env');
@@ -72,7 +72,7 @@ async function backup(args, env) {
   const medVault = flag['med-vault'] === true;
 
   const fjern = vaultDir ? await erFjernmonteret(vaultDir) : false;
-  const l = await listSikkerhedskopi({ dataDir, vaultDir }, { medNoegler, medVault, vaultFjern: fjern, envFil });
+  const l = await listSikkerhedskopi({ dataDir, vaultDir }, { medNoegler, medVault, vaultFjern: fjern, envFil, noeglefil: env.KC_HEMMELIGHEDER_FIL?.trim() });
   if (!l.filer.some((f) => f.sti.startsWith('data/'))) throw new ArkivFejl(`der er ingen data at tage kopi af i ${dataDir}`);
   const tilReel = path.resolve(til);
   for (const rod of [dataDir, l.vault.status === 'med' ? vaultDir : '']) {

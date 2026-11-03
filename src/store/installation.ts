@@ -35,17 +35,28 @@ export function laesInstallationsfil(dataDir: string): Installation | null | 'ul
 /** The folder shows an installation from before the language existed. */
 export const iBrugFoerSproget = (dataDir: string): boolean => FOER_SPROGET.some((navn) => existsSync(path.join(dataDir, navn)));
 
+/** KC-0246: the language Clawco Sky tells a new tenant's container (KC_SPROG = the owner's choice at sign-up): da or en, else no wish. */
+export function sprogFraMiljoe(e: Record<string, string | undefined>): Sprog | null {
+  const v = (e['KC_SPROG'] ?? '').trim();
+  return v === 'da' || v === 'en' ? v : null;
+}
+
+/** KC-0246: Sky seeds husstand.json before the first start (sky/src/fleet/lokal.ts), so that one file alone is not use. */
+const iBrugUdoverHusstand = (dataDir: string): boolean => FOER_SPROGET.some((navn) => navn !== 'husstand.json' && existsSync(path.join(dataDir, navn)));
+
 /**
  * The installation's record, written at the first start that finds none (atomically: tmp file + rename). An unreadable
- * record is not touched and reads as Danish.
+ * record is not touched and reads as Danish. `onsket` (KC-0246, KC_SPROG under Sky) is the language a NEW installation
+ * starts in instead of English: only while no record exists and the folder shows no use (but a seeded household); a folder
+ * in use keeps Danish whatever is wished, and a record once written is never changed by it.
  */
-export function laesInstallation(dataDir: string, nu: () => Date = () => new Date()): Installation {
+export function laesInstallation(dataDir: string, nu: () => Date = () => new Date(), onsket: Sprog | null = null): Installation {
   const gemt = laesInstallationsfil(dataDir);
   if (gemt === 'ulaeselig') return { standardSprog: 'da', oprettet: '', grund: 'foer-sproget' };
   if (gemt) return gemt;
-  const ny: Installation = iBrugFoerSproget(dataDir)
+  const ny: Installation = (onsket ? iBrugUdoverHusstand(dataDir) : iBrugFoerSproget(dataDir))
     ? { standardSprog: 'da', oprettet: nu().toISOString(), grund: 'foer-sproget' }
-    : { standardSprog: 'en', oprettet: nu().toISOString(), grund: 'ny' };
+    : { standardSprog: onsket ?? 'en', oprettet: nu().toISOString(), grund: 'ny' };
   mkdirSync(dataDir, { recursive: true });
   const fil = path.join(dataDir, INSTALLATION_FIL);
   const tmp = `${fil}.tmp-${randomUUID()}`;

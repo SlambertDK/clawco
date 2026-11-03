@@ -1,6 +1,8 @@
 // The whole "build" of clawco.work (KC-0164): copy site/ and deploy/install.sh (and, KC-0171, the own-cloud recipe
 // deploy/egen-sky/hetzner.sh as /egen-sky/hetzner.sh) into an output folder and prove they arrived byte-identical. No bundler, no transform. The one generated part is
-// the legal pages (KC-0204): docs/legal/*.md rendered by scripts/juridisk.ts, checked against their source hash.
+// the legal pages (KC-0204): docs/legal/*.md rendered by scripts/juridisk.ts, checked against their source hash. The one
+// transform (KC-0244): every /billeder/<file> URL in a built .html or .js gets ?v=<its content hash>, because /billeder/*
+// is cached for a day (_headers) and a re-captured image keeps its name; the source keeps plain names.
 //   node scripts/site-byg.mjs [--ud DIR]     (default: .site-ud/, which is gitignored)
 // The pricing page (KC-0199) is rendered from config/priser.json by scripts/priser-side.ts, and only when asked for:
 //   --preview   include priser.html (with the red draft banner while the config says status "udkast")
@@ -8,7 +10,7 @@
 //   neither     the page is left out, so the normal build can never publish it
 //   --priser FILE   read the prices from FILE instead of config/priser.json (tests)
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { byggJuridisk } from './juridisk.ts';
@@ -47,8 +49,8 @@ if (ud === standard) rmSync(ud, { recursive: true, force: true });
 else if (existsSync(ud) && readdirSync(ud).length > 0) { console.error(`${ud} is not empty; refusing to write into it`); process.exit(2); }
 mkdirSync(ud, { recursive: true });
 
-// Never published: the notes for the builder, and the price page's template (priser.html is written by byggPriser).
-const ikkeUd = new Set([path.join(kilde, 'README.md'), path.join(kilde, 'priser.template.html')]);
+// Never published: the notes for the builder, the price page's template (priser.html is written by byggPriser) and the list the screenshot script reads (KC-0244).
+const ikkeUd = new Set([path.join(kilde, 'README.md'), path.join(kilde, 'priser.template.html'), path.join(kilde, 'billeder/liste.json')]);
 cpSync(kilde, ud, { recursive: true, filter: (s) => !ikkeUd.has(s) });
 cpSync(path.join(rod, 'deploy/install.sh'), path.join(ud, 'install.sh'));
 
@@ -70,4 +72,25 @@ if (priser) {
   try { byggPriser({ siteDir: kilde, ud, priser, maal: live ? 'live' : 'preview' }); } catch (e) { console.error(`price page: ${e.message}`); process.exit(1); }
   priserNote = `priser.html built from config/priser.json (${live ? 'live' : 'preview'}, status ${priser.status})`;
 }
-console.log(`site built into ${ud}: ${filer(ud).length} files (${juridiske.length} legal pages); install.sh sha256 ${b}; hetzner.sh sha256 ${d}; ${priserNote}`);
+// KC-0244: version every image URL by content, last, so the generated pages (legal, prices) are covered too.
+const stier = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? stier(path.join(d, e.name)) : [path.join(d, e.name)]));
+const billedHash = new Map();
+const version = (navn) => {
+  const fil = path.join(ud, 'billeder', navn);
+  if (!existsSync(fil)) return null;
+  if (!billedHash.has(navn)) billedHash.set(navn, hash(fil).slice(0, 12));
+  return billedHash.get(navn);
+};
+let versioneret = 0;
+for (const f of stier(ud).filter((f) => /\.(html|js)$/.test(f))) {
+  const foer = readFileSync(f, 'utf8');
+  const efter = foer.replace(/\/billeder\/([A-Za-z0-9._-]+\.(?:webp|png|svg|jpg))(?![?\w.-])/g, (hel, navn) => {
+    const v = version(navn);
+    if (!v) { console.error(`${path.relative(ud, f)} refers to ${hel}, which is not in site/billeder`); process.exit(1); }
+    versioneret++;
+    return `${hel}?v=${v}`;
+  });
+  if (efter !== foer) writeFileSync(f, efter);
+}
+
+console.log(`site built into ${ud}: ${filer(ud).length} files (${juridiske.length} legal pages); install.sh sha256 ${b}; hetzner.sh sha256 ${d}; ${versioneret} image URL(s) versioned; ${priserNote}`);

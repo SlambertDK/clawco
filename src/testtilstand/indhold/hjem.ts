@@ -10,10 +10,11 @@ import { FORTRYD_FJERN, regnskabsfil } from '../../kurator/regnskab.ts';
 import { FORTRYD_SENERE, senereTekst } from '../../kurator/senere.ts';
 import type { DataZone } from '../../identitet/zoner.ts';
 import type { Fakta } from './fakta.ts';
-import { logFra, ugedagKort, type LogPost, type Raa } from './faelles.ts';
+import { erWeekend, logFra, ugedagKort, type LogPost, type Raa } from './faelles.ts';
 import { FEJL_KORT_TITEL, udviklingLog } from './udvikling.ts';
 import { BESKEDER_FRA, clarasBesked, ellasBesked, majasBesked } from './kilder.ts';
 import { knytBeskeder } from '../../kurator/beskeder.ts';
+import { indhold } from './sprogindhold.ts';
 import { lavForslag, type ForslagFelter, type Regelforslag } from '../../tillid/forslag.ts';
 
 const STROEM = 'regning:stroemmen-el';
@@ -34,13 +35,14 @@ function linje(f: Fakta, leverandoer: string, beloeb: string, emne: string): Omi
 
 /** Every card Kuratoren uses during the day, as Hermes writes it (KC-0059: each with its pictogram, headline and picture). */
 function kortRaa(f: Fakta): Record<string, Raa> {
+  const tekster = indhold();
   const lordag = f.kort(f.loerdagPlus);
   // A picture holds at most six days: the six that end with, or include, Saturday.
   const start = Math.max(0, f.loerdagPlus - 5);
   const uge = Array.from({ length: 6 }, (_, i) => {
     const n = start + i;
     const navn = ugedagKort(f, n);
-    return n === f.loerdagPlus ? { navn, fri: true, ikon: 'gift', valgt: true } : { navn, fri: ['lør', 'søn'].includes(navn) };
+    return n === f.loerdagPlus ? { navn, fri: true, ikon: 'gift', valgt: true } : { navn, fri: erWeekend(f, n) };
   });
   return {
     regn: {
@@ -135,12 +137,12 @@ function kortRaa(f: Fakta): Record<string, Raa> {
       visuel: { ikon: 'shield-check', tone: 'adv', overskrift: 'Tjek din kode for hullet', billede: { art: 'prikker', antal: 0, ialt: 1, tekst: 'projekter ramt' } },
     },
     birthe: {
-      id: 'familie:birthe-foedselsdag', type: 'familie', titel: 'Maja spørger: fødselsdag hos Birthe lørdag kl. 14?',
-      betyder: 'Maja har skrevet, at Birthe (din mor) fylder år, og at I er velkomne lørdag kl. 14. Din kalender er fri hele lørdagen.',
-      grundlag: ['Besked fra Maja i aften', 'Din kalender: lørdag har ingen aftaler', 'I morgen: tog 07.12, ingen kollision'], kilder: [],
-      anbefaling: 'Svar ja og reservér lørdag kl. 14.00–17.00. Jeg svarer ikke Maja; det gør du selv.', prioritet: 1, gyldigTil: f.plus(f.loerdagPlus),
-      handling: { label: 'Reservér lørdag', instruktion: `Opret en kalenderaftale lørdag den ${lordag} kl. 14.00–17.00 med titlen "Fødselsdag hos Birthe".`, fortryd: fortrydBirthe(lordag) },
-      visuel: { ikon: 'gift', tone: 'god', overskrift: 'Lørdag er fri – sig ja?', billede: { art: 'uge', dage: uge } },
+      id: 'familie:birthe-foedselsdag', type: 'familie', titel: tekster.birthe.titel,
+      betyder: tekster.birthe.betyder,
+      grundlag: [...tekster.birthe.grundlag], kilder: [],
+      anbefaling: tekster.birthe.anbefaling, prioritet: 1, gyldigTil: f.plus(f.loerdagPlus),
+      handling: { label: tekster.birthe.knap, instruktion: `Opret en kalenderaftale lørdag den ${lordag} kl. 14.00–17.00 med titlen "Fødselsdag hos Birthe".`, fortryd: fortrydBirthe(lordag) },
+      visuel: { ikon: 'gift', tone: 'god', overskrift: tekster.birthe.overskrift, billede: { art: 'uge', dage: uge } },
     },
     // KC-0138: Ella's question on Signal, a chosen conversation — a card on one message: her name, no button.
     cykel: {

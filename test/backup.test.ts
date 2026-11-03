@@ -82,8 +82,8 @@ const filerOnly = (t: Record<string, string>): Record<string, string> => Object.
 
 const SKJULT = new Set(['.env', path.join('hemmeligheder', 'google.json'), 'hemmeligheder.enc']);
 
-function backup(v: Verden, ekstra: string[] = []): { k: Koersel; fil: string } {
-  const k = koer(v.rod, ['backup', '--data-mappe', v.data, '--vault-mappe', v.vault, '--til', v.til, '--env-fil', v.envFil, ...ekstra]);
+function backup(v: Verden, ekstra: string[] = [], env: Record<string, string> = {}): { k: Koersel; fil: string } {
+  const k = koer(v.rod, ['backup', '--data-mappe', v.data, '--vault-mappe', v.vault, '--til', v.til, '--env-fil', v.envFil, ...ekstra], env);
   const navne = existsSync(v.til) ? readdirSync(v.til).filter((f) => f.endsWith('.tar.gz')) : [];
   return { k, fil: navne.length ? path.join(v.til, navne[navne.length - 1] as string) : '' };
 }
@@ -208,6 +208,22 @@ test('.env and key files are absent by default and present with --med-noegler (w
   assert.ok(navneMed.includes('data/hemmeligheder.enc'));
   assert.ok(navneMed.some((x) => x.startsWith('miljoe/') && x.endsWith('.env')), 'the install settings file travels with the keys');
   assert.match(med.k.ud, /hemmelig/i, 'warns that the archive is now a secret');
+});
+
+test('KC-0245: the installer\'s key file (outside the data folder) is in no default backup and travels under miljoe/ with --med-noegler, so the encrypted store can be opened after a restore', async () => {
+  const v = verden();
+  const noeglefil = path.join(v.rod, 'hemmeligheder.key');
+  skriv(noeglefil, `${'A'.repeat(43)}=\n`);
+  const env = { KC_HEMMELIGHEDER_FIL: noeglefil };
+  const std = backup(v, [], env);
+  assert.equal(std.k.code, 0, std.k.fejl);
+  assert.ok(!(await valider(std.fil)).navne.some((x) => x.endsWith('hemmeligheder.key')), 'not by default');
+  rmSync(v.til, { recursive: true });
+  const med = backup(v, ['--med-noegler'], env);
+  assert.equal(med.k.code, 0, med.k.fejl);
+  const navne = (await valider(med.fil)).navne;
+  assert.ok(navne.includes('miljoe/hemmeligheder.key'), 'with the keys');
+  assert.ok(navne.includes('data/hemmeligheder.enc'), 'next to the store it opens');
 });
 
 // ---- refusing and replacing ------------------------------------------------------------------------------------

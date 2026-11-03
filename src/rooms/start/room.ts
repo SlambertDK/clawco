@@ -186,7 +186,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
       trin, profil: ctx.profil, forslag, log, now: deps.now(), igang: deps.runs.igang(RUM), venter,
       standardNavn: p.rolle === 'ejer' && p.id !== ENEBRUGER.id ? p.navn : '',
       kanGemme: kan(p.rolle, 'aendre-indstillinger') && Boolean(deps.profil),
-      ...(ctx.model ? { model: { syn: ctx.model, agent, ...(s.model ? { gemt: s.model } : {}), kanGemme: kan(p.rolle, 'aendre-indstillinger') } } : {}),
+      ...(ctx.model ? { model: { syn: ctx.model, agent, ...(s.model ? { gemt: s.model } : {}), kanGemme: kan(p.rolle, 'aendre-indstillinger'), ...(deps.hermes.mode === 'direkte' ? { direkte: true } : {}) } } : {}),
       ...(kilder ? { kilder } : {}),
     }),
     hermesStatus: tekst().klar,
@@ -415,6 +415,7 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
   // model-gem: the provider, the key (or a local address) to the agent, the models, then both tiers tested at once.
   const u = udbyderAf(str(body['udbyder'], 40));
   if (!u) throw new ActionError(A.vaelgUdbyder);
+  if (deps.hermes.mode === 'direkte' && !u.direkte) throw new ActionError(T.modelFejl['kun-hermes']); // KC-0245: the built-in agent has no way to call it
   const raa = u.kraeverNoegle ? str(body['noegle'], 2001) : str(body['url'], 200);
   const vaerdi = u.kraeverNoegle && !raa ? null : envVaerdi(u, raa);
   if (!u.kraeverNoegle && !vaerdi) throw new ActionError(A.adresseHttp(u.standardUrl ?? 'http://127.0.0.1'));
@@ -438,7 +439,7 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
     const valg = (n: Niveau): string => modelTil(n, { samme, posted: posted[n], nu, std: u.standardModeller[n], ...(gemt.navne ? { navne: gemt.navne } : {}) });
     await m.vaelg({ udbyder: u.id, lille: valg('lille'), taenker: valg('taenker') });
     await deps.store.writeState(RUM, { ...s, model: gemt });
-    const hvad = gemt.noegle ? A.hvadNoegle(gemt.noegle.laengde) : gemt.url ? A.hvadAdresse(gemt.url) : '';
+    const hvad = gemt.noegle ? (deps.hermes.mode === 'direkte' ? A.hvadNoegleGemt : A.hvadNoegle)(gemt.noegle.laengde) : gemt.url ? A.hvadAdresse(gemt.url) : '';
     await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.valgteModel(T.udbyderNavn(u), hvad, valg('lille'), valg('taenker')) });
     if (gemt.kommando && vaerdi) return faerdigt(deps, A.koerKommandoen);
     return faerdigt(deps, await testBegge(deps));

@@ -339,3 +339,21 @@ test('KC-0203: a failing or slow note never changes the answer', async () => {
     assert.equal((await anmod(t.gw.port, { host: t.host, sti: '/rum/mail', headers: { cookie: t.cookie() } })).status, 200);
   } finally { await t.luk(); }
 });
+
+// KC-0246: the tenant's Google sign-in comes back as GET <tenant origin>/api/kilder/<id>/tilbage?state=…&code=… in the
+// browser that has the tenant cookie (SameSite=Lax is sent on that top-level navigation): the gateway forwards it, query intact.
+test('KC-0246: the Google OAuth callback of a member reaches the tenant with its query; without the tenant cookie it is sent to login, not forwarded', async () => {
+  const s = await stativ();
+  try {
+    for (const id of ['google-kalender', 'mail-gmail']) {
+      const sti = `/api/kilder/${id}/tilbage?state=ABC&code=4%2F0AXYZ`;
+      const r = await anmod(s.gw.port, { host: s.host, sti, headers: { cookie: s.cookie() } });
+      assert.equal(r.status, 200, id);
+      assert.equal(s.t.modtaget.at(-1)?.url, sti, id);
+    }
+    const foer = s.t.modtaget.length;
+    const uden = await anmod(s.gw.port, { host: s.host, sti: '/api/kilder/google-kalender/tilbage?state=ABC&code=x' });
+    assert.equal(uden.status, 302);
+    assert.equal(s.t.modtaget.length, foer, 'nothing proxied without a login');
+  } finally { await s.luk(); }
+});

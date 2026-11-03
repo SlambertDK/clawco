@@ -18,10 +18,17 @@ Without `GIT_SHA` the image still builds; `/health` then says `"sha": "unknown"`
   uses host networking, or a Serve config allows Funnel.
 - **Your data lives outside the image.** The user folder is the named volume `clawco-data` at
   `/data` (`KC_DATA_DIR`). The root filesystem is read-only (`read_only: true`), so the app cannot
-  write anywhere else, and a new image never carries data. Keys pasted in Start are saved in
-  `/data/.env` (`KC_ENV_FILE`), next to the per-source credentials in `/data/hemmeligheder/`.
+  write anywhere else, and a new image never carries data. A model key pasted in Start is saved
+  encrypted in `/data/hemmeligheder.enc` (KC-0245); the key that opens it is a file on its own
+  volume `clawco-noegle` at `/noegle` (`KC_HEMMELIGHEDER_FIL`), made by `deploy/docker/start.sh` the
+  first time and never again, so a copy of the data volume never carries it. Other keys (the
+  per-source credentials) are in `/data/hemmeligheder/`.
   A backup is a copy of that volume, for example
   `docker run --rm -v clawco_clawco-data:/data -v "$PWD":/ud busybox tar czf /ud/clawco-data.tgz -C /data .`
+  and, kept as safely as a password, the key volume:
+  `docker run --rm -v clawco_clawco-noegle:/noegle -v "$PWD":/ud busybox tar czf /ud/clawco-noegle.tgz -C /noegle .`
+  A plain `docker run` needs both `-v` flags (`/data` and `/noegle`) or the saved key cannot be opened
+  after the container is replaced.
 - **No root.** The app runs as the image's `node` user (uid 1000).
 
 ## Updating
@@ -31,12 +38,15 @@ Without `GIT_SHA` the image still builds; `/health` then says `"sha": "unknown"`
 
 ## The agent
 
-The container starts with the keyless real agent (`KC_AGENT=hermes-http`), exactly as
-`install.sh` does: Nu works, and Start asks for the key. To use your own Hermes, set its address
-before `up` (from inside the container, the host is not `127.0.0.1`):
+The container runs Clawco's own built-in agent (`KC_AGENT=direkte`, KC-0245), exactly as
+`install.sh` does: Nu works, and Start asks for a key from a model provider, or for a local model.
+For a model on this machine (LM Studio, Ollama) give Start the address
+`http://host.docker.internal:1234` (`:11434` for Ollama); compose maps that name to the host.
+To use your own Hermes instead (advanced), choose it and set its address before `up` (from inside
+the container, the host is not `127.0.0.1`):
 
 ```bash
-KC_HERMES_URL=http://host.docker.internal:8642 docker compose up -d
+KC_AGENT=hermes-http KC_HERMES_URL=http://host.docker.internal:8642 docker compose up -d
 ```
 
 `KC_AGENT=fake` gives the scripted agent (for development; it reads the mail fixtures in

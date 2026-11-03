@@ -24,6 +24,9 @@ const UDGAAENDE = new Set(['nodejs.org', 'docs.docker.com', 'tailscale.com', 'br
  *  only on the status page, only as the Atom link (link[rel=alternate], a[href]). The status page's request to it is the
  *  fetch in status.js, allowed by the /status block in _headers; test/site-status.test.ts holds both. */
 const STATUS_VAERT = 'konto.clawco.work';
+/** KC-0244: the front page's "Join the beta" button, a plain link to the sign-up on the account server (no plan, no pricing: sign-up is by invitation). */
+const TILMELD_SIDE = 'index.html';
+const TILMELD_LINK = /^https:\/\/konto\.clawco\.work\/tilmeld\?sprog=(en|da)$/;
 const FORBUDTE_ORD = ['supercharge', 'revolutionary', 'seamless', 'effortless', 'unlock', 'game-changer', 'ai-powered', '10x', 'magic'];
 
 const laes = (rel: string): string => readFileSync(path.join(ROD, rel), 'utf8');
@@ -156,6 +159,7 @@ test('no request to any other host: every src/href/content/url() is local, own h
     }
     const vaert = new URL(v, 'https://x.invalid').hostname;
     if (vaert === EGEN_VAERT) continue;
+    if (vaert === STATUS_VAERT && k.side === TILMELD_SIDE && k.tag === 'a' && k.attr === 'href' && TILMELD_LINK.test(v)) continue;
     if (vaert === STATUS_VAERT && k.side === 'status.html') {
       assert.ok((k.tag === 'a' && k.attr === 'href') || (k.tag === 'link' && k.attr === 'href'), `status.html: ${vaert} may only be the Atom link, not <${k.tag} ${k.attr}>`);
       continue;
@@ -293,6 +297,24 @@ test('site.js: ?lang=da shows Danish and sets html lang; English stays the defau
   assert.match(da.document.querySelector('a[href^="/install"]')!.getAttribute('href')!, /\?lang=da/, 'internal links keep the language');
 });
 
+test('KC-0244: the hero has a second button, "Join the beta", to the sign-up in the page\'s language; it is the only link to the account server on the page', async () => {
+  const t = laesTabel();
+  const d = dok('index.html');
+  const knapper = Array.from(d.querySelectorAll('.hero .actions a.btn'));
+  assert.equal(knapper.length, 3);
+  assert.equal(flad(knapper[0]!.textContent ?? ''), t.en['home.hero.cta.install']);
+  assert.equal(knapper[1]!.getAttribute('data-i'), 'home.hero.cta.beta', 'the beta button is the second one');
+  assert.match(knapper[1]!.getAttribute('href')!, TILMELD_LINK);
+  assert.ok(!/plan=|interval=/.test(knapper[1]!.getAttribute('href')!), 'no plan: sign-up is by invitation');
+  assert.equal(Array.from(d.querySelectorAll('a[href]')).filter((a) => a.getAttribute('href')!.includes(STATUS_VAERT)).length, 1);
+  assert.equal(t.en['home.hero.cta.beta'], 'Join the beta');
+  assert.equal(t.da['home.hero.cta.beta'], 'Bliv betatester');
+  assert.equal(t.en['home.hero.cta.beta.href'], 'https://konto.clawco.work/tilmeld?sprog=en');
+  assert.equal(t.da['home.hero.cta.beta.href'], 'https://konto.clawco.work/tilmeld?sprog=da');
+  assert.equal(koer('index.html', '').document.querySelector('[data-i="home.hero.cta.beta"]')!.getAttribute('href'), t.en['home.hero.cta.beta.href']);
+  assert.equal(koer('index.html', '?lang=da').document.querySelector('[data-i="home.hero.cta.beta"]')!.getAttribute('href'), t.da['home.hero.cta.beta.href'], 'the sign-up opens in Danish on the Danish page');
+});
+
 test('site.js: the toggle switches language and remembers it in localStorage only', async () => {
   const s = koer('index.html', '');
   await s.click('[data-lang-toggle]');
@@ -364,6 +386,26 @@ test('site-byg: copies the site and deploy/install.sh byte-identically, and fail
       assert.ok(existsSync(path.join(ud, f)), `${f} copied`);
     }
     assert.ok(!existsSync(path.join(ud, 'README.md')), 'README.md is not published');
+  } finally { rmSync(ud, { recursive: true, force: true }); }
+});
+
+test('site-byg: every image URL in the built pages carries its content hash, so a changed image is never served from a cache', () => {
+  // KC-0244: /billeder/* is cached for a day (_headers); the new English hero kept being served as the old Danish one
+  // under the same name. The source keeps plain names; only the build adds ?v=<hash>.
+  const ud = mkdtempSync(path.join(tmpdir(), 'clawco-site-v-'));
+  try {
+    execFileSync('node', [path.join(ROD, 'scripts/site-byg.mjs'), '--ud', ud], { encoding: 'utf8' });
+    const kort = (f: string) => createHash('sha256').update(readFileSync(path.join(ROD, 'site/billeder', f))).digest('hex').slice(0, 12);
+    let set = 0;
+    for (const side of ['index.html', 'strings.js', 'install.html']) {
+      const t = readFileSync(path.join(ud, side), 'utf8');
+      for (const m of t.matchAll(/\/billeder\/([A-Za-z0-9._-]+\.(?:webp|png|svg|jpg))(\?v=[0-9a-f]+)?/g)) {
+        set++;
+        assert.equal(m[2], `?v=${kort(m[1]!)}`, `${side}: ${m[0]}`);
+      }
+    }
+    assert.ok(set >= 11, `the front page's five images in two languages and og.png are versioned (saw ${set})`);
+    assert.doesNotMatch(readFileSync(path.join(ROD, 'site/index.html'), 'utf8'), /\?v=/, 'the source keeps plain names');
   } finally { rmSync(ud, { recursive: true, force: true }); }
 });
 

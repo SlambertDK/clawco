@@ -7,6 +7,7 @@
 
 import type { Husstand, Person } from '../../identitet/husstand.ts';
 import type { Kilde, KalenderData } from '../../kilder/types.ts';
+import { indhold } from './sprogindhold.ts';
 import { fakta, isoDato, momentPlus, momentNr, MOMENT_TABEL, TIRSDAG_WEEKEND, type Fakta } from './fakta.ts';
 import { anvend, nyForespoergsel, type Forespoergsel, type Haendelse } from '../../hushold/foresp.ts';
 import type { BookingUdkast, HusstandState } from '../../hushold/schema.ts';
@@ -66,6 +67,7 @@ export function familiekalender(dag: () => string): Kilde {
 const FORSTE_SENE = 6; // momentNr('sent-aften')
 
 export function husstandState(n: number, f: Fakta): HusstandState {
+  const tekster = indhold();
   const t = (hhmm: string, plus = 0): Date => new Date(f.iso(hhmm, plus));
   const trin = (x: Forespoergsel, h: Haendelse, nu: Date): Forespoergsel => {
     const r = anvend(x, h, nu);
@@ -74,8 +76,8 @@ export function husstandState(n: number, f: Fakta): HusstandState {
   };
   const sen = n >= FORSTE_SENE;
   // Maja asks Henrik (he decides: the blue Ja), reminded 24 h before it expires; Hermes suggested another time.
-  let hent = nyForespoergsel({ id: 'f-hent-ella', fra: 'maja', til: 'henrik', titel: 'Kan du hente Ella fra svømning i morgen?', tid: { start: f.iso('16:30', 1), slut: f.iso('17:30', 1) } }, t('07:00', -1));
-  hent = { ...hent, paamindet: ['henrik:24t'], forslag: { anbefaling: 'Du har intet andet i kalenderen i morgen eftermiddag.', alternativer: [{ kl: '17:00', tekst: 'Kan 17.00' }] } };
+  let hent = nyForespoergsel({ id: 'f-hent-ella', fra: 'maja', til: 'henrik', titel: tekster.hent.titel, tid: { start: f.iso('16:30', 1), slut: f.iso('17:30', 1) } }, t('07:00', -1));
+  hent = { ...hent, paamindet: ['henrik:24t'], forslag: { anbefaling: tekster.hent.anbefaling, alternativer: [{ kl: '17:00', tekst: tekster.hent.alternativ }] } };
   if (sen) hent = trin(hent, { slags: 'ja', af: 'henrik' }, t('21:40'));
   // Henrik asked Maja; she proposed another time, so it is his to decide.
   let handle = nyForespoergsel({ id: 'f-indkoeb', fra: 'henrik', til: 'maja', titel: 'Kan du handle ind til Ellas fødselsdag?', tid: { start: f.iso('10:00', 4), slut: f.iso('11:00', 4) } }, t('06:30'));
@@ -157,21 +159,22 @@ export function testKanal(): ReturnType<typeof lavFakeKanal> {
 // sted"). Henrik wished for the big car while Maja has it: one open clash for the two of them (Hermes' suggestion
 // first). From "Sent aften" he has taken the small car, through the model itself, so Alt er ordnet holds.
 function husstandRessourcer(sen: boolean, f: Fakta, n: number): { ressourcer: Ressource[]; sammenfald: ReturnType<typeof nySammenfald> } {
+  const tekster = indhold();
   const b = (id: string, ressourceId: string, af: string, titel: string, fra: string, til: string, dag: number, tilDag = dag): Booking =>
     ({ id, ressourceId, af, titel, start: f.iso(fra, dag), slut: f.iso(til, tilDag) });
   const begge = ['henrik', 'maja'];
-  const stor = b('b-odense', 'stor-bil', 'maja', 'Til Odense', '08:00', '16:00', 2);
+  const stor = b('b-odense', 'stor-bil', 'maja', tekster.bookinger.odense, '08:00', '16:00', 2);
   // KC-0151: in the moment "Lørdag i næste uge" Maja's course holds the big car that Saturday 09–13.
   const kursus = n === momentNr('bil-loerdag') ? [b('b-kursus', 'stor-bil', 'maja', 'Kursus', '09:00', '13:00', loerdagNaesteUge(f))] : [];
   const ressourcer: Ressource[] = [
-    { id: 'stor-bil', navn: 'Den store bil', slags: 'bil', ejere: begge, kalender: [stor, ...kursus] },
-    { id: 'lille-bil', navn: 'Den lille bil', slags: 'bil', ejere: begge, kalender: [b('b-vaerksted', 'lille-bil', 'henrik', 'Værksted', '07:30', '08:30', 3)] },
+    { id: 'stor-bil', navn: tekster.stor, slags: 'bil', ejere: begge, kalender: [stor, ...kursus] },
+    { id: 'lille-bil', navn: tekster.lille, slags: 'bil', ejere: begge, kalender: [b('b-vaerksted', 'lille-bil', 'henrik', 'Værksted', '07:30', '08:30', 3)] },
     { id: 'gaestevaerelse', navn: 'Gæsteværelset', slags: 'rum', ejere: begge, kalender: [b('b-farmor', 'gaestevaerelse', 'maja', 'Farmor overnatter', '12:00', '10:00', 4, 5)] },
     { id: 'boremaskine', navn: 'Boremaskinen', slags: 'ting', ejere: ['henrik'], kalender: [] },
     { id: 'ella', navn: 'Ella', slags: 'person', ejere: begge, kalender: [b('b-svoemning', 'ella', 'maja', 'Svømning', '16:30', '17:30', 1)] },
   ];
-  const oensket = b('w-indkoeb', 'stor-bil', 'henrik', 'Storindkøb til fødselsdagen', '10:00', '13:00', 2);
-  const aaben = { ...nySammenfald({ id: 's-stor-bil', ny: oensket, mod: stor, ressourcer, nu: new Date(f.iso('06:30')) }), forslag: { foerste: 'v1', anbefaling: 'Maja kører hele dagen; den lille bil er fri, mens Henrik handler.' } };
+  const oensket = b('w-indkoeb', 'stor-bil', 'henrik', tekster.bookinger.indkoeb, '10:00', '13:00', 2);
+  const aaben = { ...nySammenfald({ id: 's-stor-bil', ny: oensket, mod: stor, ressourcer, nu: new Date(f.iso('06:30')) }), forslag: { foerste: 'v1', anbefaling: tekster.sammenfaldAnbefaling } };
   if (!sen) return { ressourcer, sammenfald: aaben };
   const l = loesSammenfald(ressourcer, aaben, 'v1', 'b-indkoeb');
   if (!l.ok) throw new Error(`testverden: sammenfald: ${l.hvorfor}`);

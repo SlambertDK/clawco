@@ -83,8 +83,10 @@ test('sign-up by link: neutral page, browser binding cookie, POST consumes, sess
   assert.equal(link.origin, PUBLIC);
   // A scanner (no cookies) fetching the link twice burns nothing.
   const scanner = new Browser(app);
-  assert.match(await (await scanner.hent(`${link.pathname}${link.search}`)).text(), /name="t"/);
-  assert.match(await (await scanner.hent(`${link.pathname}${link.search}`)).text(), /name="t"/);
+  // KC-0246: a browser that did not ask sees the code to type in the first window, not a button that would fail — still burning nothing.
+  const kode = post.udbakke[0]!.data['kode']!;
+  assert.match(await (await scanner.hent(`${link.pathname}${link.search}`)).text(), new RegExp(`<strong>${kode}</strong>`));
+  assert.match(await (await scanner.hent(`${link.pathname}${link.search}`)).text(), /Skriv koden i det vindue/);
   const ok = await b.form('/log-ind/link/bekraeft', { t: token(post) });
   assert.equal(ok.status, 303);
   assert.equal(ok.headers.get('location'), '/konto');
@@ -386,4 +388,122 @@ test('KC-0206: making the link needs CSRF and a fresh login; an unreadable Clawc
   assert.match(await side.text(), /Log ind igen/);
   const csrf = await csrfFra(await b.hent('/konto'));
   assert.equal((await b.form('/konto/hent-alt', { csrf })).status, 403, 'stale login: no link');
+});
+
+// --- KC-0246: the code from the sign-in mail, for a person who asks on one device and opens the mail on another ------------------
+const kodeFra = (post: FalskPost): string => post.udbakke.at(-1)!.data['kode']!;
+const forkertKode = (kode: string): string => (kode[0] === '2' ? '3' : '2') + kode.slice(1);
+
+test('KC-0246: asked in browser A, the link opened in browser B shows the code, A types it and is signed in; the code and the link are then spent', async () => {
+  const { app, post } = await opsaet();
+  const a = new Browser(app);
+  const venter = await (await a.form('/log-ind/link', { email: 'laptop@example.test' })).text();
+  assert.match(venter, /action="\/log-ind\/kode"/, 'the waiting page has the field');
+  assert.match(venter, /Eller skriv koden fra mailen/);
+  // The phone (browser B, no cookies from A) opens the mail's link.
+  const b = new Browser(app);
+  const link = new URL(post.udbakke[0]!.data['link']!);
+  const sideB = await b.hent(`${link.pathname}${link.search}`);
+  assert.equal(sideB.status, 200);
+  const htmlB = await sideB.text();
+  assert.match(htmlB, /Skriv koden i det vindue, hvor du loggede ind/);
+  assert.ok(htmlB.includes(`<strong>${kodeFra(post)}</strong>`), 'the page shows the same code as the mail');
+  assert.ok(!htmlB.includes('name="t"'), 'no login button in the wrong browser');
+  assert.ok(!b.jar.has('__Host-sky'), 'the phone is not signed in');
+  // B cannot use the code (it has no binding), and trying does not spend A's login.
+  assert.equal((await b.form('/log-ind/kode', { kode: kodeFra(post) })).status, 400);
+  assert.ok(!b.jar.has('__Host-sky'));
+  // A types it (lower case, no hyphen: tidied) and is in.
+  const ok = await a.form('/log-ind/kode', { kode: kodeFra(post).replace('-', '').toLowerCase() });
+  assert.equal(ok.status, 303);
+  assert.equal(ok.headers.get('location'), '/konto');
+  const saet = ok.headers.getSetCookie().find((c) => c.startsWith('__Host-sky='));
+  assert.ok(saet && /HttpOnly/i.test(saet) && /Secure/i.test(saet) && /SameSite=Lax/i.test(saet) && !/Domain=/i.test(saet));
+  assert.equal((await a.hent('/konto')).status, 200);
+  assert.ok(!a.jar.has('__Host-sky-binding'), 'the binding is spent with the login');
+  // Single use, both ways.
+  const igen = new Browser(app);
+  await igen.form('/log-ind/link', { email: 'laptop@example.test' });
+  const andenKode = kodeFra(post);
+  assert.equal((await igen.form('/log-ind/kode', { kode: andenKode })).status, 303);
+  assert.equal((await igen.form('/log-ind/kode', { kode: andenKode })).status, 400, 'the same code twice');
+  const efter = await b.hent(`/log-ind/link?t=${new URL(post.udbakke.at(-1)!.data['link']!).searchParams.get('t')}`);
+  assert.match(await efter.text(), /Linket virker ikke længere/, 'the link is spent by the code');
+});
+
+test('KC-0246: the link still works in the browser that asked (button, POST), and then the code is spent', async () => {
+  const { app, post } = await opsaet();
+  const a = new Browser(app);
+  await a.form('/log-ind/link', { email: 'a@example.test' });
+  const side = await (await a.hent(`/log-ind/link?t=${token(post)}`)).text();
+  assert.match(side, /name="t"/, 'same browser: the button, as before');
+  const kode = kodeFra(post);
+  assert.equal((await a.form('/log-ind/link/bekraeft', { t: token(post) })).status, 303);
+  const b = new Browser(app);
+  b.jar.set('__Host-sky-binding', a.jar.get('__Host-sky-binding') ?? 'x');
+  assert.equal((await b.form('/log-ind/kode', { kode })).status, 400);
+});
+
+test('KC-0246: five wrong codes void that login — the page says so, the sixth try fails with the right code, the link is dead; a new mail starts over', async () => {
+  const { app, post } = await opsaet();
+  const a = new Browser(app);
+  await a.form('/log-ind/link', { email: 'a@example.test' });
+  const rigtig = kodeFra(post);
+  for (let i = 1; i <= 5; i++) {
+    const r = await a.form('/log-ind/kode', { kode: forkertKode(rigtig) });
+    assert.equal(r.status, 400);
+    const h = await r.text();
+    if (i < 5) { assert.match(h, /Koden passer ikke/); assert.match(h, /name="kode"/); } else { assert.match(h, /Koden virker ikke længere/); assert.match(h, /Bed om et nyt link/); assert.doesNotMatch(h, /name="kode"/); }
+  }
+  assert.equal((await a.form('/log-ind/kode', { kode: rigtig })).status, 400);
+  assert.ok(!a.jar.has('__Host-sky'));
+  assert.match(await (await a.hent(`/log-ind/link?t=${token(post)}`)).text(), /Linket virker ikke længere/);
+  await a.form('/log-ind/link', { email: 'a@example.test' });
+  assert.equal((await a.form('/log-ind/kode', { kode: kodeFra(post) })).status, 303, 'a new mail is a new login');
+});
+
+test('KC-0246: the code route has the link\'s protections: Origin is checked first, a body limit applies, failures share the IP budget', async () => {
+  const { app, post, db } = await opsaet();
+  const a = new Browser(app);
+  await a.form('/log-ind/link', { email: 'a@example.test' });
+  assert.equal((await a.form('/log-ind/kode', { kode: kodeFra(post) }, { origin: null })).status, 403);
+  assert.equal((await a.form('/log-ind/kode', { kode: kodeFra(post) }, { origin: 'https://evil.example.test' })).status, 403);
+  assert.equal((await a.hent('/log-ind/kode')).status, 404, 'no GET: the code is never in a URL');
+  assert.equal(await antal(db, 'loginkode'), 1);
+  const stor = await a.form('/log-ind/kode', { kode: 'x'.repeat(70_000) });
+  assert.equal(stor.status, 413);
+  // Failures (any kind) from one address fill the same budget as failed links: then even the right code is refused from it.
+  for (let i = 0; i < 12; i++) await new Browser(app).form('/log-ind/kode', { kode: 'AAAAAAAA' });
+  const blokeret = await a.form('/log-ind/kode', { kode: kodeFra(post) });
+  assert.equal(blokeret.status, 429);
+  assert.ok(!a.jar.has('__Host-sky'));
+  assert.match(await blokeret.text(), /For mange forsøg/);
+});
+
+test('KC-0246: a code typed after the sign-up flow\'s link request lands where the link would (the sign-up page), and nowhere else', async () => {
+  const { app, post } = await opsaet();
+  const a = new Browser(app);
+  await a.form('/log-ind/link', { email: 'ny@example.test', til: '/tilmeld?plan=familie' });
+  const ok = await a.form('/log-ind/kode', { kode: kodeFra(post) });
+  assert.equal(ok.status, 303);
+  assert.equal(ok.headers.get('location'), '/tilmeld?plan=familie');
+  assert.ok(!a.jar.has('__Host-sky-til'), 'the landing cookie is spent');
+});
+
+test('KC-0246: the code never shows in a log, a header or a URL on the way', async () => {
+  const { app, post } = await opsaet();
+  const fanget: string[] = [];
+  const gemt = { log: console.log, error: console.error, warn: console.warn, info: console.info, debug: console.debug };
+  for (const k of Object.keys(gemt) as (keyof typeof gemt)[]) console[k] = (...a: unknown[]) => { fanget.push(a.map(String).join(' ')); };
+  let kode = '';
+  try {
+    const a = new Browser(app);
+    await a.form('/log-ind/link', { email: 'a@example.test' });
+    kode = kodeFra(post);
+    await a.form('/log-ind/kode', { kode: forkertKode(kode) });
+    const ok = await a.form('/log-ind/kode', { kode });
+    assert.ok(!(ok.headers.get('location') ?? '').includes(kode.replace('-', '')));
+    for (const [, v] of ok.headers) assert.ok(!v.includes(kode), 'headers');
+  } finally { Object.assign(console, gemt); }
+  assert.ok(!fanget.join('\n').includes(kode.replace('-', '')) && !fanget.join('\n').includes(kode));
 });

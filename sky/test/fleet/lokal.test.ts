@@ -398,3 +398,44 @@ test('KC-0217: a tenant container created or recreated while a rotation is prepa
   assert.ok(igen.includes(`KC_KONTO_PUBKEY_NY=${NY_NOEGLE}`));
   assert.ok(igen.includes('clawco-t-hus-abcdefgh-data:/data'));
 });
+
+// KC-0246: a tenant knows its own public address (KC_ADRESSE, so "Log ind med Google" has a callback to register)
+// and the language its owner chose at sign-up (KC_SPROG, so Start does not ask again). Both are env, fixed when the
+// container is created: first start and every recreate (rollout, genstart-flaade) carry them.
+import { tenantMiljoe } from '../../src/fleet/lokal.ts';
+
+test('KC-0246 tenantMiljoe: the address and the account language, each only when known', () => {
+  assert.deepEqual(tenantMiljoe({ adresse: 'https://hus.example.dk', sprog: 'da' }), { KC_ADRESSE: 'https://hus.example.dk', KC_SPROG: 'da' });
+  assert.deepEqual(tenantMiljoe({ adresse: 'https://hus.example.dk', sprog: 'en' }), { KC_ADRESSE: 'https://hus.example.dk', KC_SPROG: 'en' });
+  assert.deepEqual(tenantMiljoe({ adresse: 'https://hus.example.dk', sprog: null }), { KC_ADRESSE: 'https://hus.example.dk' });
+  assert.deepEqual(tenantMiljoe({ adresse: null, sprog: 'da' }), { KC_SPROG: 'da' });
+  assert.deepEqual(tenantMiljoe({ adresse: null, sprog: null }), {});
+});
+
+test('KC-0246 tenantMiljoe: a value that is not a plain origin or a known language never reaches an env flag', () => {
+  for (const adresse of ['hus.example.dk', 'https://hus.example.dk/', 'https://hus.example.dk/x', 'javascript:1', 'https://a b.example', 'https://hus.example.dk\n', 'ftp://hus.example.dk']) {
+    assert.throws(() => tenantMiljoe({ adresse, sprog: null }), /adresse/, adresse);
+  }
+  assert.deepEqual(tenantMiljoe({ adresse: 'http://hus.localhost:8793', sprog: null }), { KC_ADRESSE: 'http://hus.localhost:8793' });
+  assert.deepEqual(tenantMiljoe({ adresse: null, sprog: 'de' as never }), {}, 'an unknown language is left out: the tenant keeps its own default');
+});
+
+test('KC-0246: the container gets KC_ADRESSE and KC_SPROG after KC_SKY_URL — first start and upgrade — and the image stays last', async () => {
+  const d = falskDocker();
+  const miljoe = async (id: string) => tenantMiljoe({ adresse: `https://${id}.example.dk`, sprog: 'da' });
+  const lavMed = (x: ReturnType<typeof falskDocker>) => lokalFlaade({ koer: x.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), miljoe });
+  await lavMed(d).klargoer(EJER);
+  const run = d.kald.find((a) => a[1] === 'run' && !a.includes('--rm'))!;
+  assert.deepEqual(envAf(run).slice(-3), ['KC_SKY_URL=https://konto.example.dk', 'KC_ADRESSE=https://hus-abcdefgh.example.dk', 'KC_SPROG=da']);
+  assert.equal(run.at(-1), 'clawco:test');
+  const d2 = falskDocker({ containere: { 'clawco-t-hus-abcdefgh': true }, volumener: ['clawco-t-hus-abcdefgh-data'], netvaerk: { 'clawco-sky': { icc: false } } });
+  await lavMed(d2).opgrader({ id: 'hus-abcdefgh', billede: NY });
+  assert.deepEqual(envAf(d2.kald.find((a) => a[1] === 'run')!).slice(-2), ['KC_ADRESSE=https://hus-abcdefgh.example.dk', 'KC_SPROG=da']);
+});
+
+test('KC-0246: without the seam the container is exactly what it was (no KC_ADRESSE, no KC_SPROG)', async () => {
+  const d = falskDocker();
+  await lav(d).klargoer(EJER);
+  const run = d.kald.find((a) => a[1] === 'run' && !a.includes('--rm'))!;
+  assert.ok(!run.some((x) => x.startsWith('KC_ADRESSE') || x.startsWith('KC_SPROG')));
+});

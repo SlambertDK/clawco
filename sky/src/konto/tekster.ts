@@ -14,7 +14,17 @@ export const T = {
   passkeyIkkeUnderstoettet: 'Denne browser kan ikke bruge passkeys. Få et link på mail i stedet.',
 
   tjekMailTitel: 'Tjek din mail',
-  tjekMailTekst: 'Hvis adressen kan bruges, er et link på vej. Det virker én gang, i 15 minutter, og kun i denne browser.',
+  tjekMailTekst: 'Hvis adressen kan bruges, er en mail med et link og en kode på vej. De virker én gang, i 15 minutter, og kun i denne browser.',
+  // KC-0246: the code from the same mail, for a person who opens it on another device.
+  kodeTitel: 'Eller skriv koden fra mailen',
+  kodeFelt: 'Kode',
+  kodeKnap: 'Log ind med koden',
+  kodeForkert: 'Koden passer ikke. Tjek, at du har skrevet den rigtigt.',
+  kodeDoed: 'Koden virker ikke længere. Bed om et nyt link.',
+  kodeForMange: 'For mange forsøg. Prøv igen om lidt, eller bed om et nyt link.',
+  kodeAndenTitel: 'Skriv koden i det vindue, hvor du loggede ind',
+  kodeAndenTekst: 'Skriv denne kode i det vindue, hvor du bad om linket:',
+  kodeAndenNote: 'Koden virker kun dér, i 15 minutter, og kun én gang. Bad du ikke selv om at logge ind, så luk bare siden. Der sker ikke noget.',
   tilbage: 'Tilbage',
 
   linkTitel: 'Log ind',
@@ -22,7 +32,7 @@ export const T = {
   linkKnap: 'Log ind',
   linkDoedTitel: 'Linket virker ikke længere',
   linkDoedTekst: 'Det er brugt eller udløbet. Bed om et nyt.',
-  linkAfvistTekst: 'Linket virker ikke her. Det skal åbnes i den browser, du bad om det fra, inden for 15 minutter.',
+  linkAfvistTekst: 'Linket virker ikke her. Det skal åbnes i den browser, du bad om det fra, inden for 15 minutter. Er du på en anden enhed, så skriv koden fra mailen i det vindue, hvor du loggede ind.',
   bedOmNyt: 'Bed om et nyt link',
 
   kontoTitel: 'Din konto',

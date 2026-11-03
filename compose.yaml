@@ -17,15 +17,23 @@ services:
     ports:
       - "127.0.0.1:8750:8750"
     environment:
-      # Advanced: your own Hermes. Paste its key in Start; it is saved in the user folder.
-      KC_AGENT: ${KC_AGENT:-hermes-http}
+      # KC-0245: empty = start.sh picks: the built-in agent (Start asks for a key from a model provider, or a local
+      # model; saved encrypted in the user folder, opened by the key on the clawco-noegle volume below), or Hermes
+      # when this container already used it. Set KC_AGENT=direkte or hermes-http to choose yourself.
+      KC_AGENT: ${KC_AGENT:-}
+      # Advanced: your own Hermes (KC_AGENT=hermes-http). Paste its key in Start; it is saved in the user folder.
       KC_HERMES_URL: ${KC_HERMES_URL:-}
       # With the notes folder below: KC_VAULT_DIR: /noter
     volumes:
       - clawco-data:/data
+      # KC-0245: the key file for the encrypted model keys, outside /data (a copy of the data volume never carries it).
+      - clawco-noegle:/noegle
       # Optional: your notes folder (an Obsidian vault) from this machine. Uncomment both lines.
       # - ${CLAWCO_NOTER}:/noter
     # Nothing but /data (and scratch in /tmp) is writable, so a new image never carries user data.
+    # A local model on this machine (LM Studio, Ollama): in Start use http://host.docker.internal:1234 (or :11434).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     read_only: true
     tmpfs:
       - /tmp
@@ -55,6 +63,7 @@ services:
 
 volumes:
   clawco-data:
+  clawco-noegle:
   tailscale-state:
 
 secrets:

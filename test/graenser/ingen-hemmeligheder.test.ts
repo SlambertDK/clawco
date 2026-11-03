@@ -77,7 +77,16 @@ test('secrets live only in the secret folder (0600) — every other data file ho
   for (const f of hemmelige) assert.equal((await stat(f)).mode & 0o777, 0o600, f);
   const andre = alle.filter((f) => !hemmelige.includes(f));
   assert.ok(andre.some((f) => f.endsWith('kilder.json')), 'kilder.json exists (names and ids)');
-  for (const f of andre) lækker(await readFile(f, 'utf8'), path.relative(dir, f));
+  for (const f of andre) {
+    // An atomic write in flight (tmp file + rename, AGENTS §4.5; e.g. the health poll's helbred.json) can vanish between
+    // the listing and the read; its content lands in the real file, which is read here too.
+    let tekst: string;
+    try { tekst = await readFile(f, 'utf8'); } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT' && /\.tmp-/.test(path.basename(f))) continue;
+      throw err;
+    }
+    lækker(tekst, path.relative(dir, f));
+  }
 });
 
 test('/health, /api/indstillinger, /api/kilder and the pages never echo a secret', async () => {

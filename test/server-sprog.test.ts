@@ -144,3 +144,27 @@ test('a new installation: no profile renders English; choosing English does not 
     assert.match(await side(s, '/rum/start'), /<html lang="da">/);
   }, { standardSprog: 'en' });
 });
+
+// KC-0246: a Sky tenant's first start in the owner's sign-up language (KC_SPROG → laesInstallation → standardSprog): Start's
+// step 1 shows that language and has it selected, so the owner is not asked again; the second start (the record exists) is the same.
+import { laesInstallation, sprogFraMiljoe } from '../src/store/installation.ts';
+import { writeFile } from 'node:fs/promises';
+
+test('KC-0246: a new Sky tenant folder with KC_SPROG starts in that language and Start\'s language select has it selected', async () => {
+  for (const [sprog, valgt, htmlLang] of [['da', '<option value="da" selected>Dansk</option>', 'da'], ['en', '<option value="en" selected>English</option>', 'en']] as const) {
+    const dir = await mkdtemp(path.join(tmpdir(), 'kc-sky-sprog-'));
+    try {
+      await writeFile(path.join(dir, 'husstand.json'), JSON.stringify({ personer: [{ id: 'ejer', login: 'a@example.test', navn: 'a', rolle: 'ejer' }] })); // what Sky seeds before the first start
+      for (const env of [{ KC_SPROG: sprog }, {}]) { // first start with the env, then a restart (the record answers; the env is not even needed)
+        const standardSprog = laesInstallation(dir, () => NOW, sprogFraMiljoe(env)).standardSprog;
+        assert.equal(standardSprog, sprog);
+        const hermes = createFakeAgent({ answer: () => 'Hej.' });
+        const app = createApp({ store: createFileStore(dir), hermes, sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW, standardSprog,
+          mailRunner: async () => ({ code: 1, stdout: '', stderr: 'x' }), mailStateDir: '/nonexistent', identitet: { fast: EJER }, kilder: [] });
+        const h = await side({ ...app, hermes }, '/rum/start');
+        assert.match(h, new RegExp(`<html lang="${htmlLang}">`));
+        assert.ok(h.includes(valgt), `${sprog}: the select starts on the account's language`);
+      }
+    } finally { await rm(dir, { recursive: true, force: true }); }
+  }
+});

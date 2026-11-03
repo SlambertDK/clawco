@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -145,6 +147,75 @@ test('the Tailscale profile never opens Funnel and reads its key from a Docker s
   const c = laes('compose.yaml');
   assert.match(c, /TS_AUTHKEY:\s*file:\/run\/secrets\/ts_authkey/);
   assert.match(c, /profiles:\s*\[tailscale\]/);
+});
+
+// ---- KC-0245: the built-in agent is the container's default ----
+
+test('the container runs the built-in agent by default, with its key file on a volume of its own outside /data', () => {
+  const df = laes('Dockerfile');
+  // No KC_AGENT in the image: start.sh picks it, so an older container that ran its own Hermes keeps it.
+  assert.doesNotMatch(df, /^\s+KC_AGENT=/m);
+  assert.match(df, /\bKC_HEMMELIGHEDER_FIL=\/noegle\/hemmeligheder\.key\b/);
+  assert.match(df, /^VOLUME \/noegle\s*$/m);
+  assert.match(df, /^ENTRYPOINT \["sh", "\/usr\/local\/bin\/clawco-start\.sh"\]/m);
+  const c = laes('compose.yaml');
+  assert.match(c, /KC_AGENT:\s*\$\{KC_AGENT:-\}/);
+  assert.match(c, /^\s*-\s*clawco-noegle:\/noegle\s*$/m);
+  assert.match(c, /^volumes:\s*\n(?:\s+[a-z-]+:\s*\n)*\s+clawco-noegle:/m);
+  assert.match(c, /host\.docker\.internal:host-gateway/, 'a local model on the host (LM Studio, Ollama) is reachable from the container');
+  const dockerignore = laes('.dockerignore');
+  assert.match(dockerignore, /^!deploy\/docker\/start\.sh\s*$/m);
+  assert.match(df, /^COPY deploy\/docker\/start\.sh \/usr\/local\/bin\/clawco-start\.sh\s*$/m);
+});
+
+test('start.sh makes the key file once (mode 600, 32 random bytes in base64), never overwrites it, and never replaces the key of an existing store', () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'kc-start-sh-'));
+  try {
+    const data = path.join(tmp, 'data');
+    const noegle = path.join(tmp, 'noegle', 'hemmeligheder.key');
+    mkdirSync(data);
+    mkdirSync(path.dirname(noegle));
+    const koer = () => spawnSync('sh', [path.join(ROD, 'deploy', 'docker', 'start.sh'), 'sh', '-c', 'echo startet'], { encoding: 'utf8', env: { PATH: process.env['PATH'] ?? '', KC_DATA_DIR: data, KC_HEMMELIGHEDER_FIL: noegle } });
+    const a = koer();
+    assert.equal(a.status, 0, a.stderr);
+    assert.match(a.stdout, /startet/, 'it then runs the command it was given');
+    assert.equal(statSync(noegle).mode & 0o777, 0o600);
+    const foer = readFileSync(noegle, 'utf8');
+    assert.match(foer.trim(), /^[A-Za-z0-9+/]{43}=$/);
+    assert.ok(!a.stdout.includes(foer.trim()) && !a.stderr.includes(foer.trim()), 'never printed');
+    assert.equal(koer().status, 0);
+    assert.equal(readFileSync(noegle, 'utf8'), foer, 'unchanged on the next start');
+    // A store whose key file is gone: a new key could never open it, so none is made; the start says why and goes on.
+    rmSync(noegle);
+    writeFileSync(path.join(data, 'hemmeligheder.enc'), 'chiffer');
+    const b = koer();
+    assert.equal(b.status, 0);
+    assert.ok(!existsSync(noegle));
+    assert.match(b.stderr, /hemmeligheder\.enc/);
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
+});
+
+test('start.sh picks the built-in agent for a new container and keeps Hermes for one that already used it', () => {
+  const tmp = mkdtempSync(path.join(os.tmpdir(), 'kc-start-agent-'));
+  try {
+    const data = path.join(tmp, 'data');
+    mkdirSync(data);
+    const envFil = path.join(data, '.env');
+    const agent = (ekstra: Record<string, string>) => {
+      const r = spawnSync('sh', [path.join(ROD, 'deploy', 'docker', 'start.sh'), 'sh', '-c', 'echo "agent=${KC_AGENT-unset}"'], { encoding: 'utf8', env: { PATH: process.env['PATH'] ?? '', KC_DATA_DIR: data, KC_ENV_FILE: envFil, KC_AGENT: '', ...ekstra } });
+      assert.equal(r.status, 0, r.stderr);
+      return /agent=(.*)/.exec(r.stdout)?.[1];
+    };
+    assert.equal(agent({}), 'direkte', 'a new container: the built-in agent');
+    assert.equal(agent({ KC_HERMES_URL: 'http://hermes.example:8642' }), 'hermes-http', 'a Hermes address set: Hermes');
+    writeFileSync(envFil, 'KC_HERMES_API_KEY=falsk-noegle\n');
+    assert.equal(agent({}), 'hermes-http', 'a Hermes key saved in Start earlier: Hermes');
+    assert.equal(agent({ KC_AGENT: 'direkte' }), 'direkte', 'an explicit choice always wins');
+    writeFileSync(envFil, 'KC_AGENT=fake\n');
+    // compose passes KC_AGENT as an empty string; Node's --env-file never overrides a variable that is set, so it is
+    // removed and the server reads the user folder's choice.
+    assert.equal(agent({}), 'unset', 'a choice in the user folder\'s .env wins too');
+  } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 /** Docker's .dockerignore, simplified: last matching line wins, a match on a parent folder covers what is inside. */

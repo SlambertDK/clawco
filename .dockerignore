@@ -8,6 +8,8 @@
 !config/
 # The scripted agent's mail fixtures (KC_AGENT=fake); the rest of test/ stays out.
 !test/fixtures/
+# KC-0245: the entrypoint that makes the key file for the encrypted model-key store.
+!deploy/docker/start.sh
 # Never, even inside an allowed folder:
 **/.env*
 **/node_modules

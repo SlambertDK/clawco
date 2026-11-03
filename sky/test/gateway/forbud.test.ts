@@ -59,3 +59,9 @@ test('real requests leave log lines with no path, query string, cookie, header o
     assert.match(log[0]!, / 200 .*konto=\d+$/);
   } finally { await gw.luk(); await t.luk(); await o.db.close(); }
 });
+
+// KC-0246: Google sends the browser back to <tenant origin>/api/kilder/<id>/tilbage (src/kilder/google/oauth.ts, the tenant's
+// route in src/server.ts). The gateway must forward it — the browser carries the tenant cookie on that top-level GET.
+test('KC-0246 aldrigVidere: the OAuth callback of the Google connectors is forwarded to the tenant', () => {
+  for (const s of ['/api/kilder/google-kalender/tilbage?state=a&code=b', '/api/kilder/mail-gmail/tilbage?state=a&code=b']) assert.equal(aldrigVidere(new URL(s, 'http://x.invalid').pathname), false, s);
+});

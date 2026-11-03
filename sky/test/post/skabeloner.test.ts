@@ -7,7 +7,7 @@ const LINK = 'https://konto.example.test/log-ind/link?t=abc_DEF-123';
 const OND = '<script>alert("x")</script> & Co\'';
 
 const DATA: Record<Skabelon, Record<string, string>> = {
-  maillink: { link: LINK, minutter: '15' },
+  maillink: { link: LINK, kode: '4F7K-9Q2M', minutter: '15' },
   invitation: { link: LINK, inviterer: 'Henrik', husstand: 'Familien Lambert', dage: '7' },
   'konto-slettet': { dage: '30' },
   kvittering: { saelger: 'Sælger Eksempel (personligt drevet)', produkt: 'Sky Solo', pris: '79 kr. om måneden', betaling: 'Næste betaling 2. december 2026.', fortrydfrist: '16. november 2026', vilkaarversion: '0.1-udkast', vilkaarlink: 'https://clawco.example/vilkaar', link: LINK },
@@ -89,10 +89,13 @@ test('invitation names the inviter and the household as plain text, escaped in H
 test('missing or unsafe data is refused, never sent half-filled', () => {
   const nej = (skabelon: Skabelon, data: Record<string, string>) => assert.throws(() => renderMail({ skabelon, data }), /skabelon/i);
   nej('maillink', { minutter: '15' });
-  nej('maillink', { link: 'javascript:alert(1)', minutter: '15' });
-  nej('maillink', { link: 'http://evil.example.test/x', minutter: '15' });
-  nej('maillink', { link: 'https://konto.example.test/a b', minutter: '15' });
-  nej('maillink', { link: LINK, minutter: 'femten' });
+  nej('maillink', { link: 'javascript:alert(1)', kode: '4F7K-9Q2M', minutter: '15' });
+  nej('maillink', { link: 'http://evil.example.test/x', kode: '4F7K-9Q2M', minutter: '15' });
+  nej('maillink', { link: 'https://konto.example.test/a b', kode: '4F7K-9Q2M', minutter: '15' });
+  nej('maillink', { link: LINK, kode: '4F7K-9Q2M', minutter: 'femten' });
+  // KC-0246: the code is exactly two groups of four characters of the login alphabet — nothing that could carry markup, a header or a longer secret.
+  nej('maillink', { link: LINK, minutter: '15' });
+  for (const kode of ['', '4F7K9Q2M', '4F7K-9Q2', '4F7K-9Q2MX', '4f7k-9q2m', '4F7K-9Q20', '4F7K-9Q2I', '<b>F7K-9Q2M', '4F7K-9Q2M\r\nBcc: x@example.test', '4F7K 9Q2M']) nej('maillink', { link: LINK, kode, minutter: '15' });
   nej('invitation', { ...DATA.invitation, inviterer: 'Henrik\r\nBcc: x@example.test' });
   nej('invitation', { ...DATA.invitation, husstand: 'a\u202Eb' });
   nej('invitation', { ...DATA.invitation, husstand: '   ' });
@@ -102,7 +105,7 @@ test('missing or unsafe data is refused, never sent half-filled', () => {
 });
 
 test('a local http link is allowed for development only on localhost', () => {
-  const m = renderMail({ skabelon: 'maillink', data: { link: 'http://localhost:8781/log-ind/link?t=x', minutter: '15' } });
+  const m = renderMail({ skabelon: 'maillink', data: { link: 'http://localhost:8781/log-ind/link?t=x', kode: '4F7K-9Q2M', minutter: '15' } });
   assert.match(m.tekst, /http:\/\/localhost:8781/);
 });
 
@@ -219,4 +222,17 @@ test('KC-0230: the operator notice escapes markup in HTML and refuses a subject 
   nej({ titel: 'Emne', tekst: 'a\rb' });
   nej({ titel: 'Emne' });
   renderMail({ skabelon: 'driftsbesked', data: { titel: 'Emne', tekst: 'x'.repeat(4000) } });
+});
+
+// KC-0246: the sign-in mail carries the one-time code beside the link, in both languages, in the text and in the HTML.
+test('the sign-in mail shows the code once, in the text and the HTML, in both languages, with the link unchanged', () => {
+  for (const sprog of SPROG as readonly Sprog[]) {
+    const m = renderMail({ skabelon: 'maillink', sprog, data: DATA.maillink });
+    assert.equal(antal(m.tekst, '4F7K-9Q2M'), 1, `${sprog}: koden står præcis én gang i teksten`);
+    assert.equal(antal(m.html, '4F7K-9Q2M'), 1, `${sprog}: koden står præcis én gang i HTML`);
+    assert.equal(antal(m.tekst, LINK), 1);
+    assert.ok(!m.emne.includes('4F7K'), 'koden står ikke i emnet (den ville stå i en notifikation på en låst skærm)');
+  }
+  assert.match(renderMail({ skabelon: 'maillink', data: DATA.maillink }).tekst, /anden enhed/);
+  assert.match(renderMail({ skabelon: 'maillink', sprog: 'en', data: DATA.maillink }).tekst, /another device/);
 });

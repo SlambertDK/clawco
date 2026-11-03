@@ -43,6 +43,20 @@ const put = (app: App['app'], body: unknown, hoved: Record<string, string> = {})
   app.request(URL_VALG, { method: 'PUT', headers: { 'content-type': 'application/json', ...hoved }, body: typeof body === 'string' ? body : JSON.stringify(body) });
 const forbind = (app: App['app'], felter: Record<string, string>) =>
   app.request('/api/kilder/beskeder/forbind', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ felter }) });
+/** Connecting starts background work (the first read's room run, Kuratoren) that tells Nu on the live bus when it starts;
+ *  under load that lands late. Wait until no run is queued or running and the bus has been quiet for a moment. */
+async function stille(s: App): Promise<void> {
+  let set = 0;
+  const af = s.live.subscribe('hjem', () => { set++; });
+  try {
+    for (let i = 0; i < 40; i++) {
+      await s.runs.tomgang();
+      const foer = set;
+      await new Promise((res) => setTimeout(res, 100));
+      if (set === foer && !s.runs.list().some((r) => r.status === 'queued' || r.status === 'running')) return;
+    }
+  } finally { af(); }
+}
 const valgFil = async (dir: string): Promise<Record<string, string>> => (await laesKonfig(dir)).kilder.find((k) => k.id === 'beskeder')?.valg ?? {};
 const panel = async (app: App['app']): Promise<string> => ((await (await app.request('/api/koe?kilder=1')).json()) as { kilder: string }).kilder;
 const cacheSamtaler = async (dir: string): Promise<string[]> => {
@@ -67,6 +81,7 @@ test('choosing more: the set is stored (a chosen conversation keeps its zone, a 
   await medApp(async ({ lav, dir, store }) => {
     const s = lav();
     await forbind(s.app, { [MAJA]: 'husstand' });
+    await stille(s);
     const sendt: number[] = [];
     s.live.subscribe('hjem', (v) => sendt.push(v));
     const r = await put(s.app, { valgte: [MAJA, GRILL] });

@@ -8,7 +8,7 @@ import { PostFejl, type Besked } from '../../src/delt/post.ts';
 const NOEGLE = 're_test_hemmelig_noegle_123';
 const AFSENDER = 'Clawco <hej@post.example.test>';
 const LINK = 'https://konto.example.test/log-ind/link?t=hemmeligt_token';
-const BESKED: Besked = { til: 'henrik@modtager.example.test', skabelon: 'maillink', data: { link: LINK, minutter: '15' } };
+const BESKED: Besked = { til: 'henrik@modtager.example.test', skabelon: 'maillink', data: { link: LINK, kode: '4F7K-9Q2M', minutter: '15' } };
 
 type Kald = { metode: string; sti: string; headers: http.IncomingHttpHeaders; krop: string };
 type Svar = { status: number; krop: unknown };

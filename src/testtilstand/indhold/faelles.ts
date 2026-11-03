@@ -5,6 +5,7 @@ import type { Kilde, LogEntry } from '../../store/types.ts';
 import type { Fortryd } from '../../rooms/univers/lager.ts';
 import type { Kuvert } from '../typer.ts';
 import type { Fakta } from './fakta.ts';
+import { indhold } from './sprogindhold.ts';
 
 export type Raa = Record<string, unknown>;
 
@@ -44,5 +45,9 @@ export function kuvert(id: string, emne: string, navn: string, dato: string, o: 
   };
 }
 
-const UGEDAGE_KORT = ['søn', 'man', 'tir', 'ons', 'tor', 'fre', 'lør'];
-export const ugedagKort = (f: Fakta, n: number): string => UGEDAGE_KORT[new Date(`${f.plus(n)}T12:00:00Z`).getUTCDay()] ?? '';
+/** The weekday (0 = Sunday) of day `n` after the story's day. */
+const ugedagNr = (f: Fakta, n: number): number => new Date(`${f.plus(n)}T12:00:00Z`).getUTCDay();
+/** The weekday's letters in the language being rendered (KC-0244: the front page's English screens). */
+export const ugedagKort = (f: Fakta, n: number): string => indhold().ugedage[ugedagNr(f, n)] ?? '';
+/** Whether day `n` is a Saturday or a Sunday. */
+export const erWeekend = (f: Fakta, n: number): boolean => [0, 6].includes(ugedagNr(f, n));

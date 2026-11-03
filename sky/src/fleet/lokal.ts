@@ -99,7 +99,7 @@ export const HAERDNING = ['--cap-drop', 'ALL', '--security-opt', 'no-new-privile
 
 /** How a tenant's app runs, after `--volume …:/data`: read-only root, its key tmpfs, its user, hardening,
  *  limits and identity. The same for a tenant and for a restored copy of it (fleet/kopi.ts). */
-export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubkey: string; kontoPubkeyNy?: string | undefined; skyUrl: string; noegleFlag: string[]; beta?: Record<string, string> }): string[] {
+export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubkey: string; kontoPubkeyNy?: string | undefined; skyUrl: string; noegleFlag: string[]; beta?: Record<string, string>; miljoe?: Record<string, string> }): string[] {
   return [
     // Read-only root; only /data (the volume) and a small /tmp are writable.
     '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
@@ -124,7 +124,24 @@ export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubke
     '--env', 'KC_SKY=ja', '--env', `KC_SKY_URL=${o.skyUrl}`,
     // KC-0203: a beta household's Clawco knows it (see betaMiljoe); nothing extra for anyone else.
     ...Object.entries(o.beta ?? {}).flatMap(([k, v]) => ['--env', `${k}=${v}`]),
+    // KC-0246: the tenant's own public address and its owner's language (see tenantMiljoe).
+    ...Object.entries(o.miljoe ?? {}).flatMap(([k, v]) => ['--env', `${k}=${v}`]),
   ];
+}
+
+/** KC-0246: what a tenant's container is told about itself. `adresse` is its public origin (scheme://<slug>.<basedomain>,
+ *  from the same source as the gateway's own redirects) = KC_ADRESSE, the address Google sends the browser back to; without
+ *  it the tenant's Google cards say the owner must set it, which no customer can. `sprog` is the language the owner chose at
+ *  sign-up = KC_SPROG, read by a NEW data folder only (the tenant's store/installation.ts), so Start does not ask again.
+ *  Each is left out when unknown; a value that is not a bare origin or a known language is refused, never passed on. */
+export function tenantMiljoe(o: { adresse: string | null; sprog: 'da' | 'en' | null }): Record<string, string> {
+  const ud: Record<string, string> = {};
+  if (o.adresse !== null) {
+    if (!/^https?:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/.test(o.adresse)) throw new Error('ugyldig tenant-adresse: skal være en ren oprindelse (skema, værtsnavn og evt. port), uden sti');
+    ud['KC_ADRESSE'] = o.adresse;
+  }
+  if (o.sprog === 'da' || o.sprog === 'en') ud['KC_SPROG'] = o.sprog;
+  return ud;
 }
 
 /** KC-0203: the env a beta household's container gets: KC_BETA=ja (the feedback cards and the daily measures route) and
@@ -136,7 +153,10 @@ export function betaMiljoe(o: { erBeta: boolean; samtykke: boolean }): Record<st
 
 export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: string; kontoPubkey: string; kontoPubkeyNy?: string | undefined; skyUrl: string; kryptering: VolumenKryptering; noegleFlag: string[];
   /** KC-0203: is this tenant a beta household, and has it consented to the numbers? (server.ts: beta/invitationer.ts betaForTenant.) */
-  beta?: (tenantId: string) => Promise<{ samtykke: boolean } | null> }): Flaade {
+  beta?: (tenantId: string) => Promise<{ samtykke: boolean } | null>;
+  /** KC-0246: the env a tenant is told about itself (tenantMiljoe), asked for on every create and recreate, so a recreate (rollout,
+   *  genstart-flaade) gives an existing tenant the current values. Absent = nothing extra. */
+  miljoe?: (tenantId: string) => Promise<Record<string, string>> }): Flaade {
   const navne = (id: string) => ({ container: `clawco-t-${tjekTenantId(id)}`, volumen: `clawco-t-${id}-data` });
   const docker = dockerKommando(o.koer);
   const adresse = (container: string) => beholderAdresse(docker, o.netvaerk, container);
@@ -145,11 +165,12 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
   async function koerArgs(id: string, gateway: string, billede: string): Promise<string[]> {
     const { container, volumen } = navne(id);
     const b = o.beta ? await o.beta(id) : null;
+    const miljoe = o.miljoe ? await o.miljoe(id) : {};
     return [
       'run', '--detach', '--name', container, '--label', `${ETIKET}=${id}`,
       '--network', o.netvaerk, '--restart', 'unless-stopped',
       '--volume', `${volumen}:/data`,
-      ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, kontoPubkeyNy: o.kontoPubkeyNy, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag, beta: betaMiljoe({ erBeta: b !== null, samtykke: b?.samtykke ?? false }) }),
+      ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, kontoPubkeyNy: o.kontoPubkeyNy, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag, beta: betaMiljoe({ erBeta: b !== null, samtykke: b?.samtykke ?? false }), miljoe }),
       billede,
     ];
   }

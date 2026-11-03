@@ -66,7 +66,7 @@ import { lavRetBus } from './rooms/rethaendelse.ts';
 import { forhaandsvisningerNu, koerselFaerdig, modtagFoersteLaesning } from './rooms/start/vaerdi.ts';
 import { forhaandsvisningId, renderForhaandsvisning } from './rooms/start/forhaandsvisning.ts';
 import { lavProfilLager, type Sprog } from './store/profil.ts';
-import { laesInstallation } from './store/installation.ts';
+import { laesInstallation, sprogFraMiljoe } from './store/installation.ts';
 import { medTesttilstand, testDataDir } from './testtilstand/kontakt.ts';
 import { lavTestverden } from './testtilstand/verden.ts';
 import { rumFraBesked, erHjaelp, erInviterBesked, erVidenBesked, hjaelpSvar } from './shell/aabn.ts';
@@ -2460,7 +2460,7 @@ export async function main(): Promise<void> {
     himalaya: env('KC_HIMALAYA', 'himalaya'),
     kalenderScript,
     dataDir: env('KC_DATA_DIR', './data'),
-    standardSprog: laesInstallation(env('KC_DATA_DIR', './data')).standardSprog, // KC-0170: English for a new installation, Danish for one from before the language
+    standardSprog: laesInstallation(env('KC_DATA_DIR', './data'), undefined, sprogFraMiljoe(process.env)).standardSprog, // KC-0170: English for a new installation, Danish for one from before the language; KC-0246: a new Sky tenant starts in its owner's sign-up language (KC_SPROG)
     vaultInbox: env('KC_VAULT_INBOX'),
     // KC-0136: in dev the old scratch inbox until a vault is chosen on the notes card.
     ...(mode === 'fake' ? { vaultInboxStandard: path.join(env('KC_DATA_DIR', './data'), 'dev-vault-indbakke') } : {}),

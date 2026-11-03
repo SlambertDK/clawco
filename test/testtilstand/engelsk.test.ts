@@ -18,9 +18,16 @@ after(() => rm(rod, { recursive: true, force: true }));
 test('engelsk is the morning plus an English profile; it is not part of the day\'s order', () => {
   assert.ok(ALLE_MOMENTER.some((m) => m.id === ENGELSK));
   assert.ok(!MOMENTER.some((m) => m.id === ENGELSK));
-  const { profil, ...resten } = froe(ENGELSK, DAG);
+  const { profil, rum: engelskeRum, ...resten } = froe(ENGELSK, DAG);
+  const { rum: danskeRum, ...danskeResten } = froe('morgen', DAG);
   assert.deepEqual(profil, { navn: 'Henrik', sprog: 'en', husstand: 'husstand' });
-  assert.equal(JSON.stringify(resten), JSON.stringify(froe('morgen', DAG)));
+  assert.equal(JSON.stringify(resten), JSON.stringify(danskeResten));
+  // KC-0244: the cards of the front page's screenshots (Mail's decision, Husstanden's request and cars) are written in English;
+  // every other room is the Danish morning exactly (test/testtilstand/site-engelsk.test.ts holds the English words).
+  const oversat = ['mail', 'husstand'];
+  assert.deepEqual(Object.keys(engelskeRum), Object.keys(danskeRum));
+  for (const r of Object.keys(danskeRum).filter((x) => !oversat.includes(x))) assert.equal(JSON.stringify(engelskeRum[r]), JSON.stringify(danskeRum[r]), r);
+  for (const r of oversat) assert.notEqual(JSON.stringify(engelskeRum[r]), JSON.stringify(danskeRum[r]), r);
   assert.equal(froe('morgen', DAG).profil, undefined, 'the Danish day has no profile, like the reference installation');
 });
 

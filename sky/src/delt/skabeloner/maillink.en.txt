@@ -6,7 +6,11 @@ Here is your link to sign in to Clawco:
 
 {{link}}
 
-The link works once, for {{minutter}} minutes, and only in the browser where you asked for it.
+Opening this email on another device than the one you signed in from? Open the link and type the code it shows in the window where you signed in. You can also type this code there:
+
+{{kode}}
+
+The link and the code work once, for {{minutter}} minutes, and only in the browser where you asked for them.
 
 If you did not ask for a link, you can ignore this email. Nothing will happen.
 

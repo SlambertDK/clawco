@@ -282,6 +282,159 @@ test('no Tailscale found: the installer suggests laptop mode and only the user\'
   assert.ok(!laptopSat(med), 'with Tailscale there is nothing to suggest');
 });
 
+// ---- KC-0245: the built-in agent is the default; --fra-ai ----
+
+const NOEGLE_FORMAT = /^[A-Za-z0-9+/]{43}=$/;
+const sidsteLinje = (tekst: string): string => tekst.trimEnd().split('\n').at(-1) ?? '';
+const json = (tekst: string): Record<string, unknown> => JSON.parse(sidsteLinje(tekst)) as Record<string, unknown>;
+
+test('a new install without --agent-url runs the built-in agent and makes its own mode-600 key file outside the user folder', async () => {
+  const home = nyHome();
+  const r = await koer(home, ['--yes', '--no-service', '--port', PORT]);
+  assert.equal(r.code, 0, r.out + r.err);
+  const rod = path.join(home, '.clawco');
+  const env = readFileSync(path.join(rod, '.env'), 'utf8').split('\n');
+  const nfil = path.join(rod, 'hemmeligheder.key');
+  assert.ok(env.includes('KC_AGENT=direkte'), 'the built-in agent');
+  assert.ok(env.includes(`KC_HEMMELIGHEDER_FIL=${nfil}`), 'the encrypted key store is switched on');
+  assert.ok(env.includes('# KC_HERMES_URL='), 'Hermes stays off');
+  assert.equal(statSync(nfil).mode & 0o777, 0o600);
+  const noegle = readFileSync(nfil, 'utf8').trim();
+  assert.match(noegle, NOEGLE_FORMAT, '32 random bytes in base64: the format src/hemmeligheder/lager-fil.ts reads');
+  assert.ok(!(nfil + path.sep).startsWith(path.join(rod, 'data') + path.sep), 'never inside the user folder (a backup of the data folder must not carry it)');
+  assert.ok(!r.out.includes(noegle) && !r.err.includes(noegle), 'the key is never printed');
+  assert.ok(!readFileSync(path.join(rod, '.env'), 'utf8').includes(noegle), 'and never in .env');
+  const anden = nyHome();
+  assert.equal((await koer(anden, ['--yes', '--no-service', '--port', PORT])).code, 0);
+  assert.notEqual(readFileSync(path.join(anden, '.clawco', 'hemmeligheder.key'), 'utf8').trim(), noegle, 'every install gets its own key');
+});
+
+test('an existing key file is never overwritten by a new install', async () => {
+  const home = nyHome();
+  const rod = path.join(home, '.clawco');
+  mkdirSync(rod, { recursive: true });
+  const gammel = Buffer.alloc(32, 7).toString('base64') + '\n';
+  writeFileSync(path.join(rod, 'hemmeligheder.key'), gammel, { mode: 0o600 });
+  const r = await koer(home, ['--yes', '--no-service', '--port', PORT]);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.equal(readFileSync(path.join(rod, 'hemmeligheder.key'), 'utf8'), gammel);
+  assert.ok(readFileSync(path.join(rod, '.env'), 'utf8').split('\n').includes(`KC_HEMMELIGHEDER_FIL=${path.join(rod, 'hemmeligheder.key')}`));
+});
+
+test('--agent-url keeps the Hermes install as before: hermes-http, no key file', async () => {
+  const home = nyHome();
+  const r = await koer(home, ['--yes', '--no-service', '--port', PORT, '--agent-url', 'http://agent.test:8642'], { input: 'falsk-agent-noegle\n' });
+  assert.equal(r.code, 0, r.out + r.err);
+  const rod = path.join(home, '.clawco');
+  const env = readFileSync(path.join(rod, '.env'), 'utf8').split('\n');
+  assert.ok(env.includes('KC_AGENT=hermes-http'));
+  assert.ok(env.includes('# KC_HEMMELIGHEDER_FIL='));
+  assert.ok(!existsSync(path.join(rod, 'hemmeligheder.key')));
+});
+
+test('an old install whose .env has no KC_AGENT keeps running as before: re-running changes neither .env nor the agent, and makes no key file', async () => {
+  const home = nyHome();
+  const rod = path.join(home, '.clawco');
+  mkdirSync(path.join(rod, 'data'), { recursive: true });
+  const gammel = `KC_PORT=${PORT}\nKC_DATA_DIR=${path.join(rod, 'data')}\nKC_ENV_FILE=${path.join(rod, '.env')}\nKC_HERMES_API_KEY=falsk\n`;
+  writeFileSync(path.join(rod, '.env'), gammel, { mode: 0o600 });
+  const r = await koer(home, ['--yes', '--no-service', '--fra-ai']);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.equal(readFileSync(path.join(rod, '.env'), 'utf8'), gammel);
+  assert.ok(!existsSync(path.join(rod, 'hemmeligheder.key')), 'no key file for an install that does not use the built-in agent');
+  assert.equal(json(r.out)['agent'], 'hermes-http', 'what the server falls back to without KC_AGENT');
+});
+
+test('--dry-run plans the key file and changes nothing', async () => {
+  const home = nyHome();
+  const r = await koer(home, ['--dry-run', '--yes', '--port', PORT]);
+  assert.equal(r.code, 0, r.err);
+  assert.ok(r.out.includes(path.join(home, '.clawco', 'hemmeligheder.key')), r.out);
+  assert.deepEqual(readdirSync(home), []);
+});
+
+test('--fra-ai installs without questions and ends with one JSON line an AI can read: address, port, data folder, agent, what is missing', async () => {
+  const home = nyHome();
+  const r = await koer(home, ['--fra-ai', '--no-service', '--port', PORT]);
+  assert.equal(r.code, 0, r.out + r.err);
+  const j = json(r.out);
+  assert.deepEqual(Object.keys(j), ['ok', 'address', 'port', 'dataDir', 'agent', 'service', 'missing', 'next']);
+  assert.equal(j['ok'], true);
+  assert.equal(j['address'], `http://127.0.0.1:${PORT}`);
+  assert.equal(j['port'], Number(PORT));
+  assert.equal(j['dataDir'], path.join(home, '.clawco', 'data'));
+  assert.equal(j['agent'], 'direkte');
+  assert.equal(j['service'], false, '--no-service');
+  assert.deepEqual(j['missing'], ['model-key']);
+  assert.match(String(j['next']), /Start/);
+  const noegle = readFileSync(path.join(home, '.clawco', 'hemmeligheder.key'), 'utf8').trim();
+  assert.ok(!r.out.includes(noegle) && !r.err.includes(noegle), 'no secret in the output');
+  assert.ok(readdirSync(path.join(home, '.clawco', 'data')).length === 0, 'nothing but the folder yet');
+});
+
+test('--fra-ai with the service ends the same way and says service:true', async () => {
+  const home = nyHome();
+  const sha = git(bare, 'rev-parse', '--short', 'HEAD');
+  const helbred = path.join(falskBin('helbred', `echo '{"sha":"${sha}","uptimeSec":3}'`), 'helbred');
+  const genstart = path.join(falskBin('genstart', 'exit 0'), 'genstart');
+  const r = await koer(home, ['--fra-ai', '--port', PORT], { env: { CLAWCO_GENSTART: genstart, CLAWCO_HEALTH_KOMMANDO: helbred, CLAWCO_VENTETID: '5' } });
+  assert.equal(r.code, 0, r.out + r.err);
+  const j = json(r.out);
+  assert.equal(j['ok'], true);
+  assert.equal(j['service'], true);
+  assert.equal(j['address'], `http://127.0.0.1:${PORT}`);
+});
+
+test('--fra-ai with --agent-url reads the key on stdin, names hermes-http, misses nothing and never prints the key', async () => {
+  const home = nyHome();
+  const sentinel = `kc-sentinel-${Math.random().toString(16).slice(2)}${Date.now()}`;
+  const r = await koer(home, ['--fra-ai', '--no-service', '--port', PORT, '--agent-url', 'http://agent.test:8642'], { input: sentinel + '\n' });
+  assert.equal(r.code, 0, r.out + r.err);
+  const j = json(r.out);
+  assert.equal(j['agent'], 'hermes-http');
+  assert.deepEqual(j['missing'], []);
+  assert.ok(!r.out.includes(sentinel) && !r.err.includes(sentinel));
+});
+
+test('--fra-ai --dry-run prints the plan, then a JSON line with dryRun:true, and changes nothing', async () => {
+  const home = nyHome();
+  const r = await koer(home, ['--fra-ai', '--dry-run', '--port', PORT]);
+  assert.equal(r.code, 0, r.err);
+  const j = json(r.out);
+  assert.equal(j['ok'], true);
+  assert.equal(j['dryRun'], true);
+  assert.deepEqual(readdirSync(home), []);
+});
+
+test('--fra-ai on an install that already holds a saved key says nothing is missing', async () => {
+  const home = nyHome();
+  assert.equal((await koer(home, ['--fra-ai', '--no-service', '--port', PORT])).code, 0);
+  writeFileSync(path.join(home, '.clawco', 'data', 'hemmeligheder.enc'), 'chiffer');
+  const r = await koer(home, ['--fra-ai', '--no-service']);
+  assert.equal(r.code, 0, r.out + r.err);
+  assert.deepEqual(json(r.out)['missing'], []);
+  assert.equal(json(r.out)['port'], Number(PORT), 'the existing .env decides');
+});
+
+test('--fra-ai failure: a non-zero exit and a last stdout line {ok:false, error, fix} (the plain text still goes to stderr)', async () => {
+  const home = nyHome();
+  const r = await koer(home, ['--fra-ai', '--no-service'], { pathForan: falskBin('node', 'echo v20.11.0') });
+  assert.notEqual(r.code, 0);
+  const j = json(r.out);
+  assert.deepEqual(Object.keys(j), ['ok', 'error', 'fix']);
+  assert.equal(j['ok'], false);
+  assert.match(String(j['error']), /Node/);
+  assert.match(String(j['fix']), process.platform === 'darwin' ? /brew install node/ : /nodejs/);
+  assert.match(r.err, /22\.6/);
+  assert.deepEqual(readdirSync(home), []);
+});
+
+test('the usage text documents --fra-ai', async () => {
+  const r = await koer(nyHome(), ['--help']);
+  assert.equal(r.code, 0);
+  assert.match(r.out, /--fra-ai/);
+});
+
 test('shellcheck finds nothing in install.sh', (t) => {
   if (spawnSync('shellcheck', ['--version']).error) { t.skip('shellcheck is not installed'); return; }
   const r = spawnSync('shellcheck', ['-s', 'bash', SCRIPT], { encoding: 'utf8' });

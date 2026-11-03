@@ -350,13 +350,14 @@ test('?lang=da shows the help pages in Danish and keeps the mail link and the li
   assert.match(koer(INDEKS, '?lang=da').querySelector('a[href^="/hjaelp/new-device"]')!.getAttribute('href')!, /\?lang=da$/);
 });
 
-test('site-byg: the help pages, security.txt (a dot folder) and the headers reach the output byte-identically', () => {
+test('site-byg: the help pages, security.txt (a dot folder) and the headers reach the output byte-identically (image URLs versioned)', () => {
   const ud = mkdtempSync(path.join(tmpdir(), 'clawco-hjaelp-'));
   try {
     execFileSync('node', [path.join(ROD, 'scripts/site-byg.mjs'), '--ud', ud], { encoding: 'utf8' });
     for (const p of HJAELPESIDER) {
       assert.ok(existsSync(path.join(ud, p)), `${p} not built`);
-      assert.equal(readFileSync(path.join(ud, p), 'utf8'), readFileSync(path.join(SITE, p), 'utf8'));
+      // KC-0244: the build's one transform versions image URLs (?v=<content hash>); everything else is the source.
+      assert.equal(readFileSync(path.join(ud, p), 'utf8').replace(/(\/billeder\/[A-Za-z0-9._-]+)\?v=[0-9a-f]{12}/g, '$1'), readFileSync(path.join(SITE, p), 'utf8'));
     }
     assert.ok(existsSync(path.join(ud, '.well-known/security.txt')), '.well-known/security.txt was dropped from the output');
     assert.equal(readFileSync(path.join(ud, '.well-known/security.txt'), 'utf8'), SEC);

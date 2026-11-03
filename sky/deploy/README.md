@@ -80,6 +80,15 @@ tenant key (KC-0181). Until `SKY_FLAADE` is set, Sky provisions nothing and an o
 refuses. Giving `sky` access to Docker (the `docker` group is root-equivalent on the host) is a separate,
 explicit step when provisioning goes live; the root script does not do it.
 
+**What a tenant is told about itself (KC-0246).** Every container gets `KC_ADRESSE=https://<slug>.<SKY_BASEDOMAIN>` (the
+tenant origin, from `tenantOrigin`: the one place a tenant's URL is made), so "Log ind med Google" has a callback address to
+register (`<KC_ADRESSE>/api/kilder/<id>/tilbage`, forwarded by the gateway like any other path), and `KC_SPROG=da|en`, the
+language the owner chose at sign-up (read by the tenant for a NEW data folder only; an existing folder never changes
+language from it). A container's environment is fixed when it is created: **tenants created before this change get both only
+when their container is recreated** — by the next rollout (`udrul.ts start`), or on purpose now:
+`node --env-file=/srv/sky/.env sky/scripts/genstart-flaade.ts --dry-run`, then without `--dry-run` (same image, same volume,
+one tenant at a time). Their language is already fixed in their data folder, so for them only the address changes.
+
 Planning numbers (measured 2026-10-31): Henrik's data dir 192 KB, his Obsidian vault 161 MB; kira-home
 has 15 GB RAM and 1.7 TB free disk; zstd is present for the nightly snapshots (KC-0185).
 

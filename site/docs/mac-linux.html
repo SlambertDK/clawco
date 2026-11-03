@@ -43,7 +43,7 @@
 <h2 data-i="ml.req.h">Requirements</h2>
 <p data-i="ml.req.p">Node 22.6 or newer with npm, and git. On a Mac with Homebrew, brew install node gives you Node; otherwise download it from nodejs.org. The installer prints the exact command for your system when something is missing.</p>
 <p class="small"><a href="https://nodejs.org/" rel="noopener noreferrer" data-i="ml.req.link">Node.js downloads</a></p>
-<p class="muted" data-i="ml.req.model">A model key, or a model on your own machine, is asked for later, in the Start room.</p>
+<p class="muted" data-i="ml.req.model">All you need is a key from a model provider, or a model on your own machine. Start asks for it later. There is no other agent or program to install.</p>
 <h2 data-i="ml.install.h">Install</h2>
 <p data-i="ml.install.p">Run this in a terminal:</p>
 <div class="cmd"><code data-cmd="install">curl -fsSL https://clawco.work/install.sh | bash</code><button type="button" class="btn copy" data-copy="install" data-i="install.copy" aria-label="Copy the install command" data-i-attr="aria-label:install.copy.label">Copy</button></div>
@@ -53,7 +53,7 @@
 <li data-i="ml.does.1">Checks the system: Node 22.6 or newer, npm and git.</li>
 <li data-i="ml.does.2">Downloads the code with git into the app folder, or updates it if it is already there.</li>
 <li data-i="ml.does.3">Installs the dependencies with npm ci --omit=dev.</li>
-<li data-i="ml.does.4">Creates your user folder and a settings file that only you can read, unless they already exist.</li>
+<li data-i="ml.does.4">Creates your user folder, a key file that will encrypt the model key you save later, and a settings file that only you can read, unless they already exist. Clawco runs its own built-in agent.</li>
 <li data-i="ml.does.5">Installs a background service: a launchd agent on a Mac, a systemd user service on Linux.</li>
 <li data-i="ml.does.6">Waits for Clawco to answer on its health address and prints where to open it.</li>
 </ol>
@@ -62,13 +62,14 @@
 <li><code>~/.clawco/app</code> <span data-i="ml.where.app">the code. It is replaced on update.</span></li>
 <li><code>~/.clawco/data</code> <span data-i="ml.where.data">your user folder, with your data. Never inside the code folder.</span></li>
 <li><code>~/.clawco/.env</code> <span data-i="ml.where.env">your settings. Never overwritten.</span></li>
+<li><code>~/.clawco/hemmeligheder.key</code> <span data-i="ml.where.key">the key that encrypts your saved model key. Outside your user folder, so a copy of that folder never carries it. Never overwritten.</span></li>
 <li><code>~/.clawco/log</code> <span data-i="ml.where.log">the service log.</span></li>
 </ul>
 <p class="muted" data-i="ml.where.home">Set CLAWCO_HOME before you run the installer to use another place.</p>
 <h2 data-i="ml.bak.h">Back up and restore</h2>
 <p data-i="ml.bak.p1">One command saves everything Clawco knows about you as a single file with the date in its name, in ~/Clawco-backups. Run it in the app folder:</p>
 <pre><code>cd ~/.clawco/app &amp;&amp; npm run backup</code></pre>
-<p data-i="ml.bak.p2">The file can be read by you only. It holds your user folder, and your notes folder when it is on this machine. A notes folder on a network drive is not included, because it already lives elsewhere; add --med-vault to include it. Keys and passwords are left out; add --med-noegler to include them, and the file is then a secret itself.</p>
+<p data-i="ml.bak.p2">The file can be read by you only. It holds your user folder, and your notes folder when it is on this machine. A notes folder on a network drive is not included, because it already lives elsewhere; add --med-vault to include it. Keys and passwords are left out; add --med-noegler to include them, with the file that opens your saved model key, and the file is then a secret itself.</p>
 <p data-i="ml.bak.p3">To restore on this or another machine, install Clawco, stop it, and give the file to the restore command. It refuses to write into a folder that already holds files. With --erstat it first moves the old folder to the side, next to it, under a name that ends in .foer-gendannelse and the date. Nothing is deleted. It then prints how many rooms and notes came back. Start Clawco again afterwards.</p>
 <pre><code>npm run restore -- ~/Clawco-backups/clawco-backup-2026-11-02-0930.tar.gz --erstat</code></pre>
 <p data-i="ml.bak.p4">Old backups are never removed for you. To prune by hand, look at the list and delete the files you no longer need:</p>
@@ -83,6 +84,7 @@ rm ~/Clawco-backups/clawco-backup-2026-11-02-0930.tar.gz</code></pre>
 <li><code>--no-service</code> <span data-i="ml.opt.nosvc">installs no background service</span></li>
 <li><code>--port N</code> <span data-i="ml.opt.port">the port Clawco listens on</span></li>
 <li><code>--data-dir DIR</code> <span data-i="ml.opt.data">where your data lives</span></li>
+<li><code>--fra-ai</code> <span data-i="ml.opt.ai">lets an AI run the install: no questions, and the last line printed is one line of JSON (address, port, data folder, agent, what is missing)</span></li>
 <li><code>--laptop</code> <span data-i="ml.opt.laptop">installs for one person on this machine only: Clawco listens on 127.0.0.1, with no sign-in, and Tailscale is not needed</span></li>
 </ul>
 <h2 data-i="ml.laptop.h">Laptop mode</h2>
@@ -91,6 +93,12 @@ rm ~/Clawco-backups/clawco-backup-2026-11-02-0930.tar.gz</code></pre>
 <p data-i="ml.laptop.p2">Clawco then listens on this machine only (127.0.0.1), so nobody else on the same Wi-Fi can open it. It opens straight away as you, with no sign-in and no household questions, starts when you log in, and is restarted if it stops. If the installer finds no Tailscale, it suggests laptop mode and asks you to confirm; with --yes it never turns it on by itself.</p>
 <p data-i="ml.laptop.p3">Your phone: without Tailscale, the phone cannot reach Clawco. With Tailscale on the laptop and on the phone it can, but only while the laptop is awake. Keeping the laptop awake, for example with caffeinate on a Mac or in the power settings, is your choice; Clawco never does it silently. Clawco treats everything that reaches it through Tailscale as you, so share it only on a Tailscale network that is yours alone.</p>
 <p class="muted" data-i="ml.laptop.p4">To leave laptop mode, remove the line KC_LAPTOP=ja from ~/.clawco/.env and restart Clawco.</p>
+<h2 data-i="ml.ai.h">Let your AI run it</h2>
+<p data-i="ml.ai.p">Add --fra-ai and an AI such as Claude Code or Codex can run the install for you without a terminal question. Everything the installer prints is plain text; the last line is a JSON object with ok, address, port, dataDir, agent, service, missing and next. If something goes wrong it ends with ok set to false, an error and one fix, and a non-zero exit code. It never contains a key.</p>
+<pre><code>curl -fsSL https://clawco.work/install.sh | bash -s -- --fra-ai</code></pre>
+<h2 data-i="ml.hermes.h">Advanced: use your own Hermes agent</h2>
+<p data-i="ml.hermes.p">A new install runs Clawco's built-in agent. If you already run a Hermes agent and want Clawco to use it, add --agent-url with its address; the installer asks for Hermes' key, hidden. An existing install never changes agent when you run the installer again.</p>
+<pre><code>curl -fsSL https://clawco.work/install.sh | bash -s -- --agent-url http://127.0.0.1:8642</code></pre>
 <h2 data-i="ml.update.h">Update</h2>
 <p data-i="ml.update.p">Run the install command again. The code is fast-forwarded; your settings file and your data are never overwritten.</p>
 <h2 data-i="ml.remove.h">Remove</h2>

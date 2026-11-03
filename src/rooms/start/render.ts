@@ -42,7 +42,7 @@ export type StartVisning = {
   /** The room's count (the nav's number): open mandatory steps, 0 once the journey is Done. Absent = the open mandatory steps. */
   venter?: number;
   /** KC-0127: step 2 — the model choice, the agent's state, what Start recorded of the key; absent = no data dir. */
-  model?: { syn: ModelSyn; agent: AgentStatus; gemt?: StartModel; kanGemme: boolean };
+  model?: { syn: ModelSyn; agent: AgentStatus; gemt?: StartModel; kanGemme: boolean; /** KC-0245: the built-in agent (no Hermes): only providers it can call, and no Hermes wording. */ direkte?: boolean };
   /** KC-0128: steps 3–4 — the registry's cards, the previews and step 4's pile; absent = nothing to connect. */
   kilder?: KildeVisning;
   /** KC-0129: step 5 — the import card's data; absent = no import (no notes writer wired). */
@@ -83,7 +83,8 @@ function testRaekke(n: Niveau, m: NonNullable<StartVisning['model']>): Markup {
 
 /** Step 2's form: provider, key (write-only) or local address, the two tiers' models with the discovered names offered. */
 function modelForm(m: NonNullable<StartVisning['model']>): Markup {
-  const valgt = udbyderAf(m.syn.udbyder ?? '') ?? UDBYDERE[0]!;
+  const udbydere = m.direkte ? UDBYDERE.filter((u) => u.direkte) : UDBYDERE;
+  const valgt = udbydere.find((u) => u.id === m.syn.udbyder) ?? udbydere[0]!;
   const gemt = m.gemt?.udbyder === valgt.id ? m.gemt : undefined;
   const navne = gemt?.navne ?? [];
   const forslag = [...new Set([...navne, valgt.standardModeller.lille, valgt.standardModeller.taenker])];
@@ -91,7 +92,7 @@ function modelForm(m: NonNullable<StartVisning['model']>): Markup {
   const vaerdi = (n: Niveau): string => (m.syn.udbyder === valgt.id ? m.syn.modeller[n] : undefined) ?? valgt.standardModeller[n];
   const T = startTekst();
   return html`<form id="model-form" class="nyt-form" onsubmit="return false" autocomplete="off">
-    <label class="field"><span class="row-note">${T.udbyder}</span><select name="udbyder" data-model-udbyder>${UDBYDERE.map((u) => html`<option value="${u.id}" data-placeholder="${T.noeglePlaceholder(u)}"${u.kraeverNoegle ? '' : html` data-lokal`}${u.id === valgt.id ? html` selected` : ''}>${T.udbyderNavn(u)}</option>`)}</select></label>
+    <label class="field"><span class="row-note">${T.udbyder}</span><select name="udbyder" data-model-udbyder>${udbydere.map((u) => html`<option value="${u.id}" data-placeholder="${T.noeglePlaceholder(u)}"${u.kraeverNoegle ? '' : html` data-lokal`}${u.id === valgt.id ? html` selected` : ''}>${T.udbyderNavn(u)}</option>`)}</select></label>
     <label class="field" data-model-felt="noegle"${lokal ? html` hidden` : ''}><span class="row-note">${T.noegleFra}${gemt?.noegle ? T.beholdGemte : ''}</span><input name="noegle" type="password" autocomplete="off" spellcheck="false" placeholder="${valgt.kraeverNoegle ? T.noeglePlaceholder(valgt) : ''}"></label>
     <label class="field" data-model-felt="url"${lokal ? '' : html` hidden`}><span class="row-note">${T.adressen}</span><input name="url" type="url" inputmode="url" spellcheck="false" value="${lokal ? (gemt?.url ?? '') : ''}" placeholder="${valgt.standardUrl ?? 'http://127.0.0.1:1234'}"></label>
     ${NIVEAUER.map((n) => html`<label class="field"><span class="row-note">${T.nyModel(T.niveau[n])}</span><input name="${n}" type="text" list="model-navne" spellcheck="false" maxlength="80" value="${vaerdi(n)}"></label>`)}
@@ -112,7 +113,7 @@ function noegleLinje(m: NonNullable<StartVisning['model']>): Markup {
       <div class="actions"><button type="button" class="btn btn-ghost" data-kopier="${g.kommando}">${T.kopierKommando}</button></div>
     </div>`;
   }
-  if (g.noegle) return html`<p class="row-note" data-model-noegle>${T.noegleGivet(g.noegle.laengde)}</p>`;
+  if (g.noegle) return html`<p class="row-note" data-model-noegle>${(m.direkte ? T.noegleGemt : T.noegleGivet)(g.noegle.laengde)}</p>`;
   return g.url ? html`<p class="row-note">${T.adresse}<span class="mono">${g.url}</span></p>` : html``;
 }
 

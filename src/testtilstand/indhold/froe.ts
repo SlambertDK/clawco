@@ -3,7 +3,7 @@
 // Deterministic for (moment, dag). Lifted from the demo's historie.ts (KC-0058).
 
 import type { Froe, RumFroe } from '../typer.ts';
-import { ENGELSK, fakta, momentNr, momentPlus, MOMENT_TABEL, plusDag, rumNr, type Fakta } from './fakta.ts';
+import { erEngelskVariant, fakta, momentNr, momentPlus, MOMENT_TABEL, plusDag, rumNr, type Fakta } from './fakta.ts';
 import { dagstalFroe } from './dagstal.ts';
 import { logFra } from './faelles.ts';
 import { avisFil, beskedFroe, GMAIL_FORBUNDET, helbredFroe, kilderKonfig, mailPlan, mappe } from './kilder.ts';
@@ -19,7 +19,8 @@ import { universRum } from '../../rooms/univers/lager.ts';
 import { husstandState, TEST_EJER, TEST_HUSSTAND, TEST_INVITEREDE } from './husstand.ts';
 import { pauseFroe } from './nodstop.ts';
 import { reglerTekst } from './tillid.ts';
-import { erKold, koldFroe, startFaerdig } from './start.ts';
+import { erKold, KOLD_ENGELSK, koldFroe, startFaerdig } from './start.ts';
+import { medSprog, type Sprog } from '../../store/sprog.ts';
 import { mandagFor } from '../../tillid/dagstal.ts';
 import { skjulteFroe, soendagForslag, stikbogFroe } from './stikproeve.ts';
 import { STOETTE_MOMENT, stoetteFroe } from './stoette.ts';
@@ -44,8 +45,13 @@ function gmailMail(n: number, f: Fakta): RumFroe {
   return { state, log: gmailMailLog(f, state.beslutninger.length) };
 }
 
-/** Everything the app needs on disk at `momentId` on `dag` (YYYY-MM-DD, Copenhagen). Throws on an unknown moment. */
-export function froe(momentId: string, dag: string): Froe {
+/** KC-0244: the language the content of a moment is written in: English at the moments whose profile chose English (KC-0170), else Danish. */
+export const momentSprog = (momentId: string): Sprog => (erEngelskVariant(momentId) || momentId === KOLD_ENGELSK ? 'en' : 'da');
+
+/** Everything the app needs on disk at `momentId` on `dag` (YYYY-MM-DD, Copenhagen), the cards written in the moment's language. Throws on an unknown moment. */
+export const froe = (momentId: string, dag: string): Froe => medSprog(momentSprog(momentId), () => froeIndhold(momentId, dag));
+
+function froeIndhold(momentId: string, dag: string): Froe {
   if (erKold(momentId)) return koldFroe(momentId, fakta(dag)); // KC-0126: the world variant kold, beside the day
   const n = momentNr(momentId);
   const s = rumNr(n); // after the evening (KC-0103) the rooms stay as they were; Hjem and Claude Code move on
@@ -73,5 +79,5 @@ export function froe(momentId: string, dag: string): Froe {
   const stikbog = stikbogFroe(momentId, mandag, new Date(nu));
   const pause = soendagForslag(momentId, mandag, new Date(nu), reglerTekst(momentId, dag));
   if (pause.length) { const h = rum['hjem']!.state as { regelforslag?: unknown[] }; h.regelforslag = [...(h.regelforslag ?? []), ...pause]; }
-  return { ...(stikbog ? { skjulte: [...skjulteFroe(plusDag(mandag, -14)), ...skjulteFroe(plusDag(mandag, -7)), ...skjulteFroe(mandag)], stikproever: stikbog } : {}), rum, mappe: mappe(s, f), avis: avisFil(f), mailPlan: mailPlan(), husstand: { personer: [...TEST_HUSSTAND.personer, ...TEST_INVITEREDE] } /* KC-0154: two invitations waiting */, regler: reglerTekst(momentId, dag), dagstal: dagstalFroe(plusDag(dag, plus)), kilder: kilderKonfig(momentId, f), beskeder: beskedFroe(n, f, momentId), ...(helbredFroe(momentId, f) ? { helbred: helbredFroe(momentId, f) as NonNullable<ReturnType<typeof helbredFroe>> } : {}), ...(momentId === 'pause' ? pauseFroe(f) : {}), ...(momentId === STOETTE_MOMENT ? stoetteFroe(f) : {}) /* KC-0188: support looks along */, ...(betaFroe(momentId, nu) ? { beta: betaFroe(momentId, nu) as NonNullable<ReturnType<typeof betaFroe>> } : {}) /* KC-0203: the closed beta */, ...(danmarkFroe(momentId) ? { danmark: danmarkFroe(momentId) as NonNullable<ReturnType<typeof danmarkFroe>> } : {}) /* KC-0233: the confirmed Digital Post sender */, ...(momentId === ENGELSK ? { profil: { navn: TEST_EJER.navn, sprog: 'en' as const, husstand: 'husstand' as const } } : {}) /* KC-0170: the morning in English */ };
+  return { ...(stikbog ? { skjulte: [...skjulteFroe(plusDag(mandag, -14)), ...skjulteFroe(plusDag(mandag, -7)), ...skjulteFroe(mandag)], stikproever: stikbog } : {}), rum, mappe: mappe(s, f), avis: avisFil(f), mailPlan: mailPlan(), husstand: { personer: [...TEST_HUSSTAND.personer, ...TEST_INVITEREDE] } /* KC-0154: two invitations waiting */, regler: reglerTekst(momentId, dag), dagstal: dagstalFroe(plusDag(dag, plus)), kilder: kilderKonfig(momentId, f), beskeder: beskedFroe(n, f, momentId), ...(helbredFroe(momentId, f) ? { helbred: helbredFroe(momentId, f) as NonNullable<ReturnType<typeof helbredFroe>> } : {}), ...(momentId === 'pause' ? pauseFroe(f) : {}), ...(momentId === STOETTE_MOMENT ? stoetteFroe(f) : {}) /* KC-0188: support looks along */, ...(betaFroe(momentId, nu) ? { beta: betaFroe(momentId, nu) as NonNullable<ReturnType<typeof betaFroe>> } : {}) /* KC-0203: the closed beta */, ...(danmarkFroe(momentId) ? { danmark: danmarkFroe(momentId) as NonNullable<ReturnType<typeof danmarkFroe>> } : {}) /* KC-0233: the confirmed Digital Post sender */, ...(erEngelskVariant(momentId) ? { profil: { navn: TEST_EJER.navn, sprog: 'en' as const, husstand: 'husstand' as const } } : {}) /* KC-0170: the morning in English */ };
 }

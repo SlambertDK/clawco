@@ -5,7 +5,7 @@
 // per room under indhold/. All names, firms and numbers are invented.
 
 import type { Moment } from './typer.ts';
-import { ENGELSK_MOMENT, KOE_MOMENT, MOMENT_TABEL } from './indhold/fakta.ts';
+import { AFTEN_ENGELSK_MOMENT, ENGELSK_MOMENT, KOE_MOMENT, MOMENT_TABEL } from './indhold/fakta.ts';
 import { KOLD_START } from './indhold/start.ts';
 
 export { froe } from './indhold/froe.ts';
@@ -14,8 +14,8 @@ export { svar } from './indhold/svar.ts';
 /** The six moments of the day, in order. */
 export const MOMENTER: Moment[] = MOMENT_TABEL.map((m) => ({ ...m }));
 
-/** KC-0126: every moment the band can jump to — the day, then the world variant kold (a fresh install), then (KC-0170) the morning in English, then (KC-0069) the morning with two runs in the queue. */
-export const ALLE_MOMENTER: Moment[] = [...MOMENTER, ...KOLD_START.map((m) => ({ ...m })), { ...ENGELSK_MOMENT }, { ...KOE_MOMENT }];
+/** KC-0126: every moment the band can jump to — the day, then the world variant kold (a fresh install), then (KC-0170, KC-0244) the morning and the evening in English, then (KC-0069) the morning with two runs in the queue. */
+export const ALLE_MOMENTER: Moment[] = [...MOMENTER, ...KOLD_START.map((m) => ({ ...m })), { ...ENGELSK_MOMENT }, { ...AFTEN_ENGELSK_MOMENT }, { ...KOE_MOMENT }];
 
 /** Accounts and services that must never appear in seeded test content (lifted from the demo's test, KC-0058).
  * Real people's names and the owner's employer are guarded for the whole code by the private test/privat/offentlig.test.ts (KC-0228). */

@@ -5,7 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { PostFejl, falskPost, ingenPost, type Besked, type FalskPost } from '../../src/delt/post.ts';
 import { postFraEnv, standardAfsender } from '../../src/delt/post-udbyder.ts';
 
-const BESKED: Besked = { til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', minutter: '15' } };
+const BESKED: Besked = { til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', kode: '4F7K-9Q2M', minutter: '15' } };
 const NOEGLE = 're_abc123_def';
 const PROD = { dev: false, basedomain: 'post.example.test' };
 const DEV = { dev: true, basedomain: 'post.example.test' };

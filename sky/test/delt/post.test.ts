@@ -5,7 +5,7 @@ import { haendelser } from '../../src/delt/haendelser.ts';
 
 test('the fake Post records every message in its outbox', async () => {
   const p = falskPost();
-  await p.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', minutter: '15' } });
+  await p.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', kode: '4F7K-9Q2M', minutter: '15' } });
   assert.equal(p.udbakke.length, 1);
   assert.equal(p.udbakke[0]?.til, 'a@example.test');
 });
@@ -13,12 +13,12 @@ test('the fake Post records every message in its outbox', async () => {
 test('the fake Post can be told to fail (fail-closed tests)', async () => {
   const p = falskPost();
   p.fejl = true;
-  await assert.rejects(p.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', minutter: '15' } }));
+  await assert.rejects(p.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', kode: '4F7K-9Q2M', minutter: '15' } }));
   assert.equal(p.udbakke.length, 0);
 });
 
 test('ingenPost always refuses: production without a mail provider sends nothing', async () => {
-  await assert.rejects(ingenPost().send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', minutter: '15' } }), /mailudbyder/);
+  await assert.rejects(ingenPost().send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', kode: '4F7K-9Q2M', minutter: '15' } }), /mailudbyder/);
 });
 
 test('events reach every listener of that name, and a listener can stop listening', () => {

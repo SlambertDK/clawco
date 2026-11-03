@@ -165,12 +165,13 @@ export type VaultStatus = { status: 'med' | 'ikke-lokal' | 'ingen'; rod?: string
  * KC-0159: the files a backup copies — the same folder as the export, one list. Differences, on purpose: the whole
  * data dir (also the vault when it sits inside it) and the whole local vault, not only <vault>/Clawco/; secrets
  * are left out and counted (`udeladt`) unless `medNoegler`. A vault on a network mount (`vaultFjern`) stays out
- * unless `medVault`. `envFil`: the install's settings file, only with `medNoegler`, under `miljoe/`.
+ * unless `medVault`. `envFil`: the install's settings file, and `noeglefil` (KC-0245): the key file that opens
+ * hemmeligheder.enc (KC_HEMMELIGHEDER_FIL, outside the data dir), both only with `medNoegler`, under `miljoe/`.
  * Zip-path style prefixes: `data/…`, `vault/…`, `miljoe/…`; symlinks are never followed.
  */
 export async function listSikkerhedskopi(
   m: { dataDir: string; vaultDir?: string },
-  o: { medNoegler?: boolean; medVault?: boolean; vaultFjern?: boolean; envFil?: string } = {},
+  o: { medNoegler?: boolean; medVault?: boolean; vaultFjern?: boolean; envFil?: string; noeglefil?: string } = {},
 ): Promise<{ filer: Fil[]; udeladt: number; vault: VaultStatus }> {
   const fund: Fund = { filer: [], hemmelige: 0 };
   const alle = o.medNoegler === true;
@@ -190,8 +191,9 @@ export async function listSikkerhedskopi(
     vault.sti ??= 'vault';
     await gaa(vaultRodReel, vault.sti, [], fund, false, alle ? { alle } : { kunEnv: true });
   }
-  if (alle && o.envFil?.trim()) {
-    const env = await aegte(o.envFil);
+  for (const fil of alle ? [o.envFil, o.noeglefil] : []) {
+    if (!fil?.trim()) continue;
+    const env = await aegte(fil);
     const s = await lstat(env).catch(() => null);
     if (s?.isFile() && !indenfor(data, env) && !(vaultRodReel && indenfor(vaultRodReel, env))) {
       fund.filer.push({ sti: `miljoe/${path.basename(env)}`.normalize('NFC'), abs: env, bytes: s.size });

@@ -10,7 +10,7 @@ import type { Besked, Post } from '../delt/post.ts';
 import type { Haendelser } from '../delt/haendelser.ts';
 import { nytToken } from './token.ts';
 import { hentKonto, type Konto } from './konto.ts';
-import { anmodLink, bekraeftLink, findLink, LINK_MS } from './maillink.ts';
+import { anmodLink, bekraeftKode, bekraeftLink, grupperKode, kodeFraToken, linkTilstand, LINK_MS } from './maillink.ts';
 import { opretSession, hentSession, afslutSession, sessioner, tilbagekald, erFrisk, tjekOrigin, tjekCsrf, enhedNavn, SESSION_DAGE, type Metode, type Session } from './session.ts';
 import { registreringsMuligheder, gemRegistrering, loginMuligheder, verificerLogin, passkeys, fjernPasskey, type Rp } from './passkey.ts';
 import { sletKonto, sletOversigt, type Husstand, type TenantAfvikler } from './slet.ts';
@@ -166,8 +166,22 @@ export function kontoRuter(d: KontoDeps): Hono {
   app.get('/log-ind/link', async (c) => {
     const t = c.req.query('t') ?? '';
     const til = sikkerTil(getCookie(c, TIL_COOKIE, 'host'));
-    return c.html(linkSide({ token: t, gyldig: await findLink(d.db, t, nu()), ...(til.startsWith('/tilmeld') ? { nytLink: til } : {}) }));
+    const nytLink = til.startsWith('/tilmeld') ? { nytLink: til } : {};
+    // KC-0246: in the browser that asked, the button as always; in any other (the phone that opened the mail) the code to type in
+    // the first window. Looking never spends anything, so a mail scanner's GET burns neither the link nor the code.
+    const tilstand = await linkTilstand(d.db, t, getCookie(c, BINDING, 'host') ?? '', nu());
+    if (tilstand === 'anden-browser') return c.html(linkSide({ token: '', gyldig: true, kode: grupperKode(kodeFraToken(t)), ...nytLink }));
+    return c.html(linkSide({ token: t, gyldig: tilstand === 'her', ...nytLink }));
   });
+
+  /** A proven login (link or code): the binding and the landing cookie are spent, a fresh session starts, and the person goes on. */
+  async function fuldfoerLogin(c: Context, kontoId: number, metode: Metode): Promise<Response> {
+    deleteCookie(c, BINDING, { prefix: 'host' });
+    const til = sikkerTil(getCookie(c, TIL_COOKIE, 'host'));
+    deleteCookie(c, TIL_COOKIE, { prefix: 'host' });
+    await logIndSom(c, kontoId, metode);
+    return c.redirect(til, 303);
+  }
 
   app.post('/log-ind/link/bekraeft', async (c) => {
     if (!tjekOrigin(c.req.header('origin'), d.publicUrl)) return forbudt(c);
@@ -175,11 +189,17 @@ export function kontoRuter(d: KontoDeps): Hono {
     const t = typeof f['t'] === 'string' ? f['t'] : '';
     const r = await bekraeftLink(d.db, { token: t, binding: getCookie(c, BINDING, 'host') ?? '', ip: klientIp(c), nu: nu() });
     if (!r) return c.html(linkSide({ token: '', gyldig: false, afvist: true }), 400);
-    deleteCookie(c, BINDING, { prefix: 'host' });
-    const til = sikkerTil(getCookie(c, TIL_COOKIE, 'host'));
-    deleteCookie(c, TIL_COOKIE, { prefix: 'host' });
-    await logIndSom(c, r.kontoId, 'link');
-    return c.redirect(til, 303);
+    return fuldfoerLogin(c, r.kontoId, 'link');
+  });
+
+  // KC-0246: the code from the same mail, typed in the browser that asked for it. POST only (the code is never in a URL), the same
+  // Origin check and per-IP failure budget as the link, the same browser binding; maillink.ts holds the rest of the rules.
+  app.post('/log-ind/kode', async (c) => {
+    if (!tjekOrigin(c.req.header('origin'), d.publicUrl)) return forbudt(c);
+    const f = await formular(c);
+    const r = await bekraeftKode(d.db, { kode: f['kode'], binding: getCookie(c, BINDING, 'host') ?? '', ip: klientIp(c), nu: nu() });
+    if (r.ok) return fuldfoerLogin(c, r.kontoId, 'link');
+    return c.html(tjekMailSide({ fejl: r.grund }), r.grund === 'for-mange' ? 429 : 400);
   });
 
   app.post('/log-ind/passkey/muligheder', async (c) => {

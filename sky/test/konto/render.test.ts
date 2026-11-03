@@ -81,7 +81,7 @@ test('the account page shows the subscription summary billing hands it (KC-0191)
 });
 
 test('pages are Danish, dark by default, and load no third-party resource', () => {
-  for (const h of [logIndSide({}), tjekMailSide(), linkSide({ token: 'x', gyldig: true }), linkSide({ token: 'x', gyldig: false }), slettetSide()]) {
+  for (const h of [logIndSide({}), tjekMailSide(), tjekMailSide({ fejl: 'forkert' }), linkSide({ token: 'x', gyldig: true }), linkSide({ token: 'x', gyldig: true, kode: '4F7K-9Q2M' }), linkSide({ token: 'x', gyldig: false }), slettetSide()]) {
     assert.match(h, /<html lang="da">/);
     assert.match(h, /<meta name="color-scheme" content="dark">/);
     assert.doesNotMatch(h, /https?:\/\/(?!x\.example)/, 'ekstern ressource');
@@ -128,4 +128,39 @@ test('KC-0209: the account page lists the subscription actions it is handed ("Op
   const uden = kontoSide({ email: 'a@example.test', csrf: 'c', passkeyAntal: 1, sessioner: [], nuvaerendeId: 0, abonnement: { plan: 'Sky Solo', tekst: 'Aktivt' } });
   assert.doesNotMatch(uden, /Opsig abonnement|Fortryd aftale/);
   ren(kontoSide({ email: OND, csrf: 'c', passkeyAntal: 1, sessioner: [], nuvaerendeId: 0, abonnement: { plan: OND, tekst: OND, handlinger: [{ href: '/x', tekst: OND }] } }));
+});
+
+// KC-0246: the page the original browser waits on has a field for the code from the mail; opening the link in ANOTHER browser shows
+// the code instead of failing.
+test('KC-0246: the waiting page has a code field that posts to /log-ind/kode, with the one-time-code hint and no token', () => {
+  const h = tjekMailSide();
+  assert.match(h, /<form method="post" action="\/log-ind\/kode"/);
+  assert.match(h, /<input[^>]*name="kode"[^>]*autocomplete="one-time-code"/);
+  assert.match(h, /Eller skriv koden fra mailen/);
+  assert.doesNotMatch(h, /name="t"/);
+  assert.match(h, /i 15 minutter/);
+  assert.doesNotMatch(h, /role="alert"|data-fejl/, 'no error before a try');
+});
+
+test('KC-0246: a wrong code says so and keeps the field; a void or blocked login says to ask for a new mail', () => {
+  assert.match(tjekMailSide({ fejl: 'forkert' }), /Koden passer ikke/);
+  assert.match(tjekMailSide({ fejl: 'forkert' }), /name="kode"/);
+  for (const f of ['doed', 'for-mange'] as const) {
+    const h = tjekMailSide({ fejl: f });
+    assert.match(h, /href="\/log-ind"[^>]*>Bed om et nyt link/);
+    assert.doesNotMatch(h, /name="kode"/, 'nothing left to type into');
+  }
+});
+
+test('KC-0246: the link in another browser shows the code and says where to type it; it has no login button and no token field', () => {
+  const h = linkSide({ token: 'TOK', gyldig: true, kode: '4F7K-9Q2M' });
+  assert.match(h, /Skriv koden i det vindue, hvor du loggede ind/);
+  assert.match(h, /<strong[^>]*>4F7K-9Q2M<\/strong>/);
+  assert.doesNotMatch(h, /<form|name="t"|TOK/);
+  assert.match(h, /Bad du ikke selv om at logge ind/);
+});
+
+test('KC-0246: the dev outbox shows the code of a sign-in mail beside its link (development only)', () => {
+  const h = udbakkeSide([{ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=abc', kode: '4F7K-9Q2M' } }]);
+  assert.match(h, /<code data-kode>4F7K-9Q2M<\/code>/);
 });

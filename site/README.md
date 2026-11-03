@@ -108,6 +108,19 @@ must equal the SHA-256 of `deploy/install.sh` (the build prints it).
 
 ## Regenerating the screenshots
 
-Start `npm run dev`, open the test world (cookie `kc_test=1`, `POST /test/taend`, then `POST /test/moment/<id>`),
-screenshot at 375 px wide, dark, device scale 2, with the test bar and the chat button hidden, and convert with
-`cwebp -q 84`. Never use real data.
+The screenshots on the front page are made from the test world by a script, in both languages (KC-0244): the English page shows
+English screens and the Danish page Danish ones (`site.js` swaps `src`, `width` and `height` per language through the string table,
+`home.*.img.src` / `.w` / `.h`).
+
+```bash
+node scripts/site-billeder.mjs            # all of them; --only hero-nu.da.webp for one; --port 8791 --tmp <dir> to choose
+```
+
+What is captured is `site/billeder/liste.json` (language, test-world moment, room, crop). The script starts its own Clawco on
+127.0.0.1 with fake sources and an empty temp data folder, turns the test world on, jumps to each moment, captures at 375 px
+wide, dark, device scale 2 (test band, chat button and nav hidden), converts with `cwebp -q 84`, renders `og.png` from
+`scripts/site-billeder/og.html`, and stops the server; it refuses any request to another address. English files keep their names,
+Danish ones end in `.da.webp`. It prints each file's size: if a width or height changed, update `home.*.img.w` / `.h` in
+`strings.js` (`test/site-billeder.test.ts` fails until they equal the files). The Saturday card's week strip and the car card's
+date follow the day it is run. Never use real data: the world's family is fictional. English moments (`engelsk`,
+`aften-engelsk`, `kold-engelsk`) write the cards the images show in English (`src/testtilstand/indhold/sprogindhold.ts`).

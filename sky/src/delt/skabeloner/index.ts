@@ -13,7 +13,8 @@ export type Sprog = (typeof SPROG)[number];
 
 /** The typed data each template takes. `minutter`/`dage` come from the caller's own constant. */
 export type SkabelonData = {
-  maillink: { link: string; minutter: string };
+  /** KC-0246: `kode` is the one-time sign-in code, grouped (4F7K-9Q2M), to type in the browser that asked when the mail is opened elsewhere. */
+  maillink: { link: string; kode: string; minutter: string };
   invitation: { link: string; inviterer: string; husstand: string; dage: string };
   'konto-slettet': { dage: string };
   // KC-0209: the consumer-rights mails. Every value is one line of text the caller built from the one price
@@ -50,9 +51,9 @@ export class SkabelonFejl extends Error {}
 
 /** `linje`: one line of ordinary text, up to 300 characters (a price line, a date, the seller's identity).
  *  `tekst` (KC-0230): several lines, up to 4000 characters, line breaks kept (the operator's notice). */
-type Felt = 'link' | 'navn' | 'tal' | 'linje' | 'tekst';
+type Felt = 'link' | 'navn' | 'tal' | 'linje' | 'tekst' | 'kode';
 const FELTER: { [K in Skabelon]: Record<keyof SkabelonData[K], Felt> } = {
-  maillink: { link: 'link', minutter: 'tal' },
+  maillink: { link: 'link', kode: 'kode', minutter: 'tal' },
   invitation: { link: 'link', inviterer: 'navn', husstand: 'navn', dage: 'tal' },
   'konto-slettet': { dage: 'tal' },
   kvittering: { saelger: 'linje', produkt: 'navn', pris: 'linje', betaling: 'linje', fortrydfrist: 'linje', vilkaarversion: 'navn', vilkaarlink: 'link', link: 'link' },
@@ -108,6 +109,10 @@ function tjek(skabelon: Skabelon, data: Record<string, string>): Record<string, 
     const v = data[navn];
     if (typeof v !== 'string') throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} mangler`);
     if (felt === 'link') ud[navn] = tjekLink(v);
+    else if (felt === 'kode') {
+      if (!/^[2-9A-HJ-NP-Z]{4}-[2-9A-HJ-NP-Z]{4}$/.test(v)) throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} skal være en kode som 4F7K-9Q2M`);
+      ud[navn] = v;
+    }
     else if (felt === 'tal') {
       if (!/^[1-9]\d{0,3}$/.test(v)) throw new SkabelonFejl(`skabelon ${skabelon}: ${navn} skal være et tal`);
       ud[navn] = v;

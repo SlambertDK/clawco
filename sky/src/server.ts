@@ -18,7 +18,7 @@ import { randomBytes } from 'node:crypto';
 import { kontoAdgang, kontoRuter, type KontoDeps } from './konto/ruter.ts';
 import { ingenAfvikler, ingenHusstand } from './konto/slet.ts';
 import type { Flaade } from './fleet/flaade.ts';
-import { lokalFlaade, koerProces } from './fleet/lokal.ts';
+import { lokalFlaade, koerProces, tenantMiljoe } from './fleet/lokal.ts';
 import { hetznerFlaade } from './fleet/hetzner.ts';
 import { flaadeAfvikler, flaadeHusstand, clawcoFor } from './fleet/afvikler.ts';
 import { hentSundhed } from './fleet/provisioner.ts';
@@ -134,13 +134,24 @@ export function noeglering(env: Record<string, string | undefined>): Noegler {
   }
 }
 
+/** KC-0246: what a tenant's container is told about itself — its public origin (KC_ADRESSE, from tenantOrigin: the same
+ *  source as the gateway's redirects and the account page's links, no second copy of the domain) and the language its owner
+ *  chose at sign-up (KC_SPROG). Asked on every create and recreate, so a recreate gives an existing tenant the current values. */
+export function tenantMiljoeFra(config: SkyConfig, db: Database): (slug: string) => Promise<Record<string, string>> {
+  return async (slug) => {
+    const t = await hentTenant(db, slug);
+    const profil = t ? await hentProfil(db, t.ejerKontoId) : null;
+    return tenantMiljoe({ adresse: tenantOrigin(slug, config.publicUrl, config.basedomain), sprog: profil?.sprog ?? null });
+  };
+}
+
 /** KC-0212: the fleet SKY_FLAADE picks; null = none (deprovisioning keeps refusing). No paid customers are read
  *  yet, so the hetzner driver sees MRR 0 and refuses (D18). Volumes are not encrypted at rest on the lokal driver
  *  (no root on kira-home for LUKS): the tenant's model keys are, in its own key file (KC-0181). */
 export function flaadeFra(config: SkyConfig, db?: Database): Flaade | null {
   const f = config.flaade;
   // KC-0203: a beta household's container is told so (and what it consented to); `db` absent = nobody is a beta.
-  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, kontoPubkeyNy: f.kontoPubkeyNy, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...(db ? { beta: async (slug: string) => { const b = await betaForTenant(db, slug); return b ? { samtykke: b.samtykke } : null; } } : {}) });
+  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, kontoPubkeyNy: f.kontoPubkeyNy, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...(db ? { beta: async (slug: string) => { const b = await betaForTenant(db, slug); return b ? { samtykke: b.samtykke } : null; }, miljoe: tenantMiljoeFra(config, db) } : {}) });
   if (f.driver === 'hetzner') return hetznerFlaade({ omkostninger: () => laesOmkostninger(), mrr: () => 0 });
   return null;
 }

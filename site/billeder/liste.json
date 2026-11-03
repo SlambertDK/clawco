@@ -1,0 +1,47 @@
+{
+  "_": "KC-0244: what scripts/site-billeder.mjs captures from the test world, one entry per image on the front page. English files keep their names, Danish ones end in .da.webp. `moment` is a moment of the test world (src/testtilstand/indhold/fakta.ts, start.ts), `route` the room, `crop` what is cut out at 375 px wide: `element` (one box) or `from` + `to` (from the top of one box to the bottom of the other, `fullWidth` keeps the page's side margins).  A box is a CSS `selector` (the first match). No `crop` = the whole viewport.",
+  "images": [
+    {
+      "file": "hero-nu.webp", "lang": "en", "moment": "aften-engelsk", "route": "/rum/hjem",
+      "crop": { "from": { "selector": "#room .stack > .card-head" }, "to": { "selector": "#room article.kort-stor" }, "fullWidth": true }
+    },
+    {
+      "file": "hero-nu.da.webp", "lang": "da", "moment": "aften", "route": "/rum/hjem",
+      "crop": { "from": { "selector": "#room .stack > .card-head" }, "to": { "selector": "#room article.kort-stor" }, "fullWidth": true }
+    },
+    {
+      "file": "start-kold.webp", "lang": "en", "moment": "kold-engelsk", "route": "/rum/start",
+      "crop": { "from": { "selector": "#room .room-head" }, "to": { "selector": "#room .baand-indhold .stack > :first-child" }, "fullWidth": true }
+    },
+    {
+      "file": "start-kold.da.webp", "lang": "da", "moment": "kold-velkommen", "route": "/rum/start",
+      "crop": { "from": { "selector": "#room .room-head" }, "to": { "selector": "#room .baand-indhold .stack > :first-child" }, "fullWidth": true }
+    },
+    {
+      "file": "mail-beslutning.webp", "lang": "en", "moment": "engelsk", "route": "/rum/mail",
+      "crop": { "element": { "selector": "article[data-id=\"mail:2401\"]" } }
+    },
+    {
+      "file": "mail-beslutning.da.webp", "lang": "da", "moment": "morgen", "route": "/rum/mail",
+      "crop": { "element": { "selector": "article[data-id=\"mail:2401\"]" } }
+    },
+    {
+      "file": "husstand-foresp.webp", "lang": "en", "moment": "engelsk", "route": "/rum/husstand",
+      "crop": { "element": { "selector": "article[data-foresp=\"f-hent-ella\"]" } }
+    },
+    {
+      "file": "husstand-foresp.da.webp", "lang": "da", "moment": "morgen", "route": "/rum/husstand",
+      "crop": { "element": { "selector": "article[data-foresp=\"f-hent-ella\"]" } }
+    },
+    {
+      "file": "husstand-sammenfald.webp", "lang": "en", "moment": "engelsk", "route": "/rum/husstand",
+      "crop": { "element": { "selector": "article[data-sammenfald=\"s-stor-bil\"]" } }
+    },
+    {
+      "file": "husstand-sammenfald.da.webp", "lang": "da", "moment": "morgen", "route": "/rum/husstand",
+      "crop": { "element": { "selector": "article[data-sammenfald=\"s-stor-bil\"]" } }
+    }
+  ],
+  "viewport": { "width": 375, "height": 900, "scale": 2 },
+  "og": { "template": "scripts/site-billeder/og.html", "file": "og.png", "width": 1200, "height": 630 }
+}

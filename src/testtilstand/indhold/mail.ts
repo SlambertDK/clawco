@@ -6,7 +6,8 @@
 import type { LogEntry } from '../../store/types.ts';
 import { parseMailState, type MailFacts, type MailState, type OrdnetInput } from '../../rooms/mail/schema.ts';
 import type { Fakta } from './fakta.ts';
-import { logFra, ugedagKort, type Raa } from './faelles.ts';
+import { erWeekend, logFra, ugedagKort, type Raa } from './faelles.ts';
+import { indhold } from './sprogindhold.ts';
 import { fraForbindelse } from '../../rooms/mail/source.ts';
 import { kildeData, mappe, NAT } from './kilder.ts';
 
@@ -16,16 +17,17 @@ export const AFSENDER: Record<string, string> = { '2401': 'Clara Holm', '2402': 
 
 /** The seven mails in Folders/Handling, as Hermes would turn them into decisions. */
 export function mailAlle(f: Fakta): Raa[] {
+  const tekster = indhold().mail2401;
   // A picture holds at most six days (visuel.ts): the six that end with, or include, Friday.
   const start = Math.max(1, f.fredagPlus - 5);
-  const fredag = Array.from({ length: 6 }, (_, i) => ({ navn: ugedagKort(f, start + i), fri: ['lør', 'søn'].includes(ugedagKort(f, start + i)), ...(start + i === f.fredagPlus ? { ikon: 'school', valgt: true } : {}) }));
+  const fredag = Array.from({ length: 6 }, (_, i) => ({ navn: ugedagKort(f, start + i), fri: erWeekend(f, start + i), ...(start + i === f.fredagPlus ? { ikon: 'school', valgt: true } : {}) }));
   return [
     {
       mailId: '2401', emne: 'Dagsorden til kl. 11: Havvind Nord', fra: 'Clara Holm', modtaget: f.iso('21:40', -1), type: 'svar',
-      visuel: { ikon: 'users', overskrift: 'Bekræft: vi ses kl. 11', billede: { art: 'personer', personer: [{ navn: 'Clara Holm', rolle: 'Nordvik' }, { navn: 'Jonas Berg', rolle: 'Vestnet' }] } },
-      resume: 'Clara sender dagsordenen til mødet kl. 11 og beder om en kort bekræftelse.',
-      betydning: 'Tre punkter: valg af kabeltracé, tidsplanen for kabelleverandøren og fordelingen af meromkostningen. Hun vil vide, at du kommer, og om Jonas er med. Svar kort: vi ses kl. 11.',
-      frist: f.dag, udkast: 'Hej Clara\n\nTak for dagsordenen. Jonas og jeg er med kl. 11, så vi ses.\n\nVenlig hilsen\nHenrik', arkivmappe: 'Archive', muligheder: [],
+      visuel: { ikon: 'users', overskrift: tekster.overskrift, billede: { art: 'personer', personer: [{ navn: 'Clara Holm', rolle: 'Nordvik' }, { navn: 'Jonas Berg', rolle: 'Vestnet' }] } },
+      resume: tekster.resume,
+      betydning: tekster.betydning,
+      frist: f.dag, udkast: tekster.udkast, arkivmappe: 'Archive', muligheder: [],
     },
     {
       mailId: '2402', emne: 'Tilbud: ny eltavle med fejlstrømsafbryder', fra: 'Lysnet El-service', modtaget: f.iso('18:12', -3), type: 'svar',

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Clawco social preview</title>
+<!-- KC-0244: the 1200x630 preview of clawco.work (og:image), rendered by scripts/site-billeder.mjs. The screen on the right is the English
+     hero capture from the same run (site/billeder/hero-nu.webp); the font is the app's own, from public/fonts. -->
+<style>
+@font-face { font-family: "Inter"; font-weight: 100 900; src: url(../../public/fonts/inter-latin-wght-normal.woff2) format("woff2"); }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: #121614; color: #E8EBE7; font-family: "Inter", system-ui, sans-serif; }
+.text { position: absolute; left: 72px; top: 152px; width: 600px; }
+.brand { display: flex; align-items: center; gap: 12px; font-size: 32px; font-weight: 700; }
+.dot { width: 17px; height: 17px; border-radius: 50%; background: #8FD0A5; }
+h1 { margin: 38px 0 0; font-size: 64px; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; }
+.host { margin-top: 34px; font-size: 26px; color: #9AA39D; }
+.skaerm { position: absolute; left: 725px; top: 68px; width: 402px; height: 640px; border: 2px solid #2F3733; border-radius: 28px; overflow: hidden; background: #121614; }
+.skaerm img { display: block; width: 100%; height: auto; }
+</style>
+</head>
+<body>
+<div class="text">
+<div class="brand"><span class="dot"></span>Clawco</div>
+<h1>Your life, one screen. An agent that can't overstep.</h1>
+<div class="host">clawco.work</div>
+</div>
+<div class="skaerm"><img src="../../site/billeder/hero-nu.webp" alt=""></div>
+</body>
+</html>

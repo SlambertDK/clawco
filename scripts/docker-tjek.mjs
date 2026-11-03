@@ -97,7 +97,7 @@ async function roeg(adresse, { kold }) {
         bredde: document.documentElement.scrollWidth,
       };
     });
-    hvis(m.rum === 'Nu', `rummet hedder "${m.rum}"`, `rummet hedder "${m.rum}", ikke "Nu"`);
+    hvis(m.rum === 'Now', `rummet hedder "${m.rum}"`, `rummet hedder "${m.rum}", ikke "Now" (en ny installation er engelsk, KC-0170)`);
     hvis(m.elementer.length > 0, `Nu viser ${m.elementer.length} rigtige element(er); første: ${m.elementer[0]?.blok} "${m.elementer[0]?.tekst.slice(0, 60)}"`, 'Nu viser intet rigtigt element');
     hvis(m.lys < 64, `mørkt tema (baggrundens lysstyrke ${m.lys}/255)`);
     hvis(m.bredde <= 375, `ingen vandret overløb (${m.bredde}/375 px)`);

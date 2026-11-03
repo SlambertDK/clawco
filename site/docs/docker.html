@@ -53,11 +53,13 @@
 <li data-i="dk.holds.1">Reachable from this machine only: the port is published on 127.0.0.1.</li>
 <li data-i="dk.holds.2">Your data lives outside the image, in the volume clawco-data at /data. A new image never carries data.</li>
 <li data-i="dk.holds.3">The root filesystem is read-only, and the app runs as an ordinary user, not as root.</li>
-<li data-i="dk.holds.4">Keys you paste in Start are saved in /data/.env, next to the credentials for each source.</li>
+<li data-i="dk.holds.4">Keys you paste in Start are saved encrypted in /data. The key that opens them is in a volume of its own, clawco-noegle at /noegle, so a copy of /data never carries it.</li>
 </ul>
 <h2 data-i="dk.backup.h">Backup</h2>
 <p data-i="dk.backup.p">A backup is a copy of the data volume:</p>
 <pre><code>docker run --rm -v clawco_clawco-data:/data -v "$PWD":/ud busybox tar czf /ud/clawco-data.tgz -C /data .</code></pre>
+<p data-i="dk.backup.p2">Copy the key volume too, and treat it like a password; the data volume alone cannot open your saved model key:</p>
+<pre><code>docker run --rm -v clawco_clawco-noegle:/noegle -v "$PWD":/ud busybox tar czf /ud/clawco-noegle.tgz -C /noegle .</code></pre>
 <h2 data-i="dk.update.h">Update</h2>
 <p data-i="dk.update.p">If you built the image from a copy of the source, update the copy first, then rebuild. Your data lives in the volume and is not touched.</p>
 <pre><code>GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build</code></pre>
@@ -65,8 +67,8 @@
 <p data-i="dk.version.p">To see which version runs, ask the health address. The value sha is the version:</p>
 <pre><code>curl -fsS http://127.0.0.1:8750/health</code></pre>
 <h2 data-i="dk.agent.h">The agent</h2>
-<p data-i="dk.agent.p">The container starts without a model key; Start asks for one. To use your own Hermes, set its address before you start:</p>
-<pre><code>KC_HERMES_URL=http://host.docker.internal:8642 docker compose up -d</code></pre>
+<p data-i="dk.agent.p">The container runs Clawco's own built-in agent; Start asks for a key from a model provider, or for a local model. For a model on this machine (LM Studio, Ollama), give Start the address http://host.docker.internal:1234 (or :11434 for Ollama). To use your own Hermes instead, set its address before you start:</p>
+<pre><code>KC_AGENT=hermes-http KC_HERMES_URL=http://host.docker.internal:8642 docker compose up -d</code></pre>
 <h2 data-i="dk.notes.h">A notes folder (optional)</h2>
 <p data-i="dk.notes.p">To let Clawco read and save notes in a folder, uncomment the two notes lines in compose.yaml, then start with the folder named. It must be writable by user 1000.</p>
 <pre><code>CLAWCO_NOTER=/path/to/notes docker compose up -d</code></pre>

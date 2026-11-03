@@ -2,7 +2,12 @@
 # Install Clawco on a Mac or Linux box with one command (KC-0156):
 #   curl -fsSL https://clawco.work/install.sh | bash
 #   bash deploy/install.sh [--yes] [--dry-run] [--no-service] [--laptop]
-#                          [--port N] [--data-dir DIR] [--agent-url URL]
+#                          [--port N] [--data-dir DIR] [--agent-url URL] [--fra-ai]
+# KC-0245: a new install runs Clawco's built-in agent (KC_AGENT=direkte): the only thing it needs is a model key,
+# pasted in Start. The installer makes the key file that encrypts those keys at rest ($CLAWCO_HOME/hemmeligheder.key,
+# mode 600, outside the user folder, never overwritten; KC_HEMMELIGHEDER_FIL). --agent-url keeps the Hermes install.
+# An existing install's .env is never touched, so its agent never changes. --fra-ai lets an AI run the install:
+# no questions, and the last stdout line is one JSON object (no secrets) the AI reads back.
 # Layout under $CLAWCO_HOME (default ~/.clawco): app/ = the code (git clone),
 # data/ = the user folder (KC_DATA_DIR, D7), .env = settings (mode 600),
 # log/ = service and npm logs. Code and user folder are never the same place.
@@ -18,7 +23,25 @@
 # Must stay bash 3.2 compatible (macOS /bin/bash): no associative arrays.
 set -euo pipefail
 
-fejl() { printf '%s\n' "$@" >&2; exit 1; }
+FRA_AI=0
+# One JSON string (no node needed, so it also works when node is what is missing).
+json_streng() {
+  local t=$1
+  t=${t//\\/\\\\}; t=${t//\"/\\\"}; t=${t//$'\n'/ }; t=${t//$'\t'/ }; t=${t//$'\r'/ }
+  printf '"%s"' "$t"
+}
+# --fra-ai: the plain text goes to stderr as ever; the last stdout line says what went wrong and the one thing to do.
+fejl() {
+  printf '%s\n' "$@" >&2
+  if [ "$FRA_AI" = 1 ]; then
+    local fix a sidste=''
+    for a in "$@"; do sidste=$a; done
+    fix="Read the message above, fix what it names, and run the installer again."
+    if [ "$#" -gt 1 ]; then fix=${sidste#"${sidste%%[![:space:]]*}"}; fix=${fix%%$'\n'*}; fi
+    printf '{"ok":false,"error":%s,"fix":%s}\n' "$(json_streng "$1")" "$(json_streng "$fix")"
+  fi
+  exit 1
+}
 info() { printf '%s\n' "$*"; }
 trin() { printf '\n[%s/6] %s\n' "$1" "$2"; }
 
@@ -31,7 +54,11 @@ Brug: install.sh [valg]
   --laptop         bærbar-tilstand: kun denne maskine, én bruger, ingen Tailscale nødvendig
   --port N         porten Clawco lytter på
   --data-dir DIR   brugermappen (dine data)
-  --agent-url URL  (avanceret) adressen på din agent; nøglen læses skjult
+  --agent-url URL  (avanceret) brug din egen Hermes-agent i stedet for Clawcos indbyggede; nøglen læses skjult
+  --fra-ai         lad en AI (Claude Code, Codex …) køre installationen: ingen spørgsmål (--yes),
+                   og sidste linje på stdout er ét JSON-objekt: {"ok":true,"address":…,"port":…,
+                   "dataDir":…,"agent":…,"service":…,"missing":[…],"next":…} eller
+                   {"ok":false,"error":…,"fix":…} med en fejlkode. Aldrig en nøgle i linjen.
 TEKST
 }
 
@@ -100,7 +127,8 @@ vaerdi_for() {
     KC_ENV_FILE) VAERDI=$ENV_FIL;;
     KC_LAPTOP) [ "$BAERBAR" = 1 ] || return 1; VAERDI=ja;;
     KC_HOST) [ "$BAERBAR" = 1 ] || return 1; VAERDI=127.0.0.1;;
-    KC_AGENT) [ -n "$AGENT_URL" ] || return 1; VAERDI=hermes-http;;
+    KC_AGENT) if [ -n "$AGENT_URL" ]; then VAERDI=hermes-http; else VAERDI=direkte; fi;; # KC-0245: the built-in agent is the default
+    KC_HEMMELIGHEDER_FIL) [ -z "$AGENT_URL" ] || return 1; VAERDI=$NOEGLEFIL;;
     KC_HERMES_URL) [ -n "$AGENT_URL" ] || return 1; VAERDI=$AGENT_URL;;
     KC_HERMES_API_KEY) [ -n "$AGENT_URL" ] || return 1; VAERDI=$NOEGLE;;
     *) return 1;;
@@ -126,11 +154,57 @@ skriv_env() {
       esac
     done <"$eksempel"
   } >>"$tmp"
-  for noegle in KC_PORT KC_DATA_DIR KC_ENV_FILE KC_LAPTOP KC_HOST KC_AGENT KC_HERMES_URL KC_HERMES_API_KEY; do
+  for noegle in KC_PORT KC_DATA_DIR KC_ENV_FILE KC_LAPTOP KC_HOST KC_AGENT KC_HEMMELIGHEDER_FIL KC_HERMES_URL KC_HERMES_API_KEY; do
     vaerdi_for "$noegle" || continue
     case "$saet" in *" $noegle "*) ;; *) rm -f "$tmp"; fejl "Installeren og .env.example er uenige: $noegle findes ikke i $eksempel.";; esac
   done
   mv "$tmp" "$ENV_FIL"
+}
+
+# KC-0245: the key that encrypts the model keys Start saves (src/hemmeligheder/lager-fil.ts: 32 random bytes, base64).
+# Made once, mode 600, outside the user folder so a backup of the data folder never carries it; never overwritten.
+lav_noeglefil() {
+  [ ! -e "$NOEGLEFIL" ] || { info "Nøglefil beholdt: $NOEGLEFIL (findes allerede)"; return 0; }
+  local tmp="$NOEGLEFIL.tmp.$$"
+  (umask 077; mkdir -p "$(dirname "$NOEGLEFIL")"; node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64") + "\n")' >"$tmp") \
+    || { rm -f "$tmp"; fejl "Kunne ikke lave nøglefilen ($NOEGLEFIL)."; }
+  chmod 600 "$tmp"
+  mv "$tmp" "$NOEGLEFIL"
+  info "Nøglefil lavet: $NOEGLEFIL (krypterer dine modelnøgler; kun læsbar for dig; tag den med i en kopi med: npm run backup -- --med-noegler)"
+}
+
+# The agent this install runs: an existing .env decides (no KC_AGENT = the server's own fallback, Hermes); a new one gets the built-in agent unless --agent-url.
+agent_navn() {
+  local a
+  if [ -f "$ENV_FIL" ]; then a=$(vaerdi_i KC_AGENT "$ENV_FIL"); printf '%s' "${a:-hermes-http}"
+  elif [ -n "$AGENT_URL" ]; then printf 'hermes-http'
+  else printf 'direkte'; fi
+}
+
+# --fra-ai: the one JSON line the run ends with. $1 = 1 when the service runs, $2 = "dry" for --dry-run.
+# Only the address, port, folder, agent name and what is missing: never a key.
+slut_fra_ai() {
+  local vaert agent port mangler next adr tilfoej=''
+  agent=$(agent_navn)
+  port=$PORT
+  if [ -z "$port" ] && [ -f "$APP/.env.example" ]; then port=$(vaerdi_i KC_PORT "$APP/.env.example"); fi
+  vaert=127.0.0.1
+  if [ -f "$ENV_FIL" ]; then
+    vaert=$(vaerdi_i KC_HOST "$ENV_FIL")
+    case "$vaert" in ''|0.0.0.0|::) vaert=127.0.0.1;; esac
+  fi
+  adr=null; [ -z "$port" ] || adr=$(json_streng "http://$vaert:$port")
+  [ -n "$port" ] || port=null
+  mangler='[]'; next='Open the address and follow the Start room.'
+  if [ "$agent" = direkte ]; then
+    next='Open the address and follow the Start room; the only thing it needs is a key from a model provider (or a local model).'
+    if [ ! -e "$DATA/hemmeligheder.enc" ]; then mangler='["model-key"]'; fi
+  fi
+  [ "${2:-}" != dry ] || tilfoej=',"dryRun":true'
+  local tjeneste=false
+  if [ "$1" = 1 ]; then tjeneste=true; fi
+  printf '{"ok":true,"address":%s,"port":%s,"dataDir":%s,"agent":%s,"service":%s,"missing":%s,"next":%s%s}\n' \
+    "$adr" "$port" "$(json_streng "$DATA")" "$(json_streng "$agent")" "$tjeneste" "$mangler" "$(json_streng "$next")" "$tilfoej"
 }
 
 # LABEL and SERVICE_FIL for this platform (caller declares both, and OS).
@@ -237,6 +311,8 @@ baerbar_besked() {
 
 main() {
   [ -z "${CLAWCO_FUNKTIONER:-}" ] || return 0 # sourced by opdater.sh: only the functions are wanted
+  local a
+  for a in "$@"; do case "$a" in --fra-ai) FRA_AI=1;; esac; done # before the flags are read, so even a bad flag answers in JSON
   local JA=0 TOER=0 UDEN_SERVICE=0 BAERBAR=0 PORT='' DATA='' AGENT_URL='' NOEGLE='' VAERDI='' NODE_VERSION='' ENV_BAERBAR='' SVAR=''
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -244,6 +320,7 @@ main() {
       --dry-run) TOER=1;;
       --no-service) UDEN_SERVICE=1;;
       --laptop) BAERBAR=1;;
+      --fra-ai) JA=1; FRA_AI=1;;
       --port|--data-dir|--agent-url)
         [ $# -ge 2 ] || fejl "$1 skal have en værdi." "$(brug)"
         case "$1" in --port) PORT=$2;; --data-dir) DATA=$2;; --agent-url) AGENT_URL=$2;; esac
@@ -259,11 +336,12 @@ main() {
   OS=$(uname -s)
   case "$OS" in Darwin|Linux) ;; *) fejl "Clawco kan kun installeres på Mac og Linux (denne maskine er: $OS).";; esac
   tjek_node
-  local NODE HJEM APP ENV_FIL LOGMAPPE REPO LABEL SERVICE_FIL
+  local NODE HJEM APP ENV_FIL LOGMAPPE REPO LABEL SERVICE_FIL NOEGLEFIL
   NODE=$(command -v node)
   HJEM=$(absolut "${CLAWCO_HOME:-$HOME/.clawco}")
   APP="$HJEM/app"
   ENV_FIL="$HJEM/.env"
+  NOEGLEFIL="$HJEM/hemmeligheder.key"
   LOGMAPPE="$HJEM/log"
   REPO=${CLAWCO_REPO:-https://github.com/SlambertDK/clawco.git}
   tjeneste_find
@@ -304,13 +382,18 @@ main() {
     else info "  2. Kode: git clone $REPO → $APP"; fi
     info "  3. Afhængigheder: npm ci --omit=dev i $APP"
     if [ -f "$ENV_FIL" ]; then info "  4. Brugermappe: $DATA; indstillinger: $ENV_FIL findes og beholdes"
-    else info "  4. Brugermappe: $DATA; indstillinger: $ENV_FIL (ny, kun læsbar for dig)"; fi
+    else
+      info "  4. Brugermappe: $DATA; indstillinger: $ENV_FIL (ny, kun læsbar for dig)"
+      if [ -z "$AGENT_URL" ]; then info "     Agent: Clawcos indbyggede (KC_AGENT=direkte); nøglefil til dine modelnøgler: $NOEGLEFIL (ny, kun læsbar for dig)"
+      else info "     Agent: din egen Hermes på $AGENT_URL (KC_AGENT=hermes-http)"; fi
+    fi
     if [ "$BAERBAR" = 1 ]; then info "     Bærbar-tilstand: Clawco lytter kun på 127.0.0.1 (kun denne maskine), som én bruger uden login (KC_LAPTOP=ja i .env)"; fi
     if [ "$UDEN_SERVICE" = 1 ]; then info "  5. Baggrundstjeneste: springes over (--no-service)"
     elif [ "$OS" = Darwin ]; then info "  5. Baggrundstjeneste: launchd-agent $SERVICE_FIL"
     else info "  5. Baggrundstjeneste: systemd-brugertjeneste $SERVICE_FIL"; fi
     if [ "$UDEN_SERVICE" = 1 ]; then info "  6. Tjek: springes over (ingen tjeneste)"
     else info "  6. Tjek: http://127.0.0.1:${VIS_PORT:-<KC_PORT fra .env.example>}/health"; fi
+    if [ "$FRA_AI" = 1 ]; then slut_fra_ai $((1 - UDEN_SERVICE)) dry; fi
     return 0
   fi
 
@@ -319,6 +402,11 @@ main() {
   if [ -d "$APP/.git" ] && [ -f "$ENV_FIL" ] && [ -f "$APP/deploy/opdater.sh" ]; then
     info "Clawco er allerede installeret i $APP; opdaterer i stedet for at installere igen."
     export CLAWCO_HOME="$HJEM" CLAWCO_REPO="$REPO" CLAWCO_LABEL="$LABEL"
+    if [ "$FRA_AI" = 1 ]; then # no exec: the JSON line has to come last
+      bash "$APP/deploy/opdater.sh" || fejl "Opdateringen af Clawco fejlede (se meddelelserne ovenfor)." "Ret det, opdateringen nævner, og kør installeren igen."
+      slut_fra_ai 1
+      return 0
+    fi
     exec bash "$APP/deploy/opdater.sh"
   fi
 
@@ -364,6 +452,7 @@ main() {
   if [ -f "$ENV_FIL" ]; then
     info ".env beholdt: $ENV_FIL (installeren retter aldrig i den)"
   else
+    if [ -z "$AGENT_URL" ]; then lav_noeglefil; fi
     skriv_env
     info ".env skrevet: $ENV_FIL (kun læsbar for dig)"
   fi
@@ -373,6 +462,7 @@ main() {
     trin 5 "Baggrundstjeneste: springes over (--no-service)"
     info "Start Clawco selv med: cd \"$APP\" && node --env-file=\"$ENV_FIL\" src/server.ts"
     if [ "$BAERBAR" = 1 ]; then baerbar_besked; fi
+    if [ "$FRA_AI" = 1 ]; then slut_fra_ai 0; fi
     return 0
   fi
   trin 5 "Baggrundstjeneste"
@@ -390,6 +480,7 @@ main() {
   elif command -v tailscale >/dev/null 2>&1; then
     info "Tailscale fundet: 'tailscale serve --bg $PORT' gør Clawco tilgængelig på dit tailnet."
   fi
+  if [ "$FRA_AI" = 1 ]; then slut_fra_ai 1; fi
 }
 
 main "$@"

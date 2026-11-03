@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { createSkyApp, kontoDeps, flaadeFra, noegleskiftFra, forbind, fordeler } from '../src/server.ts';
+import { createSkyApp, kontoDeps, flaadeFra, tenantMiljoeFra, noegleskiftFra, forbind, fordeler } from '../src/server.ts';
 import { FROE as GW_FROE, OFFENTLIG as GW_OFFENTLIG } from './gateway/hjaelp.ts';
 import { laesConfig } from '../src/config.ts';
 import { pgliteDatabase } from './pglite.ts';
@@ -11,6 +11,9 @@ import { migrer } from '../src/db/migrer.ts';
 import { FalskBetalingsKlient } from '../src/abonnement/falsk.ts';
 import { findEllerOpretKonto } from '../src/konto/konto.ts';
 import { sikrKunde } from '../src/abonnement/kunde.ts';
+import { gemProfil } from '../src/konto/profil.ts';
+import { bestil } from '../src/fleet/tilstand.ts';
+import { tenantOrigin } from '../src/gateway/login-vej.ts';
 
 const ENV = { SKY_DATABASE_URL: 'postgres:///sky', SKY_PUBLIC_URL: 'https://konto.example.test' };
 
@@ -19,7 +22,7 @@ test('production wiring without SKY_RESEND_API_KEY: Post refuses (fail closed) a
   const d = kontoDeps(laesConfig(ENV), db, undefined, undefined, ENV);
   assert.equal(d.dev, false);
   assert.equal(d.udbakke, null);
-  await assert.rejects(d.post.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', minutter: '15' } }));
+  await assert.rejects(d.post.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', kode: '4F7K-9Q2M', minutter: '15' } }));
   assert.deepEqual(d.rp, { id: 'konto.example.test', navn: 'Clawco', origin: 'https://konto.example.test' });
   await db.close();
 });
@@ -27,7 +30,7 @@ test('production wiring without SKY_RESEND_API_KEY: Post refuses (fail closed) a
 test('dev wiring (SKY_DEV=1): the fake Post and its outbox', async () => {
   const db = await pgliteDatabase();
   const d = kontoDeps(laesConfig({ ...ENV, SKY_DEV: '1' }), db);
-  await d.post.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', minutter: '15' } });
+  await d.post.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', kode: '4F7K-9Q2M', minutter: '15' } });
   assert.equal(d.udbakke?.length, 1);
   await db.close();
 });
@@ -385,4 +388,32 @@ test('KC-0217: noegleskiftFra says forberedt only for a lokal fleet that has the
   assert.equal(noegleskiftFra(laesConfig({ ...LOKAL, SKY_KONTO_PUBKEY_NY: NY })), 'forberedt');
   assert.equal(noegleskiftFra(laesConfig(LOKAL)), undefined);
   assert.equal(noegleskiftFra(laesConfig(ENV)), undefined);
+});
+
+// KC-0246: a tenant is told its own address (from the one place a tenant's URL is made: tenantOrigin) and its owner's language.
+test('KC-0246 tenantMiljoeFra: KC_ADRESSE is the tenant origin the gateway and the account page use, KC_SPROG the owner\'s sign-up language', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  const config = laesConfig({ ...ENV, SKY_BASEDOMAIN: 'kunde.example.test' });
+  const { konto } = await findEllerOpretKonto(db, 'ejer@example.test', new Date('2026-11-03T10:00:00Z'));
+  const t = await bestil(db, { kontoId: konto.id, driver: 'lokal', nu: new Date('2026-11-03T10:00:00Z') });
+  const miljoe = tenantMiljoeFra(config, db);
+  // No language chosen yet: only the address (the tenant keeps its own default).
+  assert.deepEqual(await miljoe(t.slug), { KC_ADRESSE: tenantOrigin(t.slug, config.publicUrl, config.basedomain) });
+  assert.equal((await miljoe(t.slug))['KC_ADRESSE'], `https://${t.slug}.kunde.example.test`);
+  await gemProfil(db, konto.id, { land: 'DK', sprog: 'da', vilkaar: '1', privatliv: '1', nu: new Date('2026-11-03T10:01:00Z') });
+  assert.deepEqual(await miljoe(t.slug), { KC_ADRESSE: `https://${t.slug}.kunde.example.test`, KC_SPROG: 'da' });
+  await gemProfil(db, konto.id, { land: 'GB', sprog: 'en', vilkaar: '1', privatliv: '1', nu: new Date('2026-11-03T10:02:00Z') });
+  assert.equal((await miljoe(t.slug))['KC_SPROG'], 'en');
+  // An unknown slug is nobody's: still its address, no language.
+  assert.deepEqual(await miljoe('hus-ukendt1'), { KC_ADRESSE: 'https://hus-ukendt1.kunde.example.test' });
+  await db.close();
+});
+
+test('KC-0246 tenantMiljoeFra: the dev origin keeps the scheme and port of SKY_PUBLIC_URL', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  const config = laesConfig({ SKY_DATABASE_URL: 'postgres:///sky', SKY_PUBLIC_URL: 'http://localhost:8793', SKY_DEV: '1', SKY_BASEDOMAIN: 'localhost' });
+  assert.deepEqual(await tenantMiljoeFra(config, db)('hus-abcdefgh'), { KC_ADRESSE: 'http://hus-abcdefgh.localhost:8793' });
+  await db.close();
 });

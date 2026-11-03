@@ -48,3 +48,64 @@ test('a stored record wins over the folder\'s looks; an unreadable one is left a
     assert.equal(await readFile(path.join(dir, INSTALLATION_FIL), 'utf8'), '{not json');
   });
 });
+
+// KC-0246: under Clawco Sky the container is told the owner's sign-up language (KC_SPROG), so Start's step 1 does not ask
+// again. Only a NEW installation reads it. Sky seeds husstand.json before the first start, so that file alone does not make
+// a folder "in use"; anything else does, and then the folder keeps Danish. A record, once written, is never changed by it.
+import { sprogFraMiljoe } from '../../src/store/installation.ts';
+
+test('KC-0246 sprogFraMiljoe: da and en only; anything else is no wish', () => {
+  assert.equal(sprogFraMiljoe({ KC_SPROG: 'da' }), 'da');
+  assert.equal(sprogFraMiljoe({ KC_SPROG: ' en ' }), 'en');
+  for (const v of [undefined, '', 'DA', 'de', 'da,en']) assert.equal(sprogFraMiljoe({ KC_SPROG: v }), null, String(v));
+  assert.equal(sprogFraMiljoe({}), null);
+});
+
+test('KC-0246: a new folder starts in the language it was told; without a wish it is English as before', async () => {
+  for (const sprog of ['da', 'en'] as const) {
+    await medMappe(async (dir) => {
+      const ny = path.join(dir, 'frisk');
+      assert.deepEqual(laesInstallation(ny, NU, sprog), { standardSprog: sprog, oprettet: '2026-11-02T20:00:00.000Z', grund: 'ny' });
+      assert.equal(JSON.parse(await readFile(path.join(ny, INSTALLATION_FIL), 'utf8')).standardSprog, sprog);
+    });
+  }
+  await medMappe(async (dir) => { assert.equal(laesInstallation(path.join(dir, 'x'), NU, null).standardSprog, 'en'); });
+});
+
+test('KC-0246: a Sky tenant folder holding only the seeded household is still new: the told language wins (and without one it stays as it was, Danish)', async () => {
+  for (const sprog of ['da', 'en'] as const) {
+    await medMappe(async (dir) => {
+      await writeFile(path.join(dir, 'husstand.json'), '{}');
+      assert.deepEqual(laesInstallation(dir, NU, sprog), { standardSprog: sprog, oprettet: '2026-11-02T20:00:00.000Z', grund: 'ny' });
+    });
+  }
+  await medMappe(async (dir) => {
+    await writeFile(path.join(dir, 'husstand.json'), '{}');
+    assert.deepEqual(laesInstallation(dir, NU, null), { standardSprog: 'da', oprettet: '2026-11-02T20:00:00.000Z', grund: 'foer-sproget' });
+  });
+});
+
+test('KC-0246: a folder already in use never takes its language from the env (room state, a profile, settings, anything but the seeded household)', async () => {
+  for (const tegn of ['rum', 'profil.json', 'indstillinger.json', 'kilder.json', 'pause.json', 'tillid']) {
+    await medMappe(async (dir) => {
+      if (tegn.endsWith('.json')) await writeFile(path.join(dir, tegn), '{}'); else await mkdir(path.join(dir, tegn));
+      await writeFile(path.join(dir, 'husstand.json'), '{}');
+      assert.deepEqual(laesInstallation(dir, NU, 'en'), { standardSprog: 'da', oprettet: '2026-11-02T20:00:00.000Z', grund: 'foer-sproget' }, tegn);
+    });
+  }
+});
+
+test('KC-0246: a stored record is never changed by the env, in either direction; an unreadable one is left alone', async () => {
+  for (const [gemt, ensket] of [['da', 'en'], ['en', 'da']] as const) {
+    await medMappe(async (dir) => {
+      await writeFile(path.join(dir, INSTALLATION_FIL), JSON.stringify({ standardSprog: gemt, oprettet: 'x', grund: 'ny' }));
+      assert.equal(laesInstallation(dir, NU, ensket).standardSprog, gemt);
+      assert.equal(JSON.parse(await readFile(path.join(dir, INSTALLATION_FIL), 'utf8')).standardSprog, gemt);
+    });
+  }
+  await medMappe(async (dir) => {
+    await writeFile(path.join(dir, INSTALLATION_FIL), '{not json');
+    assert.equal(laesInstallation(dir, NU, 'en').standardSprog, 'da');
+    assert.equal(await readFile(path.join(dir, INSTALLATION_FIL), 'utf8'), '{not json');
+  });
+});
