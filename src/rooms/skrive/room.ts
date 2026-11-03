@@ -7,6 +7,7 @@ import type { LogEntry } from '../../store/types.ts';
 import type { RunRecord, DoneResult } from '../../runs.ts';
 import { ActionError, type RoomDeps, type RoomModule, type RoomView } from '../module.ts';
 import { extractJson, kraevJson } from '../dagen/schema.ts';
+import { synligFor } from '../../identitet/zoner.ts';
 import { brugForslag, dokumentTilMarkdown, KORSEL, parseForslag, parseNytDokument, tomtState, venterSkrive, type Dokument, type SkriveState } from './schema.ts';
 import { buildForslagRun, buildNytRun, buildSkriveChatRun } from './prompt.ts';
 import { renderSkrive } from './render.ts';
@@ -17,7 +18,14 @@ export const RUM = 'skrive';
 const JSON_BLOCK = /```(?:json)?\s*[\s\S]*?```/i;
 const str = (v: unknown, max = 2000): string => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
+/** KC-0269: Skrive writes the owner's documents; whoever may not see the room may not write into it either (403). */
+function kraevSynlig(deps: RoomDeps): void {
+  if (!synligFor(deps.person, { zone: KORSEL })) throw new ActionError(skriveTekst().kunEjer, 403);
+}
+
 async function load(deps: RoomDeps): Promise<SkriveState> {
+  // KC-0269: the documents are the owner's (zone privat, no ejer recorded): anyone else sees an empty room.
+  if (!synligFor(deps.person, { zone: KORSEL })) return tomtState();
   return (await deps.store.readState<SkriveState>(RUM)) ?? tomtState();
 }
 async function save(deps: RoomDeps, s: SkriveState): Promise<void> { await deps.store.writeState(RUM, s); }
@@ -82,6 +90,7 @@ async function gemForslag(deps: RoomDeps, dokId: string, output: string, text: s
 }
 
 async function startAction(deps: RoomDeps, name: string, body: Record<string, unknown>): Promise<RunRecord | null> {
+  kraevSynlig(deps);
   switch (name) {
     case 'nyt': {
       const brief = str(body['brief']);
@@ -156,6 +165,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
 }
 
 async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | null> {
+  kraevSynlig(deps);
   const log = await deps.store.readLog(RUM);
   const entry = log.find((e) => e.id === logId);
   if (!entry || !entry.fortryd || entry.fortrudt) return null;
@@ -191,9 +201,10 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
 }
 
 async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
+  kraevSynlig(deps);
   const s = await load(deps);
   const dok = aktivt(s);
-  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
+  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
   return deps.runs.start({
     kind: 'chat',
     spec: buildSkriveChatRun(besked, kontekst, dok),
@@ -201,7 +212,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
       // Validated before anything is written, so an unusable answer can go back to Hermes (KC-0050).
       if (dok && JSON_BLOCK.test(output)) parseForslag(kraevJson(output), dok, deps.now());
       const text = output.replace(JSON_BLOCK, '').trim() || skriveTekst().intetSvar;
-      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
+      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text, ejer: deps.person.id });
       if (dok && JSON_BLOCK.test(output)) return gemForslag(deps, dok.id, output, text);
       return { text };
     },

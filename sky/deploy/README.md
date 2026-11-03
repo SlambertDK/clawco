@@ -20,7 +20,7 @@ kira-home showed no Postgres server there; installing it is now a step of the ro
 | system Postgres | kira-home (Ubuntu 22.04) has only `postgresql-client-14`, so the root script installs the distro server — `postgresql-common` first, then `create_main_cluster = false` in `/etc/postgresql-common/createcluster.conf`, then `postgresql`, so no default cluster ever appears on TCP 5432. It then creates one cluster for Sky, stopped (`pg_createcluster <ver> main -p 5433`; 5433 only names its socket), makes it **socket-only** (`conf.d/clawco-sky.conf`: `listen_addresses = ''`) before its first start, and starts it. Role + database `sky`, peer auth. TCP 127.0.0.1:5432 belongs to honcho's Docker Postgres and is never touched |
 | `sky.service` | `node src/server.ts` on 127.0.0.1:8781 (`SKY_PORT`) |
 | `clawco-sky-tunnel.service` | `cloudflared tunnel run --token-file …` as `sky`; needs cloudflared ≥ 2025.4.0. The host's own `cloudflared.service` and `cloudflared-petrilab.service` (other sites) are never touched |
-| `/etc/sudoers.d/clawco-sky` | `henrik` may act as `sky` and restart exactly Sky's two units; `sky` may restart `sky` |
+| `/etc/sudoers.d/clawco-sky` | `henrik` may act as `sky` through three fixed scripts only (`deploy.sh`, `saet-env.sh SKY_*`, `masternoegle.sh ny\|--roter\|--afslut`; KC-0276), and restart exactly Sky's two units; `sky` may restart `sky`. Any other command as `sky` needs henrik's password |
 | `/etc/systemd/journald.conf.d/clawco-30-dage.conf` | `MaxRetentionSec=30day`: the legal texts promise server logs for at most 30 days (KC-0204); the app, Sky and the tenants (Docker's `journald` log driver) all log to journald |
 
 `SKY_DATABASE_URL` is written by the root script: `postgres:///sky?host=/var/run/postgresql&port=<cluster port>`.
@@ -227,11 +227,11 @@ each call (402 `kvote_brugt` with the reset date, the first of next UTC month).
 1. `SKY_INKLUDERET_MODEL=ja` (also what tells tenants `KC_MODEL_PROXY_URL`, at their next create or recreate:
    `sky/scripts/genstart-flaade.ts`).
 2. A provider: `SKY_MODEL_UDBYDER=anthropic` with `SKY_ANTHROPIC_API_KEY`, or `SKY_MODEL_UDBYDER=bedrock` with
-   `SKY_AWS_ACCESS_KEY_ID` + `SKY_AWS_SECRET_ACCESS_KEY` (optional `SKY_AWS_REGION`, default eu-central-1). Set each with
+   `SKY_AWS_ACCESS_KEY_ID` + `SKY_AWS_SECRET_ACCESS_KEY` (optional `SKY_AWS_REGION`, default eu-north-1). Set each with
    `sky/scripts/saet-hemmelighed.sh <NAME>` (name and length only), then restart Sky. Sky removes the keys from its
    environment at start, so no child process (docker, pg_dump) inherits them.
-   Bedrock means `bedrock-runtime.eu-central-1.amazonaws.com` with the EU cross-region inference profile
-   `eu.anthropic.claude-haiku-5-5` (`config/modelpriser.json`; requests stay within eu-central-1, eu-north-1, eu-south-1,
+   Bedrock means `bedrock-runtime.eu-north-1.amazonaws.com` with the EU cross-region inference profile
+   `eu.anthropic.claude-haiku-5-5` (`config/modelpriser.json`; requests from eu-north-1 stay within eu-central-1, eu-north-1, eu-south-1,
    eu-south-2, eu-west-1, eu-west-3). The IAM user behind `SKY_AWS_ACCESS_KEY_ID` gets only this policy (ACCOUNT_ID = the
    AWS account):
 
@@ -241,7 +241,7 @@ each call (402 `kvote_brugt` with the reset date, the first of next UTC month).
      "Statement": [
        { "Sid": "Profil", "Effect": "Allow",
          "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:GetInferenceProfile"],
-         "Resource": "arn:aws:bedrock:eu-central-1:ACCOUNT_ID:inference-profile/eu.anthropic.claude-haiku-5-5" },
+         "Resource": "arn:aws:bedrock:eu-north-1:ACCOUNT_ID:inference-profile/eu.anthropic.claude-haiku-5-5" },
        { "Sid": "ModelViaProfil", "Effect": "Allow",
          "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
          "Resource": [
@@ -252,7 +252,7 @@ each call (402 `kvote_brugt` with the reset date, the first of next UTC month).
            "arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-haiku-5-5",
            "arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-haiku-5-5"
          ],
-         "Condition": { "StringEquals": { "bedrock:InferenceProfileArn": "arn:aws:bedrock:eu-central-1:ACCOUNT_ID:inference-profile/eu.anthropic.claude-haiku-5-5" } } }
+         "Condition": { "StringEquals": { "bedrock:InferenceProfileArn": "arn:aws:bedrock:eu-north-1:ACCOUNT_ID:inference-profile/eu.anthropic.claude-haiku-5-5" } } }
      ]
    }
    ```

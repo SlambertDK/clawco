@@ -182,8 +182,8 @@ test('v1.2 (AWS added, KC-0266) replaces v1.1 and v1.0; the published earlier ve
   const alle = laesDokumenter(DOCS);
   for (const sprog of ['da', 'en'] as const) {
     const dok = alle.find((x) => x.id === 'underdatabehandlere' && x.sprog === sprog)!;
-    assert.equal(dok.meta.version, '1.2');
-    assert.deepEqual(dok.tidligere.map((t) => t.meta.version).sort(), ['1.0', '1.1']);
+    assert.equal(dok.meta.version, '1.3');
+    assert.deepEqual(dok.tidligere.map((t) => t.meta.version).sort(), ['1.0', '1.1', '1.2']);
     for (const t of dok.tidligere) assert.equal(t.meta.status, 'udgivet');
     const v10 = dok.tidligere.find((t) => t.meta.version === '1.0')!;
     assert.match(v10.raa, /\[dato\]|\[date\]/, 'the archive keeps the text as it was published');
@@ -309,7 +309,7 @@ const UDGAAENDE: Record<string, { til: 'underdatabehandler' | 'behandling' | 'in
   // KC-0264: the included model's providers. 'planlagt' = Sky can call them only once they are listed here (the runtime gate
   // juridiskGodkendt in that file keeps the proxy at 503 until then); KC-0266 lists them and turns this line into 'underdatabehandler'.
   // KC-0266: the included model runs on Bedrock (AWS, EU); Anthropic direct stays unlisted and its gate refuses it.
-  'model/udbyder.ts': { til: 'underdatabehandler', id: 'aws', vaerter: ['bedrock-runtime.eu-central-1.amazonaws.com'] },
+  'model/udbyder.ts': { til: 'underdatabehandler', id: 'aws', vaerter: ['bedrock-runtime.eu-north-1.amazonaws.com'] },
 };
 
 /** The hosts the model proxy's providers live on (config/modelpriser.json, {region} filled in). */

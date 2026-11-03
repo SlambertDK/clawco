@@ -43,13 +43,20 @@ test('the sha file holds sha256 of what the app wrote', async () => {
   assert.equal(sha, createHash('sha256').update(MD).digest('hex'));
 });
 
-test('a hand edit after an app write is noticed, informational only', async () => {
+test('a hand edit after an app write is noticed (KC-0270: it grants nothing until the owner approves it)', async () => {
   const l = ny();
   await l.skrivTekst(MD);
-  await writeFile(l.fil, MD.replace('Sortér mail', 'Sortér al mail'), 'utf8');
+  const ny_md = MD.replace('Sortér mail', 'Sortér al mail');
+  await writeFile(l.fil, ny_md, 'utf8');
   const r = await l.laes();
-  assert.equal(r.tilstand, 'ok', 'still followed');
+  assert.equal(r.tilstand, 'ok', 'still read, so the owner can see what changed');
   assert.ok(r.tilstand === 'ok' && r.aendretUdenfor === true);
+  assert.ok(r.tilstand === 'ok' && r.sha === createHash('sha256').update(ny_md).digest('hex'), 'the hash of what is shown');
+  assert.equal(await l.godkend(createHash('sha256').update(MD).digest('hex')), false, 'an approval of other content does not count');
+  assert.ok((await l.laes()).tilstand === 'ok' && (await l.laes() as { aendretUdenfor: boolean }).aendretUdenfor);
+  assert.equal(await l.godkend(r.tilstand === 'ok' ? r.sha! : ''), true);
+  const efter = await l.laes();
+  assert.ok(efter.tilstand === 'ok' && efter.aendretUdenfor === false, 'approved: the rules count again');
 });
 
 test('a file Henrik made by hand (no sha yet) is not flagged', async () => {

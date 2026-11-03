@@ -2,16 +2,20 @@
 // covered Hetzner line — a disabled driver never provisions. The real driver waits for the revenue trigger (KC-0182).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { hetznerFlaade, HetznerSlukket } from '../../src/fleet/hetzner.ts';
 import { flaadeAfvikler } from '../../src/fleet/afvikler.ts';
 import { ingenKryptering } from '../../src/fleet/kryptering.ts';
-import { laesOmkostninger, validerOmkostninger } from '../../src/delt/omkostninger.ts';
+import { laesOmkostninger, validerOmkostninger, OMKOSTNINGSFIL } from '../../src/delt/omkostninger.ts';
 import { bestil, hentTenant, laase } from '../../src/fleet/tilstand.ts';
 import { falskNoegler, opsaet } from './hjaelp.ts';
 
 const taendt = validerOmkostninger({ ressourcer: { 'hetzner-node-1': { navn: 'H', maanedlig: 5600, aktiv: true, kilde: 'k', laest: '2026-10-31', udloeser: { mrrGange: 2 } } } });
 
-test('on the real ledger (Hetzner off, no customers) every call refuses with HetznerSlukket', async () => {
+/** KC-0276: the ledger is private (config/omkostninger.json is left out of the public mirror); tests of the real file skip there. */
+const LEDGER_MANGLER = fs.existsSync(OMKOSTNINGSFIL) ? false : 'the ledger is not in the public mirror (KC-0276)';
+
+test('on the real ledger (Hetzner off, no customers) every call refuses with HetznerSlukket', { skip: LEDGER_MANGLER }, async () => {
   const f = hetznerFlaade({ omkostninger: () => laesOmkostninger(), mrr: () => 0 });
   assert.equal(f.navn, 'hetzner');
   await assert.rejects(f.klargoer({ id: 'a1', ejer: 'a@example.test' }), HetznerSlukket);
@@ -31,7 +35,7 @@ test('switched on and covered: refuses as not built yet (KC-0182), never pretend
   await assert.rejects(f.klargoer({ id: 'a1', ejer: 'a@example.test' }), (e: Error) => !(e instanceof HetznerSlukket) && /KC-0182/.test(e.message));
 });
 
-test('the fleet-backed TenantAfvikler on a disabled Hetzner fleet keeps the error and never marks the tenant deleted', async () => {
+test('the fleet-backed TenantAfvikler on a disabled Hetzner fleet keeps the error and never marks the tenant deleted', { skip: LEDGER_MANGLER }, async () => {
   const o = await opsaet();
   const { slug } = await bestil(o.db, { kontoId: o.kontoId, driver: 'hetzner', nu: o.ur.nu() });
   const f = hetznerFlaade({ omkostninger: () => laesOmkostninger(), mrr: () => 0 });

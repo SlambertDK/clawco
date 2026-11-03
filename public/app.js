@@ -634,7 +634,11 @@
     var kortId = kortEl ? kortEl.getAttribute('data-kort-id') : raekkeEl ? raekkeEl.getAttribute('data-regnskab-id') : '';
     var base = kortId ? '/api/rum/hjem/kort/' + encodeURIComponent(kortId) : '';
     if (btn.dataset.kortHandling) {
-      kortPost(btn, '/api/rum/hjem/kort/' + encodeURIComponent(btn.dataset.kortHandling) + '/handling', {}, btn.textContent.trim());
+      // KC-0270: a red card handling first fetches a yes bound to this card and the content it showed.
+      var kortUrl = '/api/rum/hjem/kort/' + encodeURIComponent(btn.dataset.kortHandling) + '/handling';
+      medJa({}, btn.hasAttribute('data-kraever-ja') ? { rum: 'hjem', slags: 'kort', id: btn.dataset.kortHandling, indhold: btn.dataset.indhold } : null)
+        .then(function (p) { kortPost(btn, kortUrl, p, btn.textContent.trim()); })
+        .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); });
       return true;
     }
     if (btn.dataset.ccKort) {
@@ -689,7 +693,11 @@
       return true;
     }
     if (btn.dataset.hjemFortryd) {
-      kortPost(btn, '/api/rum/hjem/fortryd/' + encodeURIComponent(btn.dataset.hjemFortryd), {}, tk('fortryder'), tk('fortrudt'));
+      // KC-0270: a red Fortryd (its text sends or deletes) first fetches a yes bound to that text.
+      var fortrydUrl = '/api/rum/hjem/fortryd/' + encodeURIComponent(btn.dataset.hjemFortryd);
+      medJa({}, btn.hasAttribute('data-kraever-ja') ? { rum: 'hjem', slags: 'kort', id: btn.dataset.hjemFortryd, indhold: btn.dataset.indhold } : null)
+        .then(function (p) { kortPost(btn, fortrydUrl, p, tk('fortryder'), tk('fortrudt')); })
+        .catch(function (err) { toast(tk('fejl') + fejlTekst(err), true); });
       return true;
     }
     if (btn.dataset.kopier !== undefined) {
@@ -863,13 +871,13 @@
           btn.disabled = true;
           setBusy(elementOf(btn), btn.textContent.trim() + ' …');
           var foerH = fortrydIder(), navnH = btn.textContent.trim();
-          start('/api/rum/' + roomId + '/handlinger/' + encodeURIComponent(btn.dataset.handling), {}, { ja: btn.hasAttribute('data-kraever-ja') ? { rum: roomId, slags: 'handling', id: btn.dataset.handling } : null, startText: navnH + ' …', onDone: function (d) { if (d) tilbydFortryd(foerH, navnH + tk('udfoert')); } });
+          start('/api/rum/' + roomId + '/handlinger/' + encodeURIComponent(btn.dataset.handling), {}, { ja: btn.hasAttribute('data-kraever-ja') ? { rum: roomId, slags: 'handling', id: btn.dataset.handling, indhold: btn.dataset.indhold } : null, startText: navnH + ' …', onDone: function (d) { if (d) tilbydFortryd(foerH, navnH + tk('udfoert')); } });
           return;
         }
         if (btn.dataset.fortryd) {
           btn.disabled = true;
           setBusy(btn.closest('.log-row'), tk('fortryder') + ' …');
-          start('/api/rum/' + roomId + '/log/' + encodeURIComponent(btn.dataset.fortryd) + '/fortryd', {}, { startText: tk('fortryder') + ' …' });
+          start('/api/rum/' + roomId + '/log/' + encodeURIComponent(btn.dataset.fortryd) + '/fortryd', {}, { ja: btn.hasAttribute('data-kraever-ja') ? { rum: roomId, slags: 'fortryd', id: btn.dataset.fortryd, indhold: btn.dataset.indhold } : null, startText: tk('fortryder') + ' …' });
           return;
         }
         if (btn.dataset.opdater) {

@@ -55,10 +55,11 @@
 <li data-i="dk.holds.4">Keys you paste in Start are saved encrypted in /data. The key that opens them is in a volume of its own, clawco-noegle at /noegle, so a copy of /data never carries it.</li>
 </ul>
 <h2 data-i="dk.backup.h">Backup</h2>
-<p data-i="dk.backup.p">A backup is a copy of the data volume:</p>
-<pre><code>docker run --rm -v clawco_clawco-data:/data -v "$PWD":/ud busybox tar czf /ud/clawco-data.tgz -C /data .</code></pre>
+<p data-i="dk.backup.p">A backup is a copy of the data volume. The file is written into a folder only you can open, and it must not be kept inside the repository clone:</p>
+<pre><code>mkdir -p -m 700 "$HOME/Clawco-backups"
+(umask 077 &amp;&amp; docker run --rm -v clawco_clawco-data:/data:ro busybox tar czf - -C /data . &gt; "$HOME/Clawco-backups/clawco-data.tgz")</code></pre>
 <p data-i="dk.backup.p2">Copy the key volume too, and treat it like a password; the data volume alone cannot open your saved model key:</p>
-<pre><code>docker run --rm -v clawco_clawco-noegle:/noegle -v "$PWD":/ud busybox tar czf /ud/clawco-noegle.tgz -C /noegle .</code></pre>
+<pre><code>(umask 077 &amp;&amp; docker run --rm -v clawco_clawco-noegle:/noegle:ro busybox tar czf - -C /noegle . &gt; "$HOME/Clawco-backups/clawco-noegle.tgz")</code></pre>
 <h2 data-i="dk.update.h">Update</h2>
 <p data-i="dk.update.p">If you built the image from a copy of the source, update the copy first, then rebuild. Your data lives in the volume and is not touched.</p>
 <pre><code>GIT_SHA=$(git rev-parse --short HEAD) docker compose up -d --build</code></pre>

@@ -108,7 +108,7 @@ test('the two foreign cloudflared units are never named outside the guard list',
   }
 });
 
-test('the sudoers drop-in parses (visudo -cf) and grants nothing that opens a pager as root', { skip: !fs.existsSync('/usr/sbin/visudo') && !fs.existsSync('/usr/bin/visudo') }, () => {
+test('the sudoers drop-in parses (visudo -cf), grants nothing that opens a pager as root and acts as sky only through three fixed scripts', { skip: !fs.existsSync('/usr/sbin/visudo') && !fs.existsSync('/usr/bin/visudo') }, () => {
   const tekst = bash([ROOT_SCRIPT, '--sudoers']).stdout;
   const dir = tmp();
   try {
@@ -121,7 +121,20 @@ test('the sudoers drop-in parses (visudo -cf) and grants nothing that opens a pa
   const rod = tekst.split('\n').filter((l) => /\(root\)/.test(l));
   assert.equal(rod.length, 2);
   for (const l of rod) assert.ok(!/journalctl|systemctl status|less|ALL$/.test(l), l);
-  assert.match(tekst, /^henrik ALL=\(sky\) NOPASSWD: ALL$/m);
+  // KC-0276: henrik acts as sky only through three fixed scripts of sky's checkout, never "ALL" or a shell.
+  const sky = tekst.split('\n').filter((l) => /^henrik ALL=\(sky\)/.test(l));
+  assert.equal(sky.length, 1);
+  assert.ok(!/NOPASSWD:\s*ALL\b/.test(sky[0]!), sky[0]);
+  const regler = sky[0]!.replace(/^[^:]*NOPASSWD:\s*/, '').split(/,\s*(?=\/)/);
+  assert.equal(regler.length, 5);
+  for (const r of regler) assert.match(r, /^\/usr\/bin\/bash \/srv\/sky\/kontrolcenter\/sky\/deploy\/(deploy|saet-env|masternoegle)\.sh /, r);
+  assert.ok(!/bash -c/.test(sky[0]!), 'no shell text as sky');
+  // Every script the sudoers line names exists in this checkout, and what the two Mac-side scripts call is on the list.
+  for (const m of sky[0]!.matchAll(/\/srv\/sky\/kontrolcenter\/(sky\/deploy\/[a-z-]+\.sh)/g)) assert.ok(fs.existsSync(path.join(skyRod, '..', m[1]!)), m[1]);
+  const kald = (f: string) => fs.readFileSync(path.join(skyRod, 'scripts', f), 'utf8').match(/sudo -n -u sky (\/usr\/bin\/bash \/srv\/sky\/kontrolcenter\/sky\/deploy\/[a-z-]+\.sh)/)?.[1];
+  assert.ok(kald('saet-hemmelighed.sh') && sky[0]!.includes(kald('saet-hemmelighed.sh')!));
+  assert.ok(kald('ny-masternoegle.sh') && sky[0]!.includes(kald('ny-masternoegle.sh')!));
+  assert.ok(sky[0]!.includes('/usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/deploy.sh ""'));
 });
 
 test('the tunnel unit runs as sky and reads its token from a file, never from a command line or the environment', () => {
@@ -180,8 +193,9 @@ export function listSecrets(id) { if (id !== 'p1') throw new Error('forkert id')
   fs.writeFileSync(ssh, `#!/usr/bin/env bash
 printf '%s\\n' "$@" > ${JSON.stringify(argvFil)}
 cmd="\${@: -1}"
-cmd="\${cmd//\\/srv\\/sky\\/.env/${envFil.replace(/\//g, '\\/')}}"
-cmd="\${cmd/sudo -n -u sky /}"
+# KC-0276: the host command is now "sudo -n -u sky /usr/bin/bash /srv/sky/kontrolcenter/<script> <arg>"; run the
+# same script from this checkout against the temp .env (SKY_ENV_FIL, which sudo's env_reset would drop for real).
+cmd="\${cmd/sudo -n -u sky \\/usr\\/bin\\/bash \\/srv\\/sky\\/kontrolcenter\\//SKY_ENV_FIL=${envFil} bash ${path.dirname(skyRod)}/}"
 bash -c "$cmd"
 `, { mode: 0o755 });
   return { env: { SKY_BWS_DIR: bws, SKY_SSH_CMD: ssh, SKY_NODE: process.execPath, SKY_SSH_KEY: '/dev/null' }, envFil, argvFil };
@@ -219,5 +233,26 @@ test('saet-hemmelighed.sh refuses a non-SKY_ name and an unknown key, and writes
     assert.notEqual(ukendt.status, 0);
     assert.equal(fs.readFileSync(v.envFil, 'utf8'), 'SKY_PORT=8781\n');
     assert.ok(!fs.existsSync(v.argvFil), 'ssh was never called');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('deploy.sh installs with --ignore-scripts and a private log file (KC-0276)', () => {
+  const k = laes('deploy.sh');
+  assert.match(k, /npm ci --omit=dev --ignore-scripts /);
+  assert.ok(!k.includes('/tmp/sky-npm.log'));
+});
+
+test('the sky-side wrappers refuse a bad name or mode and need no shell text from the caller (KC-0276)', () => {
+  const dir = tmp();
+  try {
+    const env = path.join(dir, '.env');
+    fs.writeFileSync(env, 'SKY_PORT=8781\n');
+    const e = { SKY_ENV_FIL: env };
+    assert.equal(bash([path.join(deploy, 'saet-env.sh'), 'RESEND_KEY'], { env: e, input: 'x\n' }).status, 2);
+    assert.equal(bash([path.join(deploy, 'saet-env.sh'), 'SKY_X; id'], { env: e, input: 'x\n' }).status, 2);
+    assert.equal(bash([path.join(deploy, 'saet-env.sh'), 'SKY_X'], { env: e, input: '' }).status, 2, 'an empty value writes nothing');
+    assert.equal(bash([path.join(deploy, 'masternoegle.sh'), '--noget'], { env: e }).status, 2);
+    assert.equal(bash([path.join(deploy, 'masternoegle.sh')], { env: e }).status, 2);
+    assert.equal(fs.readFileSync(env, 'utf8'), 'SKY_PORT=8781\n');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

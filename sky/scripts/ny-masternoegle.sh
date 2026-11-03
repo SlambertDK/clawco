@@ -22,24 +22,7 @@ case "$mode" in
   *) echo "brug: ny-masternoegle.sh [--roter | --afslut]"; exit 2 ;;
 esac
 
-# Runs on the host as sky. No single quotes inside (it is wrapped in them); $1 is the validated mode.
-remote='set -eu; f=/srv/sky/.env; umask 077; touch "$f"
-laes() { grep -E "^$1=" "$f" | tail -1 | cut -d= -f2- || true; }
-nu="$(laes SKY_MASTERNOEGLE)"; ver="$(laes SKY_MASTERNOEGLE_VERSION)"; ver="${ver:-1}"; forrige="$(laes SKY_MASTERNOEGLE_FORRIGE)"
-case "$1" in
-  ny) [ -z "$nu" ] || { echo "SKY_MASTERNOEGLE findes allerede i $f — intet ændret (en ny nøgle ville gøre alle kunders nøgler ulæselige; skift den med --roter)" >&2; exit 3; }
-      ny="$(head -c 32 /dev/urandom | base64 | tr -d "\n")"; nyver=1; nyforrige="" ;;
-  --roter) [ -n "$nu" ] || { echo "der er ingen SKY_MASTERNOEGLE at rotere" >&2; exit 3; }
-      [ -z "$forrige" ] || { echo "en rotation er ikke afsluttet (SKY_MASTERNOEGLE_FORRIGE findes): kør roter-masternoegle.ts, derefter --afslut" >&2; exit 3; }
-      ny="$(head -c 32 /dev/urandom | base64 | tr -d "\n")"; nyver=$((ver + 1)); nyforrige="$nu" ;;
-  --afslut) [ -n "$forrige" ] || { echo "ingen rotation i gang (SKY_MASTERNOEGLE_FORRIGE findes ikke)" >&2; exit 3; }
-      ny="$nu"; nyver="$ver"; nyforrige="" ;;
-esac
-tmp="$(mktemp "$f.XXXXXX")"
-grep -vE "^SKY_MASTERNOEGLE(_VERSION|_FORRIGE)?=" "$f" > "$tmp" || true
-printf "SKY_MASTERNOEGLE=%s\nSKY_MASTERNOEGLE_VERSION=%s\n" "$ny" "$nyver" >> "$tmp"
-[ -z "$nyforrige" ] || printf "SKY_MASTERNOEGLE_FORRIGE=%s\n" "$nyforrige" >> "$tmp"
-chmod 600 "$tmp"; mv -f "$tmp" "$f"
-echo "SKY_MASTERNOEGLE sat i $f (længde ${#ny}, version $nyver)${nyforrige:+; SKY_MASTERNOEGLE_FORRIGE beholdt (længde ${#nyforrige})}"'
-"$ssh_cmd" -i "$keyfile" "$host" "sudo -n -u sky bash -c '$remote' _ $mode" < /dev/null
+# Runs on the host as sky: the fixed script from the checkout (KC-0276; the sudoers drop-in names exactly
+# this path and these three modes, not `bash -c`). The script is in sky/deploy/masternoegle.sh.
+"$ssh_cmd" -i "$keyfile" "$host" "sudo -n -u sky /usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/masternoegle.sh $mode" < /dev/null
 echo "Genstart Sky for at bruge den: ssh kira-home 'sudo systemctl restart sky'"

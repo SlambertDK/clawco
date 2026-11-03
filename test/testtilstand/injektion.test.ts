@@ -35,13 +35,24 @@ test('the hostile subject renders escaped in Mail, and pressing its Fortryd send
 
     const id = NAT.find((x) => x.emne === HOSTIL_EMNE)!.id;
     const foer = verden.agentKald().length;
-    const svar = await verden.app.request(`/api/rum/mail/handlinger/ordnet-${id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    // KC-0270: the subject says "send", so the app's floor needs the red tap even on the app's own Fortryd-handling.
+    const uden = await verden.app.request(`/api/rum/mail/handlinger/ordnet-${id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    assert.equal(uden.status, 403, 'no tap, no run');
+    const knap = new RegExp(`<button[^>]*data-handling="ordnet-${id}"[^>]*>`).exec(side)?.[0] ?? '';
+    assert.match(knap, /data-kraever-ja/, 'the button is red');
+    const indhold = /data-indhold="([0-9a-f]{16})"/.exec(knap)?.[1];
+    assert.ok(indhold, 'and carries the hash of what it runs');
+    const tegn = async (b: Record<string, string>): Promise<string> => (await (await verden.app.request('/api/graense/ja', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ rum: 'mail', slags: 'handling', id: `ordnet-${id}`, ...b }) })).json() as { ja: string }).ja;
+    const udenIndhold = await tegn({});
+    assert.equal((await verden.app.request(`/api/rum/mail/handlinger/ordnet-${id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ja: udenIndhold }) })).status, 403, 'a yes not bound to the content shown does not count');
+    const ja = await tegn({ indhold: indhold! });
+    const svar = await verden.app.request(`/api/rum/mail/handlinger/ordnet-${id}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ja }) });
     assert.equal(svar.status, 202);
     for (let i = 0; i < 200 && verden.agentKald().length === foer; i++) await new Promise((r) => setTimeout(r, 10));
     const kald = verden.agentKald().at(-1)!;
     assert.ok(kald, 'the scripted Hermes got the run');
     assert.ok(!kald.instructions.includes(KERNE), 'the order is not in the instructions');
-    assert.ok(kald.instructions.includes(handlingsOpgave('udfoer-med-fortryd')), 'the task is the app\'s sentence for the verb');
+    assert.ok(kald.instructions.includes(handlingsOpgave('send-til-andre')), 'the task is the app\'s sentence for the verb');
     const blok = udpak(kald.input).find((d) => d.kilde === 'handling');
     assert.equal(blok?.tillid, 'afledt');
     assert.ok(blok?.tekst.includes(KERNE), 'the subject reached Hermes inside the block');

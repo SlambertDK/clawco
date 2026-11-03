@@ -12,7 +12,7 @@ import type { Person } from '../../identitet/husstand.ts';
 import { findProjekt } from '../../udvikling/projekter.ts';
 import type { ProjektTal } from '../../udvikling/opgaver.ts';
 import { billede, ikon, mere, visHoved, type IkonNavn } from '../../shell/visuel.ts';
-import { baand, handlinger, igangGruppe, knap, medId, unikIder, spoerg, tilstandChip, type Element, type Gruppe, type IgangRaekke, type Knap, type OrdnetGruppe, type Tilstand } from '../../shell/sprog.ts';
+import { agentKnap, baand, fortrydKnap, handlinger, igangGruppe, knap, medId, unikIder, spoerg, tilstandChip, type Element, type Gruppe, type IgangRaekke, type Knap, type OrdnetGruppe, type Tilstand } from '../../shell/sprog.ts';
 import { dagensLog } from '../../shell/log.ts';
 import { naesteLinje, type Naeste } from '../../shell/naeste.ts';
 import { SITUATIONER, type Situation } from '../../situation/regler.ts';
@@ -28,6 +28,8 @@ import { POST_GRUPPE, postElementer, type PostVisning } from './digitalpost.ts';
 import { AULA_GRUPPE, aulaElementer, type AulaVisning } from './aula.ts';
 import { hjemTekst, intetHvorfor } from './tekster.ts';
 import { tekst } from '../../shell/tekster.ts';
+import { agentGulv } from '../../graenser/verber.ts';
+import { agentFortrydNu } from '../../kurator/senere.ts';
 
 export const CANVAS_URL = 'https://claude.ai/artifact/UETuFBpsk39GAAXUFprqyD';
 
@@ -166,7 +168,8 @@ function kortKasse(k: Kort, gjort: Set<string>, stor = false, senere?: { aften: 
     ${stor ? '' : anbefaling}
     ${k.grundlag.length ? html`<ul class="lines">${k.grundlag.map((g) => html`<li>${g}</li>`)}</ul>` : ''}${k.kilder.length ? html`<p class="row-note">${t.kilder}${k.kilder.map((x, i) => html`${i ? ' · ' : ''}${kilde(x)}`)}</p>` : ''}`;
   // KC-0064: at most one primary — the handling, else writing the bill, else Send til Claude Code.
-  const handlingKnap = k.handling && !gjort.has(k.handling.id) ? knap({ label: k.handling.label, slags: 'primaer', attrs: { 'data-kort-handling': k.id } }) : undefined;
+  // KC-0270: the card's handling is Hermes' free text; its verb is the app's floor from that text (red when it needs a yes).
+  const handlingKnap = k.handling && !gjort.has(k.handling.id) ? agentKnap({ h: k.handling, verb: agentGulv(k.handling), slags: 'primaer', attrs: { 'data-kort-handling': k.id } }) : undefined;
   // KC-0066: a bill whose line is not in a ledger (Henrik undid it) can be written again, to the ledger the line names.
   const skrivKnap = k.regnskab && !k.skrevet && !k.regnskabUklart ? knap({ label: t.skrivI(t.hvorKnap[k.regnskab.hvor]), slags: handlingKnap ? 'normal' : 'primaer', attrs: { 'data-regnskab': k.regnskab.hvor, ...(skrivIgen?.has(k.id) ? { 'data-regnskab-igen': '' } : {}) } }) : undefined;
   const ccKnap = udvikling ? knap({ label: t.sendTilClaude(udvikling.navn), slags: handlingKnap || skrivKnap ? 'normal' : 'primaer', attrs: { 'data-cc-kort': k.id, 'data-cc-titel': k.titel, 'data-cc-projekt': udvikling.id, 'data-cc-projekt-navn': udvikling.navn } }) : undefined;
@@ -243,7 +246,7 @@ function logRaekke(h: HjemData['hermes'][number], now: Date): Markup {
   const regnskabsraekke = Boolean(h.handlingId?.startsWith('regnskab:'));
   const gammel = now.getTime() - new Date(h.tid).getTime() > FORTRYD_TIMER * 3600_000;
   const kan = Boolean(h.id) && !fortrudt && (regnskabsraekke || (Boolean(h.fortryd) && !gammel));
-  return html`<div class="row log-row${fortrudt ? ' log-undone' : ''}"${h.id ? html` data-log="${h.id}"` : ''}${zoneData(h)}${h.graense ? html` data-graense="${h.graense}"` : ''}><span class="mono time">${klokke(h.tid)}</span><span class="row-main"><span class="row-title">${h.tekst}</span>${fortrudt ? html`<span class="row-note">${t.fortrudtKl(klokke(h.fortrudt ?? ''))}</span>` : ''}</span>${kan ? html`<button type="button" class="btn btn-ghost" data-hjem-fortryd="${h.id}">${t.fortryd}</button>` : ''}</div>`;
+  return html`<div class="row log-row${fortrudt ? ' log-undone' : ''}"${h.id ? html` data-log="${h.id}"` : ''}${zoneData(h)}${h.graense ? html` data-graense="${h.graense}"` : ''}><span class="mono time">${klokke(h.tid)}</span><span class="row-main"><span class="row-title">${h.tekst}</span>${fortrudt ? html`<span class="row-note">${t.fortrudtKl(klokke(h.fortrudt ?? ''))}</span>` : ''}</span>${kan && h.id ? fortrydKnap({ id: h.id, fortryd: agentFortrydNu(h) ?? undefined, label: t.fortryd, attr: 'data-hjem-fortryd' }) : ''}</div>`;
 }
 
 /** What waits on Henrik in Hjem itself: Claude Code's questions and parked opgaver, and Kuratoren's open cards. */

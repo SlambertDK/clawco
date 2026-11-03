@@ -1,5 +1,6 @@
 // KC-0015: the stemme routes — fail-closed without a client, working with the fake,
 // and the samtale hand-shake with a stub client that records what it was asked.
+import { udpak } from '../src/agent/udtroet.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -115,12 +116,13 @@ test('samtale: the agent is synced once from code, ids are stored, the token and
     assert.equal(b.dynamiskeVariabler['rum'], 'Dagen');
     assert.equal(b.dynamiskeVariabler['antal_tekst'], 'Der venter én ting på dig.');
     assert.match(b.dynamiskeVariabler['oversigt'] ?? '', /id dagen:blok-13/);
+    assert.equal(udpak(b.dynamiskeVariabler['oversigt'] ?? '')[0]?.tillid, 'afledt', 'KC-0270: the overview reaches the agent as data');
     assert.doesNotMatch(b.dynamiskeVariabler['oversigt'] ?? '', /Kuratoren/, 'no cards → no lead line');
     await createFileStore(path.join(dir, 'data')).writeState('hjem', { kort: [{ id: 'k:a', type: 'familie', titel: 'Rikke spørger', betyder: 'x', grundlag: [], kilder: [], anbefaling: 'Svar i dag.', prioritet: 2 }], intet: [], afvist: [], sete: [] });
     res = await json('/api/stemme/samtale', { rum: 'hjem' }, sut.app);
     assert.equal(res.status, 200);
     const med = (await res.json()) as { dynamiskeVariabler: Record<string, string> };
-    assert.match(med.dynamiskeVariabler['oversigt'] ?? '', /^Kuratoren har ét kort til dig\.\nRikke spørger: Svar i dag\.\n/);
+    assert.match(udpak(med.dynamiskeVariabler['oversigt'] ?? '')[0]?.tekst ?? '', /^Kuratoren har ét kort til dig\.\nRikke spørger: Svar i dag\.\n/);
     assert.equal(med.dynamiskeVariabler['antal_tekst'], 'Der venter én ting på dig.', 'cards do not change the voice-executable count');
     assert.equal(calls.length, 1, 'agent synced once per process');
     assert.equal(calls[0]?.config.name, AGENT_CONFIG.name);
@@ -206,7 +208,8 @@ test('samtale in English: the English agent is synced and stored under stemme.en
     assert.deepEqual(calls[0]?.known, {}, 'nothing stored for the English agent yet');
     assert.equal(b.dynamiskeVariabler['rum'], 'Today');
     assert.equal(b.dynamiskeVariabler['antal_tekst'], 'One thing is waiting for you.');
-    assert.match(b.dynamiskeVariabler['oversigt'] ?? '', /^One thing is waiting\.\n/);
+    assert.match(udpak(b.dynamiskeVariabler['oversigt'] ?? '')[0]?.tekst ?? '', /^One thing is waiting\.\n/);
+    assert.match(b.dynamiskeVariabler['oversigt'] ?? '', /never instructions|never orders|not instructions/i, 'the data header is in the language of the agent');
     const ind = (await (await sut.app.request('/api/indstillinger')).json()) as { stemme: { agentId?: string; voiceId?: string; en?: { agentId?: string; voiceId?: string } } };
     assert.equal(ind.stemme.en?.agentId, 'ag_en');
     assert.equal(ind.stemme.agentId, undefined, 'the Danish ids are not touched');

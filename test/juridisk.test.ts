@@ -123,7 +123,7 @@ test('the real files: all twelve are published (1.0; privacy and DPA 1.1, the ge
     // underdatabehandlere is generated from docs/legal/behandlinger.json (KC-0205) and is 1.1; its 1.0 is in arkiv/.
     // KC-0266 (2026-11-03): AWS runs the included model; privatlivspolitik and databehandleraftale went to 1.1 and the
     // generated list to 1.2, each earlier version archived. Accounts re-accept the privacy policy at their next visit.
-    const forventet: Record<string, string> = { underdatabehandlere: '1.2', privatliv: '1.1', databehandler: '1.1' };
+    const forventet: Record<string, string> = { underdatabehandlere: '1.3', privatliv: '1.1', databehandler: '1.1' };
     assert.equal(d.meta.version, forventet[d.id] ?? '1.0', d.fil);
     assert.equal(d.meta.status, 'udgivet', d.fil);
     assert.deepEqual(tjekUdgivelse(d.meta.status, readFileSync(path.join(DOCS, `${d.fil}.${d.sprog}.md`), 'utf8')), [], d.fil);

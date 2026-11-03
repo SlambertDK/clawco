@@ -243,8 +243,8 @@ test('KC-0066: a handling marked tilAndre renders as the red graense button, in 
     kalender: [{ tid: '14.30', titel: 'Leverandørvalg', handling: { id: 'kal-dags', label: 'Send dagsorden', instruktion: 'i', tilAndre: true } }, state.kalender[0]!],
   };
   const out = String(renderDagen(s, [], new Date('2026-10-26T07:00:00Z')));
-  assert.match(out, /<button type="button" class="btn btn-graense" data-handling="anb-dags" data-kraever-ja data-graense="kraever-ja">Send dagsorden<\/button>/);
-  assert.match(out, /<button type="button" class="btn btn-graense" data-handling="kal-dags" data-kraever-ja data-graense="kraever-ja">Send dagsorden<\/button>/);
+  assert.match(out, /<button type="button" class="btn btn-graense" data-handling="anb-dags" data-indhold="[0-9a-f]{16}" data-kraever-ja data-graense="kraever-ja">Send dagsorden<\/button>/);
+  assert.match(out, /<button type="button" class="btn btn-graense" data-handling="kal-dags" data-indhold="[0-9a-f]{16}" data-kraever-ja data-graense="kraever-ja">Send dagsorden<\/button>/);
   assert.match(out, /<button type="button" class="btn" data-handling="kal-1-forbered">Forbered<\/button>/, 'an ordinary handling stays ordinary');
   assert.doesNotMatch(out, /btn-primary[^>]*data-handling="(anb|kal)-dags"/);
 });

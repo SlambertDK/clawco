@@ -65,6 +65,7 @@ function daekker(r: Regel, g: Gaelder): boolean {
 /** The highest active rule covering `g` (the first in the file on a tie); none when the file is missing or unreadable. */
 function hoejeste(regler: ReglerLaest | undefined, g: Gaelder): Regel | undefined {
   if (regler?.tilstand !== 'ok') return undefined; // fail closed: no file or a broken one grants nothing
+  if (regler.aendretUdenfor) return undefined; // KC-0270 (B3): changed outside Clawco, not yet approved by the owner
   let bedst: Regel | undefined;
   for (const r of regler.saet.regler) if (r.status === 'aktiv' && daekker(r, g) && (!bedst || r.trin > bedst.trin)) bedst = r;
   return bedst;
@@ -78,7 +79,7 @@ export function tilladtAfRegler(regler: ReglerLaest | undefined, h: RegelHandlin
   return h.kraevetTrin <= r.trin ? { tilladt: true, regelId: r.id } : { tilladt: false, aarsag: 'for-lavt-trin' };
 }
 
-/** The highest trin the app may propose for a rule on `gaelder` (KC-0144): one above what Hermes has there now, 1–4. Hand-edited rules have no cap. */
+/** The highest trin the app may propose for a rule on `gaelder` (KC-0144): one above what Hermes has there now, 1–4. Hand-edited rules (once approved, KC-0270) have no cap. */
 export function maksTrinForForslag(regler: ReglerLaest | undefined, gaelder: Gaelder): Trin {
   const nu = hoejeste(regler, gaelder)?.trin ?? 0;
   return Math.min(4, Math.max(1, nu + 1)) as Trin;

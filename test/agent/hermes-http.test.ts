@@ -294,3 +294,42 @@ test('run passes model and provider to POST /v1/runs when given', async () => {
   await h.run({ input: 'i', instructions: 's' });
   assert.equal('model' in body, false);
 });
+
+// KC-0270 (B2): when the detective control (or the kill switch) aborts a run, Hermes is told to stop it too —
+// POST /v1/runs/{id}/stop (hermes-agent api_server) — instead of only closing Clawco's side of the stream.
+test('an aborted run is stopped at Hermes with POST /v1/runs/{id}/stop', async () => {
+  const calls: Call[] = [];
+  const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input);
+    calls.push({ url, init });
+    if (init?.method === 'POST' && url.endsWith('/v1/runs')) return json({ run_id: 'run_9' }, 202);
+    if (init?.method === 'POST' && url.endsWith('/stop')) return json({ run_id: 'run_9', status: 'stopping' });
+    return new Response(new ReadableStream<Uint8Array>({ start(c) { init?.signal?.addEventListener('abort', () => c.error(new Error('aborted'))); } }), { status: 200 });
+  }) as typeof fetch;
+  const h = createHermesHttp({ baseUrl: 'http://h', apiKey: 'k', fetchImpl });
+  const stop = new AbortController();
+  const p = h.run({ ...REQ, signal: stop.signal });
+  for (let i = 0; i < 50 && !calls.some((c) => c.url.includes('/events')); i++) await new Promise((r) => setTimeout(r, 2));
+  stop.abort();
+  await assert.rejects(p, AgentError);
+  for (let i = 0; i < 50 && !calls.some((c) => c.url.endsWith('/stop')); i++) await new Promise((r) => setTimeout(r, 2));
+  const s = calls.find((c) => c.url === 'http://h/v1/runs/run_9/stop');
+  assert.ok(s, 'the stop call went out');
+  assert.equal(s.init?.method, 'POST');
+  assert.equal(new Headers(s.init?.headers).get('authorization'), 'Bearer k');
+});
+
+test('cancel(runId) is on the seam: http posts the stop, and a Hermes without it is logged once, never thrown', async () => {
+  const calls: string[] = [];
+  const fetchImpl = (async (input: string | URL | Request) => { calls.push(String(input)); return new Response('nej', { status: 404 }); }) as typeof fetch;
+  const h = createHermesHttp({ baseUrl: 'http://h', apiKey: 'k', fetchImpl });
+  const advarsler: string[] = [];
+  const warn = console.warn;
+  console.warn = (...a: unknown[]) => { advarsler.push(a.join(' ')); };
+  try {
+    await h.cancel!('run_x');
+    await h.cancel!('run_y');
+  } finally { console.warn = warn; }
+  assert.deepEqual(calls, ['http://h/v1/runs/run_x/stop', 'http://h/v1/runs/run_y/stop']);
+  assert.equal(advarsler.filter((a) => /cancel ikke understøttet af Hermes/.test(a)).length, 1);
+});

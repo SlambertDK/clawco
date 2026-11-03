@@ -42,9 +42,12 @@ esac
 sudoers_tekst() {
   cat <<EOF
 # Clawco Sky (KC-0212), installed by sky/deploy/opsaet-root.sh — rerun the script, never edit by hand.
-# $HENRIK (and the agent over ssh as $HENRIK) acts as the service user $SKY_USER without a password:
-# deploy.sh, saet-hemmelighed.sh writing $ENV_FIL, psql as the sky role.
-$HENRIK ALL=($SKY_USER) NOPASSWD: ALL
+# $HENRIK (and the agent over ssh as $HENRIK) may act as the service user $SKY_USER without a password
+# for exactly three fixed scripts in $SKY_USER's checkout (KC-0276; it was "ALL", which made a compromised
+# $HENRIK session equal to $SKY_USER and its secrets file): deploy.sh (no arguments), saet-env.sh (one SKY_*
+# name, the value on stdin; called by sky/scripts/saet-hemmelighed.sh) and masternoegle.sh (ny, --roter or
+# --afslut; called by sky/scripts/ny-masternoegle.sh). Anything else as $SKY_USER needs $HENRIK's password.
+$HENRIK ALL=($SKY_USER) NOPASSWD: /usr/bin/bash $CHECKOUT/sky/deploy/deploy.sh "", /usr/bin/bash $CHECKOUT/sky/deploy/saet-env.sh SKY_*, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh ny, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh --roter, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh --afslut
 # ... and restarts exactly Sky's two units. Nothing that opens a pager (status, journalctl) runs as root.
 $HENRIK ALL=(root) NOPASSWD: /usr/bin/systemctl restart sky, /usr/bin/systemctl restart clawco-sky-tunnel, /usr/bin/systemctl is-active sky, /usr/bin/systemctl is-active clawco-sky-tunnel
 # deploy.sh, run as $SKY_USER, restarts the control plane after a pull.

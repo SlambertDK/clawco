@@ -456,7 +456,7 @@ test('KC-0264 modelFra: the proxy is on only with the switch, a provider and the
   assert.match(paa.besked, /anthropic/);
   // Today's real legal data lists AWS (Bedrock, KC-0266) and not Anthropic direct, so the default read keeps anthropic off.
   assert.equal(modelFra({ config: ja, db, priser, laest: med }).deps.udbyder, null);
-  const bedrock = { udbyder: { ...falskUdbyder, navn: 'bedrock' as const }, grund: null, vaert: 'bedrock-runtime.eu-central-1.amazonaws.com' };
+  const bedrock = { udbyder: { ...falskUdbyder, navn: 'bedrock' as const }, grund: null, vaert: 'bedrock-runtime.eu-north-1.amazonaws.com' };
   assert.notEqual(modelFra({ config: ja, db, priser, laest: bedrock }).deps.udbyder, null, 'the listed Bedrock host switches on');
   await db.close();
 });
@@ -489,8 +489,8 @@ test('KC-0266 modelFra.inkluderet: 30 days\' notice — an account from before A
   const db = await pgliteDatabase();
   await migrer(db);
   const priser = laesPriser();
-  const listetMedDato = { underdatabehandlere: [{ id: 'aws', vaerter: ['bedrock-runtime.eu-central-1.amazonaws.com'], ibrugtagning: '2026-12-03' }] };
-  const laest = { udbyder: { ...falskUdbyder, navn: 'bedrock' as const }, grund: null, vaert: 'bedrock-runtime.eu-central-1.amazonaws.com' };
+  const listetMedDato = { underdatabehandlere: [{ id: 'aws', vaerter: ['bedrock-runtime.eu-north-1.amazonaws.com'], ibrugtagning: '2026-12-03' }] };
+  const laest = { udbyder: { ...falskUdbyder, navn: 'bedrock' as const }, grund: null, vaert: 'bedrock-runtime.eu-north-1.amazonaws.com' };
   const { deps } = modelFra({ config: laesConfig({ ...ENV, SKY_INKLUDERET_MODEL: 'ja' }), db, priser, laest, behandlinger: listetMedDato });
   const gammelTid = new Date('2026-10-31T10:00:00Z');
   const nyTid = new Date('2026-11-05T10:00:00Z');

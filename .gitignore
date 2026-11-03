@@ -7,3 +7,12 @@ data-test/
 *.log
 .DS_Store
 .site-ud/
+# KC-0276: backups and key material never enter a commit by accident (the test certificates below are the
+# sanctioned exceptions). `hemmeligheder*` is root-anchored so src/hemmeligheder/ and its tests stay normal files.
+*.tgz
+*.tar.gz
+*.key
+*.enc
+!test/helpers/certifikater/*.key
+/hemmeligheder*
+Clawco-backups/

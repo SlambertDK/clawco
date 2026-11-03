@@ -98,3 +98,9 @@ test('GRAENSEKLASSER and the limits in AGENTS.md §9 cannot drift apart', { skip
   for (const t of ting) assert.equal(GRAENSEKLASSER.filter((g) => KORT[g].test(t)).length, 1, `§9 names "${t}": exactly one limit class must match it`);
   for (const g of GRAENSEKLASSER) assert.ok(ting.some((t) => KORT[g].test(t)), `${g} is named in §9`);
 });
+
+test('KC-0270 (B3): a rules file changed outside Clawco grants no step until the owner approves it', () => {
+  const r = { ...ok(regel(4, '*')), aendretUdenfor: true } as ReglerLaest;
+  assert.deepEqual(tilladtAfRegler(r, { kilde: 'mail', kraevetTrin: 1, klasse: 'normal' }), { tilladt: false, aarsag: 'ingen-regel' });
+  assert.equal(tilladtAfRegler(ok(regel(4, '*')), { kilde: 'mail', kraevetTrin: 4, klasse: 'normal' }).tilladt, true, 'the same rule, approved');
+});

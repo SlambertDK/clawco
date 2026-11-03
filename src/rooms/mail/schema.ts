@@ -9,6 +9,7 @@ import { parseVisuel, type Visuel } from '../../shell/visuel.ts';
 import { ZoneFejl, zoneFra, synligFor, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import type { Person } from '../../identitet/husstand.ts';
 import { agentGulv, verbFra } from '../../graenser/verber.ts';
+import { foersteVinder } from '../../graenser/dubletter.ts';
 import { mailTekst } from './tekster.ts';
 
 /** KC-0117: every source of this room is privat until the source registry (KC-0120) gives zones. */
@@ -93,7 +94,8 @@ function mulighed(v: unknown, mailId: string, i: number): Mulighed | null {
   return m;
 }
 
-export function parseMailState(raw: unknown, facts: MailFacts, now: Date, previous?: MailState | null): MailState {
+/** `droppet` (KC-0270): called with the mail id or option id dropped because an earlier one had it (first wins). */
+export function parseMailState(raw: unknown, facts: MailFacts, now: Date, previous?: MailState | null, droppet?: (id: string) => void): MailState {
   if (!isObj(raw)) throw new SchemaError('Mail: svaret er ikke et objekt');
   const prevAfgjort = new Map<string, NonNullable<Beslutning['afgjort']>>();
   const prevUdkast = new Map<string, string>();
@@ -102,13 +104,23 @@ export function parseMailState(raw: unknown, facts: MailFacts, now: Date, previo
 
   const list = Array.isArray(raw['beslutninger']) ? raw['beslutninger'] : [];
   const beslutninger: Beslutning[] = [];
+  // KC-0270 (B4): one decision per mail and one handling per id; the app's own Fortryd ids are taken first.
+  const seteMails = new Set<string>();
+  const seteIder = new Set<string>(facts.ordnet.map((o) => ordnetHandling(o).id));
   for (const b of list) {
     if (!isObj(b)) continue;
     const mailId = str(b['mailId'], 40);
     if (!mailId) continue;
+    if (seteMails.has(mailId)) { droppet?.(mailId); continue; }
+    seteMails.add(mailId);
     const muligheder: Mulighed[] = [];
     const rawM = Array.isArray(b['muligheder']) ? b['muligheder'] : [];
-    rawM.forEach((m, i) => { const x = mulighed(m, mailId, i); if (x && muligheder.length < MAX_MULIGHEDER && !muligheder.some((y) => y.id === x.id)) muligheder.push(x); });
+    rawM.forEach((m, i) => {
+      const x = mulighed(m, mailId, i);
+      if (!x || muligheder.length >= MAX_MULIGHEDER) return;
+      if (seteIder.has(x.id)) { if (!muligheder.some((y) => y.id === x.id)) droppet?.(x.id); return; }
+      seteIder.add(x.id); muligheder.push(x);
+    });
     const betydning = str(b['betydning'], 500);
     if (!betydning) throw new SchemaError(`Mail ${mailId}: betydning mangler`);
     const typeRaw = str(b['type'], 20).toLowerCase();
@@ -166,10 +178,8 @@ export function synligMail(state: MailState, person: Person): MailState {
 
 /** Every handling a click may name: each mulighed and each ordnet Fortryd. */
 export function handlingerIMail(state: MailState): Map<string, Handling> {
-  const m = new Map<string, Handling>();
-  for (const b of state.beslutninger) for (const x of b.muligheder) m.set(x.id, x);
-  for (const o of state.ordnet) m.set(o.handling.id, o.handling);
-  return m;
+  // KC-0270 (B4): the app's own Fortryd handlings first, then the options; the first with an id wins.
+  return foersteVinder<Handling>([...state.ordnet.map((o) => o.handling), ...state.beslutninger.flatMap((b) => b.muligheder)]);
 }
 
 /** KC-0097: an undecided informational mail or receipt with nothing to do but Færdig (no mulighed of its own). */

@@ -15,7 +15,7 @@ test('the real file validates: Haiku 5.5 at the prices read 2026-11-03, both pro
   assert.equal(h.trin[1]!.opTilPromptTokens, null);
   assert.equal(p.udbydere['anthropic']!.modelId['claude-haiku-5-5'], 'claude-haiku-5-5');
   assert.equal(p.udbydere['bedrock']!.tillaegProcent, 10);
-  assert.equal(p.udbydere['bedrock']!.region, 'eu-central-1');
+  assert.equal(p.udbydere['bedrock']!.region, 'eu-north-1', 'Stockholm, the region the AWS account is on (KC-0264)');
   assert.equal(p.udbydere['bedrock']!.url, 'https://bedrock-runtime.{region}.amazonaws.com');
   assert.equal(p.udbydere['bedrock']!.modelId['claude-haiku-5-5'], 'eu.anthropic.claude-haiku-5-5', 'the EU cross-region inference profile');
 });

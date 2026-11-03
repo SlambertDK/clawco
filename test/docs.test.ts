@@ -327,7 +327,9 @@ test('sources: nothing is promised for a Danish pack that does not exist, and no
   const t = Object.entries(T.en).filter(([k]) => k.startsWith('src.')).map(([, v]) => v).join('\n');
   assert.ok(!/\b(Aula|Digital Post|coming soon|will be|planned)\b/i.test(t), 'a source or a pack that is not built');
   assert.ok(existsSync(path.join(ROD, 'src/kilder/mail-imap')) && !existsSync(path.join(ROD, 'src/kilder/aula')) && !existsSync(path.join(ROD, 'src/kilder/digital-post')));
-  for (const v of FORBUDTE_VERBER) assert.ok(GRAENSEKLASSER.includes(v as never), `${v} is a limit class`);
+  // KC-0270 (B7): the two lists are equal both ways (AGENTS §9), and the connectors' one is derived from the limits (one source).
+  assert.deepEqual([...FORBUDTE_VERBER].sort(), [...GRAENSEKLASSER].sort());
+  assert.match(readFileSync(path.join(ROD, 'src/kilder/register.ts'), 'utf8'), /FORBUDTE_VERBER[^=\n]*=\s*new Set<string>\(GRAENSEKLASSER\)/, 'derived, not a copy');
 });
 
 // ---------------------------------------------------------------------------------------------------------------

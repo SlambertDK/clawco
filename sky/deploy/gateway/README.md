@@ -62,6 +62,7 @@ terminal, only names and lengths. Use a 0600 file in `$HOME` for a seed (`umask 
    (umask 077; node --input-type=module -e "import { randomBytes } from 'node:crypto'; import { noegleFraFroe } from './sky/src/gateway/signer.ts'; const f = randomBytes(32); console.log(f.toString('base64url')); console.error('ny offentlig: ' + noegleFraFroe(f).offentlig + ' (frø: ' + f.length + ' bytes)')" > ~/.clawco-ny-froe)
    (umask 077; ssh -i ~/.ssh/kira-home henrik@kira-home "sudo -n -u sky bash -c 'grep ^SKY_GATEWAY_SIGNERINGSNOEGLE= /srv/sky/.env'" | cut -d= -f2 > ~/.clawco-gammel-froe)   # kept for rollback
    ```
+   (KC-0276: `sudo -n -u sky` now only runs the fixed scripts; the `grep` above needs henrik's password, so run it in a terminal on kira-home as `sudo -u sky grep ^SKY_GATEWAY_SIGNERINGSNOEGLE= /srv/sky/.env`.)
    Note the printed public key (`NY_PUB` below) and the old one (`SKY_KONTO_PUBKEY` in `/srv/sky/.env`, `GAMMEL_PUB`).
 2. **Every tenant gets both keys.** Mac first, then kira-home as `sky` in `/srv/sky/kontrolcenter` (as for `udrul.ts`,
    `sky/deploy/README.md`, Udrulning; run it under `tmux`):

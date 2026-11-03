@@ -28,7 +28,7 @@ const kortSegment = (k: Kort, foer = ''): DataSegment => ({
 export function buildKortHandlingRun(k: Kort, h: Handling, now: Date): RunSpec {
   const T = kuratorPromptTekst();
   // The verb is the app's floor for a card's free-form handling, the same the card route passes the policy layer with.
-  const opgave = T.handlingOpgave(T.kortRolle, dato(now), handlingsOpgave(agentGulv({})), T.kortRegler);
+  const opgave = T.handlingOpgave(T.kortRolle, dato(now), handlingsOpgave(agentGulv(h)), T.kortRegler);
   return byggPrompt({ rum: RUM, zone: KORSEL, opgave, data: [{ kilde: 'handling', zone: KORSEL, tillid: 'afledt', tekst: h.instruktion }, kortSegment(k, T.knap(h.label))] });
 }
 

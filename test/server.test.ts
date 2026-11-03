@@ -123,7 +123,15 @@ test('fortryd on a log entry runs the stored undo instruction and marks the entr
   const entry = logText.trim().split('\n').map((l) => JSON.parse(l) as { id: string; fortryd?: string }).find((e) => e.fortryd);
   assert.ok(entry, 'an undoable entry exists');
   assert.equal((await post('/api/rum/dagen/log/nope/fortryd')).status, 404);
-  const { done } = await startAndWait(`/api/rum/dagen/log/${entry.id}/fortryd`);
+  // KC-0270 (B5): the undo deletes ("Slet …"), so the button is red, shows its text, and needs a yes bound to that text.
+  const foer = await (await sut.app.request('/rum/dagen')).text();
+  const knap = new RegExp(`<button[^>]*data-fortryd="${entry.id}"[^>]*>`).exec(foer)?.[0] ?? '';
+  assert.match(knap, /data-kraever-ja/);
+  assert.match(knap, /title="Slet kalenderblokken 13-14 &quot;Udkast&quot;\."/);
+  assert.equal((await post(`/api/rum/dagen/log/${entry.id}/fortryd`)).status, 403, 'no tap, no undo');
+  const indhold = /data-indhold="([0-9a-f]{16})"/.exec(knap)?.[1];
+  const { ja } = await (await post('/api/graense/ja', { rum: 'dagen', slags: 'fortryd', id: entry.id, indhold })).json() as { ja: string };
+  const { done } = await startAndWait(`/api/rum/dagen/log/${entry.id}/fortryd`, { ja });
   assert.equal(done.status, 'done', done.error);
   assert.equal(udpak(hermes.calls.at(-1)?.input ?? '')[0]?.tekst, 'Slet kalenderblokken 13-14 "Udkast".');
   const page = await (await sut.app.request('/rum/dagen')).text();

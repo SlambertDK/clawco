@@ -130,3 +130,10 @@ test('English: the block says step, not trin, keeps ids and the user\'s own rule
   assert.notEqual(f, REGELFORSLAG_TEKST);
   assert.ok(f.includes('{"regelforslag": {"titel": "short title", "tekst": '));
 });
+
+test('KC-0270 (B3): rules changed outside Clawco are not put in the prompt until the owner approves them', () => {
+  const p = reglerTilPrompt({ ...ok, aendretUdenfor: true });
+  for (const r of (ok.tilstand === 'ok' ? ok.saet.regler : [])) assert.ok(!p.includes(r.id + ' ') && !p.includes(r.titel), r.id);
+  assert.match(p, /trin 0/i);
+  assert.match(p, /godkend/i);
+});

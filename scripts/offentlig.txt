@@ -23,5 +23,7 @@ compose.yaml
 .githooks
 .gitleaksignore
 :(exclude)test/privat
+# KC-0276: the maintainer's cost ledger (his own operating costs and VAT notes) is never mirrored; tests that read it skip in the mirror.
+:(exclude)config/omkostninger.json
 :(exclude)docs/legal/RESUME-til-Henrik.md
 :(exclude)docs/legal/fortegnelse-art30.md

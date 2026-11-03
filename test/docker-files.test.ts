@@ -132,7 +132,7 @@ test('the build bakes GIT_SHA into the file /health reads, and the health check 
   assert.match(df, /^ARG GIT_SHA\s*$/m);
   assert.match(df, /"\$GIT_SHA" > GIT_SHA/);
   assert.match(df, /^HEALTHCHECK\b[\s\S]*\/health/m);
-  assert.match(df, /^FROM node:24-/m);
+  assert.match(df, /^FROM node:24\.\d+\.\d+-bookworm-slim$/m, 'the exact Node release, not the moving 24 tag (KC-0276)');
 });
 
 test('the root filesystem is read-only in compose, so nothing user-owned lands in the image layer', () => {

@@ -7,9 +7,10 @@ import type { NyhederState, Nyhed, Bane, RelevansFor } from './schema.ts';
 import { dagensLog, resultatBoks, senesteResultater } from '../../shell/log.ts';
 import { friskhedEfter, klokkeIso as klokke } from '../../shell/friskhed.ts';
 import { zoneChip, zoneData } from '../../shell/zone.ts';
-import { baand, delKnap, igangGruppe, medId, unikIder, spoerg, tilstandChip, type IgangRaekke } from '../../shell/sprog.ts';
+import { agentKnap, baand, delKnap, igangGruppe, medId, unikIder, spoerg, tilstandChip, type IgangRaekke } from '../../shell/sprog.ts';
 import { tekst } from '../../shell/tekster.ts';
 import { nyhederTekst } from './tekster.ts';
+import { handlingensVerb } from '../dagen/schema.ts';
 
 const FORTRYD_TIMER = 24;
 
@@ -50,7 +51,7 @@ function logRow(e: LogEntry, now: Date): Markup {
 
 /** A forslag: waits on Henrik (open handling, or a reply in the chat) until its handling has a result. */
 function forslagKort(f: NyhederState['forslag'][number], r: LogEntry | undefined): Markup {
-  return html`<article class="card" data-element="${nyhederTekst().forslagElement(f.tekst)}"><p>${f.tekst}</p>${r ? resultatBoks(r) : f.handling ? html`<div class="actions"><button type="button" class="btn btn-primary" data-handling="${f.handling.id}">${f.handling.label}</button></div>` : html`<p class="row-note">${nyhederTekst().svarIChatten}</p>`}</article>`;
+  return html`<article class="card" data-element="${nyhederTekst().forslagElement(f.tekst)}"><p>${f.tekst}</p>${r ? resultatBoks(r) : f.handling ? html`<div class="actions">${agentKnap({ h: f.handling, verb: handlingensVerb(f.handling), slags: 'primaer', attrs: { 'data-handling': f.handling.id } })}</div>` : html`<p class="row-note">${nyhederTekst().svarIChatten}</p>`}</article>`;
 }
 
 export function renderNyheder(state: NyhederState, log: LogEntry[], now: Date, igang: IgangRaekke[] = []): Markup {

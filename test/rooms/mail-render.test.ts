@@ -218,7 +218,7 @@ test('KC-0066: a mulighed marked tilAndre renders as the red graense button and 
   const b = state.beslutninger[1]!;
   const s: MailState = { ...state, beslutninger: [{ ...b, type: 'aktion', muligheder: [{ id: '243-bekraeft', label: 'Bekræft tiden', instruktion: 'i', tilAndre: true }, { id: '243-find', label: 'Find datoen', instruktion: 'i' }] }] };
   const out = String(renderMail(s, [], new Date('2026-10-27T09:00:00Z')));
-  assert.match(out, /<button type="button" class="btn btn-graense" data-handling="243-bekraeft" data-kraever-ja data-graense="kraever-ja">Bekræft tiden<\/button>/);
+  assert.match(out, /<button type="button" class="btn btn-graense" data-handling="243-bekraeft" data-indhold="[0-9a-f]{16}" data-kraever-ja data-graense="kraever-ja">Bekræft tiden<\/button>/);
   assert.doesNotMatch(out, /btn-primary[^>]*data-handling="243-bekraeft"/);
   assert.match(out, /<button type="button" class="btn" data-handling="243-find">Find datoen<\/button>/, 'the other option is not promoted to primary over a red one');
 });

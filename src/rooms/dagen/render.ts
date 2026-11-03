@@ -9,7 +9,6 @@ import { html, type Markup } from '../../shell/html.ts';
 import { fold } from '../../shell/fold.ts';
 import { billede, ikon, mere, visHoved, type IkonNavn } from '../../shell/visuel.ts';
 import { dagenGammel, handlingensVerb, venterDagen, type DagenState, type Handling, type KalenderPost } from './schema.ts';
-import { kraeverJa } from '../../graenser/verber.ts';
 import { aldrigTilladt } from '../../graenser/afgoer.ts';
 import type { LogEntry } from '../../store/types.ts';
 import { dagensLog, resultatBoks, senesteResultater } from '../../shell/log.ts';
@@ -17,7 +16,7 @@ import { friskhedEfter, kildeFriskhedEfter, klokkeIso as klokke, type KildeFrisk
 import { zoneChip, zoneData } from '../../shell/zone.ts';
 import { sigAnbefaling, sigKalender } from './stemme.ts';
 import { dagenTekst } from './tekster.ts';
-import { afvistLinje, baand, delKnap, handlinger, medId, unikIder, igangGruppe, knap, spoerg, tilstandChip, type IgangRaekke } from '../../shell/sprog.ts';
+import { afvistLinje, agentKnap, fortrydKnap, baand, delKnap, handlinger, medId, unikIder, igangGruppe, knap, spoerg, tilstandChip, type IgangRaekke } from '../../shell/sprog.ts';
 
 const FORTRYD_TIMER = 24;
 
@@ -40,7 +39,7 @@ function vejrIkon(vejr: string): IkonNavn {
 function handlingKnap(h: Handling, primary: boolean): Markup {
   const aldrig = aldrigTilladt(handlingensVerb(h)); // KC-0122: never a button for what Clawco never does
   if (aldrig) return afvistLinje(h.label, aldrig);
-  return knap({ label: h.label, slags: kraeverJa(handlingensVerb(h)) ? 'graense' : primary ? 'primaer' : 'normal', attrs: { 'data-handling': h.id } });
+  return agentKnap({ h, verb: handlingensVerb(h), slags: primary ? 'primaer' : 'normal', attrs: { 'data-handling': h.id } });
 }
 
 function statusChip(status: KalenderPost['status']): Markup | '' {
@@ -68,7 +67,7 @@ function logRaekke(e: LogEntry, now: Date): Markup {
   return html`<div class="row log-row${fortrudt ? ' log-undone' : ''}" data-log="${e.id}"${zoneData(e)}>
     <span class="mono time">${klokke(e.tid)}</span>
     <span class="row-main"><span class="row-title">${e.tekst}</span>${fortrudt ? html`<span class="row-note">${t.fortrudtKl}${klokke(e.fortrudt ?? '')}</span>` : ''}</span>
-    ${kanFortrydes ? html`<button type="button" class="btn btn-ghost" data-fortryd="${e.id}">${t.fortryd}</button>` : ''}
+    ${kanFortrydes ? fortrydKnap({ id: e.id, fortryd: e.fortryd, label: t.fortryd }) : ''}
   </div>`;
 }
 

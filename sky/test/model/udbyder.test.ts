@@ -125,16 +125,16 @@ test('laesUdbyder: off unless SKY_MODEL_UDBYDER names a provider whose keys are 
 });
 
 test('the legal gate: a provider host is allowed only when docs/legal/behandlinger.json lists a subprocessor covering it', () => {
-  const data = { underdatabehandlere: [{ id: 'cloudflare', vaerter: ['*.r2.cloudflarestorage.com'] }, { id: 'anthropic', vaerter: ['api.anthropic.com'] }, { id: 'aws', vaerter: ['bedrock-runtime.eu-central-1.amazonaws.com'] }] };
+  const data = { underdatabehandlere: [{ id: 'cloudflare', vaerter: ['*.r2.cloudflarestorage.com'] }, { id: 'anthropic', vaerter: ['api.anthropic.com'] }, { id: 'aws', vaerter: ['bedrock-runtime.eu-north-1.amazonaws.com'] }] };
   assert.equal(juridiskGodkendt('api.anthropic.com', data), true);
-  assert.equal(juridiskGodkendt('bedrock-runtime.eu-central-1.amazonaws.com', data), true);
+  assert.equal(juridiskGodkendt('bedrock-runtime.eu-north-1.amazonaws.com', data), true);
   assert.equal(juridiskGodkendt('bedrock-runtime.us-east-1.amazonaws.com', data), false, 'another region is another host');
   assert.equal(juridiskGodkendt('api.anthropic.com.evil.com', data), false);
   assert.equal(juridiskGodkendt('api.anthropic.com', { underdatabehandlere: [] }), false);
   assert.equal(juridiskGodkendt('api.anthropic.com', null), false, 'unreadable legal data = not allowed');
-  assert.equal(udbyderVaert('https://bedrock-runtime.{region}.amazonaws.com', 'eu-central-1'), 'bedrock-runtime.eu-central-1.amazonaws.com');
+  assert.equal(udbyderVaert('https://bedrock-runtime.{region}.amazonaws.com', 'eu-north-1'), 'bedrock-runtime.eu-north-1.amazonaws.com');
   const p = laesModelpriser();
-  assert.equal(udbyderVaert(p.udbydere['bedrock']!.url, p.udbydere['bedrock']!.region), 'bedrock-runtime.eu-central-1.amazonaws.com', 'the configured Bedrock host');
+  assert.equal(udbyderVaert(p.udbydere['bedrock']!.url, p.udbydere['bedrock']!.region), 'bedrock-runtime.eu-north-1.amazonaws.com', 'the configured Bedrock host');
 });
 
 test('today\'s legal data lists Bedrock (AWS, KC-0266) and not Anthropic direct: only Henrik\'s choice can switch on', async () => {

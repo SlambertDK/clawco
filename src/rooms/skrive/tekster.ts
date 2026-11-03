@@ -65,6 +65,7 @@ const da = {
 
   // Refusals (the toast) and the errors of a run
   fejlUdkastFindesIkke: 'Udkastet findes ikke',
+  kunEjer: 'Skrive er ejerens rum; kun ejeren kan skrive her.',
   fejlUdkastVaek: 'Udkastet findes ikke længere',
   fejlAfsnitFindesIkke: 'Afsnittet findes ikke',
   fejlForslagVaek: 'Forslaget findes ikke længere',
@@ -150,6 +151,7 @@ const en: SkriveTekster = {
   udkast: 'draft',
 
   fejlUdkastFindesIkke: 'The draft does not exist',
+  kunEjer: 'Skrive is the owner\'s room; only the owner writes here.',
   fejlUdkastVaek: 'The draft no longer exists',
   fejlAfsnitFindesIkke: 'The paragraph does not exist',
   fejlForslagVaek: 'The proposal no longer exists',

@@ -132,6 +132,21 @@ export type CopilotSessionValg = ReturnType<typeof sessionValg>;
 
 /** Events that mean the runtime is about to act, not answer: the run fails closed. */
 const HANDLING = /^(?:tool\.|external_tool\.|permission\.requested|subagent\.|skill\.invoked|hook\.start|command\.execute|elicitation\.requested|sampling\.requested|exit_plan_mode\.requested|mcp\.)/;
+/**
+ * KC-0270 (B7): the events a plain answer is made of (the SDK's session-events). Any other name — one the SDK adds
+ * later, or an acting one HANDLING does not know — fails the run closed instead of passing unseen.
+ */
+const SVAR_HAENDELSER: ReadonlySet<string> = new Set([
+  'assistant.message', 'assistant.message_delta', 'assistant.message_start', 'assistant.streaming_delta', 'assistant.reasoning',
+  'assistant.reasoning_delta', 'assistant.intent', 'assistant.turn_start', 'assistant.turn_end', 'assistant.usage', 'assistant.idle',
+  'session.start', 'session.resume', 'session.idle', 'session.error', 'session.info', 'session.warning', 'session.usage_info',
+  'session.usage_checkpoint', 'session.quota_observation', 'session.model_change', 'session.title_changed', 'session.context_changed',
+  'session.truncation', 'session.compaction_start', 'session.compaction_complete', 'session.shutdown', 'session.tools_updated',
+  'session.skills_loaded', 'session.mcp_servers_loaded', 'session.extensions_loaded', 'session.session_limits_changed',
+  'session.mode_changed', 'session.permissions_changed', 'session.completion_receipt', 'session.custom_agents_updated',
+  'pending_messages.modified', 'user.message', 'system.message', 'system.notification', 'model.call_finished', 'model.call_failure',
+  'abort',
+]);
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 
 type Wire = Record<string, unknown>;
@@ -244,6 +259,7 @@ export function createCopilot(o: {
         af = session.on((e) => {
           if (afsluttet) return;
           if (HANDLING.test(e.type)) return stopFejl(fejl('vaerktoej'));
+          if (!SVAR_HAENDELSER.has(e.type)) return stopFejl(fejl('ukendt')); // KC-0270: an event we do not know fails closed
           const d = isRecord(e.data) ? e.data : {};
           if (e.type === 'assistant.message_delta' && typeof d['deltaContent'] === 'string' && d['deltaContent'] !== '') {
             tekst += d['deltaContent'];

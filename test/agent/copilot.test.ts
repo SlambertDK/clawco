@@ -240,3 +240,21 @@ test('the final message is used when the runtime sent no deltas', async () => {
   assert.equal((await s.koer()).output, 'Hele svaret');
   await s.copilot.stop();
 });
+
+// KC-0270 (B7): the event check failed open on a name it did not know. Now only known answering events pass; any other
+// name (a future acting event the list does not know yet) fails the run closed and aborts the session.
+test('invariant: an unknown event name fails the run closed; the known answering events pass', async () => {
+  for (const type of ['assistant.server_tool_progress', 'assistant.tool_call_delta', 'session.handoff', 'noget.helt.nyt', 'canvas.opened']) {
+    const s = sut((ses) => { ses.emit('assistant.message_delta', { deltaContent: 'Hej' }); ses.emit(type, {}); ses.emit('session.idle'); });
+    const err = await s.koer().catch((e: unknown) => e);
+    assert.ok(err instanceof AgentError, type);
+    assert.equal(s.klienter[0]!.sessioner[0]!.afbrudt, true, `${type}: the session is aborted`);
+    await s.copilot.stop();
+  }
+  const ok = sut((ses) => {
+    for (const type of ['session.start', 'session.info', 'session.usage_info', 'assistant.turn_start', 'assistant.message_start', 'assistant.reasoning_delta', 'assistant.usage', 'assistant.turn_end', 'pending_messages.modified', 'user.message']) ses.emit(type, {});
+    ses.emit('assistant.message', { content: 'Hele svaret' }); ses.emit('session.idle');
+  });
+  assert.equal((await ok.koer()).output, 'Hele svaret');
+  await ok.copilot.stop();
+});

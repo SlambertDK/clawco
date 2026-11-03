@@ -8,8 +8,18 @@ import type { AgentConfig } from './types.ts';
 import { PRODUKT } from '../shell/navn.ts';
 import { sprogNu, type Sprog } from '../store/sprog.ts';
 import { STEMME_TEKSTER, stemmeTekst } from './tekster.ts';
+import { nyGraense, omslutUtroet } from '../agent/udtroet.ts';
 
 export const AGENT_NAME = PRODUKT;
+
+/**
+ * KC-0270 (E3): the overview ({{oversigt}}) is built from mail subjects, senders and calendar titles. It goes into the
+ * agent's prompt as one afledt data block with a fresh random boundary (the wrapper every Hermes prompt uses), so its
+ * text cannot pose as the prompt's own; the prompt says what stands in it is data.
+ */
+export function oversigtSomData(tekst: string): string {
+  return omslutUtroet({ kilde: 'oversigt', zone: 'privat', tillid: 'afledt', tekst }, { graense: nyGraense() });
+}
 
 export const AGENT_PROMPT = STEMME_TEKSTER.da.prompt;
 

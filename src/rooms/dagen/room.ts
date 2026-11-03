@@ -2,6 +2,9 @@
 // Hermes round-trip is a run in the registry; each onDone validates Hermes'
 // answer, writes to the rum-lager and returns the re-rendered room.
 
+import { agentFortryd } from '../../graenser/verber.ts';
+import { graenserTekst } from '../../graenser/tekster.ts';
+import { handlingIndhold } from '../../graenser/tegn.ts';
 import type { LogEntry } from '../../store/types.ts';
 import type { RunRecord, DoneResult } from '../../runs.ts';
 import type { RoomDeps, RoomModule, RoomView } from '../module.ts';
@@ -62,9 +65,11 @@ export async function startOpdater(deps: DagenDeps, mode: string): Promise<RunRe
     spec,
     onDone: async (output) => {
       const raw = kraevJson(output);
-      const state = parseDagenState(raw, deps.now());
+      const droppet: string[] = [];
+      const state = parseDagenState(raw, deps.now(), (id) => droppet.push(id));
       await deps.store.writeState(RUM, state);
       await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: dagenTekst().logByggede(state.kalender.length, state.morgenavis.length) });
+      if (droppet.length) await deps.store.appendLog(RUM, { kilde: 'system', tekst: graenserTekst().dubletter(droppet.length) });
       return rendered(deps);
     },
   });
@@ -125,7 +130,7 @@ function skjulte<T extends { zone?: DataZone; ejer?: string }>(fuld: T[], person
 export async function startChat(deps: DagenDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
   const { state: fuld } = await current(deps);
   const { state } = await synlig(deps);
-  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
+  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
   return deps.runs.start({
     kind: 'chat',
     spec: buildChatRun(besked, kontekst, state),
@@ -135,7 +140,7 @@ export async function startChat(deps: DagenDeps, besked: string, kontekst: strin
       // Validated before anything is written, so an unusable answer can go back to Hermes (KC-0050).
       const merged = opdater && typeof opdater === 'object' && state && fuld ? flet(fuld, state, opdater as Record<string, unknown>, deps) : null;
       const text = output.replace(JSON_BLOCK, '').trim() || dagenTekst().intetSvar;
-      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
+      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text, ejer: deps.person.id });
       if (merged) {
         await deps.store.writeState(RUM, merged);
         await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: dagenTekst().logOpdaterede });
@@ -154,10 +159,11 @@ async function hjemVenter(deps: DagenDeps): Promise<{ roomId: string; tekst: str
 export const dagenRoom: RoomModule = {
   id: RUM,
   korsel: KORSEL,
+  async fortrydTekst(deps, logId) { return agentFortryd((await synlig(deps)).log.find((e) => e.id === logId)?.fortryd); },
   async handlingVerb(deps, id) {
     const { state } = await synlig(deps);
     const h = state ? handlingerI(state).get(id) : undefined;
-    return h ? { verb: handlingensVerb(h), zoner: [KORSEL] } : null;
+    return h ? { verb: handlingensVerb(h), zoner: [KORSEL], indhold: handlingIndhold(h) } : null;
   },
   view: viewDagen,
   startOpdater,

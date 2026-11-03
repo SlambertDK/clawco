@@ -22,7 +22,7 @@
       "_note": "Claude in Amazon Bedrock through the bedrock-runtime endpoint (InvokeModelWithResponseStream, SigV4) in eu-central-1 with the EU geographic cross-region inference profile eu.anthropic.claude-haiku-5-5: CONFIRMED by AWS' model card (read 2026-11-03: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html). In eu-central-1 Haiku 5.5 is served only this way: the bedrock-mantle Messages endpoint has no cross-region profiles and offers it in-region only in us-gov-west-1 (https://docs.aws.amazon.com/bedrock/latest/userguide/endpoints.html). The EU profile routes and processes only within the six EU regions eu-central-1, eu-north-1, eu-south-1, eu-south-2, eu-west-1, eu-west-3 (https://docs.aws.amazon.com/bedrock/latest/userguide/geographic-cross-region-inference.html). The +10 % surcharge is Anthropic's statement that regional/geographic endpoints carry a 10 % premium (the pricing page under kilde); AWS' own price table did not render, so the AWS figure is ASSUMED to match until read there.",
       "url": "https://bedrock-runtime.{region}.amazonaws.com",
       "tillaegProcent": 10,
-      "region": "eu-central-1",
+      "region": "eu-north-1",
       "modelId": { "claude-haiku-5-5": "eu.anthropic.claude-haiku-5-5" }
     }
   }

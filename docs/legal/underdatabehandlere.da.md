@@ -1,10 +1,10 @@
 ---
-version: 1.2
+version: 1.3
 dato: 2026-11-03
 status: udgivet
 sprog: da
 ---
-Version 1.2 · 2026-11-03
+Version 1.3 · 2026-11-03
 
 # Underdatabehandlere for Clawco Sky
 
@@ -21,7 +21,7 @@ Listen hører til Privatlivspolitik og Databehandleraftale. Overførselsgrundlag
 | Cloudflare, Inc. | Tunnel og DNS for clawco.work og adresserne under den. Krypteringen (TLS) afsluttes i Cloudflares kant, så Cloudflare kan teknisk se trafikken til og fra din Clawco dér, også indhold. R2 til krypterede sikkerhedskopier (bygget, endnu ikke slået til). | Kanten: Cloudflares datacentre, normalt det nærmeste. R2: EU-jurisdiktion. | Cloudflare er et amerikansk selskab. Det står som aktiv deltager i EU-US Data Privacy Framework (tjekket 2. november 2026). Cloudflares databehandleraftale (cloudflare.com/cloudflare-customer-dpa/) indeholder desuden EU's standardkontrakter. |
 | Stripe Payments Europe Ltd | Betaling, abonnement, fakturaer og moms | Irland | Selskabet er i EU. Hvis Stripe-koncernen overfører data til USA, bygger det på Stripes eget grundlag. Stripe, LLC (USA) står som aktiv deltager i EU-US Data Privacy Framework (tjekket 2. november 2026). |
 | Resend (Plus Five Five, Inc.) | Sender mails fra os: login-links, kvitteringer og bekræftelser (køb, opsigelse, fortrydelse) og en bekræftelse, når en konto er slettet | Afsendelse fra EU-regionen i Irland. Kontodata, metadata og logs om mailene i USA. | Resend er et amerikansk selskab. På dataprivacyframework.gov står Resend 2. november 2026 som "Active - Re-certification under Review" (aktiv, fornyelsen er under behandling). Overførslen bygger derfor på EU's standardkontrakter i Resends databehandleraftale (resend.com/legal/dpa). Data Privacy Framework er et ekstra grundlag, så længe certificeringen står som aktiv. |
-| Amazon Web Services EMEA SARL | Kører Clawcos AI, der er med i din Sky-plan (Claude Haiku 5.5 fra Anthropic gennem Amazon Bedrock), når du ikke bruger din egen AI. AWS modtager de dele af dit indhold, som modellen skal læse, og sender svaret tilbage. Ifølge AWS har modelleverandøren Anthropic ingen adgang til indholdet eller AWS' logs. | AWS' regioner i EU: Frankfurt, og gennem AWS' EU-profil også Stockholm, Milano, Spanien, Irland og Paris. Indholdet forlader ikke EU. | Selskabet er i EU, og behandlingen sker i EU. AWS' databehandlertillæg med EU's standardkontrakter er en del af AWS' vilkår. AWS oplyser, at selskabet er omfattet af Amazon.com, Inc.'s certificering under EU-US Data Privacy Framework. |
+| Amazon Web Services EMEA SARL | Kører Clawcos AI, der er med i din Sky-plan (Claude Haiku 5.5 fra Anthropic gennem Amazon Bedrock), når du ikke bruger din egen AI. AWS modtager de dele af dit indhold, som modellen skal læse, og sender svaret tilbage. Ifølge AWS har modelleverandøren Anthropic ingen adgang til indholdet eller AWS' logs. | AWS' regioner i EU: Stockholm, og gennem AWS' EU-profil også Frankfurt, Milano, Spanien, Irland og Paris. Indholdet forlader ikke EU. | Selskabet er i EU, og behandlingen sker i EU. AWS' databehandlertillæg med EU's standardkontrakter er en del af AWS' vilkår. AWS oplyser, at selskabet er omfattet af Amazon.com, Inc.'s certificering under EU-US Data Privacy Framework. |
 
 Der er ingen hostingleverandør på listen: din Clawco og vores database kører på vores egen server i Danmark. Vi bruger ingen ekstern fejlovervågning. Den eneste modeludbyder på dine vegne er AWS ovenfor, og kun når Clawcos AI, der er med i din plan, kører.
 
@@ -53,6 +53,7 @@ Vi har en skriftlig aftale med hver underdatabehandler. De har samme krav til da
 | 2026-11-02 | Første udgave af listen. |
 | 2026-11-02 | Listen genereres nu fra en datafil (samme leverandører, samme grundlag); datoen øverst udfyldt. |
 | 2026-11-03 | Amazon Web Services EMEA SARL tilføjet: kører Clawcos AI, der er med i Sky-planerne, i AWS' EU-regioner. Behandlingen begynder tidligst 2026-12-03 for konti, der fandtes før denne udgave (30 dages varsel). |
+| 2026-11-03 | AWS' første region er Stockholm i stedet for Frankfurt (samme EU-profil og de samme seks EU-regioner). |
 
 ## Spørgsmål
 

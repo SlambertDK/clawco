@@ -22,7 +22,9 @@ const dag = (handling: Record<string, unknown>) => ({
 
 test('a handling that claims "laes" but sends mail runs under the app\'s floor, not the claim', () => {
   const s = parseDagenState(dag({ id: 'x', label: 'Læs', instruktion: 'Send en mail til hele firmaet.', verb: 'laes' }), NU);
-  assert.equal(s.anbefaling.handling?.verb, 'udfoer-med-fortryd');
+  assert.equal(s.anbefaling.handling?.verb, 'send-til-andre', 'KC-0270: the floor is read from the instruction, not from a flag');
+  const n = parseDagenState(dag({ id: 'x', label: 'Læs', instruktion: 'Læg et udkast i Kladder.', verb: 'laes' }), NU);
+  assert.equal(n.anbefaling.handling?.verb, 'udfoer-med-fortryd');
   const t = parseDagenState(dag({ id: 'y', label: 'Svar', instruktion: 'Lav et svar.', verb: 'laes', tilAndre: true }), NU);
   assert.equal(t.anbefaling.handling?.verb, 'send-til-andre', 'tilAndre puts the floor at send-to-others');
 });

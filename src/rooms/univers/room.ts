@@ -129,7 +129,7 @@ async function oversigtAction(deps: RoomDeps, name: string, body: Record<string,
 
 async function oversigtChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
   const indeks = await laesIndeks(deps.store);
-  await deps.store.appendChat(UNIVERS, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
+  await deps.store.appendChat(UNIVERS, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
   return deps.runs.start({
     kind: 'univers',
     spec: buildOversigtChatRun(indeks, besked, kontekst, deps.now()),
@@ -137,7 +137,7 @@ async function oversigtChat(deps: RoomDeps, besked: string, kontekst: string | u
       // Validated before anything is written, so an unusable answer can go back to Hermes (KC-0050).
       const ny = JSON_BLOCK.test(output) ? parseNytUnivers(kraevJson(output)) : null;
       const text = output.replace(JSON_BLOCK, '').trim() || universTekst().intetSvar;
-      await deps.store.appendChat(UNIVERS, { fra: 'hermes', tekst: text });
+      await deps.store.appendChat(UNIVERS, { fra: 'hermes', tekst: text, ejer: deps.person.id });
       if (!ny) return { text };
       await opretFraInput(deps, ny.navn, ny.om, 'hermes');
       return oversigtRendered(deps, { text });
@@ -212,7 +212,7 @@ export function universRoom(slugNavn: string): RoomModule {
   async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
     const info = await kraev(deps);
     const state = await laesSynlig(deps, slugNavn);
-    await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
+    await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
     return deps.runs.start({
       kind: 'univers',
       spec: buildUniversChatRun(info, state, besked, kontekst, deps.now()),
@@ -222,7 +222,7 @@ export function universRoom(slugNavn: string): RoomModule {
         const forberedelse = typeof raw === 'object' && raw !== null && 'forberedelse' in raw ? parseForberedelse(raw) : null;
         const elementer = raw !== null && !forberedelse ? parseUniversSvar(raw) : null;
         const text = output.replace(JSON_BLOCK, '').trim() || universTekst().intetSvar;
-        await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
+        await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text, ejer: deps.person.id });
         if (forberedelse) {
           const moede = moedeFraKontekst(await laesUnivers(deps.store, slugNavn), kontekst);
           if (!moede) throw new Error(universTekst().fejlForberedelseUklar);

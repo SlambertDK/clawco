@@ -9,7 +9,7 @@ import { tekst } from '../../shell/tekster.ts';
 import { zoneChip, zoneData } from '../../shell/zone.ts';
 import { sigBeslutning } from './stemme.ts';
 import { billede, ikon, mere, visHoved, type IkonNavn } from '../../shell/visuel.ts';
-import { afvistLinje, baand, handlinger, igangGruppe, knap, spoerg, tilstandChip, type IgangRaekke, type Knap } from '../../shell/sprog.ts';
+import { afvistLinje, agentKnap, fortrydKnap, baand, handlinger, igangGruppe, knap, spoerg, tilstandChip, type IgangRaekke, type Knap } from '../../shell/sprog.ts';
 import { kraeverJa } from '../../graenser/verber.ts';
 import { aldrigTilladt } from '../../graenser/afgoer.ts';
 import { handlingensVerb } from '../dagen/schema.ts';
@@ -70,7 +70,7 @@ function beslutning(lagret: Beslutning, resultater: Map<string, LogEntry>, kanSe
   // KC-0122: what Hermes proposed that Clawco never does (pay, cross-zone) is a line, not a button.
   const afviste = b.muligheder.filter((m) => !resultater.has(m.id)).flatMap((m) => { const h = aldrigTilladt(handlingensVerb(m)); return h ? [afvistLinje(m.label, h)] : []; });
   const medPrimaer = (b.type === 'nyhedsbrev' || b.type === 'aktion') && aabneM.length > 0 && !kraeverJa(handlingensVerb(aabneM[0]!));
-  const aabne = aabneM.map((m, i) => knap({ label: m.label, slags: kraeverJa(handlingensVerb(m)) ? 'graense' : i === 0 && medPrimaer ? 'primaer' : 'normal', attrs: { 'data-handling': m.id } }));
+  const aabne = aabneM.map((m, i) => agentKnap({ h: m, verb: handlingensVerb(m), slags: i === 0 && medPrimaer ? 'primaer' : 'normal', attrs: { 'data-handling': m.id } }));
   const primaer = medPrimaer ? aabne[0] : undefined;
   const andre: Knap[] = [
     ...(b.type === 'svar' ? [
@@ -98,7 +98,7 @@ function ordnetRow(o: Ordnet, i: number): Markup {
   return html`<div class="row${i >= 8 ? ' ordnet-more' : ''}" data-element="${t.mailen(o.emne || o.mailId)}"${zoneData(o)}${i >= 8 ? html` hidden` : ''}>
     <span class="mono time">${klokke(o.tid)}</span>
     <span class="row-main"><span class="row-title">${o.emne || o.hvorfor || t.mailNr(o.mailId)}${zoneChip(o)}</span><span class="row-note">${o.fra ? html`${o.fra} · ` : ''}→ ${mappe(o.til)}${o.emne && o.hvorfor ? html` · ${o.hvorfor}` : ''}</span></span>
-    <button type="button" class="btn btn-ghost" data-handling="${o.handling.id}">${t.fortryd}</button>
+    ${agentKnap({ h: o.handling, verb: handlingensVerb(o.handling), label: t.fortryd, slags: 'ghost', attrs: { 'data-handling': o.handling.id } })}
   </div>`;
 }
 
@@ -109,7 +109,7 @@ function logRow(e: LogEntry, now: Date): Markup {
   return html`<div class="row log-row${fortrudt ? ' log-undone' : ''}" data-log="${e.id}"${zoneData(e)}>
     <span class="mono time">${klokke(e.tid)}</span>
     <span class="row-main"><span class="row-title">${e.tekst}</span>${fortrudt ? html`<span class="row-note">${t.fortrudtKl}${klokke(e.fortrudt ?? '')}</span>` : ''}</span>
-    ${kan ? html`<button type="button" class="btn btn-ghost" data-fortryd="${e.id}">${t.fortryd}</button>` : ''}
+    ${kan ? fortrydKnap({ id: e.id, fortryd: e.fortryd, label: t.fortryd }) : ''}
   </div>`;
 }
 

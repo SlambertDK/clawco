@@ -123,11 +123,12 @@ test('a Handling.instruktion from Hermes lands as an afledt segment, and the tas
   const ds = dagenState('x');
   const k = { ...kort('x'), handling: { id: 'h1', label: 'Bloker', instruktion: INSTR } };
   const sager: [string, Spec, string][] = [
-    ['dagen', buildHandlingRun({ id: 'a', label: 'Bloker', instruktion: INSTR, verb: 'bogfoer' }, ds), 'bogfoer'],
+    // KC-0270: "send" in the instruction puts the app's floor at send-to-others, whatever the stored verb says.
+    ['dagen', buildHandlingRun({ id: 'a', label: 'Bloker', instruktion: INSTR, verb: 'bogfoer' }, ds), 'send-til-andre'],
     ['dagen uden verb (gammel state)', buildHandlingRun({ id: 'a', label: 'Bloker', instruktion: INSTR, tilAndre: true }, ds), 'send-til-andre'],
     ['mail', buildMailHandlingRun('Bloker', INSTR, mailState('x'), 'forbered'), 'forbered'],
     ['nyheder', buildNyhederHandlingRun('Bloker', INSTR, nyhederState('x'), 'udfoer-med-fortryd'), 'udfoer-med-fortryd'],
-    ['kort', buildKortHandlingRun(k, k.handling, NU), 'udfoer-med-fortryd'],
+    ['kort', buildKortHandlingRun(k, k.handling, NU), 'send-til-andre'],
   ];
   for (const [hvor, s, verb] of sager) {
     assert.ok(s.instructions.includes(handlingsOpgave(verb)), `${hvor}: the verb sentence for ${verb}`);

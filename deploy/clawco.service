@@ -12,6 +12,8 @@ WorkingDirectory=@APP@
 ExecStart=@NODE@ --env-file=@ENV@ src/server.ts
 Restart=on-failure
 RestartSec=3
+# KC-0276 (F5): no new privileges; the stronger options need paths this unit cannot know.
+NoNewPrivileges=yes
 
 [Install]
 WantedBy=default.target

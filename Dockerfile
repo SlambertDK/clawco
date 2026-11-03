@@ -4,7 +4,9 @@
 #   node scripts/docker-tjek.mjs    → build, cold start, Nu with a real element, cleanup (spec §10)
 # No build step: Node 24 runs the TypeScript directly (AGENTS.md §2). The user folder is the
 # volume /data; the app writes nowhere else (compose runs the root filesystem read-only).
-FROM node:24-bookworm-slim
+# KC-0276 (F6): the exact Node release (the one the code is developed on), not the moving 24 tag. Pinning by digest
+# needs Docker to read it; follow-up.
+FROM node:24.22.1-bookworm-slim
 
 ENV NODE_ENV=production
 

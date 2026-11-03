@@ -23,10 +23,14 @@ Without `GIT_SHA` the image still builds; `/health` then says `"sha": "unknown"`
   volume `clawco-noegle` at `/noegle` (`KC_HEMMELIGHEDER_FIL`), made by `deploy/docker/start.sh` the
   first time and never again, so a copy of the data volume never carries it. Other keys (the
   per-source credentials) are in `/data/hemmeligheder/`.
-  A backup is a copy of that volume, for example
-  `docker run --rm -v clawco_clawco-data:/data -v "$PWD":/ud busybox tar czf /ud/clawco-data.tgz -C /data .`
+  A backup is a copy of that volume. The tarball is written by your own shell, not by the container,
+  into a folder only you can open, and under `umask 077`, so no other user on the machine can read it
+  (KC-0276; the key volume in the second command opens the encrypted keys, so it is as sensitive as a
+  password). Never keep these files inside the repository clone:
+  `mkdir -p -m 700 "$HOME/Clawco-backups"`
+  `(umask 077 && docker run --rm -v clawco_clawco-data:/data:ro busybox tar czf - -C /data . > "$HOME/Clawco-backups/clawco-data.tgz")`
   and, kept as safely as a password, the key volume:
-  `docker run --rm -v clawco_clawco-noegle:/noegle -v "$PWD":/ud busybox tar czf /ud/clawco-noegle.tgz -C /noegle .`
+  `(umask 077 && docker run --rm -v clawco_clawco-noegle:/noegle:ro busybox tar czf - -C /noegle . > "$HOME/Clawco-backups/clawco-noegle.tgz")`
   A plain `docker run` needs both `-v` flags (`/data` and `/noegle`) or the saved key cannot be opened
   after the container is replaced.
 - **No root.** The app runs as the image's `node` user (uid 1000).

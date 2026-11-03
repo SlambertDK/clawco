@@ -11,7 +11,10 @@ const repoRod = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..',
 type Tilfaelde = { navn: string; raw: unknown; fejl?: string; mrr?: number; samlet?: string; nu?: number; tilstande?: Record<string, string> };
 const { tilfaelde } = JSON.parse(fs.readFileSync(path.join(repoRod, 'test', 'fixtures', 'omkostninger-konformitet.json'), 'utf8')) as { tilfaelde: Tilfaelde[] };
 
-test('the real ledger validates, costs 0 kr now and is green with no customers', () => {
+/** KC-0276: the ledger is private (config/omkostninger.json is left out of the public mirror); tests of the real file skip there. */
+const LEDGER_MANGLER = fs.existsSync(OMKOSTNINGSFIL) ? false : 'the ledger is not in the public mirror (KC-0276)';
+
+test('the real ledger validates, costs 0 kr now and is green with no customers', { skip: LEDGER_MANGLER }, () => {
   assert.equal(OMKOSTNINGSFIL, path.join(repoRod, 'config', 'omkostninger.json'));
   const o = laesOmkostninger();
   const d = daekning(o, 0);
@@ -28,7 +31,7 @@ test('the real ledger validates, costs 0 kr now and is green with no customers',
   }
 });
 
-test('every paid line in the real ledger has a trigger (§0 r6: nothing paid without one)', () => {
+test('every paid line in the real ledger has a trigger (§0 r6: nothing paid without one)', { skip: LEDGER_MANGLER }, () => {
   for (const [id, r] of Object.entries(laesOmkostninger().ressourcer)) if (r.maanedlig > 0) assert.ok(r.udloeser && r.udloeser.mrrGange >= 1, id);
 });
 
@@ -46,7 +49,7 @@ test('the shared conformance fixture: every case gets its verdict', () => {
   }
 });
 
-test('erDaekketAktiv: only an active paid line whose cover is met', () => {
+test('erDaekketAktiv: only an active paid line whose cover is met', { skip: LEDGER_MANGLER }, () => {
   const real = laesOmkostninger();
   assert.equal(erDaekketAktiv(real, 'hetzner-node-1', 0), false);
   assert.equal(erDaekketAktiv(real, 'hetzner-node-1', 10_000_000), false, 'inactive stays off however much MRR');

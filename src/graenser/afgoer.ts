@@ -16,7 +16,9 @@ import type { ReglerLaest } from '../tillid/lager.ts';
  */
 export type Forslag = { rum: string; id: string; verb: string; zoner: DataZone[]; gaelder?: Gaelder;
   /** KC-0161: needs a human tap (a redeemed token for exactly this press) although its verb is not a limit; never on its own, never by voice. */
-  tap?: true };
+  tap?: true;
+  /** KC-0270 (B4): the hash of the free text it runs (tegn.ts handlingIndhold); a token counts only for that content. */
+  indhold?: string };
 /**
  * Who asks and how. `ja` = a valid human-tap token was redeemed for exactly this handling. `regler` (KC-0143): the
  * rules file as read now; only `baggrund` (nobody tapped) consults it, and without it nothing above trin 0 runs.

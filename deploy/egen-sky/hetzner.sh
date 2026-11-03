@@ -6,7 +6,10 @@
 #                   [--authkey-fil FIL] [--sha SHA | --ref REF]
 # Secrets: the API token is read from HCLOUD_TOKEN only (never an argument, never written to disk). The
 # Tailscale auth key is read from --authkey-fil or, interactively, hidden from the terminal; it goes into the
-# cloud-init only, and the VM shreds its copy once the node has joined the tailnet.
+# cloud-init only, and the VM shreds its file copy once the node has joined the tailnet. The key MUST be a
+# one-time (non-reusable) key with a short expiry (KC-0276): cloud-init keeps a copy of the user-data in the
+# instance metadata (169.254.169.254) and under /var/lib/cloud/, which the shred does not reach; a used
+# one-time key is worthless there. Containers are cut off from the metadata address by a DOCKER-USER rule.
 # The only hosts this script talks to: api.hetzner.cloud (your account) and, from the VM, github.com (the public
 # mirror the code is cloned from). Test hooks only: CLAWCO_VENTEPAUSE (seconds between polls, default 5) and
 # CLAWCO_FORSOEG (number of polls, default 72).
@@ -40,6 +43,7 @@ Det her skal du bruge først:
      Giv det scriptet i terminalen: export HCLOUD_TOKEN=...   (kun nødvendigt uden --dry-run)
   2. En Tailscale-konto (gratis) med HTTPS slået til under DNS i Tailscales administration, og en
      engangsnøgle: Settings, Keys, Generate auth key, uden "Reusable", med kort udløbstid.
+     Den SKAL være engangs: serverens opsætning (cloud-init) gemmer en kopi i serverens metadata.
      Gem den i en fil og peg på den med --authkey-fil.
 
 Det her betaler du, og til hvem:
@@ -92,6 +96,30 @@ write_files:
     content: |
       APT::Periodic::Update-Package-Lists "1";
       APT::Periodic::Unattended-Upgrade "1";
+  - path: /usr/local/sbin/clawco-metadata-blok
+    permissions: '0700'
+    content: |
+      #!/bin/sh
+      # KC-0276: containers must not reach the instance metadata (169.254.169.254; the user-data holds the
+      # one-time Tailscale key). DOCKER-USER is read before Docker's own forwarding rules.
+      set -eu
+      for maal in 169.254.169.254/32 169.254.0.0/16; do
+        iptables -C DOCKER-USER -d "\$maal" -j DROP 2>/dev/null || iptables -I DOCKER-USER -d "\$maal" -j DROP
+      done
+  - path: /etc/systemd/system/clawco-metadata-blok.service
+    permissions: '0644'
+    content: |
+      [Unit]
+      Description=Block container access to the instance metadata (KC-0276)
+      After=docker.service
+      Requires=docker.service
+      PartOf=docker.service
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStart=/usr/local/sbin/clawco-metadata-blok
+      [Install]
+      WantedBy=multi-user.target
   - path: /usr/local/sbin/clawco-start
     permissions: '0700'
     content: |
@@ -118,6 +146,8 @@ runcmd:
   - ufw allow 41641/udp
   - ufw --force enable
   - systemctl enable --now docker
+  - systemctl daemon-reload
+  - systemctl enable --now clawco-metadata-blok.service
   - $klon
   - /usr/local/sbin/clawco-start
 EOF

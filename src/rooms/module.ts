@@ -248,8 +248,10 @@ export interface RoomModule {
   readonly aktionVerber?: Readonly<Record<string, Verb>>;
   /** KC-0161: the startAction names that need a human tap (the red-button token bound to this exact press), though their verb is not a limit; the card's button carries data-kraever-ja. */
   readonly aktionTap?: readonly string[];
-  /** KC-0122: the verb and zones of a handling in the stored state, as the person sees it; null = not there (nothing runs). */
-  handlingVerb?(deps: RoomDeps, id: string): Promise<{ verb: string; zoner: DataZone[] } | null>;
+  /** KC-0122: the verb and zones of a handling in the stored state, as the person sees it; null = not there (nothing runs). KC-0270: `indhold` = handlingIndhold of its text, which a red button's token is bound to. */
+  handlingVerb?(deps: RoomDeps, id: string): Promise<{ verb: string; zoner: DataZone[]; indhold?: string } | null>;
+  /** KC-0270 (B5): the text of a log entry's Fortryd when the agent runs it (null for the app's own undo); the port floors its verb from it. */
+  fortrydTekst?(deps: RoomDeps, logId: string): Promise<string | null>;
   view(deps: RoomDeps): Promise<RoomView>;
   /** Start a rebuild; null when the mode is unknown for this room. */
   startOpdater(deps: RoomDeps, mode: string): Promise<RunRecord | null>;

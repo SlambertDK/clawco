@@ -8,6 +8,9 @@
 // only the unread or flagged mails wait, the state carries `laeseKun`, and
 // Færdig, Gem som kladde and Send are neither shown nor accepted.
 
+import { agentFortryd } from '../../graenser/verber.ts';
+import { graenserTekst } from '../../graenser/tekster.ts';
+import { handlingIndhold } from '../../graenser/tegn.ts';
 import type { LogEntry } from '../../store/types.ts';
 import type { RunRecord, DoneResult } from '../../runs.ts';
 import { ActionError, type MailForbindelse, type RoomDeps, type RoomModule, type RoomView } from '../module.ts';
@@ -85,9 +88,11 @@ async function startOpdater(deps: RoomDeps, mode: string): Promise<RunRecord | n
         tal: { handling: data.tal.handling, afventer: data.tal.afventer, regninger: data.tal.regninger, sorteretIDag: data.tal.sorteretIDag },
         ordnet: data.ordnet,
       };
-      const state = parseMailState(raw, facts, deps.now(), previous);
+      const droppet: string[] = [];
+      const state = parseMailState(raw, facts, deps.now(), previous, (id) => droppet.push(id));
       for (const b of state.beslutninger) { const e = emner.get(b.mailId); if (e) { b.emne = erUdenEmne(b.emne) ? e.emne : b.emne; b.modtaget = b.modtaget || e.modtaget; } }
       await deps.store.writeState(RUM, state);
+      if (droppet.length) await deps.store.appendLog(RUM, { kilde: 'system', tekst: graenserTekst().dubletter(droppet.length) });
       // KC-0145: what the night's auto-sort put in Ordnet was kept off the screen — the app's own record, once per post.
       if (deps.skjulte && state.ordnet.length) {
         await deps.skjulte.noter(state.ordnet.map((o) => ({ id: `mail:${o.mailId}:${o.tid}`, tid: koebenhavnTilIso(o.tid) ?? deps.now().toISOString(), titel: o.emne || mailTekst().skjultTitel(o.til), kilde: 'mail' })))
@@ -118,7 +123,8 @@ async function startOpdaterForbindelse(deps: RoomDeps, v: MailForbindelse): Prom
       const raw = kraevJson(output);
       const { state: previous } = await current(deps);
       const facts = { tal: { handling: data.tal.handling, afventer: 0, regninger: 0, sorteretIDag: 0 }, ordnet: [] };
-      const state = parseMailState(raw, facts, deps.now(), previous);
+      const droppet: string[] = [];
+      const state = parseMailState(raw, facts, deps.now(), previous, (id) => droppet.push(id));
       // Only mails that are in the inbox now (read-only: that wait); every one archives on Færdig, and nothing else is offered.
       state.beslutninger = state.beslutninger.filter((b) => emner.has(b.mailId));
       for (const b of state.beslutninger) {
@@ -131,6 +137,7 @@ async function startOpdaterForbindelse(deps: RoomDeps, v: MailForbindelse): Prom
       state.forbindelse = v.navn;
       if (laeseKun) state.laeseKun = true;
       await deps.store.writeState(RUM, state);
+      if (droppet.length) await deps.store.appendLog(RUM, { kilde: 'system', tekst: graenserTekst().dubletter(droppet.length) });
       await deps.store.appendLog(RUM, { kilde: 'hermes', tekst: laeseKun ? mailTekst().logLaesteIndbakkeKun(state.beslutninger.length) : mailTekst().logLaesteIndbakke(state.beslutninger.length) });
       return rendered(deps);
     },
@@ -190,14 +197,14 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
 async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
   const { state } = await synlig(deps);
   const v = await vindue(deps);
-  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
+  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
   return deps.runs.start({
     kind: 'chat',
     // KC-0218: on a mail connector (no Hermes tools) the chat answers from the envelopes, never from himalaya.
     spec: buildMailChatRun(besked, kontekst, state, v ? { navn: v.navn, kanHandle: v.kanHandle, nu: deps.now() } : undefined),
     onDone: async (output) => {
       const text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || mailTekst().intetSvar;
-      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
+      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text, ejer: deps.person.id });
       return { text };
     },
   });
@@ -339,11 +346,12 @@ async function startFaerdigAlle(deps: RoomDeps, body: Record<string, unknown>): 
 export const mailRoom: RoomModule = {
   id: RUM,
   korsel: KORSEL,
+  async fortrydTekst(deps, logId) { return agentFortryd((await synlig(deps)).log.find((e) => e.id === logId)?.fortryd); },
   aktionVerber: { faerdig: 'sorter', 'faerdig-alle': 'sorter', kladde: 'forbered', send: 'send-til-andre' },
   async handlingVerb(deps, id) {
     const { state } = await synlig(deps);
     const h = state ? handlingerIMail(state).get(id) : undefined;
-    return h ? { verb: handlingensVerb(h), zoner: [KORSEL] } : null;
+    return h ? { verb: handlingensVerb(h), zoner: [KORSEL], indhold: handlingIndhold(h) } : null;
   },
   view,
   startOpdater,

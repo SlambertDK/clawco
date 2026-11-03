@@ -13,6 +13,8 @@ import { erFunnel } from '../identitet/identitet.ts';
 const COOKIE = 'kc_test';
 const MAX_ALDER = 2592000; // 30 days
 const SAT = `${COOKIE}=1; Path=/; SameSite=Lax; HttpOnly; Max-Age=${MAX_ALDER}`;
+/** KC-0268: over https the cookie is Secure too; over plain http (laptop mode, the dev server) that flag would drop it. */
+const satFor = (req: Request): string => (new URL(req.url).protocol === 'https:' ? `${SAT}; Secure` : SAT);
 const RYDDET = `${COOKIE}=; Path=/; SameSite=Lax; HttpOnly; Max-Age=0`;
 const FEJL_TEKST = 'Testtilstand kunne ikke starte';
 const INTERN_TEKST = 'Testtilstand fejlede';
@@ -23,6 +25,8 @@ const TILSTAND = 'x-kc-tilstand';
 const VIS_STI = /\/rum\/[^/]+\/vis\//;
 
 type Rigtig = { fetch: (r: Request, env?: unknown) => Response | Promise<Response> };
+/** KC-0268: the real app's identity decision for this request — its refusal, or null when the person may use the test world. */
+export type Adgang = (req: Request, env?: unknown) => Promise<Response | null>;
 
 /** The test world's data dir: KC_TEST_DATA_DIR, else a sibling of the real one (never inside it, whatever the trailing slash). */
 export function testDataDir(env: { KC_TEST_DATA_DIR?: string; KC_DATA_DIR?: string }): string {
@@ -60,7 +64,7 @@ function injicer(html: string, v: Testverden): string {
   return html.replace(/<head(?:\s[^>]*)?>/i, (head) => head + tags);
 }
 
-export function medTesttilstand(real: Rigtig, lav: () => Promise<Testverden>): Hono {
+export function medTesttilstand(real: Rigtig, lav: () => Promise<Testverden>, adgang?: Adgang): Hono {
   const app = new Hono();
   let verden: Promise<Testverden> | null = null;
   /** The world, created at most once; a failed creation is forgotten so the next taend retries. */
@@ -97,7 +101,9 @@ export function medTesttilstand(real: Rigtig, lav: () => Promise<Testverden>): H
   async function tilVerden(v: Testverden, req: Request): Promise<Response> {
     const r = await v.app.fetch(req);
     if (!(r.headers.get('content-type') ?? '').toLowerCase().startsWith('text/html')) return r;
-    if (r.headers.has('content-security-policy') || VIS_STI.test(new URL(req.url).pathname)) return r;
+    // A presentation's own CSP restricts scripts (default-src or script-src); the app's general one (KC-0268:
+    // frame-ancestors and friends on every response) does not, so only the former means "leave it alone".
+    if (/\b(?:default-src|script-src)\b/i.test(r.headers.get('content-security-policy') ?? '') || VIS_STI.test(new URL(req.url).pathname)) return r;
     const h = new Headers(r.headers);
     h.delete('content-length');
     return new Response(injicer(await r.text(), v), { status: r.status, statusText: r.statusText, headers: h });
@@ -108,9 +114,20 @@ export function medTesttilstand(real: Rigtig, lav: () => Promise<Testverden>): H
     if (erFunnel(c.req.raw.headers)) return new Response('Ingen adgang', { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8' } });
     await next();
   });
+  // KC-0268: the test routes and the test world sit behind the real app's identity decision (cross-site, an unknown
+  // login, a guest and support are refused there), never behind the cookie alone. /health and a cookie-less request
+  // go straight to the real app, which decides for itself.
+  app.use('*', async (c, next) => {
+    const req = c.req.raw;
+    const sti = new URL(req.url).pathname;
+    if (!adgang || sti === '/health' || (!harCookie(req) && !sti.startsWith('/test/') && !(sti === '/api/rum/hjem/chat' && req.method === 'POST'))) return next();
+    const nej = await adgang(req, c.env);
+    if (nej) return nej;
+    await next();
+  });
 
   app.post('/test/taend', async (c) => {
-    return medVerden(async (v) => json(c, { url: (await v.taend()).url }, SAT));
+    return medVerden(async (v) => json(c, { url: (await v.taend()).url }, satFor(c.req.raw)));
   });
 
   app.post('/test/sluk', (c) => json(c, { url: '/rum/hjem' }, RYDDET));
@@ -127,7 +144,7 @@ export function medTesttilstand(real: Rigtig, lav: () => Promise<Testverden>): H
     return medVerden(async (v) => {
       // Already on: keep the world as it is; otherwise start clean.
       const { url } = harCookie(raw) ? { url: v.moment().url } : await v.taend();
-      return json(c, { aabn: url, testtilstand: 'til' }, SAT);
+      return json(c, { aabn: url, testtilstand: 'til' }, satFor(raw));
     });
   });
 

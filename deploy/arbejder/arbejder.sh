@@ -43,6 +43,7 @@ for post in ${ARBEJDER_REPOS:-kontrolcenter}; do
       (cd "$dir/sky" && npm ci --no-audit --no-fund >/dev/null 2>&1) || echo "$navn: npm ci i sky/ fejlede"
     fi
   fi
+  # Henrik's design: no permission prompts. KC-0269 is the gate (what the worker may be asked to do), not this flag.
   (cd "$dir" && timeout "${ARBEJDER_FRIST:-90m}" claude -p "$prompt" \
     --model "${ARBEJDER_MODEL:-sonnet}" --dangerously-skip-permissions --plugin-dir "$PLUGIN" </dev/null)
   echo "$navn: Claude Code sluttede (kode $?)"

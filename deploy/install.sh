@@ -103,6 +103,8 @@ absolut() {
 }
 
 # The value of KEY in an env file (non-secret keys only; empty when unset).
+# KC-0276 (F6): an address as it may be printed: any user:pass@ part is cut off first (the full value still goes to .env).
+uden_brugerinfo() { printf '%s' "$1" | sed -E 's#^([A-Za-z][A-Za-z0-9+.-]*://)?[^/@]*@#\1#'; }
 vaerdi_i() { grep -E "^$1=" "$2" 2>/dev/null | tail -1 | cut -d= -f2- || true; }
 
 # Ask on the terminal (works under `curl | bash`, where stdin is the script).
@@ -371,7 +373,7 @@ main() {
   case "$PORT" in '') ;; *[!0-9]*) fejl "Porten skal være et tal mellem 1 og 65535 (fik: $PORT).";; *) [ "$PORT" -ge 1 ] && [ "$PORT" -le 65535 ] || fejl "Porten skal være et tal mellem 1 og 65535 (fik: $PORT).";; esac
   case "$DATA/" in "$APP/"*) fejl "Brugermappen ($DATA) må ikke ligge i kodemappen ($APP): koden udskiftes ved opdatering, dine data må ikke.";; esac
   case "$APP/" in "$DATA/"*) fejl "Brugermappen ($DATA) må ikke indeholde kodemappen ($APP). Vælg en anden mappe med --data-dir.";; esac
-  case "$AGENT_URL" in ''|http://*|https://*) ;; *) fejl "--agent-url skal begynde med http:// eller https:// (fik: $AGENT_URL).";; esac
+  case "$AGENT_URL" in ''|http://*|https://*) ;; *) fejl "--agent-url skal begynde med http:// eller https:// (fik: $(uden_brugerinfo "$AGENT_URL")).";; esac
 
   local VIS_PORT=$PORT
   if [ -z "$VIS_PORT" ] && [ -f "$APP/.env.example" ]; then VIS_PORT=$(vaerdi_i KC_PORT "$APP/.env.example"); fi
@@ -380,12 +382,12 @@ main() {
     info "  1. System: $OS, node $NODE_VERSION, git og npm er i orden"
     if [ -d "$APP/.git" ]; then info "  2. Kode: opdater $APP (git fetch + fast-forward)"
     else info "  2. Kode: git clone $REPO → $APP"; fi
-    info "  3. Afhængigheder: npm ci --omit=dev i $APP"
+    info "  3. Afhængigheder: npm ci --omit=dev --ignore-scripts i $APP"
     if [ -f "$ENV_FIL" ]; then info "  4. Brugermappe: $DATA; indstillinger: $ENV_FIL findes og beholdes"
     else
       info "  4. Brugermappe: $DATA; indstillinger: $ENV_FIL (ny, kun læsbar for dig)"
       if [ -z "$AGENT_URL" ]; then info "     Agent: Clawcos indbyggede (KC_AGENT=direkte); nøglefil til dine modelnøgler: $NOEGLEFIL (ny, kun læsbar for dig)"
-      else info "     Agent: din egen Hermes på $AGENT_URL (KC_AGENT=hermes-http)"; fi
+      else info "     Agent: din egen Hermes på $(uden_brugerinfo "$AGENT_URL") (KC_AGENT=hermes-http)"; fi
     fi
     if [ "$BAERBAR" = 1 ]; then info "     Bærbar-tilstand: Clawco lytter kun på 127.0.0.1 (kun denne maskine), som én bruger uden login (KC_LAPTOP=ja i .env)"; fi
     if [ "$UDEN_SERVICE" = 1 ]; then info "  5. Baggrundstjeneste: springes over (--no-service)"
@@ -440,9 +442,9 @@ main() {
 
   trin 3 "Afhængigheder"
   mkdir -p "$LOGMAPPE"
-  (cd "$APP" && npm ci --omit=dev --no-audit --no-fund) >"$LOGMAPPE/npm.log" 2>&1 \
+  (cd "$APP" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund) >"$LOGMAPPE/npm.log" 2>&1 \
     || { tail -20 "$LOGMAPPE/npm.log" >&2; fejl "npm ci fejlede (hele loggen: $LOGMAPPE/npm.log)."; }
-  info "npm ci --omit=dev: i orden"
+  info "npm ci --omit=dev --ignore-scripts: i orden"
 
   trin 4 "Brugermappe og indstillinger"
   [ -n "$PORT" ] || PORT=$(vaerdi_i KC_PORT "$APP/.env.example")

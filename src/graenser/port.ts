@@ -8,7 +8,8 @@ import type { RoomDeps, RoomModule } from '../rooms/module.ts';
 import type { RunRecord } from '../runs.ts';
 import type { DataZone } from '../identitet/zoner.ts';
 import { afgoer, type Afgoerelse, type Forslag, type Kontekst } from './afgoer.ts';
-import { lavTegn, type Tegn } from './tegn.ts';
+import { fortrydIndhold, lavTegn, type Tegn } from './tegn.ts';
+import { fortrydVerb } from './verber.ts';
 import { VERB_NU } from './opsyn.ts';
 import type { Kanal } from './revisionslog.ts';
 import { graenserTekst } from './tekster.ts';
@@ -85,7 +86,7 @@ export const aktionId = (name: string, body: Record<string, unknown>): string =>
  */
 export async function gennem<T>(d: RoomDeps, forslag: Forslag, slags: string, i: Indgang, koer: () => Promise<T>, o: { tegn?: Tegn; rapporter?: Sink } = {}): Promise<T> {
   const tegn = o.tegn ?? TEGN;
-  const ja = i.kanal !== 'stemme' && tegn.indloes(i.ja, { person: d.person.id, rum: forslag.rum, slags, id: forslag.id });
+  const ja = i.kanal !== 'stemme' && tegn.indloes(i.ja, { person: d.person.id, rum: forslag.rum, slags, id: forslag.id, ...(forslag.indhold ? { indhold: forslag.indhold } : {}) });
   const a = afgoer(forslag, { person: d.person, kanal: i.kanal, ja });
   const rapporter = o.rapporter ?? revisionsSink;
   if (a.udfald !== 'tillad') {
@@ -113,9 +114,13 @@ export function vogt(m: RoomModule, o: { tegn?: Tegn; rapporter?: Sink } = {}): 
     async handling(d, id, i) {
       const v = m.handlingVerb ? await m.handlingVerb(d, id) : null;
       if (!v) return null; // not in the state the person sees: nothing runs (the route answers 404 as before)
-      return gennem(d, f(id, v.verb, v.zoner), 'handling', i, () => startHandling.call(m, d, id), o);
+      return gennem(d, { ...f(id, v.verb, v.zoner), ...(v.indhold ? { indhold: v.indhold } : {}) }, 'handling', i, () => startHandling.call(m, d, id), o);
     },
-    async fortryd(d, logId, i) { return gennem(d, f(logId, 'udfoer-med-fortryd'), 'fortryd', i, () => startFortryd.call(m, d, logId), o); },
+    async fortryd(d, logId, i) {
+      // KC-0270 (B5): an agent-written undo gets its verb from its text (a sending one needs the red tap, bound to that text).
+      const tekst = m.fortrydTekst ? await m.fortrydTekst(d, logId) : null;
+      return gennem(d, { ...f(logId, fortrydVerb(tekst)), ...(tekst ? { indhold: fortrydIndhold(tekst) } : {}) }, 'fortryd', i, () => startFortryd.call(m, d, logId), o);
+    },
     async opdater(d, mode, i) { return gennem(d, f(mode, 'laes'), 'opdater', i, () => startOpdater.call(m, d, mode), o); },
     async chat(d, besked, kontekst, i) { return gennem(d, f('chat', 'forbered'), 'chat', i, () => startChat.call(m, d, besked, kontekst), o); },
   };

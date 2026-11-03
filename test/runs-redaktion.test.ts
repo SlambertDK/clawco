@@ -55,3 +55,32 @@ test('a local run (no Hermes) that fails is masked too', async () => {
   const done = await runs.local('lokal', async () => { throw new Error(`kunne ikke logge ind med ${HEMMELIG}`); }).finished;
   assert.equal(done.error, `kunne ikke logge ind med ${MASKE}`);
 });
+
+// KC-0270 (B7): Start's model test is a one-off call outside the queue, but it goes through the run registry: masked
+// both ways, refused while paused, and "Stop alt" aborts it.
+test('proeve: a one-off agent call is masked both ways, refused on pause and aborted by Stop alt', async () => {
+  const { lavPause, PauseFejl } = await import('../src/graenser/nodstop.ts');
+  const hermes = createFakeAgent({ answer: () => `svar ${HEMMELIG}` });
+  const pause = lavPause();
+  const runs = createRunRegistry(hermes, { pause });
+  const r = await runs.proeve({ input: `x ${HEMMELIG}`, instructions: `y ${HEMMELIG}` });
+  assert.ok(!hermes.calls.at(-1)!.input.includes(HEMMELIG) && !hermes.calls.at(-1)!.instructions.includes(HEMMELIG));
+  assert.ok(!r.output.includes(HEMMELIG));
+  const lang = createFakeAgent({ delayMs: 200, answer: () => 'ok' });
+  const runs2 = createRunRegistry(lang, { pause: lavPause() });
+  const p = runs2.proeve({ input: 'x', instructions: 'y' });
+  await new Promise((res) => setTimeout(res, 5));
+  await runs2.stopAlle('henrik');
+  await assert.rejects(p);
+  assert.equal(lang.cancellerede.length, 1);
+  await assert.rejects(runs2.proeve({ input: 'x', instructions: 'y' }), PauseFejl, 'paused after Stop alt');
+});
+
+test("Start's model test while paused records nothing (the pause is not a failed model)", async () => {
+  const { lavPause, PauseFejl } = await import('../src/graenser/nodstop.ts');
+  const src = (await import('node:fs')).readFileSync(new URL('../src/rooms/start/room.ts', import.meta.url), 'utf8');
+  assert.match(src, /deps\.runs\.proeve\(/, 'the model test goes through the run registry');
+  assert.doesNotMatch(src, /deps\.hermes\.run\(/);
+  assert.match(src, /if \(err instanceof PauseFejl\) throw err;/);
+  void lavPause; void PauseFejl;
+});

@@ -12,6 +12,10 @@ EnvironmentFile=%h/kontrolcenter/.env
 ExecStart=/usr/bin/env node src/server.ts
 Restart=on-failure
 RestartSec=3
+# KC-0276 (F5): the one sandbox option that needs no list of writable paths. The full sandbox (private /tmp, a
+# read-only file system except the data dir and the vault, no reach into ~/.ssh) waits for the real paths on
+# kira-home and for Kira's morning-paper writer to leave /tmp (KC-0276 follow-up); REASONED paths would break Dagen.
+NoNewPrivileges=yes
 
 [Install]
 WantedBy=default.target

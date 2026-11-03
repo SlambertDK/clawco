@@ -10,8 +10,10 @@ export type ModelTestUdfald = 'klar' | '401' | 'timeout';
 
 export function createFakeAgent(
   opts: { answer?: (req: AgentRunRequest) => FakeAnswer; delayMs?: number; modelTest?: (req: AgentRunRequest) => ModelTestUdfald; status?: () => AgentStatus } = {},
-): AgentClient & { calls: AgentRunRequest[]; noegler: { envNavn: string; laengde: number }[] } {
+): AgentClient & { calls: AgentRunRequest[]; noegler: { envNavn: string; laengde: number }[]; cancellerede: string[] } {
   const calls: AgentRunRequest[] = [];
+  /** KC-0270: the runs a cancel was sent for (the abort path calls it). */
+  const cancellerede: string[] = [];
   const noegler: { envNavn: string; laengde: number }[] = [];
   let counter = 0;
   const modelTest = opts.modelTest ?? (() => 'klar' as const);
@@ -25,10 +27,13 @@ export function createFakeAgent(
     mode: 'fake',
     calls,
     noegler,
+    cancellerede,
+    async cancel(runId: string): Promise<void> { cancellerede.push(runId); },
     async run(req: AgentRunRequest): Promise<AgentRunResult> {
       calls.push(req);
       counter += 1;
       const runId = `fake_${counter}`;
+      req.signal?.addEventListener('abort', () => { cancellerede.push(runId); }, { once: true });
       const emit = (e: AgentEvent): void => req.onEvent?.(e);
 
       // KC-0118: an abort before or during the delay rejects like the real client.

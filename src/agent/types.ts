@@ -47,6 +47,11 @@ export interface AgentClient {
    * Clawco never keeps it. Answers name + length, or the command to run on the agent's host when it cannot write.
    */
   saetModelNoegle(udbyder: { envNavn: string }, vaerdi: string): Promise<NoegleSvar>;
+  /**
+   * KC-0270 (B2): tells the agent to stop a run it is still working on (Hermes: POST /v1/runs/{id}/stop). The run's
+   * own abort signal calls it; it never throws. Absent where the run lives in this process (the abort is enough).
+   */
+  cancel?(runId: string): Promise<void>;
 }
 
 /** The message of an aborted run (signal). */

@@ -7,12 +7,23 @@
 
 import { udloebet, udsatNu, type Kort } from '../rooms/hjem/kort.ts';
 import { kuratorTekst } from './tekster.ts';
+import { agentFortryd } from '../graenser/verber.ts';
 import type { Senere } from '../rooms/hjem/kort.ts';
 
 export { aftenMulig, SENERE, senereTid, udsatNu, type Senere } from '../rooms/hjem/kort.ts';
 
 /** The stored fortryd of a Senere log line (handlingId `senere:<card id>`): the app brings the card back, no Hermes run. */
 export const FORTRYD_SENERE = 'hent-kortet-tilbage';
+
+/**
+ * KC-0270 (B5): the text of a Nu log line's Fortryd that Hermes runs; null for the app's own undo (Senere, a ledger
+ * row, 'lokal:…'). The same split as kortHandlinger.fortrydLog makes.
+ */
+export function agentFortrydNu(e: { fortryd?: string | undefined; handlingId?: string | undefined }): string | null {
+  if (e.fortryd === FORTRYD_SENERE && e.handlingId?.startsWith('senere:')) return null;
+  if (e.handlingId?.startsWith('regnskab:')) return null;
+  return agentFortryd(e.fortryd);
+}
 
 /** The cards on screen and among those waiting: not expired and not put away. */
 export function synligeKort(kort: readonly Kort[], now: Date): Kort[] {

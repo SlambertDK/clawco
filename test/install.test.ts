@@ -332,6 +332,17 @@ test('--agent-url keeps the Hermes install as before: hermes-http, no key file',
   assert.ok(!existsSync(path.join(rod, 'hemmeligheder.key')));
 });
 
+test('--agent-url: an error or the plan never prints a user:pass@ part of the address (KC-0276)', async () => {
+  const slet = await koer(nyHome(), ['--yes', '--no-service', '--port', PORT, '--agent-url', 'admin:hunter2@agent.test:8642'], { input: 'k\n' });
+  assert.notEqual(slet.code, 0);
+  assert.match(slet.out + slet.err, /--agent-url skal begynde med http:\/\/ eller https:\/\/ \(fik: agent\.test:8642\)/);
+  assert.ok(!(slet.out + slet.err).includes('hunter2') && !(slet.out + slet.err).includes('admin'));
+  const plan = await koer(nyHome(), ['--dry-run', '--yes', '--no-service', '--port', PORT, '--agent-url', 'http://admin:hunter2@agent.test:8642'], { input: 'k\n' });
+  assert.equal(plan.code, 0, plan.out + plan.err);
+  assert.match(plan.out, /din egen Hermes på http:\/\/agent\.test:8642 /);
+  assert.ok(!(plan.out + plan.err).includes('hunter2'));
+});
+
 test('an old install whose .env has no KC_AGENT keeps running as before: re-running changes neither .env nor the agent, and makes no key file', async () => {
   const home = nyHome();
   const rod = path.join(home, '.clawco');

@@ -88,7 +88,8 @@ export function createHermesHttp(opts: {
     // KC-0118: the caller's signal aborts the same controller as the timeout.
     if (req.signal?.aborted) { clearTimeout(timer); throw new AgentError(AFBRUDT); }
     let afbrudt = false;
-    const afbryd = (): void => { afbrudt = true; controller.abort(); };
+    // KC-0270 (B2): closing our stream is not enough — Hermes is told to stop the run too.
+    const afbryd = (): void => { afbrudt = true; controller.abort(); if (runId) void cancel(runId); };
     req.signal?.addEventListener('abort', afbryd, { once: true });
 
     try {
@@ -229,6 +230,17 @@ export function createHermesHttp(opts: {
     }
   }
 
+  let cancelAdvaret = false;
+  async function cancel(runId: string): Promise<void> {
+    try {
+      const res = await doFetch(`${baseUrl}/v1/runs/${encodeURIComponent(runId)}/stop`, { method: 'POST', headers: authHeaders(), signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS) });
+      // 404 is also a run that already ended; a Hermes without the route answers 404/405 for every run — say it once.
+      if ((res.status === 404 || res.status === 405) && !cancelAdvaret) { cancelAdvaret = true; console.warn(`[hermes] cancel ikke understøttet af Hermes (HTTP ${res.status} på /v1/runs/{id}/stop)`); }
+    } catch {
+      // a Hermes that does not answer: nothing more to stop from here
+    }
+  }
+
   async function health(): Promise<boolean> {
     if (!noegle()) return false;
     try {
@@ -261,5 +273,5 @@ export function createHermesHttp(opts: {
     return { slags: 'gemt', noegle: navn, laengde };
   }
 
-  return { mode: 'hermes-http', run, health, status, saetModelNoegle };
+  return { mode: 'hermes-http', run, health, status, saetModelNoegle, cancel };
 }

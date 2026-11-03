@@ -77,7 +77,10 @@ function reglerDel(v: Viden): Markup {
   if (!v.regler) return html`<section class="card" data-viden-del="regler"><h2 class="eyebrow">${T.regler}</h2><p class="muted">${T.ingenRegler}</p></section>`;
   const { fil, laest } = v.regler;
   const sti = html`<p class="row-note">${T.filen}<span class="mono" data-regler-fil>${fil}</span></p>`;
-  const aendret = laest.tilstand !== 'mangler' && laest.aendretUdenfor ? html`<p class="row-note" data-regler-aendret>${T.filenAendret(PRODUKT)}</p>` : '';
+  // KC-0270 (B3): the owner's tap approves exactly the content shown (its hash is in the yes the button asks for).
+  const godkend = laest.tilstand === 'ok' && laest.aendretUdenfor && laest.sha
+    ? html`<form method="post" action="/api/tillid/regler/godkend" class="viden-form" data-regel-form="godkend:${laest.sha}"><button type="submit" class="btn">${T.godkendRegler}</button></form>` : '';
+  const aendret = laest.tilstand !== 'mangler' && laest.aendretUdenfor ? html`<p class="row-note" data-regler-aendret>${T.filenAendret(PRODUKT)}</p>${godkend}` : '';
   let indhold: Markup;
   if (laest.tilstand === 'mangler') indhold = html`<p class="muted">${T.ingenRegler}</p>`;
   else if (laest.tilstand === 'ulaeselig') indhold = html`<p class="muted" data-regler="ulaeselig">${T.filenUlaeselig(T.ulaeseligHvorfor[laest.hvorfor] ?? laest.hvorfor)}</p>`;

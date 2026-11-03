@@ -168,6 +168,22 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
   }
   function ikkePaaPause(): void { if (pause.erPaaPause()) throw new PauseFejl(); }
 
+  /**
+   * KC-0270 (B7): a one-off call outside the queue (Start's model test): not a run in the Kø panel, but refused while
+   * paused, masked both ways like every run, and aborted by "Stop alt" (which also tells the agent to stop it).
+   */
+  async function proeve(req: Parameters<AgentClient['run']>[0]): ReturnType<AgentClient['run']> {
+    ikkePaaPause();
+    const id = `kc_proeve_${randomUUID()}`;
+    const stop = new AbortController();
+    const ydre = req.signal;
+    const videre = (): void => stop.abort();
+    ydre?.addEventListener('abort', videre, { once: true });
+    if (ydre?.aborted) stop.abort();
+    aktive.set(id, () => stop.abort());
+    try { return await kaldAgent({ ...req, signal: stop.signal }); } finally { aktive.delete(id); ydre?.removeEventListener('abort', videre); }
+  }
+
   function emit(id: string, e: RunEvent): void {
     const r = runs.get(id);
     if (!r) return;
@@ -364,7 +380,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
   /** Re-reads pause.json (the test world reseeds it on a jump). */
   const genlaesPause = (): Promise<void> => pause.genlaes();
 
-  return { start, local, subscribe, get, list, igang, onFinished, setModels, getModels, stopAlle, annuller, tomgang, genoptag, paaPause, pauseTilstand, genlaesPause };
+  return { start, local, proeve, subscribe, get, list, igang, onFinished, setModels, getModels, stopAlle, annuller, tomgang, genoptag, paaPause, pauseTilstand, genlaesPause };
 }
 
 export type RunRegistry = ReturnType<typeof createRunRegistry>;

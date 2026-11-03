@@ -26,10 +26,10 @@ test('an account created on or after the addition (start date minus 30 days) is 
 
 test('ibrugtagningFor reads the start date of the listed subprocessor that covers the host; unlisted is null', () => {
   const d = { underdatabehandlere: [
-    { id: 'aws', vaerter: ['bedrock-runtime.eu-central-1.amazonaws.com'], ibrugtagning: '2026-12-03' },
+    { id: 'aws', vaerter: ['bedrock-runtime.eu-north-1.amazonaws.com'], ibrugtagning: '2026-12-03' },
     { id: 'x', vaerter: ['*.x.example'], ibrugtagning: null },
   ] };
-  assert.equal(ibrugtagningFor('bedrock-runtime.eu-central-1.amazonaws.com', d), '2026-12-03');
+  assert.equal(ibrugtagningFor('bedrock-runtime.eu-north-1.amazonaws.com', d), '2026-12-03');
   assert.equal(ibrugtagningFor('a.x.example', d), null);
   assert.equal(ibrugtagningFor('api.anthropic.com', d), null);
 });

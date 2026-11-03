@@ -43,7 +43,8 @@ const da = {
   regler: 'Regler',
   ingenRegler: 'Ingen regler endnu.',
   filen: 'Filen: ',
-  filenAendret: (produkt: string): string => `Filen er ændret uden for ${produkt}. Det er helt i orden; reglerne læses, som de står i filen nu.`,
+  filenAendret: (produkt: string): string => `Filen er ændret uden for ${produkt}. Reglerne gælder ikke, før du har godkendt dem, som de står nu.`,
+  godkendRegler: 'Godkend reglerne',
   filenUlaeselig: (hvorfor: string): string => `Filen kan ikke læses (${hvorfor}). Indtil den er rettet, må Hermes kun se og foreslå.`,
   /** What a rules file can be unreadable for, as the code keeps it (Danish, for Hermes' prompt), in the words of the page. */
   ulaeseligHvorfor: Object.fromEntries(Object.values(ULAESELIG).map((v) => [v, v])) as Record<string, string>,
@@ -133,7 +134,8 @@ const en: TillidTekster = {
   regler: 'Rules',
   ingenRegler: 'No rules yet.',
   filen: 'The file: ',
-  filenAendret: (produkt) => `The file was changed outside ${produkt}. That is perfectly fine; the rules are read as they stand in the file now.`,
+  filenAendret: (produkt) => `The file was changed outside ${produkt}. The rules do not count until you have approved them as they stand now.`,
+  godkendRegler: 'Approve the rules',
   filenUlaeselig: (hvorfor) => `The file cannot be read (${hvorfor}). Until it is fixed, Hermes may only look and suggest.`,
   ulaeseligHvorfor: {
     [ULAESELIG.aabne]: 'the file could not be opened',

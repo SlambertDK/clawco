@@ -144,7 +144,7 @@ opdater() {
     return 1
   }
   installer_afhaengigheder() {
-    (cd "$APP" && npm ci --omit=dev --no-audit --no-fund) >"$LOGMAPPE/npm.log" 2>&1
+    (cd "$APP" && npm ci --omit=dev --ignore-scripts --no-audit --no-fund) >"$LOGMAPPE/npm.log" 2>&1
   }
 
   # 4. The new code, its dependencies, the restart.
@@ -152,7 +152,7 @@ opdater() {
   git -C "$APP" checkout -q -f -B "$GREN" "$NY_FULD" 2>>"$LOGMAPPE/opdater.log" || { AARSAG="koden kunne ikke flyttes til $NY"; OK=0; }
   git -C "$APP" branch -q --set-upstream-to="origin/$GREN" "$GREN" >/dev/null 2>&1 || true
   if [ "$OK" = 1 ]; then
-    if installer_afhaengigheder; then info "Afhængigheder: i orden (npm ci --omit=dev)"
+    if installer_afhaengigheder; then info "Afhængigheder: i orden (npm ci --omit=dev --ignore-scripts)"
     else AARSAG="npm ci fejlede, se $LOGMAPPE/npm.log"; OK=0; fi
   fi
   if [ "$OK" = 1 ] && [ "$HAR_TJENESTE" = 0 ]; then

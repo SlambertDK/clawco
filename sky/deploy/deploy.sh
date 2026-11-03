@@ -12,7 +12,10 @@ git fetch -q origin main
 git checkout -q main
 git reset -q --hard origin/main
 cd sky
-npm ci --omit=dev --no-audit --no-fund >/tmp/sky-npm.log 2>&1 || { tail -20 /tmp/sky-npm.log; exit 1; }
+# KC-0276: --ignore-scripts (no dependency install script runs as sky; koffi ships prebuilt binaries, as in the Dockerfile).
+log="$(mktemp)"
+npm ci --omit=dev --ignore-scripts --no-audit --no-fund >"$log" 2>&1 || { tail -20 "$log"; rm -f "$log"; exit 1; }
+rm -f "$log"
 test -f /srv/sky/.env || { echo "manglende /srv/sky/.env (se sky/.env.example)"; exit 1; }
 # The only root-level step `sky` may run (sudoers line in sky/deploy/README.md).
 sudo -n /usr/bin/systemctl restart sky

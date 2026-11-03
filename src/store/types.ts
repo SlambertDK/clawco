@@ -30,6 +30,8 @@ export type ChatEntry = {
   tekst: string;
   /** The element the message was about ("Om: …"), if any. */
   kontekst?: string;
+  /** KC-0269: whose line (person id); absent = the household's owner. A member reads her own lines, never the owner's. */
+  ejer?: string;
 };
 
 export type NewLogEntry = Omit<LogEntry, 'id' | 'tid'> & Partial<Pick<LogEntry, 'id' | 'tid'>>;

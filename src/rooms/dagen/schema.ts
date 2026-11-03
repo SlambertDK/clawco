@@ -9,6 +9,7 @@ import { dagStr, klokke } from '../../shell/friskhed.ts';
 import { ZoneFejl, erDataZone, zoneFra, synligFor, type DataZone, type Zoneret } from '../../identitet/zoner.ts';
 import type { Person } from '../../identitet/husstand.ts';
 import { agentGulv, verbFra } from '../../graenser/verber.ts';
+import { foersteVinder } from '../../graenser/dubletter.ts';
 import { dagenTekst } from './tekster.ts';
 import { dagenPromptTekst } from './prompt-tekster.ts';
 
@@ -136,7 +137,8 @@ function zoneAfSvar(raw: unknown, where: string): DataZone {
   }
 }
 
-export function parseDagenState(raw: unknown, now: Date): DagenState {
+/** `droppet` (KC-0270): called with the id of a handling dropped because an earlier one had it (first wins). */
+export function parseDagenState(raw: unknown, now: Date, droppet?: (id: string) => void): DagenState {
   if (!isObj(raw)) throw new SchemaError(dagenPromptTekst().fejl.ikkeObjekt);
 
   const dato = str(raw['dato'], 10) || now.toISOString().slice(0, 10);
@@ -153,6 +155,7 @@ export function parseDagenState(raw: unknown, now: Date): DagenState {
   const aOverskrift = str(a['overskrift'], 60); if (aOverskrift) anbefaling.overskrift = aOverskrift;
 
   const kalRaw = Array.isArray(raw['kalender']) ? raw['kalender'] : [];
+  const sete = new Set<string>(aHandling ? [aHandling.id] : []);
   const kalender: KalenderPost[] = [];
   kalRaw.slice(0, MAX_KALENDER).forEach((k, i) => {
     if (!isObj(k)) return;
@@ -163,7 +166,8 @@ export function parseDagenState(raw: unknown, now: Date): DagenState {
     const slut = optStr(k['slut'], 20); if (slut) post.slut = slut;
     const note = optStr(k['note'], 300); if (note) post.note = note;
     const status = str(k['status'], 20); if (STATUS.has(status)) post.status = status as 'klar' | 'flyttet' | 'aflyst';
-    const h = handling(k['handling'], `kal-${i + 1}`, `kalender[${i}]`); if (h) post.handling = h;
+    const h = handling(k['handling'], `kal-${i + 1}`, `kalender[${i}]`);
+    if (h && sete.has(h.id)) droppet?.(h.id); else if (h) { post.handling = h; sete.add(h.id); }
     const kIkon = parseIkon(k['ikon']); if (kIkon) post.ikon = kIkon;
     kalender.push(post);
   });
@@ -223,10 +227,8 @@ export function synligDagen(state: DagenState, person: Person): DagenState {
 
 /** Every handling in the state, keyed by id — the only source a click may name. */
 export function handlingerI(state: DagenState): Map<string, Handling> {
-  const m = new Map<string, Handling>();
-  if (state.anbefaling.handling) m.set(state.anbefaling.handling.id, state.anbefaling.handling);
-  for (const k of state.kalender) if (k.handling) m.set(k.handling.id, k.handling);
-  return m;
+  // KC-0270 (B4): first wins, as the parser keeps it; never a later handling in place of the one shown first.
+  return foersteVinder([state.anbefaling.handling, ...state.kalender.map((k) => k.handling)].filter((h): h is Handling => Boolean(h)));
 }
 
 /** KC-0095: from 07.30 (the morning build runs 07.05) a Dagen from an earlier day should have been rebuilt. */
@@ -247,5 +249,5 @@ import { ventendeLinjer } from './tekster.ts';
 
 export const venterDagen = (state: DagenState | null, log: LogEntry[], now: Date): number => ventendeLinjer(state, log, now).length;
 
-/** KC-0122: the verb a stored handling runs under (old state has none: the app's floor). */
-export const handlingensVerb = (h: Handling): string => h.verb ?? agentGulv(h);
+/** KC-0122: the verb a stored handling runs under; KC-0270: never below the app's floor from its text, also for state stored before it. */
+export const handlingensVerb = (h: Handling): string => verbFra(h.verb, agentGulv(h));

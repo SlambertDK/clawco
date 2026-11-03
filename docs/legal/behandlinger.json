@@ -9,7 +9,7 @@
   },
   "dato": "2026-11-03",
   "tjekketDPF": "2026-11-02",
-  "udgave": { "version": "1.2", "status": "udgivet" },
+  "udgave": { "version": "1.3", "status": "udgivet" },
   "behandlinger": [
     {
       "id": "konto-login",
@@ -329,8 +329,8 @@
         "en": "Runs Clawco's AI that is included in your Sky plan (Claude Haiku 5.5 from Anthropic through Amazon Bedrock), when you do not use your own AI. AWS receives the parts of your content that the model needs to read and sends the answer back. According to AWS, the model maker Anthropic has no access to the content or to AWS' logs."
       },
       "hvor": {
-        "da": "AWS' regioner i EU: Frankfurt, og gennem AWS' EU-profil også Stockholm, Milano, Spanien, Irland og Paris. Indholdet forlader ikke EU.",
-        "en": "AWS' regions in the EU: Frankfurt, and through AWS' EU profile also Stockholm, Milan, Spain, Ireland and Paris. The content does not leave the EU."
+        "da": "AWS' regioner i EU: Stockholm, og gennem AWS' EU-profil også Frankfurt, Milano, Spanien, Irland og Paris. Indholdet forlader ikke EU.",
+        "en": "AWS' regions in the EU: Stockholm, and through AWS' EU profile also Frankfurt, Milan, Spain, Ireland and Paris. The content does not leave the EU."
       },
       "land": "Luxembourg",
       "eu": true,
@@ -341,7 +341,7 @@
       "dpa": "https://d1.awsstatic.com/legal/aws-dpa/aws-dpa.pdf",
       "ibrugtagning": "2026-12-03",
       "kunHvisValgt": false,
-      "vaerter": ["bedrock-runtime.eu-central-1.amazonaws.com"]
+      "vaerter": ["bedrock-runtime.eu-north-1.amazonaws.com"]
     }
   ],
   "efterTabel": {
@@ -413,6 +413,11 @@
       "dato": "2026-11-03",
       "da": "Amazon Web Services EMEA SARL tilføjet: kører Clawcos AI, der er med i Sky-planerne, i AWS' EU-regioner. Behandlingen begynder tidligst 2026-12-03 for konti, der fandtes før denne udgave (30 dages varsel).",
       "en": "Amazon Web Services EMEA SARL added: runs Clawco's AI included in the Sky plans, in AWS' EU regions. Processing starts no earlier than 2026-12-03 for accounts that existed before this version (30 days' notice)."
+    },
+    {
+      "dato": "2026-11-03",
+      "da": "AWS' første region er Stockholm i stedet for Frankfurt (samme EU-profil og de samme seks EU-regioner).",
+      "en": "AWS' first region is Stockholm instead of Frankfurt (the same EU profile and the same six EU regions)."
     }
   ]
 }

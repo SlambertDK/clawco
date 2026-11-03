@@ -26,8 +26,9 @@ function falskVaert(dir: string) {
   fs.writeFileSync(ssh, `#!/usr/bin/env bash
 printf '%s\\n' "$@" > ${JSON.stringify(argvFil)}
 cmd="\${@: -1}"
-cmd="\${cmd//\\/srv\\/sky\\/.env/${envFil.replace(/\//g, '\\/')}}"
-cmd="\${cmd/sudo -n -u sky /}"
+# KC-0276: the host command is now "sudo -n -u sky /usr/bin/bash /srv/sky/kontrolcenter/<script> <arg>"; run the
+# same script from this checkout against the temp .env (SKY_ENV_FIL, which sudo's env_reset would drop for real).
+cmd="\${cmd/sudo -n -u sky \\/usr\\/bin\\/bash \\/srv\\/sky\\/kontrolcenter\\//SKY_ENV_FIL=${envFil} bash ${path.dirname(skyRod)}/}"
 bash -c "$cmd"
 `, { mode: 0o755 });
   const koer = (args: string[]) => spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf8', env: rentMiljoe({ SKY_SSH_CMD: ssh, SKY_SSH_KEY: '/dev/null' }) });

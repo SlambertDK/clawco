@@ -15,6 +15,8 @@
 # Host: SKY_SSH_HOST (default henrik@kira-home), key SKY_SSH_KEY (default ~/.ssh/kira-home).
 # Then restart the unit that reads it: ssh kira-home 'sudo systemctl restart sky' (or clawco-sky-tunnel).
 set -euo pipefail
+# KC-0276 (F6): the Bitwarden CLI is pinned exactly (same version as scripts/set-secret.sh); bump it on purpose.
+BW_CLI_VERSION=2026.10.1
 host="${SKY_SSH_HOST:-henrik@kira-home}"
 keyfile="${SKY_SSH_KEY:-$HOME/.ssh/kira-home}"
 ssh_cmd="${SKY_SSH_CMD:-ssh}"
@@ -48,16 +50,15 @@ if [ -n "$bws_key" ]; then
     process.stdout.write(String(pickSecret(listSecrets(projekt.id), noegle).value ?? ""));
   ' "$bws_dir" "$bws_key")"
 elif [ -n "$item" ]; then
-  [ -n "${BW_SESSION:-}" ] || { echo "BW_SESSION mangler (kør: export BW_SESSION=\$(npx @bitwarden/cli unlock --raw))"; exit 1; }
-  value="$(npx --yes @bitwarden/cli get password "$item" --session "$BW_SESSION")"
+  [ -n "${BW_SESSION:-}" ] || { echo "BW_SESSION mangler (kør: export BW_SESSION=\$(npx @bitwarden/cli@$BW_CLI_VERSION unlock --raw))"; exit 1; }
+  value="$(npx --yes @bitwarden/cli@"$BW_CLI_VERSION" get password "$item" --session "$BW_SESSION")"
 else
   read -r -s -p "Indsæt værdien for $name (vises ikke): " value; echo
 fi
 value="${value//$'\n'/}"
 [ -n "$value" ] || { echo "tom værdi, intet ændret"; exit 1; }
 
-# Runs on the host as sky: replace the line atomically in a 0600 file. No single quotes inside (it is
-# wrapped in them); $1 is the validated name, the value is stdin.
-remote='f=/srv/sky/.env; v="$(cat)"; umask 077; touch "$f"; tmp="$(mktemp "$f.XXXXXX")"; grep -v "^$1=" "$f" > "$tmp" || true; printf "%s=%s\n" "$1" "$v" >> "$tmp"; chmod 600 "$tmp"; mv -f "$tmp" "$f"'
-printf '%s\n' "$value" | "$ssh_cmd" -i "$keyfile" "$host" "sudo -n -u sky bash -c '$remote' _ $name"
+# Runs on the host as sky: the fixed script from the checkout replaces the line atomically in a 0600 file
+# (KC-0276; the sudoers drop-in names exactly this path with a SKY_* name, not `bash -c`). The value is stdin.
+printf '%s\n' "$value" | "$ssh_cmd" -i "$keyfile" "$host" "sudo -n -u sky /usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/saet-env.sh $name"
 echo "$name sat i /srv/sky/.env på $host (længde ${#value})"

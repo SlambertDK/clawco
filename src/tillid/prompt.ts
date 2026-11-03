@@ -31,6 +31,8 @@ export function reglerTilPrompt(l: ReglerLaest | undefined): string {
   const T = regelPromptTekst();
   if (!l || l.tilstand === 'mangler') return `${T.overskrift}\n${T.ingenGodkendt} ${T.trin0}`;
   if (l.tilstand === 'ulaeselig') return `${T.overskrift}\n${T.ulaeselig(enLinje(hvorforTekst(l.hvorfor)))}`;
+  // KC-0270 (B3): a file changed outside Clawco is not trusted text until the owner approved it; its rules are not shown.
+  if (l.aendretUdenfor) return `${T.overskrift}\n${T.ikkeGodkendt} ${T.trin0}`;
   const aktive = l.saet.regler.filter((r) => r.status === 'aktiv');
   const linjer = aktive.length ? aktive.map(regelLinje) : [T.ingenAktive];
   const ugyldige = l.saet.ugyldige.map((u) => T.ugyldig(enLinje(u.overskrift)));

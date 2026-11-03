@@ -131,3 +131,28 @@ test('KC-0146: a rules file that cannot be read is not rewritten by Slå fra', a
     assert.equal((await t.post('/api/tillid/regler/R-0001/pause', { ja })).status, 409);
   } finally { await t.ryd(); }
 });
+
+test('KC-0270 (B3): a rules file changed outside Clawco is approved only by the owner\'s tap for exactly that content; until then nothing rewrites it', async () => {
+  const t = await opsaet();
+  try {
+    await t.lager.skrivTekst(FIL);
+    await writeFile(t.lager.fil, FIL.replace('- trin: 2', '- trin: 4'), 'utf8');
+    const l = await t.lager.laes();
+    assert.ok(l.tilstand === 'ok' && l.aendretUdenfor && l.sha);
+    const sha = l.tilstand === 'ok' ? l.sha! : '';
+    const side = await (await t.sut.app.request('/viden')).text();
+    assert.ok(side.includes(`data-regel-form="godkend:${sha}"`), 'the page offers the approval of what it shows');
+    const tryk = async (id: string): Promise<string> => ((await (await t.post('/api/graense/ja', { rum: 'viden', slags: 'regel', id })).json()) as { ja: string }).ja;
+    // Slå fra would rewrite the file and so approve the outside edit by the back door: refused until approved.
+    assert.equal((await t.post('/api/tillid/regler/R-0001/pause', { ja: await tryk('R-0001:pause') })).status, 409);
+    assert.equal((await t.post('/api/tillid/regler/godkend', {})).status, 403, 'no tap, no approval');
+    assert.equal((await t.sut.app.request('/api/tillid/regler/godkend', { method: 'POST', headers: { 'content-type': 'application/json', 'sec-fetch-site': 'cross-site' }, body: JSON.stringify({ ja: await tryk(`godkend:${sha}`) }) })).status, 403, 'only from Clawco itself');
+    const gammel = await tryk(`godkend:${sha}`);
+    await writeFile(t.lager.fil, FIL.replace('- trin: 2', '- trin: 3'), 'utf8');
+    assert.equal((await t.post('/api/tillid/regler/godkend', { ja: gammel })).status, 403, 'changed again after it was shown: that yes is for other content');
+    await writeFile(t.lager.fil, FIL.replace('- trin: 2', '- trin: 4'), 'utf8');
+    assert.equal((await t.post('/api/tillid/regler/godkend', { ja: await tryk(`godkend:${sha}`) })).status, 200);
+    const efter = await t.lager.laes();
+    assert.ok(efter.tilstand === 'ok' && !efter.aendretUdenfor, 'approved');
+  } finally { await t.ryd(); }
+});

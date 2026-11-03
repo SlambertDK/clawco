@@ -39,7 +39,10 @@ test('the shared conformance fixture: the same verdict as Sky gives', () => {
   }
 });
 
-test('laesOmkostningsfil: the real file reads, a missing file is null, an invalid one throws OmkostningsFejl', async () => {
+/** KC-0276: the ledger is private (config/omkostninger.json is left out of the public mirror); tests of the real file skip there. */
+const LEDGER_MANGLER = fs.existsSync(OMKOSTNINGSFIL) ? false : 'the ledger is not in the public mirror (KC-0276)';
+
+test('laesOmkostningsfil: the real file reads, a missing file is null, an invalid one throws OmkostningsFejl', { skip: LEDGER_MANGLER }, async () => {
   assert.equal(OMKOSTNINGSFIL, path.join(rod, 'config', 'omkostninger.json'));
   const o = await laesOmkostningsfil(OMKOSTNINGSFIL);
   assert.ok(o && daekning(o, 0).nu === 0);
@@ -53,7 +56,7 @@ test('laesOmkostningsfil: the real file reads, a missing file is null, an invali
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('the card for the real ledger: 0 kr/md now, green, the free services summed up, a bunke block', () => {
+test('the card for the real ledger: 0 kr/md now, green, the free services summed up, a bunke block', { skip: LEDGER_MANGLER }, () => {
   const o = validerOmkostninger(JSON.parse(fs.readFileSync(OMKOSTNINGSFIL, 'utf8')));
   const h = String(renderOmkostninger(daekning(o, 0)));
   assert.match(h, /data-blok="bunke"/);
@@ -98,7 +101,7 @@ async function medApp(fn: (lav: (p: Person, laes?: () => Promise<Omkostninger | 
 }
 const koe = async (app: ReturnType<typeof createApp>['app'], q = '?kilder=1') => (await (await app.request(`/api/koe${q}`)).json()) as { omkostninger?: string };
 
-test('GET /api/koe?kilder=1: the owner gets the card, a member does not, nobody without a ledger; a broken file is a red line, not a 500', async () => {
+test('GET /api/koe?kilder=1: the owner gets the card, a member does not, nobody without a ledger; a broken file is a red line, not a 500', { skip: LEDGER_MANGLER }, async () => {
   const real = () => laesOmkostningsfil(OMKOSTNINGSFIL);
   await medApp(async (lav) => {
     assert.match((await koe(lav(EJER, real).app)).omkostninger ?? '', /data-omkostninger-samlet="groen"/);

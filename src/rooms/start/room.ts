@@ -5,6 +5,7 @@
 // through RoomDeps.rejse (the composition root), the profile through
 // RoomDeps.profil.
 
+import { PauseFejl } from '../../graenser/nodstop.ts';
 import type { RoomDeps, RoomModule, RoomView } from '../module.ts';
 import { ActionError } from '../module.ts';
 import type { DoneResult, RunRecord } from '../../runs.ts';
@@ -415,9 +416,11 @@ async function testNiveau(deps: RoomDeps, niveau: Niveau): Promise<{ ok: boolean
   const start = performance.now();
   let fejl: ModelFejlArt | undefined;
   try {
-    const r = await deps.hermes.run({ ...MODEL_TEST, ...(model ? { model } : {}), ...(u ? { provider: u.hermesProvider } : {}), signal: ac.signal });
+    // KC-0270 (B7): through the run registry — refused while paused, masked both ways, stopped by Stop alt.
+    const r = await deps.runs.proeve({ ...MODEL_TEST, ...(model ? { model } : {}), ...(u ? { provider: u.hermesProvider } : {}), signal: ac.signal });
     if (!r.output.trim()) fejl = 'tom';
   } catch (err) {
+    if (err instanceof PauseFejl) throw err; // paused: nothing was tested, nothing is recorded
     // Only the kind is kept: the provider's text can echo a fragment of the key.
     fejl = modelFejlArt(err instanceof Error ? err.message : String(err), { tid: forSent });
   } finally { clearTimeout(timer); }
@@ -586,13 +589,13 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
 async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
   const ingenSvar = startTekst().akt.ingenSvar; // read now: the answer may arrive in another request's context
   const { trin } = await trinNu(deps, await laesState(deps));
-  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
+  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
   return deps.runs.start({
     kind: 'chat',
     spec: buildStartChatRun(besked, kontekst, trin.map((x) => ({ titel: x.trin.titel, status: x.status }))),
     onDone: async (output) => {
       const text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || ingenSvar;
-      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
+      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text, ejer: deps.person.id });
       return { text };
     },
   });

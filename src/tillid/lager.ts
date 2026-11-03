@@ -3,7 +3,9 @@
 // no rules yet, a file that does not parse fails closed (the caller tells the
 // agent trin 0 and Nu shows one card). Every write the app makes is atomic
 // (§4 r5) and leaves the file's sha256 in <dataDir>/tillid/regler.sha, so a
-// change made outside Clawco is noticed (informational, KC-0146 shows it).
+// change made outside Clawco is noticed. KC-0270 (B3): such a file grants
+// nothing and stays out of the prompt (trin.ts, prompt.ts) until the owner
+// approves exactly that content with a tap on /viden (godkend).
 
 import { createHash } from 'node:crypto';
 import { mkdir, readFile } from 'node:fs/promises';
@@ -14,7 +16,7 @@ import { ULAESELIG } from './tekster.ts';
 
 export type ReglerLaest =
   | { tilstand: 'mangler' }
-  | { tilstand: 'ok'; saet: Regelsaet; aendretUdenfor: boolean }
+  | { tilstand: 'ok'; saet: Regelsaet; aendretUdenfor: boolean; /** KC-0270: sha256 of the file as read (what an approval names). */ sha?: string }
   | { tilstand: 'ulaeselig'; hvorfor: string; aendretUdenfor: boolean };
 
 export type ReglerLager = {
@@ -25,6 +27,8 @@ export type ReglerLager = {
   skriv(s: Regelsaet): Promise<void>;
   /** Writes `md` as it is (the test world's seed, a migration); same atomic write and sha as skriv. */
   skrivTekst(md: string): Promise<void>;
+  /** KC-0270 (B3): the owner approves the file as it is now — only when `sha` is still its hash. True when recorded. */
+  godkend(sha: string): Promise<boolean>;
 };
 
 const sha256 = (tekst: string): string => createHash('sha256').update(tekst).digest('hex');
@@ -54,12 +58,20 @@ export function lavReglerLager(o: { vaultDir: string; dataDir: string }): Regler
         return { tilstand: 'ulaeselig', hvorfor: ULAESELIG.aabne, aendretUdenfor: false };
       }
       const aendretUdenfor = await aendret(tekst);
-      try { return { tilstand: 'ok', saet: parseRegler(tekst), aendretUdenfor }; } catch (err) {
+      try { return { tilstand: 'ok', saet: parseRegler(tekst), aendretUdenfor, sha: sha256(tekst) }; } catch (err) {
         if (err instanceof ReglerFejl) return { tilstand: 'ulaeselig', hvorfor: err.message, aendretUdenfor };
         return { tilstand: 'ulaeselig', hvorfor: ULAESELIG.laese, aendretUdenfor };
       }
     },
     skriv: (s) => skrivTekst(serialiserRegler(s)),
     skrivTekst,
+    async godkend(sha) {
+      let tekst: string;
+      try { tekst = await readFile(fil, 'utf8'); } catch { return false; }
+      if (sha256(tekst) !== sha) return false; // changed again since it was shown: that content was not approved
+      await mkdir(path.dirname(shaFil), { recursive: true });
+      await skrivAtomisk(shaFil, `${sha}\n`);
+      return true;
+    },
   };
 }

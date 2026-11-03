@@ -154,3 +154,11 @@ test('KC-0240: a long path anywhere on the page sits in a .mono element, so the 
   const mono = [...css.matchAll(/(?:^|\})\s*([^{}]*)\{([^{}]*)\}/g)].filter((m) => m[1]!.split(',').map((x) => x.trim()).includes('.mono')).map((m) => m[2]).join(';');
   assert.match(mono, /overflow-wrap:\s*anywhere/, '.mono must be able to wrap inside a 375 px phone');
 });
+
+test('KC-0270 (B3): rules changed outside Clawco say they do not count, with one owner button that approves exactly this content', () => {
+  const ok = fuld().regler!;
+  const s = String(renderViden(fuld({ regler: { ...ok, laest: { tilstand: 'ok', saet: parseRegler(REGLER), aendretUdenfor: true, sha: 'a'.repeat(64) } } })));
+  assert.match(s, /gælder ikke/);
+  assert.match(s, /<form method="post" action="\/api\/tillid\/regler\/godkend"[^>]*data-regel-form="godkend:a{64}"[^>]*><button type="submit"[^>]*>Godkend reglerne<\/button><\/form>/);
+  assert.doesNotMatch(String(renderViden(fuld())), /regler\/godkend/);
+});

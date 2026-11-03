@@ -9,7 +9,11 @@ cd "$(dirname "$0")/.."
 git fetch -q origin main
 git checkout -q main
 git reset -q --hard origin/main
-npm ci --omit=dev --no-audit --no-fund >/tmp/kc-npm.log 2>&1 || { tail -20 /tmp/kc-npm.log; exit 1; }
+# KC-0276: --ignore-scripts (koffi, the one dependency with an install script, ships prebuilt platform packages;
+# the Dockerfile has always installed this way) and a private log file instead of a predictable /tmp name.
+log="$(mktemp)"
+npm ci --omit=dev --ignore-scripts --no-audit --no-fund >"$log" 2>&1 || { tail -20 "$log"; rm -f "$log"; exit 1; }
+rm -f "$log"
 test -f .env || { echo "manglende .env (se .env.example)"; exit 1; }
 install -m 644 deploy/kontrolcenter.service deploy/kontrolcenter-dagen.service deploy/kontrolcenter-dagen.timer deploy/kontrol-tailscale.service deploy/kontrol-tailscale-opdatering.path deploy/kontrol-tailscale-opdatering.service ~/.config/systemd/user/
 systemctl --user daemon-reload

@@ -1484,7 +1484,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
   const h = await forPersonen(deps);
   if (!h) throw new ActionError(husstandTekst().ikkeHerTitel);
   const uge = await ugen(deps, h.medlemmer, h.state);
-  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
+  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
   return deps.runs.start({
     kind: 'chat',
     spec: buildHusstandChatRun(besked, kontekst, h.medlemmer, uge, h.state.ressourcer, deps.now()),
@@ -1496,7 +1496,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
         const note = await bookingKort(deps, h, oensk);
         if (note) text = `${text}\n\n${note}`.slice(0, 2000);
       }
-      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
+      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text, ejer: deps.person.id });
       return { text };
     },
   });

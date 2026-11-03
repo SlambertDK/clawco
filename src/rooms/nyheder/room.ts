@@ -1,5 +1,6 @@
 // The room Nyheder, wired.
 
+import { handlingIndhold } from '../../graenser/tegn.ts';
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { LogEntry } from '../../store/types.ts';
@@ -176,13 +177,13 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
 
 async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
   const { state } = await current(deps);
-  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst } : { fra: 'henrik', tekst: besked });
+  await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
   return deps.runs.start({
     kind: 'chat',
     spec: buildNyhederChatRun(besked, kontekst, state),
     onDone: async (output) => {
       const text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || nyhederTekst().intetSvar;
-      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text });
+      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text, ejer: deps.person.id });
       return { text };
     },
   });
@@ -195,7 +196,7 @@ export const nyhederRoom: RoomModule = {
   async handlingVerb(deps, id) {
     const { state } = await current(deps);
     const h = state ? handlingerINyheder(state).get(id) : undefined;
-    return h ? { verb: handlingensVerb(h), zoner: [KORSEL] } : null;
+    return h ? { verb: handlingensVerb(h), zoner: [KORSEL], indhold: handlingIndhold(h) } : null;
   },
   view,
   startOpdater,

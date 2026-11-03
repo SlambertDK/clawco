@@ -6,6 +6,8 @@ import { html, esc, raw, Markup } from './html.ts';
 import { ikon, type Tone } from './visuel.ts';
 import { fold } from './fold.ts';
 import { tekst } from './tekster.ts';
+import { agentFortryd, fortrydVerb, kraeverJa } from '../graenser/verber.ts';
+import { fortrydIndhold, handlingIndhold } from '../graenser/tegn.ts';
 
 export type Tilstand = 'kraever' | 'handling' | 'ordnet' | 'graense' | 'rolig';
 
@@ -43,6 +45,29 @@ export function knap(o: { label: string; attrs: Record<string, string>; slags?: 
   return o.href !== undefined
     ? raw(`<a class="${klasse}" href="${esc(o.href)}"${attrs}>${esc(o.label)}</a>`)
     : raw(`<button type="button" class="${klasse}"${attrs}>${esc(o.label)}</button>`);
+}
+
+/**
+ * KC-0270: the button of a handling an agent wrote. When its verb needs a yes it is red, and it carries the hash of
+ * the content it runs (data-indhold), which the token the browser fetches is bound to (graenser/tegn.ts).
+ */
+export function agentKnap(o: { h: { label: string; instruktion: string }; verb: string; attrs: Record<string, string>; label?: string; slags?: 'primaer' | 'normal' | 'ghost' }): Markup {
+  const label = o.label ?? o.h.label;
+  return kraeverJa(o.verb)
+    ? knap({ label, slags: 'graense', attrs: { ...o.attrs, 'data-indhold': handlingIndhold(o.h) } })
+    : knap({ label, slags: o.slags ?? 'normal', attrs: o.attrs });
+}
+
+/**
+ * KC-0270 (B5): a log entry's Fortryd. An agent-written undo shows the text it runs (title) and goes through the same
+ * floor as a handling: red, with the hash of that text, when it sends or deletes. The app's own undo is as before.
+ */
+export function fortrydKnap(o: { id: string; fortryd: string | undefined; label: string; attr?: 'data-fortryd' | 'data-hjem-fortryd' }): Markup {
+  const tekst = agentFortryd(o.fortryd);
+  const attrs: Record<string, string> = { [o.attr ?? 'data-fortryd']: o.id, ...(tekst ? { title: tekst } : {}) };
+  return tekst && kraeverJa(fortrydVerb(tekst))
+    ? knap({ label: o.label, slags: 'graense', attrs: { ...attrs, 'data-indhold': fortrydIndhold(tekst) } })
+    : knap({ label: o.label, slags: 'ghost', attrs });
 }
 
 /** The button row of one element: at most one primary, and it comes first. */

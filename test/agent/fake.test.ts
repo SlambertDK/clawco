@@ -64,3 +64,13 @@ test('fake honours delayMs', async () => {
   await h.run({ input: 'x', instructions: '' });
   assert.ok(Date.now() - t0 >= 25);
 });
+
+test('KC-0270: the fake records a cancel when its run is aborted', async () => {
+  const { createFakeAgent: lav } = await import('../../src/agent/fake.ts');
+  const a = lav({ delayMs: 50, answer: () => 'ok' });
+  const stop = new AbortController();
+  const p = a.run({ input: 'x', instructions: 'y', signal: stop.signal });
+  setTimeout(() => stop.abort(), 5);
+  await assert.rejects(p);
+  assert.equal(a.cancellerede.length, 1);
+});

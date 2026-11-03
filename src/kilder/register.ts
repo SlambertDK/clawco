@@ -15,7 +15,7 @@ import path from 'node:path';
 import type { RumLager } from '../store/types.ts';
 import { erDataZone, type DataZone } from '../identitet/zoner.ts';
 import type { Person } from '../identitet/husstand.ts';
-import { erVerb } from '../graenser/verber.ts';
+import { erVerb, GRAENSEKLASSER } from '../graenser/verber.ts';
 import { afgoer, type Kontekst } from '../graenser/afgoer.ts';
 import type { Kanal, Revisionslog } from '../graenser/revisionslog.ts';
 import { fjernKildeHemmelighed, gemKildeHemmelighed, HemmelighedFejl, laesKildeHemmelighed, saetMiljoeNoegle } from './hemmeligheder.ts';
@@ -28,8 +28,8 @@ export const FOERSTE_LAESNING = 'foerste-laesning';
 /** The store room whose log holds every connect and disconnect. */
 export const KILDER_LOG = 'kilder';
 
-/** Verbs a connector may never declare: the policy layer's limits (the conformance suite checks against it too). */
-export const FORBUDTE_VERBER: ReadonlySet<string> = new Set(['betal', 'send-til-andre', 'slet', 'kopier-paa-tvaers']);
+/** Verbs a connector may never declare: the policy layer's limits (the conformance suite checks against it too), derived from them (KC-0270). */
+export const FORBUDTE_VERBER: ReadonlySet<string> = new Set<string>(GRAENSEKLASSER);
 const OAUTH_LEVETID_MS = 10 * 60_000;
 const HELBRED_MAKS_MS = 2000;
 const FELT_MAKS = 500;

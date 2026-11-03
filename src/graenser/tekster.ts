@@ -46,6 +46,9 @@ const da = {
 
   // port.ts: the line a refusal leaves in the room's log
   ikkeGjort: (hvorfor: string): string => `Ikke gjort: ${hvorfor}`,
+
+  // dubletter.ts (KC-0270): Hermes' answer named the same handling twice; the first is kept
+  dubletter: (n: number): string => `Hermes' svar havde ${n === 1 ? '1 handling' : `${n} handlinger`} med et id, der allerede var brugt. Clawco beholdt den første og viser ikke ${n === 1 ? 'den anden' : 'de andre'}.`,
 };
 
 export type GraenserTekster = typeof da;
@@ -83,6 +86,8 @@ const en: GraenserTekster = {
   startIgen: 'Start again: Clawco is working again.',
 
   ikkeGjort: (hvorfor) => `Not done: ${hvorfor}`,
+
+  dubletter: (n) => `Hermes' answer had ${n === 1 ? '1 handling' : `${n} handlings`} with an id already used. Clawco kept the first and does not show ${n === 1 ? 'the other' : 'the others'}.`,
 };
 
 export const GRAENSER_TEKSTER = { da, en };
