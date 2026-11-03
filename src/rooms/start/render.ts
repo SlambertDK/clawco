@@ -11,9 +11,10 @@ import { dagensLog } from '../../shell/log.ts';
 import type { LogEntry } from '../../store/types.ts';
 import { NIVEAUER, type ModelSyn, type Niveau, type Trin } from './trin.ts';
 import { NAVN_MAKS, type Forslag, type Profil, type StartModel, type StartRet, type TrinStatus } from './schema.ts';
-import { UDBYDERE, udbyderAf } from './udbydere.ts';
+import { UDBYDERE, udbyderAf, type Udbyder } from './udbydere.ts';
 import { erModelFejlArt, type ModelFejlArt } from './modelfejl.ts';
 import type { AgentStatus } from '../../agent/types.ts';
+import type { GithubTilstand } from '../../agent/github-enhed.ts';
 import { kildeIndhold, type KildeVisning } from './kilderender.ts';
 import { renderTillidskort } from './tillidskort.ts';
 import { renderRegelforslag } from './regelforslag.ts';
@@ -42,7 +43,11 @@ export type StartVisning = {
   /** The room's count (the nav's number): open mandatory steps, 0 once the journey is Done. Absent = the open mandatory steps. */
   venter?: number;
   /** KC-0127: step 2 — the model choice, the agent's state, what Start recorded of the key; absent = no data dir. */
-  model?: { syn: ModelSyn; agent: AgentStatus; gemt?: StartModel; kanGemme: boolean; /** KC-0245: the built-in agent (no Hermes): only providers it can call, and no Hermes wording. */ direkte?: boolean };
+  model?: {
+    syn: ModelSyn; agent: AgentStatus; gemt?: StartModel; kanGemme: boolean;
+    /** KC-0245: the built-in agent (no Hermes): only providers it can call, and no Hermes wording. */ direkte?: boolean;
+    /** KC-0263: the GitHub sign-in for Copilot (only beside the built-in agent). */ github?: GithubTilstand;
+  };
   /** KC-0128: steps 3–4 — the registry's cards, the previews and step 4's pile; absent = nothing to connect. */
   kilder?: KildeVisning;
   /** KC-0129: step 5 — the import card's data; absent = no import (no notes writer wired). */
@@ -81,10 +86,45 @@ function testRaekke(n: Niveau, m: NonNullable<StartVisning['model']>): Markup {
   </div>`;
 }
 
+/** KC-0263: a provider that signs in with GitHub instead of a key (Copilot, only beside the built-in agent). */
+const medGithub = (m: NonNullable<StartVisning['model']>, u: Udbyder): boolean => Boolean(m.direkte && u.direkte?.api === 'copilot-sdk');
+
+/** KC-0263: a sign-in under way (or just ended) keeps Copilot chosen in the form, though the choice is saved only once signed in. */
+const githubIGang = (g: GithubTilstand | undefined): boolean => g !== undefined && ['venter', 'udloebet', 'afvist', 'fejl'].includes(g.tilstand);
+
+/** KC-0263: the sign-in in the card: the button, the code with its link while waiting, then who is signed in and Log ud. */
+function githubIndhold(m: NonNullable<StartVisning['model']>): Markup {
+  const T = startTekst();
+  const G = T.github;
+  const g: GithubTilstand = m.github ?? { tilstand: 'ikke-sat-op' };
+  const logInd = (tekst: string): Markup => html`<div class="actions"><button type="button" class="btn btn-primary" data-aktion="github-start" data-status="${G.beder}">${tekst}</button></div>`;
+  switch (g.tilstand) {
+    case 'ikke-sat-op': return html`<p class="row-note" data-github="ikke-sat-op">${G.ikkeSatOp}</p>`;
+    case 'venter': return html`<div class="github-venter" data-github="venter">
+      <p class="row-note">${G.skrivKoden}</p>
+      <p class="github-kode mono" data-github-kode>${g.userCode}</p>
+      <div class="actions"><button type="button" class="btn btn-ghost" data-kopier="${g.userCode}">${G.kopierKode}</button><a class="btn btn-primary" href="${g.verificationUri}" target="_blank" rel="noopener noreferrer">${G.aabn}</a></div>
+      <p class="row-note" data-github-venter>${G.venter}</p>
+    </div>`;
+    case 'inde': {
+      const login = g.login ?? (m.gemt?.udbyder === 'copilot' ? m.gemt.github?.login : undefined);
+      return html`<p class="row-note" data-github="inde">${G.inde(login)} ${G.gemt(g.laengde)}</p><p class="row-note">${G.udenVaerktoej}</p>
+      <div class="actions"><button type="button" class="btn btn-ghost" data-aktion="github-ud" data-status="${G.loggerUd}">${G.logUd}</button></div>`;
+    }
+    case 'udloebet': case 'afvist': case 'fejl': return html`<p class="row-note" data-github="${g.tilstand}">${G[g.tilstand]}</p>${logInd(G.proevIgen)}`;
+    default: return html`<p class="row-note" data-github="ude">${G.intro}</p>${logInd(G.logInd)}`;
+  }
+}
+
 /** Step 2's form: provider, key (write-only) or local address, the two tiers' models with the discovered names offered. */
 function modelForm(m: NonNullable<StartVisning['model']>): Markup {
-  const udbydere = m.direkte ? UDBYDERE.filter((u) => u.direkte) : UDBYDERE;
-  const valgt = udbydere.find((u) => u.id === m.syn.udbyder) ?? udbydere[0]!;
+  // KC-0263: Copilot needs Clawco's GitHub app; without it (no client id) the choice is not shown at all (KC-0052).
+  const udbydere = (m.direkte ? UDBYDERE.filter((u) => u.direkte) : UDBYDERE)
+    .filter((u) => !(medGithub(m, u) && (m.github?.tilstand ?? 'ikke-sat-op') === 'ikke-sat-op'));
+  const igang = githubIGang(m.github) ? udbydere.find((u) => medGithub(m, u)) : undefined;
+  const valgt = igang ?? udbydere.find((u) => u.id === m.syn.udbyder) ?? udbydere[0]!;
+  const github = medGithub(m, valgt);
+  const harGithub = udbydere.some((u) => medGithub(m, u));
   const gemt = m.gemt?.udbyder === valgt.id ? m.gemt : undefined;
   const navne = gemt?.navne ?? [];
   const forslag = [...new Set([...navne, valgt.standardModeller.lille, valgt.standardModeller.taenker])];
@@ -92,8 +132,8 @@ function modelForm(m: NonNullable<StartVisning['model']>): Markup {
   const vaerdi = (n: Niveau): string => (m.syn.udbyder === valgt.id ? m.syn.modeller[n] : undefined) ?? valgt.standardModeller[n];
   const T = startTekst();
   return html`<form id="model-form" class="nyt-form" onsubmit="return false" autocomplete="off">
-    <label class="field"><span class="row-note">${T.udbyder}</span><select name="udbyder" data-model-udbyder>${udbydere.map((u) => html`<option value="${u.id}" data-placeholder="${T.noeglePlaceholder(u)}"${u.kraeverNoegle ? '' : html` data-lokal`}${u.id === valgt.id ? html` selected` : ''}>${T.udbyderNavn(u)}</option>`)}</select></label>
-    <label class="field" data-model-felt="noegle"${lokal ? html` hidden` : ''}><span class="row-note">${T.noegleFra}${gemt?.noegle ? T.beholdGemte : ''}</span><input name="noegle" type="password" autocomplete="off" spellcheck="false" placeholder="${valgt.kraeverNoegle ? T.noeglePlaceholder(valgt) : ''}"></label>
+    <label class="field"><span class="row-note">${T.udbyder}</span><select name="udbyder" data-model-udbyder>${udbydere.map((u) => html`<option value="${u.id}"${medGithub(m, u) ? html` data-login="github"` : html` data-placeholder="${T.noeglePlaceholder(u)}"`}${u.kraeverNoegle ? '' : html` data-lokal`}${u.id === valgt.id ? html` selected` : ''}>${T.udbyderNavn(u)}</option>`)}</select></label>
+    ${harGithub ? html`<div class="field" data-model-felt="github"${github ? '' : html` hidden`}>${githubIndhold(m)}</div>` : ''}<label class="field" data-model-felt="noegle"${lokal || github ? html` hidden` : ''}><span class="row-note">${T.noegleFra}${gemt?.noegle ? T.beholdGemte : ''}</span><input name="noegle" type="password" autocomplete="off" spellcheck="false" placeholder="${valgt.kraeverNoegle && !github ? T.noeglePlaceholder(valgt) : ''}"></label>
     <label class="field" data-model-felt="url"${lokal ? '' : html` hidden`}><span class="row-note">${T.adressen}</span><input name="url" type="url" inputmode="url" spellcheck="false" value="${lokal ? (gemt?.url ?? '') : ''}" placeholder="${valgt.standardUrl ?? 'http://127.0.0.1:1234'}"></label>
     ${NIVEAUER.map((n) => html`<label class="field"><span class="row-note">${T.nyModel(T.niveau[n])}</span><input name="${n}" type="text" list="model-navne" spellcheck="false" maxlength="80" value="${vaerdi(n)}"></label>`)}
     <datalist id="model-navne">${forslag.map((x) => html`<option value="${x}"></option>`)}</datalist>
@@ -102,10 +142,15 @@ function modelForm(m: NonNullable<StartVisning['model']>): Markup {
 }
 
 /** What Start knows of the key for the chosen provider: its length, or the command to run on Hermes' machine. */
-function noegleLinje(m: NonNullable<StartVisning['model']>): Markup {
+function noegleLinje(m: NonNullable<StartVisning['model']>, klaret = false): Markup {
   const g = m.gemt;
   if (!g || g.udbyder !== (m.syn.udbyder ?? '')) return html``;
   const T = startTekst();
+  // KC-0263: Copilot's sign-in sits in the form; once the step is Klaret the form is folded, so the line shows here.
+  const u = udbyderAf(g.udbyder);
+  if (u && medGithub(m, u)) {
+    return klaret && g.noegle ? html`<p class="row-note" data-github="inde">${T.github.inde(m.github?.tilstand === 'inde' ? m.github.login ?? g.github?.login : g.github?.login)} ${T.github.gemt(m.github?.tilstand === 'inde' ? m.github.laengde : g.noegle.laengde)}</p>` : html``;
+  }
   if (g.kommando) {
     return html`<div class="model-kommando" data-model-kommando>
       <p class="row-note">${T.kanIkkeSkrive}</p>
@@ -134,7 +179,7 @@ function modelIndhold(status: TrinStatus, v: StartVisning): Markup {
   }
   const raekker = NIVEAUER.some((n) => m.syn.modeller[n]) ? html`<div class="card-list">${NIVEAUER.map((n) => testRaekke(n, m))}</div>` : html``;
   if (!m.kanGemme) return html`${raekker}<p class="row-note">${T.ejerenVaelger}</p>`;
-  if (status === 'klaret') return html`${raekker}${noegleLinje(m)}${mere(modelForm(m), T.skiftModel)}`;
+  if (status === 'klaret') return html`${raekker}${noegleLinje(m, true)}${mere(modelForm(m), T.skiftModel)}`;
   return html`${noegleLinje(m)}${raekker}${modelForm(m)}`;
 }
 

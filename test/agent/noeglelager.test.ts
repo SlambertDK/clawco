@@ -55,3 +55,15 @@ test('the error for an unknown provider never carries the key', async () => {
   const l = envNoegleLager({ udbydere: UDBYDERE, env: {} });
   await assert.rejects(() => l.saet('foo', 'sk-HEMMELIG'), (e: Error) => !e.message.includes('HEMMELIG'));
 });
+
+test('KC-0263: fjern removes a saved key, also one from the env, until a new one is saved', async () => {
+  const l = envNoegleLager({ udbydere: UDBYDERE, env: { KC_MODEL_NOEGLE_ANTHROPIC: 'fra-env' } });
+  await l.saet('openai', 'sk-gemt');
+  await l.fjern('openai');
+  await l.fjern('anthropic');
+  assert.equal(await l.findes('openai'), false);
+  assert.equal(await l.hent('anthropic'), undefined, 'the env value no longer counts');
+  await l.saet('anthropic', 'ny');
+  assert.equal(await l.hent('anthropic'), 'ny');
+  await assert.rejects(() => l.fjern('foo'), /ukendt udbyder/);
+});

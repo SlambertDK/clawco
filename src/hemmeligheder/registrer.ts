@@ -12,6 +12,7 @@ export function registrerNoegleLager(lager: NoegleLager): NoegleLager {
       return v;
     },
     findes: (udbyder) => lager.findes(udbyder),
+    fjern: (udbyder) => lager.fjern(udbyder),
     async saet(udbyder, noegle) {
       const svar = await lager.saet(udbyder, noegle);
       registrerHemmelighed(noegle);

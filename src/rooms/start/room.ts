@@ -18,7 +18,7 @@ import { foreslaaTilfoejelse } from './forslag.ts';
 import { renderStart, sek, testTekst, type StartVisning } from './render.ts';
 import { ventendeForslag } from './regelforslag.ts';
 import { buildStartChatRun, KORSEL } from './prompt.ts';
-import { envVaerdi, hentModelNavne, udbyderAf } from './udbydere.ts';
+import { envVaerdi, hentModelNavne, UDBYDERE, udbyderAf } from './udbydere.ts';
 import { modelFejlArt, type ModelFejlArt } from './modelfejl.ts';
 import { MODEL_TEST } from '../../agent/prompt.ts';
 import type { AgentStatus } from '../../agent/types.ts';
@@ -175,6 +175,8 @@ async function view(deps: RoomDeps): Promise<RoomView> {
   // KC-0127: the agent is asked only while step 2 is open (a health check per page otherwise).
   const modelAaben = trin.some((x) => x.trin.id === 'model' && x.status !== 'klaret');
   const agent: AgentStatus = ctx.model && modelAaben ? await deps.hermes.status() : 'klar';
+  // KC-0263: the GitHub sign-in beside the built-in agent (a store read, no network).
+  const github = ctx.model && deps.hermes.mode === 'direkte' && deps.model?.github ? await deps.model.github.status().catch(() => undefined) : undefined;
   return {
     main: renderStart({
       foersteRet: await foersteRetSyn(deps, s),
@@ -186,7 +188,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
       trin, profil: ctx.profil, forslag, log, now: deps.now(), igang: deps.runs.igang(RUM), venter,
       standardNavn: p.rolle === 'ejer' && p.id !== ENEBRUGER.id ? p.navn : '',
       kanGemme: kan(p.rolle, 'aendre-indstillinger') && Boolean(deps.profil),
-      ...(ctx.model ? { model: { syn: ctx.model, agent, ...(s.model ? { gemt: s.model } : {}), kanGemme: kan(p.rolle, 'aendre-indstillinger'), ...(deps.hermes.mode === 'direkte' ? { direkte: true } : {}) } } : {}),
+      ...(ctx.model ? { model: { syn: ctx.model, agent, ...(s.model ? { gemt: s.model } : {}), kanGemme: kan(p.rolle, 'aendre-indstillinger'), ...(deps.hermes.mode === 'direkte' ? { direkte: true } : {}), ...(github ? { github } : {}) } } : {}),
       ...(kilder ? { kilder } : {}),
     }),
     hermesStatus: tekst().klar,
@@ -261,7 +263,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     const t = name === 'import-spring-over' ? (await trinNu(deps, await laesState(deps))).trin.find((x) => x.trin.id === 'import') : undefined;
     return importAktion(deps, name, body, importHjaelp, { status: t?.status, titel: t?.trin.titel ?? T.trin['import'].titel });
   }
-  if (name === 'model-gem' || name === 'model-test' || name === 'model-agent-noegle') return modelAktion(deps, name, body);
+  if (name === 'model-gem' || name === 'model-test' || name === 'model-agent-noegle' || name === 'github-start' || name === 'github-ud') return modelAktion(deps, name, body);
   if (name === 'tailscale-del') return tailscaleDel(deps, body);
   if (name === 'post-afsender-gem' || name === 'post-ikke-nu') return digitalPostAktion(deps, name, body);
   if (name === 'aula-ikke-nu') return aulaIkkeNu(deps);
@@ -402,6 +404,8 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
     }, { room: RUM, label: T.label.noegle });
   }
 
+  if (name === 'github-start' || name === 'github-ud') return githubAktion(deps, name);
+
   if ((await deps.hermes.status()) === 'mangler-noegle') throw new ActionError(`${T.modelFejl['agent-noegle']} ${A.indsaetDenFoerst}`);
 
   if (name === 'model-test') {
@@ -416,7 +420,11 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
   const u = udbyderAf(str(body['udbyder'], 40));
   if (!u) throw new ActionError(A.vaelgUdbyder);
   if (deps.hermes.mode === 'direkte' && !u.direkte) throw new ActionError(T.modelFejl['kun-hermes']); // KC-0245: the built-in agent has no way to call it
-  const raa = u.kraeverNoegle ? str(body['noegle'], 2001) : str(body['url'], 200);
+  // KC-0263: Copilot beside the built-in agent signs in with GitHub; a pasted token is never taken.
+  const github = deps.hermes.mode === 'direkte' && u.direkte?.api === 'copilot-sdk';
+  const inde = github ? await m.github?.status().catch(() => undefined) : undefined;
+  if (github && inde?.tilstand !== 'inde') throw new ActionError(A.logIndFoerst);
+  const raa = github ? '' : u.kraeverNoegle ? str(body['noegle'], 2001) : str(body['url'], 200);
   const vaerdi = u.kraeverNoegle && !raa ? null : envVaerdi(u, raa);
   if (!u.kraeverNoegle && !vaerdi) throw new ActionError(A.adresseHttp(u.standardUrl ?? 'http://127.0.0.1'));
   if (u.kraeverNoegle && raa && !vaerdi) throw new ActionError(A.noegleForLang);
@@ -426,6 +434,7 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
     const s = (await laesState(deps)) ?? ny(deps.now());
     const forrige = s.model?.udbyder === u.id ? s.model : undefined;
     let gemt: StartModel = forrige ?? { udbyder: u.id };
+    if (inde?.tilstand === 'inde') gemt = { ...gemt, noegle: { laengde: inde.laengde, tid: gemt.noegle?.tid ?? deps.now().toISOString() } };
     if (vaerdi) {
       const svar = await deps.hermes.saetModelNoegle(u, vaerdi);
       gemt = svar.slags === 'gemt'
@@ -439,11 +448,57 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
     const valg = (n: Niveau): string => modelTil(n, { samme, posted: posted[n], nu, std: u.standardModeller[n], ...(gemt.navne ? { navne: gemt.navne } : {}) });
     await m.vaelg({ udbyder: u.id, lille: valg('lille'), taenker: valg('taenker') });
     await deps.store.writeState(RUM, { ...s, model: gemt });
-    const hvad = gemt.noegle ? (deps.hermes.mode === 'direkte' ? A.hvadNoegleGemt : A.hvadNoegle)(gemt.noegle.laengde) : gemt.url ? A.hvadAdresse(gemt.url) : '';
+    const hvad = github ? A.hvadGithub(gemt.github?.login) : gemt.noegle ? (deps.hermes.mode === 'direkte' ? A.hvadNoegleGemt : A.hvadNoegle)(gemt.noegle.laengde) : gemt.url ? A.hvadAdresse(gemt.url) : '';
     await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.valgteModel(T.udbyderNavn(u), hvad, valg('lille'), valg('taenker')) });
     if (gemt.kommando && vaerdi) return faerdigt(deps, A.koerKommandoen);
     return faerdigt(deps, await testBegge(deps));
   }, { room: RUM, label: T.label.modelGem });
+}
+
+/**
+ * KC-0263: "Sign in with GitHub" for Copilot beside the built-in agent. github-start asks GitHub for a code and answers
+ * the card with it at once; the wait goes on in the background (github-enhed.ts), and once the token is in the store the
+ * choice is saved (the provider's default models), the login line is logged and both tiers are tested, each step
+ * refreshing the room. github-ud removes the token and stops the Copilot client. Owner-only (modelAktion).
+ */
+async function githubAktion(deps: RoomDeps, name: 'github-start' | 'github-ud'): Promise<RunRecord> {
+  const p = deps.person;
+  const T = startTekst();
+  const A = T.akt;
+  const m = deps.model!;
+  const gh = m.github;
+  const u = UDBYDERE.find((x) => x.direkte?.api === 'copilot-sdk');
+  if (deps.hermes.mode !== 'direkte' || !gh || !u) throw new ActionError(T.github.ikkeSatOp, 404);
+  if (name === 'github-ud') {
+    return deps.runs.local('gem', async () => {
+      await gh.ud();
+      // The model has no access now: a Copilot choice's tiers read as failed, so step 2 opens again with the reason.
+      const syn = await m.laes();
+      if (syn.udbyder === u.id) {
+        for (const n of NIVEAUER) if (syn.modeller[n]) await m.saetTest(n, { ok: false, tid: deps.now().toISOString(), ms: 0, rev: syn.rev[n], fejl: 'model-noegle' });
+      }
+      const s = (await laesState(deps)) ?? ny(deps.now());
+      if (s.model?.udbyder === u.id) { const { model: _vaek, ...uden } = s; await deps.store.writeState(RUM, uden); }
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.loggedeUd });
+      return faerdigt(deps, A.loggedeUd);
+    }, { room: RUM, label: T.label.githubUd });
+  }
+  if ((await gh.status()).tilstand === 'ikke-sat-op') throw new ActionError(T.github.ikkeSatOp, 409);
+  return deps.runs.local('gem', async () => {
+    const t = await gh.start(async ({ login, laengde }) => {
+      const nu = await m.laes();
+      const s = (await laesState(deps)) ?? ny(deps.now());
+      await deps.store.writeState(RUM, { ...s, model: { udbyder: u.id, noegle: { laengde, tid: deps.now().toISOString() }, ...(login ? { github: { login } } : {}) } });
+      const samme = nu.udbyder === u.id;
+      await m.vaelg({ udbyder: u.id, lille: modelTil('lille', { samme, posted: '', nu, std: u.standardModeller.lille }), taenker: modelTil('taenker', { samme, posted: '', nu, std: u.standardModeller.taenker }) });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.loggedeInd(login, laengde) });
+      deps.live.notify(RUM);
+      await testBegge(deps);
+      deps.live.notify(RUM);
+    });
+    if (t.tilstand !== 'venter') throw new ActionError(t.tilstand === 'ikke-sat-op' ? T.github.ikkeSatOp : T.github.fejl);
+    return faerdigt(deps, A.githubKodeKlar);
+  }, { room: RUM, label: T.label.githubStart });
 }
 
 async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | null> {
@@ -487,7 +542,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
 export const startRoom: RoomModule = {
   id: RUM,
   korsel: KORSEL,
-  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-opdater': 'udfoer-med-fortryd', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd', 'post-afsender-gem': 'bogfoer', 'post-ikke-nu': 'sorter', 'aula-ikke-nu': 'sorter' },
+  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'github-start': 'bogfoer', 'github-ud': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-opdater': 'udfoer-med-fortryd', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd', 'post-afsender-gem': 'bogfoer', 'post-ikke-nu': 'sorter', 'aula-ikke-nu': 'sorter' },
   aktionTap: ['tailscale-del'],
   view,
   startOpdater: async () => null,

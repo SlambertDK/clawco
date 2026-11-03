@@ -84,10 +84,14 @@
     if (!sel || !sel.form) return;
     var valgt = sel.options[sel.selectedIndex];
     var lokal = Boolean(valgt && valgt.hasAttribute('data-lokal'));
+    // KC-0263: GitHub Copilot under the built-in agent signs in with GitHub: no key field, the sign-in instead.
+    var github = Boolean(valgt && valgt.getAttribute('data-login') === 'github');
     var noegle = sel.form.querySelector('[data-model-felt="noegle"]');
     var url = sel.form.querySelector('[data-model-felt="url"]');
-    if (noegle) { noegle.hidden = lokal; var inp = noegle.querySelector('input'); if (inp) inp.placeholder = lokal ? '' : (valgt.getAttribute('data-placeholder') || ''); }
+    var gh = sel.form.querySelector('[data-model-felt="github"]');
+    if (noegle) { noegle.hidden = lokal || github; var inp = noegle.querySelector('input'); if (inp) inp.placeholder = lokal || github ? '' : (valgt.getAttribute('data-placeholder') || ''); }
     if (url) { url.hidden = !lokal; var ui = url.querySelector('input'); if (ui && lokal) ui.placeholder = valgt.getAttribute('data-placeholder') || ''; }
+    if (gh) gh.hidden = !github;
   });
   document.addEventListener('click', function (ev) {
     var b = ev.target && ev.target.closest ? ev.target.closest('[data-fold]') : null;

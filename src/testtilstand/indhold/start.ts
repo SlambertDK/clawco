@@ -28,6 +28,7 @@ import type { ImportBunke } from '../../rooms/start/schema.ts';
 import { fenced } from './faelles.ts';
 import { lavForslag, type ForslagFelter } from '../../tillid/forslag.ts';
 import { erTailscaleMoment, KOLD_TAILSCALE } from './tailscale.ts'; // KC-0161
+import type { GithubLogin, GithubTilstand } from '../../agent/github-enhed.ts';
 
 /** KC-0170: the cold moment where step 1 chose English. */
 export const KOLD_ENGELSK = 'kold-engelsk';
@@ -61,9 +62,31 @@ export const KOLD_START: readonly Moment[] = [
   // KC-0127: step 2 failing (the scripted Hermes answers the live test with 401 here) and passing.
   { id: 'kold-model-fejl', tid: '09:10', navn: 'Kold start: nøglen afvist', url: '/rum/start', replik: 'Hvorfor virker den ikke?' },
   { id: 'kold-model', tid: '09:12', navn: 'Kold start: modellen virker', url: '/rum/start', replik: 'Virker den nu?' },
+  // KC-0263: the built-in agent with GitHub Copilot: the code shown while waiting for the approval, then signed in and tested.
+  { id: 'kold-github', tid: '09:09', navn: 'Kold start: log ind med GitHub', url: '/rum/start', replik: 'Hvor skriver jeg koden?' },
+  { id: 'kold-github-inde', tid: '09:11', navn: 'Kold start: logget ind med GitHub', url: '/rum/start', replik: 'Kører den på mit Copilot nu?' },
   ...KOLD_KILDER,
   ...KOLD_TAILSCALE, // KC-0161: one moment per state of the Tailscale card
 ];
+
+/** KC-0263: the moments that run as the built-in agent (KC_AGENT=direkte), where Copilot signs in with GitHub. */
+export const erGithubMoment = (momentId: string): boolean => momentId === 'kold-github' || momentId === 'kold-github-inde';
+/** The invented GitHub account of the test world (no such login is ever asked for). */
+export const TEST_GITHUB_LOGIN = 'alma-testverden';
+const TEST_GITHUB_LAENGDE = 40;
+
+/**
+ * KC-0263: the world's GitHub sign-in, scripted per moment: the code while waiting, signed in afterwards, out elsewhere.
+ * Nothing is fetched and no token exists; Log ind and Log ud only answer the moment's state.
+ */
+export function testGithub(moment: () => string): GithubLogin {
+  const status = async (): Promise<GithubTilstand> => {
+    if (moment() === 'kold-github') return { tilstand: 'venter', userCode: 'TEST-0263', verificationUri: 'https://github.com/login/device', udloeber: '2099-01-01T00:00:00.000Z' };
+    if (moment() === 'kold-github-inde') return { tilstand: 'inde', login: TEST_GITHUB_LOGIN, laengde: TEST_GITHUB_LAENGDE };
+    return { tilstand: 'ude' };
+  };
+  return { status, start: async () => status(), ud: async () => {}, faerdig: async () => {} };
+}
 
 /** KC-0127: the moment where the scripted Hermes rejects the key on every live test. */
 export const modelTestUdfald = (momentId: string): 'klar' | '401' => (momentId === 'kold-model-fejl' ? '401' : 'klar');
@@ -117,7 +140,16 @@ export function koldFroe(momentId: string, f: Fakta): Froe {
   const velkommen = { id: 'start-velkommen', tid: gemt, kilde: 'henrik' as const, zone: 'privat' as const, ejer: TEST_EJER.id, handlingId: 'velkommen-gem', fortryd: `lokal:${JSON.stringify({ forrige: null })}`, tekst: `Gemte profilen: ${TEST_EJER.navn}, Hermes svarer på dansk, en husstand.` };
   const state: StartState = { startet: f.iso('09:00'), trin: { velkommen: { status: 'klaret', tid: gemt } }, afvist: {} };
   const base: Froe = { ...tom, profil: { navn: TEST_EJER.navn, sprog: 'da', husstand: 'husstand' }, kilder, rum: { start: { state, log: [velkommen] }, mail: { state: koldMailState(f) } } };
-  if (momentId === 'kold-velkommen') return base;
+  if (momentId === 'kold-velkommen' || momentId === 'kold-github') return base;
+  if (momentId === 'kold-github-inde') {
+    // KC-0263: signed in with GitHub at 09.10 (only the login and the token's length are kept), Copilot's defaults tested.
+    const cu = udbyderAf('copilot')!;
+    const t = (model: string, ms: number) => ({ ok: true, tid: f.iso('09:10'), ms, rev: modelRevision(cu.id, model) });
+    const indstillinger: Settings = { modeller: { ...cu.standardModeller }, stemme: {}, udbyder: cu.id, modelTest: { lille: t(cu.standardModeller.lille, 940), taenker: t(cu.standardModeller.taenker, 1710) } };
+    const model = { udbyder: cu.id, noegle: { laengde: TEST_GITHUB_LAENGDE, tid: f.iso('09:10') }, github: { login: TEST_GITHUB_LOGIN } };
+    const log = { id: 'start-github', tid: f.iso('09:10'), kilde: 'henrik' as const, zone: 'privat' as const, ejer: TEST_EJER.id, tekst: `Loggede ind med GitHub som ${TEST_GITHUB_LOGIN}; adgangen er gemt i Clawco (${TEST_GITHUB_LAENGDE} tegn).` };
+    return { ...base, indstillinger, rum: { ...base.rum, start: { state: { ...state, model }, log: [velkommen, log] } } };
+  }
   if (momentId === KOLD_ENGELSK) {
     const engelsk = { ...velkommen, tekst: `Gemte profilen: ${TEST_EJER.navn}, Hermes svarer på engelsk, en husstand.` }; // the room's log stays Danish (follow-up)
     return { ...base, profil: { navn: TEST_EJER.navn, sprog: 'en', husstand: 'husstand' }, rum: { ...base.rum, start: { state, log: [engelsk] } } };

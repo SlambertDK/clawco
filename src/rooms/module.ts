@@ -18,6 +18,7 @@ import type { ReglerLager } from '../tillid/lager.ts';
 import type { SkjultLager } from '../tillid/skjulte.ts';
 import type { ProfilLager } from '../store/profil.ts';
 import type { ModelSyn, ModelTestSyn, Niveau } from './start/trin.ts';
+import type { GithubLogin } from '../agent/github-enhed.ts';
 import type { KalenderLaesning } from '../hushold/uge.ts';
 import type { OptagetKalender } from '../hushold/konflikt.ts';
 import type { IndkommendeBesked } from '../hushold/kanal.ts';
@@ -166,6 +167,8 @@ export type ModelVindue = {
   fetchImpl?: typeof fetch;
   /** The live test's timeout (20 s). */
   testMs: number;
+  /** KC-0263: "Sign in with GitHub" for the Copilot transport (only beside the built-in agent); absent = none. */
+  github?: GithubLogin;
 };
 
 

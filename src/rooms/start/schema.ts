@@ -69,20 +69,25 @@ export type ImportBunke = { tid: string; slags: string; forslag: ImportForslag[]
 export type ImportGemt = { logId: string; tid: string; slags: string; antal: number };
 export type StartImport = { bunke?: ImportBunke; gemt?: ImportGemt[] };
 
-export type StartModel = { udbyder: string; noegle?: { laengde: number; tid: string }; kommando?: string; url?: string; navne?: string[] };
+/** KC-0263: `github` = the login name "Sign in with GitHub" read once (shown; nothing else of GitHub is kept). */
+export type StartModel = { udbyder: string; noegle?: { laengde: number; tid: string }; kommando?: string; url?: string; navne?: string[]; github?: { login: string } };
 
 const MODEL_NAVN = /^[A-Za-z0-9._:/-]{1,80}$/;
+const GITHUB_LOGIN = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/;
 
 function parseModel(v: unknown): StartModel | undefined {
   if (!erObj(v) || typeof v['udbyder'] !== 'string' || !/^[a-z0-9-]{1,40}$/.test(v['udbyder'])) return undefined;
   const n = v['noegle'];
   const noegle = erObj(n) && typeof n['laengde'] === 'number' && Number.isInteger(n['laengde']) && n['laengde'] >= 0 && erIso(n['tid']) ? { laengde: n['laengde'], tid: n['tid'] } : undefined;
   const navne = Array.isArray(v['navne']) ? v['navne'].filter((x): x is string => typeof x === 'string' && MODEL_NAVN.test(x)).slice(0, 200) : undefined;
+  const g = v['github'];
+  const login = erObj(g) && typeof g['login'] === 'string' && GITHUB_LOGIN.test(g['login']) ? g['login'] : undefined;
   return {
     udbyder: v['udbyder'], ...(noegle ? { noegle } : {}),
     ...(typeof v['kommando'] === 'string' && v['kommando'].length <= 400 ? { kommando: v['kommando'] } : {}),
     ...(typeof v['url'] === 'string' && v['url'].length <= 200 ? { url: v['url'] } : {}),
     ...(navne ? { navne } : {}),
+    ...(login ? { github: { login } } : {}),
   };
 }
 

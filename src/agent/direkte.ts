@@ -16,9 +16,13 @@ import type { NoegleLager } from './noeglelager.ts';
 import { parseSseChunks } from './sse.ts';
 import { agentTekst } from './tekster.ts';
 import { PROMPT_TEKSTER, promptTekst } from './prompt-tekster.ts';
+import type { CopilotTransport } from './copilot.ts';
 
-/** How a provider is called directly; no url = the saved local address + /chat/completions. */
-export type DirekteApi = { api: 'anthropic-messages' | 'openai-chat'; url?: string };
+/**
+ * How a provider is called directly; no url = the saved local address + /chat/completions. KC-0263: copilot-sdk = the
+ * Copilot transport (copilot.ts) with the token "Sign in with GitHub" saved, injected as `copilot`.
+ */
+export type DirekteApi = { api: 'anthropic-messages' | 'openai-chat' | 'copilot-sdk'; url?: string };
 /** What the agent needs of a provider (the KC-0127 list in rooms/start/udbydere.ts satisfies it; injected). */
 export type DirekteUdbyder = { id: string; envNavn: string; hermesProvider: string; kraeverNoegle: boolean; direkte?: DirekteApi };
 export type DirekteFejlArt = 'model-noegle' | 'kun-hermes' | 'noegle' | 'kredit' | 'model' | 'forbindelse' | 'ukendt';
@@ -55,6 +59,8 @@ export function createDirekte(o: {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   maxTokens?: number;
+  /** KC-0263: the Copilot transport (absent = a copilot-sdk provider fails closed as kun-hermes). */
+  copilot?: CopilotTransport;
 }): AgentClient {
   const doFetch: typeof fetch = o.fetchImpl ?? ((input, init) => fetch(input, init));
   const timeoutMs = o.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -77,8 +83,12 @@ export function createDirekte(o: {
     const noegle = await hentNoegle(u.id);
     if (!noegle) throw fejl('model-noegle');
     const api = u.direkte.api;
-    const url = u.direkte.url ?? `${noegle.replace(/\/+$/, '')}/chat/completions`;
     const system = `${req.instructions}\n\n${udenVaerktoej()}`;
+    if (api === 'copilot-sdk') {
+      if (!o.copilot) throw fejl('kun-hermes');
+      return o.copilot.koer({ system, input: req.input, model: req.model, ...(req.onEvent ? { onEvent: req.onEvent } : {}), ...(req.signal ? { signal: req.signal } : {}) }, noegle);
+    }
+    const url = u.direkte.url ?? `${noegle.replace(/\/+$/, '')}/chat/completions`;
 
     const headers: Record<string, string> = { 'content-type': 'application/json', accept: 'text/event-stream' };
     let body: Wire;

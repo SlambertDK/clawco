@@ -23,3 +23,10 @@ test('the wrapper changes nothing else: unknown provider still refused, findes s
   await assert.rejects(() => lager.saet('nope', 'x'), /ukendt udbyder/);
   assert.equal(await lager.findes('anthropic'), false);
 });
+
+test('KC-0263: the wrapper passes fjern through', async () => {
+  const lager = registrerNoegleLager(envNoegleLager({ udbydere: ['anthropic'], env: {} }));
+  await lager.saet('anthropic', NOEGLE);
+  await lager.fjern('anthropic');
+  assert.equal(await lager.findes('anthropic'), false);
+});

@@ -89,27 +89,36 @@ export function filNoegleLager(o: { udbydere: readonly string[]; dataDir: string
       kendt(udbyder);
       const v = noegle.trim();
       if (!v) throw new Error('nøglen er tom');
-      const arbejde = async (): Promise<{ laengde: number }> => {
-        const k = await laesNoegle(o.noeglefil);
-        try {
-          const nu = await laes(k);
-          nu[udbyder] = v;
-          await mkdir(o.dataDir, { recursive: true, mode: 0o700 });
-          const tmp = path.join(o.dataDir, TMP);
-          await writeFile(tmp, forsegl(k, nu), { mode: 0o600 });
-          await chmod(tmp, 0o600);
-          await rename(tmp, fil);
-        } catch (e) {
-          await rm(path.join(o.dataDir, TMP), { force: true });
-          throw e;
-        } finally {
-          k.fill(0);
-        }
-        return { laengde: v.length };
-      };
-      const p = koe.then(arbejde, arbejde);
-      koe = p.catch(() => undefined);
-      return p;
+      await opdater((nu) => { nu[udbyder] = v; return true; });
+      return { laengde: v.length };
+    },
+    async fjern(udbyder) {
+      kendt(udbyder);
+      await opdater((nu) => { if (!Object.hasOwn(nu, udbyder)) return false; delete nu[udbyder]; return true; });
     },
   };
+
+  /** Read, change, re-encrypt and rename, one after the other; `aendr` answers false when there is nothing to write. */
+  function opdater(aendr: (nu: Record<string, string>) => boolean): Promise<void> {
+    const arbejde = async (): Promise<void> => {
+      const k = await laesNoegle(o.noeglefil);
+      try {
+        const nu = await laes(k);
+        if (!aendr(nu)) return;
+        await mkdir(o.dataDir, { recursive: true, mode: 0o700 });
+        const tmp = path.join(o.dataDir, TMP);
+        await writeFile(tmp, forsegl(k, nu), { mode: 0o600 });
+        await chmod(tmp, 0o600);
+        await rename(tmp, fil);
+      } catch (e) {
+        await rm(path.join(o.dataDir, TMP), { force: true });
+        throw e;
+      } finally {
+        k.fill(0);
+      }
+    };
+    const p = koe.then(arbejde, arbejde);
+    koe = p.catch(() => undefined);
+    return p;
+  }
 }

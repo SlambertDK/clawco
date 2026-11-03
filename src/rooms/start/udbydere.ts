@@ -22,14 +22,14 @@ export type Udbyder = {
   standardUrl?: string;
   /** GET for the model list: an absolute URL, or a path under the local address. */
   hentModeller?: { url: string; auth: 'bearer' | 'x-api-key' | 'ingen' };
-  /** KC-0180: how the direct-model agent calls it (none = only through Hermes); no url = the saved local address. */
+  /** KC-0180: how the direct-model agent calls it (none = only through Hermes); no url = the saved local address. KC-0263: copilot-sdk = "Sign in with GitHub", no key field. */
   direkte?: DirekteApi;
 };
 
 export const UDBYDERE: readonly Udbyder[] = [
   { id: 'anthropic', navn: 'Anthropic', noeglePlaceholder: 'sk-ant-…', kraeverNoegle: true, envNavn: 'ANTHROPIC_API_KEY', hermesProvider: 'anthropic', standardModeller: { lille: 'claude-haiku-4-5', taenker: 'claude-sonnet-4-5' }, hentModeller: { url: 'https://api.anthropic.com/v1/models', auth: 'x-api-key' }, direkte: { api: 'anthropic-messages', url: 'https://api.anthropic.com/v1/messages' } },
   { id: 'openai', navn: 'OpenAI', noeglePlaceholder: 'sk-…', kraeverNoegle: true, envNavn: 'OPENAI_API_KEY', hermesProvider: 'openai-api', standardModeller: { lille: 'gpt-5-mini', taenker: 'gpt-5' }, hentModeller: { url: 'https://api.openai.com/v1/models', auth: 'bearer' }, direkte: { api: 'openai-chat', url: 'https://api.openai.com/v1/chat/completions' } },
-  { id: 'copilot', navn: 'GitHub Copilot', noeglePlaceholder: 'github_pat_… eller ghu_…', kraeverNoegle: true, envNavn: 'COPILOT_GITHUB_TOKEN', hermesProvider: 'copilot', standardModeller: { lille: 'claude-haiku-5.5', taenker: 'claude-sonnet-5.5' } },
+  { id: 'copilot', navn: 'GitHub Copilot', noeglePlaceholder: 'github_pat_… eller ghu_…', kraeverNoegle: true, envNavn: 'COPILOT_GITHUB_TOKEN', hermesProvider: 'copilot', standardModeller: { lille: 'claude-haiku-5.5', taenker: 'claude-sonnet-5.5' }, direkte: { api: 'copilot-sdk' } },
   { id: 'openrouter', navn: 'OpenRouter', noeglePlaceholder: 'sk-or-…', kraeverNoegle: true, envNavn: 'OPENROUTER_API_KEY', hermesProvider: 'openrouter', standardModeller: { lille: 'anthropic/claude-haiku-4.5', taenker: 'anthropic/claude-sonnet-4.5' }, hentModeller: { url: 'https://openrouter.ai/api/v1/models', auth: 'bearer' }, direkte: { api: 'openai-chat', url: 'https://openrouter.ai/api/v1/chat/completions' } },
   { id: 'lmstudio', navn: 'LM Studio på din egen maskine', noeglePlaceholder: 'http://127.0.0.1:1234', kraeverNoegle: false, envNavn: 'LM_BASE_URL', hermesProvider: 'lmstudio', standardModeller: { lille: 'qwen/qwen3-8b', taenker: 'qwen/qwen3-14b' }, standardUrl: 'http://127.0.0.1:1234', hentModeller: { url: '/models', auth: 'ingen' }, direkte: { api: 'openai-chat' } },
   { id: 'ollama', navn: 'Ollama på din egen maskine', noeglePlaceholder: 'http://127.0.0.1:11434', kraeverNoegle: false, envNavn: 'CUSTOM_BASE_URL', hermesProvider: 'ollama', standardModeller: { lille: 'qwen3:8b', taenker: 'qwen3:14b' }, standardUrl: 'http://127.0.0.1:11434', hentModeller: { url: '/models', auth: 'ingen' }, direkte: { api: 'openai-chat' } },

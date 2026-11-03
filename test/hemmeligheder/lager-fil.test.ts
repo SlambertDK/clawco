@@ -136,3 +136,19 @@ test('the file and its temp name are on the hidden list for the export and the f
   assert.ok(SKJULTE_DATAFILER.includes(LAGERFIL));
   assert.ok(SKJULTE_DATAFILER.some((n) => n.startsWith('.') && n.includes(LAGERFIL)));
 });
+
+test('KC-0263: fjern removes one provider\'s key and keeps the others; removing a missing key is a no-op', async () => {
+  const o = await opsaet();
+  try {
+    const l = lav(o);
+    await l.saet('anthropic', 'sk-ant-hemmelig');
+    await l.saet('openai', 'sk-oa-andet');
+    await l.fjern('anthropic');
+    await l.fjern('lmstudio');
+    const igen = lav(o);
+    assert.equal(await igen.findes('anthropic'), false);
+    assert.equal(await igen.hent('openai'), 'sk-oa-andet');
+    assert.ok(!(await readFile(path.join(o.dir, 'data', LAGERFIL))).includes(Buffer.from('sk-ant-hemmelig')));
+    await assert.rejects(() => l.fjern('foo'), /ukendt udbyder/);
+  } finally { await o.ryd(); }
+});

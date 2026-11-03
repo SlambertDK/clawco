@@ -29,6 +29,7 @@
     "katalog:a2ui": "node scripts/katalog-a2ui.mjs"
   },
   "dependencies": {
+    "@github/copilot-sdk": "1.0.28",
     "@hono/node-server": "2.1.5",
     "fast-xml-parser": "5.11.2",
     "hono": "4.13.14",

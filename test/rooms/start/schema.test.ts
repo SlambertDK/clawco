@@ -53,3 +53,10 @@ test('HTML in the name is escaped on render', () => {
   assert.ok(!h.includes('<script>alert(1)</script>'));
   assert.ok(h.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
 });
+
+test('KC-0263: the GitHub login name is kept with the model choice; nothing else of GitHub, and a strange name is dropped', () => {
+  const s = parseStartState({ startet: '2026-11-03T09:00:00.000Z', trin: {}, afvist: {}, model: { udbyder: 'copilot', noegle: { laengde: 40, tid: '2026-11-03T09:01:00.000Z' }, github: { login: 'henrik-l', email: 'x@y.z' } } });
+  assert.deepEqual(s?.model, { udbyder: 'copilot', noegle: { laengde: 40, tid: '2026-11-03T09:01:00.000Z' }, github: { login: 'henrik-l' } });
+  const ond = parseStartState({ startet: '2026-11-03T09:00:00.000Z', trin: {}, afvist: {}, model: { udbyder: 'copilot', github: { login: '<script>' } } });
+  assert.deepEqual(ond?.model, { udbyder: 'copilot' });
+});

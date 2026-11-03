@@ -5,7 +5,7 @@
 // KC-0180: the direct-model agent (src/agent/direkte.ts) fails with these sentences themselves (injected by the
 // composition root); a fixed sentence maps back to its own kind before any rule is tried.
 
-export type ModelFejlArt = 'noegle' | 'kredit' | 'model' | 'forbindelse' | 'tid' | 'agent-noegle' | 'agent-afvist' | 'model-noegle' | 'kun-hermes' | 'tom' | 'ukendt';
+export type ModelFejlArt = 'noegle' | 'kredit' | 'model' | 'forbindelse' | 'tid' | 'agent-noegle' | 'agent-afvist' | 'model-noegle' | 'kun-hermes' | 'github' | 'vaerktoej' | 'copilot-start' | 'tom' | 'ukendt';
 
 export const MODEL_FEJL: Record<ModelFejlArt, string> = {
   noegle: 'Nøglen er afvist. Tjek, at du har kopieret hele nøglen, og at den stadig findes hos udbyderen.',
@@ -17,6 +17,10 @@ export const MODEL_FEJL: Record<ModelFejlArt, string> = {
   'agent-afvist': 'Hermes afviste Clawcos nøgle. Tjek nøglen til Hermes.',
   'model-noegle': 'Clawco har ingen nøgle til en sprogmodel endnu. Vælg en udbyder, og indsæt din nøgle i Start.',
   'kun-hermes': 'Den udbyder virker kun gennem Hermes. Vælg en anden udbyder i Start.',
+  // KC-0263: the Copilot transport (src/agent/copilot.ts).
+  github: 'GitHub Copilot afviste adgangen. Tjek, at din GitHub-konto har Copilot, og log ind med GitHub igen i Start.',
+  vaerktoej: 'Modellen forsøgte at bruge et værktøj, og det må den ikke her. Kørslen blev stoppet.',
+  'copilot-start': 'GitHub Copilot kunne ikke starte på denne maskine. Prøv igen om lidt.',
   tom: 'Modellen svarede, men uden tekst.',
   ukendt: 'Modellen svarede ikke som ventet. Prøv igen om lidt.',
 };

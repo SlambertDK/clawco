@@ -162,6 +162,8 @@ import { MODEL_FEJL } from './rooms/start/modelfejl.ts';
 import { modelKlaret, type ModelSyn } from './rooms/start/trin.ts';
 import { createDirekte } from './agent/direkte.ts';
 import { envNoegleLager } from './agent/noeglelager.ts';
+import { createCopilot, type CopilotTransport, type LavKlient } from './agent/copilot.ts';
+import { createGithubLogin, githubAdresser, githubBase, GITHUB_KLIENT_ID, type GithubLogin } from './agent/github-enhed.ts';
 import { filNoegleLager } from './hemmeligheder/lager-fil.ts';
 import { registrerNoegleLager } from './hemmeligheder/registrer.ts';
 import { redigerKonsol } from './graenser/redaktion.ts';
@@ -183,7 +185,7 @@ export type AppDeps = {
    * KC-0127: Start's step 2. `fetchImpl` for model discovery (tests: a stub), `testMs` the live test's timeout
    * (default 20 s), `miljoe` where Clawco's own key to Hermes is saved (default KC_ENV_FILE / .env and process.env).
    */
-  model?: { fetchImpl?: typeof fetch; testMs?: number; miljoe?: { fil?: string; env?: Record<string, string | undefined> } };
+  model?: { fetchImpl?: typeof fetch; testMs?: number; miljoe?: { fil?: string; env?: Record<string, string | undefined> }; /** KC-0263: "Sign in with GitHub" for Copilot (lavAgentMedLogin, beside the built-in agent). */ github?: GithubLogin };
   sourceGlob: string;
   mailStateDir?: string;
   mailRunner?: Runner;
@@ -366,6 +368,7 @@ export function createApp(deps: AppDeps) {
       saetAgentNoegle: (vaerdi) => saetMiljoeNoegle('KC_HERMES_API_KEY', vaerdi, { ...(miljoe?.fil ? { fil: miljoe.fil } : {}), ...(miljoe?.env ? { env: miljoe.env } : {}) }),
       ...(deps.model?.fetchImpl ? { fetchImpl: deps.model.fetchImpl } : {}),
       testMs: deps.model?.testMs ?? 20_000,
+      ...(deps.model?.github ? { github: deps.model.github } : {}),
     };
   }
   // KC-0132: the connector registry; which are connected lives in kilder.json on the data dir.
@@ -2385,32 +2388,62 @@ export function medMailGmail(kilder: Kilde[], gmail: () => Kilde = () => mailGma
  * replaces the provider calls (tests).
  */
 export function lavAgent(e: Record<string, string | undefined>, o: { env?: Record<string, string | undefined>; fetchImpl?: typeof fetch } = {}): AgentClient {
+  return lavAgentMedLogin(e, o).agent;
+}
+
+/**
+ * KC-0263: the agent and, beside the built-in agent, the Copilot transport and its "Sign in with GitHub" (the token in
+ * the same NoegleLager under `copilot`). The client id is KC_GITHUB_CLIENT_ID, else Clawco's own OAuth App
+ * (GITHUB_KLIENT_ID; empty = not set up, and the card says so). KC_GITHUB_BASE_URL points the device flow at a loopback
+ * fake (the local check) and is refused for anything else. `githubFetch`, `githubVent` and `copilotKlient` replace
+ * GitHub, the wait and the runtime in tests.
+ */
+export function lavAgentMedLogin(e: Record<string, string | undefined>, o: {
+  env?: Record<string, string | undefined>; fetchImpl?: typeof fetch;
+  githubFetch?: typeof fetch; githubVent?: (ms: number, signal?: AbortSignal) => Promise<void>; copilotKlient?: LavKlient;
+} = {}): { agent: AgentClient; github?: GithubLogin; copilot?: CopilotTransport } {
   const valg = agentValg(e);
-  if (valg === 'fake') return createFakeAgent({ answer: devAnswer, delayMs: 800 });
+  if (valg === 'fake') return { agent: createFakeAgent({ answer: devAnswer, delayMs: 800 }) };
   const kilde = o.env ?? e;
   if (valg === 'direkte') {
     const dataDir = (e['KC_DATA_DIR'] ?? '').trim() || './data';
     const settings = createSettings(dataDir);
     const noeglefil = (e['KC_HEMMELIGHEDER_FIL'] ?? '').trim();
     const udbyderIds = UDBYDERE.map((u) => u.id);
-    return createDirekte({
+    const lager = registrerNoegleLager(noeglefil ? filNoegleLager({ udbydere: udbyderIds, dataDir, noeglefil }) : envNoegleLager({ udbydere: udbyderIds, env: kilde }));
+    const copilot = createCopilot({ fejl: MODEL_FEJL, ...(o.copilotKlient ? { lavKlient: o.copilotKlient } : {}) });
+    const base = githubBase(e['KC_GITHUB_BASE_URL']);
+    const github = createGithubLogin({
+      klientId: (e['KC_GITHUB_CLIENT_ID'] ?? '').trim() || GITHUB_KLIENT_ID,
+      adresser: githubAdresser(base),
+      lager,
+      paaNyToken: () => copilot.stop(),
+      paaUd: () => copilot.stop(),
+      ...(o.githubFetch ? { fetchImpl: o.githubFetch } : {}),
+      ...(o.githubVent ? { vent: o.githubVent } : {}),
+    });
+    const agent = createDirekte({
       udbydere: UDBYDERE,
-      lager: registrerNoegleLager(noeglefil ? filNoegleLager({ udbydere: udbyderIds, dataDir, noeglefil }) : envNoegleLager({ udbydere: udbyderIds, env: kilde })),
+      lager,
       fejl: MODEL_FEJL,
       testet: async () => { const s = await settings.read(); return { ...(s.udbyder ? { udbyder: s.udbyder } : {}), ok: modelKlaret(modelSyn(s)) }; },
       ...(o.fetchImpl ? { fetchImpl: o.fetchImpl } : {}),
+      copilot,
     });
+    return { agent, github, copilot };
   }
   const fil = (e['KC_HERMES_ENV_FILE'] ?? '').trim();
   const [kommando, ...args] = ((e['KC_HERMES_GENSTART'] ?? '').trim() || 'hermes gateway restart').split(/\s+/);
   const genstart = (): Promise<void> => new Promise((resolve, reject) => {
     execFile(kommando!, args, { timeout: 60_000 }, (err) => (err ? reject(new Error(`Hermes kunne ikke genstartes (${kommando})`)) : resolve()));
   });
-  return createHermesHttp({
-    baseUrl: (e['KC_HERMES_URL'] ?? '').trim() || 'http://127.0.0.1:8642',
-    apiKey: () => kilde['KC_HERMES_API_KEY'],
-    noegler: { ...(fil ? { skriv: lavAgentNoegleSkriver(fil, MODEL_ENV_NOEGLER) } : {}), genstart },
-  });
+  return {
+    agent: createHermesHttp({
+      baseUrl: (e['KC_HERMES_URL'] ?? '').trim() || 'http://127.0.0.1:8642',
+      apiKey: () => kilde['KC_HERMES_API_KEY'],
+      noegler: { ...(fil ? { skriv: lavAgentNoegleSkriver(fil, MODEL_ENV_NOEGLER) } : {}), genstart },
+    }),
+  };
 }
 
 /**
@@ -2438,7 +2471,13 @@ export async function main(): Promise<void> {
   const konto = kontoFraMiljoe(process.env);
   // KC-0160: KC_LAPTOP=ja — one owner, loopback only; a LAN address or konto mode refuses to start, naming the key.
   const laptop = laptopFraMiljoe(process.env);
-  const hermes = lavAgent(process.env);
+  const { agent: hermes, github, copilot } = lavAgentMedLogin(process.env);
+  // KC-0263: the Copilot runtime is a child process; stop it (and remove its tmp folder) when the service stops.
+  if (copilot) {
+    const stop = (): void => { void Promise.race([copilot.stop(), new Promise((r) => setTimeout(r, 3000))]).finally(() => process.exit(0)); };
+    process.once('SIGTERM', stop);
+    process.once('SIGINT', stop);
+  }
   const here = path.dirname(fileURLToPath(import.meta.url));
   const publicDir = path.relative(process.cwd(), path.join(here, '..', 'public')) || 'public';
   const kalenderScript = kalenderScriptFra(process.env, mode, path.join(here, '..'), { kiraToken: existsSync(KIRA_TOKEN_SCRIPT) });
@@ -2453,6 +2492,7 @@ export async function main(): Promise<void> {
   const { app, frontload, kurator, konflikt, soendag, moedeTik, rumTik, helbredTik } = createApp({
     store: createFileStore(env('KC_DATA_DIR', './data')),
     hermes,
+    ...(github ? { model: { github } } : {}), // KC-0263
     ...(stemme ? { stemme } : {}),
     sourceGlob: env('KC_DAGEN_SOURCE_GLOB', '/tmp/avis_data_{date}.json'),
     mailStateDir: mode === 'fake' ? await devMailStateDir(env('KC_DATA_DIR', './data'), new Date()) : env('KC_MAIL_STATE_DIR', path.join(process.env['HOME'] ?? '', '.hermes', 'state')),

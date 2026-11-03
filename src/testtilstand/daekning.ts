@@ -130,6 +130,8 @@ const HAAND: [string, string][] = [
   ['start-model-aaben', 'id="model-form"'],                                   // Start: step 2's provider form (KC-0127; the moment "Kold start: velkommen klaret")
   ['start-model-fejl', 'data-model-test="fejl"'],                             // step 2: a live test failed, with the Danish reason (the moment "Kold start: nøglen afvist")
   ['start-model-virker', 'data-model-test="ok"'],                             // step 2: Virker and how fast (the moment "Kold start: modellen virker")
+  ['start-github-kode', 'data-github-kode'],                                  // KC-0263: Copilot's GitHub sign-in: the code and the link while waiting (the moment "Kold start: log ind med GitHub")
+  ['start-github-inde', 'data-aktion="github-ud"'],                           // KC-0263: signed in as the login, with Log ud (the moment "Kold start: logget ind med GitHub")
   ['husstand-uge', 'data-uge-hvem="'],                                        // Husstanden: the shared week with whose each entry is (KC-0148; the family calendar)
   ['start-forhaandsvisning', 'data-forhaandsvisning="'],                      // KC-0128: a first source's preview in Nu (the moment "første kilde forbundet")
   ['start-kilde-kort', 'data-kilde-kort="'],                                  // KC-0128: a connect card from the registry in Start (steps 3 and 4)

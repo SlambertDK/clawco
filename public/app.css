@@ -74,6 +74,8 @@ aside { flex: 1 1 320px; max-width: 100%; background: var(--nav); border-left: 1
 .row-title { font-weight: 500; } a.row-title { color: var(--ink); } a.row-title:hover { color: var(--handling); }
 .row-note { font-size: 12px; color: var(--muted); line-height: 1.4; }
 .row-note.tilstand-kraever { color: var(--kraever); } /* KC-0143: a bill that waits for a rule says so in the amber of Kræver dig */
+/* KC-0263: the GitHub sign-in code in Start, large enough to read off and type on another device */
+.github-kode { margin: 6px 0 10px; font-size: 28px; font-weight: 600; letter-spacing: 0.12em; color: var(--ink); overflow-wrap: normal; }
 .time { color: var(--muted); width: 72px; flex-shrink: 0; }
 .news { align-items: flex-start; }
 .log-undone .row-title { text-decoration: line-through; color: var(--muted); }

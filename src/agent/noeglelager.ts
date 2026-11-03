@@ -10,6 +10,8 @@ export interface NoegleLager {
   /** Keeps the key (trimmed); answers its length only. Rejects an empty key or an unknown provider. */
   saet(udbyder: string, noegle: string): Promise<{ laengde: number }>;
   findes(udbyder: string): Promise<boolean>;
+  /** KC-0263: removes the provider's key (sign-out); a missing key is a no-op. Rejects an unknown provider. */
+  fjern(udbyder: string): Promise<void>;
 }
 
 /** The env name a provider's key is read from: 'anthropic' → KC_MODEL_NOEGLE_ANTHROPIC. */
@@ -18,13 +20,15 @@ export const noegleEnvNavn = (udbyder: string): string => `KC_MODEL_NOEGLE_${udb
 export function envNoegleLager(o: { udbydere: readonly string[]; env?: Record<string, string | undefined> }): NoegleLager {
   const env = o.env ?? process.env;
   const gemt = new Map<string, string>();
+  /** Removed here: the env value no longer counts until a new key is saved. */
+  const fjernet = new Set<string>();
   const kendt = (udbyder: string): void => {
     // The message names the provider id only, never the value.
     if (!o.udbydere.includes(udbyder)) throw new Error(`ukendt udbyder: ${udbyder.slice(0, 40)}`);
   };
   const laes = (udbyder: string): string | undefined => {
     kendt(udbyder);
-    const v = (gemt.get(udbyder) ?? env[noegleEnvNavn(udbyder)] ?? '').trim();
+    const v = (gemt.get(udbyder) ?? (fjernet.has(udbyder) ? '' : env[noegleEnvNavn(udbyder)]) ?? '').trim();
     return v || undefined;
   };
   return {
@@ -36,6 +40,11 @@ export function envNoegleLager(o: { udbydere: readonly string[]; env?: Record<st
       if (!v) throw new Error('nøglen er tom');
       gemt.set(udbyder, v);
       return { laengde: v.length };
+    },
+    async fjern(udbyder) {
+      kendt(udbyder);
+      gemt.delete(udbyder);
+      fjernet.add(udbyder);
     },
   };
 }

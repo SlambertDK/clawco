@@ -66,5 +66,5 @@ test('KC-0180: how the direct agent calls each provider (one list knows provider
   assert.deepEqual(udbyderAf('openrouter')?.direkte, { api: 'openai-chat', url: 'https://openrouter.ai/api/v1/chat/completions' });
   assert.deepEqual(udbyderAf('lmstudio')?.direkte, { api: 'openai-chat' }, 'a local model: the saved address');
   assert.deepEqual(udbyderAf('ollama')?.direkte, { api: 'openai-chat' });
-  assert.equal(udbyderAf('copilot')?.direkte, undefined, 'no public direct API: only through Hermes');
+  assert.deepEqual(udbyderAf('copilot')?.direkte, { api: 'copilot-sdk' }, 'KC-0263: the Copilot SDK with the GitHub sign-in');
 });

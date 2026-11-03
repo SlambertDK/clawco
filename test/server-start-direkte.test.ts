@@ -12,7 +12,6 @@ import { createApp, lavAgent } from '../src/server.ts';
 import { createFileStore } from '../src/store/fileStore.ts';
 import { createFakeAgent } from '../src/agent/fake.ts';
 import { MODEL_TEST } from '../src/agent/prompt.ts';
-import { MODEL_FEJL } from '../src/rooms/start/modelfejl.ts';
 import type { AgentClient } from '../src/agent/types.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import { anthropicStream, startFalskUdbyder } from './helpers/falsk-udbyder.ts';
@@ -48,7 +47,7 @@ async function koer(s: ReturnType<typeof createApp>, aktion: string, body: unkno
 }
 const side = async (s: ReturnType<typeof createApp>): Promise<string> => (await s.app.request('/rum/start')).text();
 
-test('direkte: step 2 shows the providers that work without Hermes (local models too), never Copilot, and no Hermes wording', async () => {
+test('direkte: step 2 shows the providers that work without Hermes (local models too; Copilot only where GitHub sign-in is set up, KC-0263), and no Hermes wording', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-direkte-'));
   try {
     await medFalskUdbyder(async ({ omdiriger }) => {
@@ -57,7 +56,7 @@ test('direkte: step 2 shows the providers that work without Hermes (local models
       assert.match(kort, /data-trin-status="(ikke-startet|i-gang)"/, 'step 2 is open, not a dead end');
       assert.match(kort, /id="model-form"/, 'the provider choice, not the Hermes key form');
       const valg = [...kort.matchAll(/<option value="([a-z]+)"/g)].map((m) => m[1]);
-      assert.deepEqual(valg, ['anthropic', 'openai', 'openrouter', 'lmstudio', 'ollama']);
+      assert.deepEqual(valg, ['anthropic', 'openai', 'openrouter', 'lmstudio', 'ollama'], 'no GitHub app here, so no Copilot (server-start-github.test.ts covers it with one)');
       assert.doesNotMatch(kort, /Hermes|API_SERVER_KEY|data-model-agent/, 'no Hermes wording in the step');
 
       const gem = await koer(s, 'model-gem', { udbyder: 'anthropic', noegle: NOEGLE });
@@ -71,7 +70,7 @@ test('direkte: step 2 shows the providers that work without Hermes (local models
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
-test('direkte: a provider that only works through Hermes is refused with the fixed sentence and nothing is saved', async () => {
+test('direkte: a pasted Copilot token is refused (KC-0263: GitHub sign-in only) and nothing is saved', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-direkte-'));
   try {
     await medFalskUdbyder(async ({ omdiriger, modtaget }) => {
@@ -79,7 +78,7 @@ test('direkte: a provider that only works through Hermes is refused with the fix
       const res = await post(s, '/api/rum/start/aktion/model-gem', { udbyder: 'copilot', noegle: NOEGLE });
       const tekst = await res.text();
       assert.ok(res.status >= 400 && res.status < 500, tekst);
-      assert.ok(tekst.includes(MODEL_FEJL['kun-hermes']), tekst);
+      assert.match(tekst, /Log ind med GitHub/, tekst);
       assert.equal(modtaget.length, 0, 'nothing reached a provider');
       assert.ok(!(await readdir(dir, { recursive: true })).some((f) => f.endsWith('.enc')), 'no key stored');
     });

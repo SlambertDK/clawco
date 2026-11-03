@@ -235,3 +235,32 @@ test('the no-tools line is English inside an English run and Danish otherwise', 
     assert.equal(da, `SYSTEM\n\n${UDEN_VAERKTOEJ}`);
   });
 });
+
+test('KC-0263: a copilot-sdk provider runs through the injected Copilot transport with the saved token and the no-tools system text', async () => {
+  const lager = envNoegleLager({ udbydere: ['copilot'], env: {} });
+  await lager.saet('copilot', 'gho_HEMMELIGtoken0263abcdefghijklmnop');
+  const kald: { req: unknown; token: string }[] = [];
+  const agent = createDirekte({
+    udbydere: [{ id: 'copilot', envNavn: 'COPILOT_GITHUB_TOKEN', hermesProvider: 'copilot', kraeverNoegle: true, direkte: { api: 'copilot-sdk' } }],
+    lager, fejl: FEJL,
+    copilot: { koer: async (req, token) => { kald.push({ req: { ...req, onEvent: typeof req.onEvent, signal: typeof req.signal }, token }); req.onEvent?.({ type: 'run.completed', output: 'svar' }); return { runId: 'copilot_x', output: 'svar' }; }, stop: async () => {} },
+  });
+  const ac = new AbortController();
+  const events: AgentEvent[] = [];
+  const r = await agent.run({ instructions: 'SYSTEM', input: 'INPUT', model: 'claude-haiku-5.5', provider: 'copilot', onEvent: (e) => events.push(e), signal: ac.signal });
+  assert.equal(r.output, 'svar');
+  assert.deepEqual(kald, [{ req: { system: `SYSTEM\n\n${UDEN_VAERKTOEJ}`, input: 'INPUT', model: 'claude-haiku-5.5', onEvent: 'function', signal: 'object' }, token: 'gho_HEMMELIGtoken0263abcdefghijklmnop' }]);
+  assert.deepEqual(events, [{ type: 'run.completed', output: 'svar' }]);
+});
+
+test('KC-0263: a copilot-sdk provider without the transport, or without a token, fails closed with the fixed sentences', async () => {
+  const lager = envNoegleLager({ udbydere: ['copilot'], env: {} });
+  const u: DirekteUdbyder[] = [{ id: 'copilot', envNavn: 'COPILOT_GITHUB_TOKEN', hermesProvider: 'copilot', kraeverNoegle: true, direkte: { api: 'copilot-sdk' } }];
+  let kaldt = false;
+  const med = createDirekte({ udbydere: u, lager, fejl: FEJL, copilot: { koer: async () => { kaldt = true; return { runId: 'x', output: '' }; }, stop: async () => {} } });
+  await assert.rejects(med.run({ instructions: 'S', input: 'I', model: 'm', provider: 'copilot' }), (e: Error) => e.message === FEJL['model-noegle']);
+  assert.equal(kaldt, false, 'no token: the runtime is never asked');
+  await lager.saet('copilot', 'gho_x0263abcdefghijklmnopqrstu');
+  const uden = createDirekte({ udbydere: u, lager, fejl: FEJL });
+  await assert.rejects(uden.run({ instructions: 'S', input: 'I', model: 'm', provider: 'copilot' }), (e: Error) => e.message === FEJL['kun-hermes']);
+});
