@@ -20,7 +20,7 @@ function afviser(env: Record<string, string | undefined>, noegle: string): void 
 
 test('a valid environment gives the config with defaults for port and tenant domain', () => {
   const c = laesConfig(gyldig);
-  assert.deepEqual(c, { databaseUrl: gyldig.SKY_DATABASE_URL, publicUrl: gyldig.SKY_PUBLIC_URL, port: STANDARD_PORT, basedomain: STANDARD_BASEDOMAIN, rpId: 'kontrol.example.test', dev: false, flaade: { driver: 'ingen' }, tilmelding: 'invitation' });
+  assert.deepEqual(c, { databaseUrl: gyldig.SKY_DATABASE_URL, publicUrl: gyldig.SKY_PUBLIC_URL, port: STANDARD_PORT, basedomain: STANDARD_BASEDOMAIN, rpId: 'kontrol.example.test', dev: false, flaade: { driver: 'ingen' }, tilmelding: 'invitation', inkluderetModel: false });
   assert.equal(STANDARD_PORT, 8781);
   assert.equal(STANDARD_BASEDOMAIN, 'clawco' + '.work');
 });
@@ -153,4 +153,11 @@ test('KC-0185: a full R2 set gives the EU jurisdiction by default, removes the c
   assert.equal(laesKopiConfig({ ...env, SKY_R2_ACCESS_KEY_ID: 'x', SKY_R2_SECRET_ACCESS_KEY: 'y', SKY_R2_JURISDICTION: '' }).kopi!.jurisdiktion, '');
   assert.match(laesKopiConfig({ ...env, SKY_R2_ACCESS_KEY_ID: 'x', SKY_R2_SECRET_ACCESS_KEY: 'y', SKY_R2_JURISDICTION: 'e.u' }).fejl!, /SKY_R2_JURISDICTION/);
   assert.match(laesKopiConfig({ ...env, SKY_R2_ACCESS_KEY_ID: 'x', SKY_R2_SECRET_ACCESS_KEY: 'y', SKY_KOPI_TESTTENANT: 'Ikke Gyldig' }).fejl!, /SKY_KOPI_TESTTENANT/);
+});
+
+test('KC-0264 SKY_INKLUDERET_MODEL: the included model\'s switch, off unless exactly ja', () => {
+  assert.equal(laesConfig(gyldig).inkluderetModel, false);
+  assert.equal(laesConfig({ ...gyldig, SKY_INKLUDERET_MODEL: 'ja' }).inkluderetModel, true);
+  assert.equal(laesConfig({ ...gyldig, SKY_INKLUDERET_MODEL: 'nej' }).inkluderetModel, false);
+  assert.throws(() => laesConfig({ ...gyldig, SKY_INKLUDERET_MODEL: 'yes' }), /SKY_INKLUDERET_MODEL/);
 });

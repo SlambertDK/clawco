@@ -12,13 +12,13 @@ import { synligFor } from '../../identitet/zoner.ts';
 import { kan } from '../../identitet/roller.ts';
 import { ENEBRUGER } from '../../identitet/identitet.ts';
 import { parseStartState, ProfilFejl, validerProfil, type Forslag, type Profil, type StartModel, type StartState } from './schema.ts';
-import { alleTrin, NIVEAUER, PAKKE_KILDER, trinStatus, utenPakke, type ModelSyn, type Niveau, type TrinKontekst } from './trin.ts';
+import { alleTrin, modelKlaret, NIVEAUER, PAKKE_KILDER, trinStatus, utenPakke, type ModelSyn, type Niveau, type TrinKontekst } from './trin.ts';
 import { erRejsenFaerdig } from './rejsen.ts';
 import { foreslaaTilfoejelse } from './forslag.ts';
 import { renderStart, sek, testTekst, type StartVisning } from './render.ts';
 import { ventendeForslag } from './regelforslag.ts';
 import { buildStartChatRun, KORSEL } from './prompt.ts';
-import { envVaerdi, hentModelNavne, UDBYDERE, udbyderAf } from './udbydere.ts';
+import { envVaerdi, hentModelNavne, INKLUDERET, UDBYDERE, udbyderAf } from './udbydere.ts';
 import { modelFejlArt, type ModelFejlArt } from './modelfejl.ts';
 import { MODEL_TEST } from '../../agent/prompt.ts';
 import type { AgentStatus } from '../../agent/types.ts';
@@ -126,7 +126,7 @@ async function importSyn(deps: RoomDeps, s: StartState, model: ModelSyn | undefi
   if (!skriver) return {};
   const u = model?.udbyder ? udbyderAf(model.udbyder) : undefined;
   return { import: {
-    klar: await skriver.klar().catch(() => false), kanLavMappe: Boolean(skriver.lavMappe), udbyder: u ? { navn: startTekst().udbyderNavn(u), lokal: !u.kraeverNoegle } : null,
+    klar: await skriver.klar().catch(() => false), kanLavMappe: Boolean(skriver.lavMappe), udbyder: u ? { navn: startTekst().udbyderNavn(u), lokal: !u.kraeverNoegle && !u.inkluderet, ...(u.inkluderet ? { inkluderet: true as const } : {}) } : null,
     ...(s.import?.bunke ? { bunke: s.import.bunke } : {}), gemt: s.import?.gemt ?? [],
     laeser: deps.runs.igang(RUM).some((r) => erImportLabel(r.label)), kanGemme: kan(deps.person.rolle, 'aendre-indstillinger'),
   } };
@@ -157,6 +157,60 @@ async function aulaSyn(deps: RoomDeps, kilder: KildeVisning | undefined): Promis
   return { aula: { kort: k, ...(kilder.laptop ? { laptop: true as const } : {}) } };
 }
 
+/**
+ * KC-0265: Clawco's AI included in a Sky plan, as step 2's card sees it. Only beside the built-in agent and only where the
+ * installation has it (ModelVindue.inkluderet). `valgt` = it is the chosen one, or nothing is chosen yet (the installation is
+ * about to choose it itself, so the card never shows a key field in between). The meter and "used up" are read only then.
+ * Looking at the card also lets the installation make sure the choice is made and tested (inkluderetSikr).
+ */
+async function inkluderetSyn(deps: RoomDeps, syn: ModelSyn): Promise<NonNullable<StartVisning['model']>['inkluderet'] | undefined> {
+  const ink = deps.hermes.mode === 'direkte' ? deps.model?.inkluderet : undefined;
+  if (!ink) return undefined;
+  void inkluderetSikr(deps).catch(() => undefined);
+  const valgt = !syn.udbyder || syn.udbyder === INKLUDERET.id;
+  if (!valgt) return { valgt: false, utilgaengelig: false };
+  const [forbrug, brugt] = await Promise.all([ink.forbrug().catch(() => undefined), ink.brugt().catch(() => undefined)]);
+  return { valgt: true, utilgaengelig: ink.utilgaengelig(), ...(forbrug ? { forbrug } : {}), ...(brugt ? { brugt } : {}) };
+}
+
+/** One installation makes the choice at a time (the page, its live refresh and the tick all ask). */
+const sikrer = new WeakSet<object>();
+/** A failed or missing test of the included AI is tried again no sooner than this. */
+const GENPROEV_MS = 30_000;
+
+/**
+ * KC-0265: on an installation with Clawco's AI included, step 2 does itself — at first start (and whenever no model is chosen
+ * yet) it chooses the included AI and runs the normal live test of both tiers, so the step is Klaret without the person
+ * touching it. A person who chose another provider is left alone. While Clawco's AI is the chosen one but its test has not
+ * passed (the token file not there yet, the proxy unreachable), the test is tried again every half minute, unless the month's
+ * allowance is used up (nothing to try until it starts over).
+ */
+export async function inkluderetSikr(deps: RoomDeps): Promise<void> {
+  const m = deps.model;
+  const ink = m?.inkluderet;
+  if (!m || !ink || deps.hermes.mode !== 'direkte' || sikrer.has(deps.store)) return;
+  sikrer.add(deps.store);
+  try {
+    const syn = await m.laes();
+    const valgt = syn.udbyder === INKLUDERET.id;
+    if (syn.udbyder && !valgt) return; // the person's own choice
+    if (valgt) {
+      if (modelKlaret(syn)) return;
+      const nyeste = Math.max(0, ...NIVEAUER.map((n) => Date.parse(syn.test[n]?.tid ?? '') || 0));
+      if (deps.now().getTime() - nyeste < GENPROEV_MS) return;
+      if (await ink.brugt().catch(() => undefined)) return;
+    } else {
+      const s = (await laesState(deps)) ?? ny(deps.now());
+      await m.vaelg({ udbyder: INKLUDERET.id, lille: INKLUDERET.standardModeller.lille, taenker: INKLUDERET.standardModeller.taenker });
+      await deps.store.writeState(RUM, { ...s, model: { udbyder: INKLUDERET.id } });
+      await deps.store.appendLog(RUM, { kilde: 'system', zone: KORSEL, tekst: startTekst().inkluderet.valgtLog });
+      deps.live.notify(RUM);
+    }
+    await testBegge(deps);
+    deps.live.notify(RUM);
+  } finally { sikrer.delete(deps.store); }
+}
+
 async function view(deps: RoomDeps): Promise<RoomView> {
   let s = await laesState(deps);
   if (!s) { s = ny(deps.now()); await deps.store.writeState(RUM, s); } // the first visit: the journey has begun
@@ -177,6 +231,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
   const agent: AgentStatus = ctx.model && modelAaben ? await deps.hermes.status() : 'klar';
   // KC-0263: the GitHub sign-in beside the built-in agent (a store read, no network).
   const github = ctx.model && deps.hermes.mode === 'direkte' && deps.model?.github ? await deps.model.github.status().catch(() => undefined) : undefined;
+  const inkluderet = ctx.model ? await inkluderetSyn(deps, ctx.model) : undefined;
   return {
     main: renderStart({
       foersteRet: await foersteRetSyn(deps, s),
@@ -188,7 +243,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
       trin, profil: ctx.profil, forslag, log, now: deps.now(), igang: deps.runs.igang(RUM), venter,
       standardNavn: p.rolle === 'ejer' && p.id !== ENEBRUGER.id ? p.navn : '',
       kanGemme: kan(p.rolle, 'aendre-indstillinger') && Boolean(deps.profil),
-      ...(ctx.model ? { model: { syn: ctx.model, agent, ...(s.model ? { gemt: s.model } : {}), kanGemme: kan(p.rolle, 'aendre-indstillinger'), ...(deps.hermes.mode === 'direkte' ? { direkte: true } : {}), ...(github ? { github } : {}) } } : {}),
+      ...(ctx.model ? { model: { syn: ctx.model, agent, ...(s.model ? { gemt: s.model } : {}), kanGemme: kan(p.rolle, 'aendre-indstillinger'), ...(deps.hermes.mode === 'direkte' ? { direkte: true } : {}), ...(github ? { github } : {}), ...(inkluderet ? { inkluderet } : {}) } } : {}),
       ...(kilder ? { kilder } : {}),
     }),
     hermesStatus: tekst().klar,
@@ -419,16 +474,19 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
   // model-gem: the provider, the key (or a local address) to the agent, the models, then both tiers tested at once.
   const u = udbyderAf(str(body['udbyder'], 40));
   if (!u) throw new ActionError(A.vaelgUdbyder);
+  // KC-0265: Clawco's AI is a choice only where the installation has it (the Sky proxy), and only beside the built-in agent.
+  if (u.inkluderet && (deps.hermes.mode !== 'direkte' || !m.inkluderet)) throw new ActionError(T.inkluderet.ikkeHer, 404);
   if (deps.hermes.mode === 'direkte' && !u.direkte) throw new ActionError(T.modelFejl['kun-hermes']); // KC-0245: the built-in agent has no way to call it
   // KC-0263: Copilot beside the built-in agent signs in with GitHub; a pasted token is never taken.
   const github = deps.hermes.mode === 'direkte' && u.direkte?.api === 'copilot-sdk';
   const inde = github ? await m.github?.status().catch(() => undefined) : undefined;
   if (github && inde?.tilstand !== 'inde') throw new ActionError(A.logIndFoerst);
-  const raa = github ? '' : u.kraeverNoegle ? str(body['noegle'], 2001) : str(body['url'], 200);
-  const vaerdi = u.kraeverNoegle && !raa ? null : envVaerdi(u, raa);
-  if (!u.kraeverNoegle && !vaerdi) throw new ActionError(A.adresseHttp(u.standardUrl ?? 'http://127.0.0.1'));
+  const raa = github || u.inkluderet ? '' : u.kraeverNoegle ? str(body['noegle'], 2001) : str(body['url'], 200);
+  const vaerdi = u.inkluderet || (u.kraeverNoegle && !raa) ? null : envVaerdi(u, raa);
+  if (!u.inkluderet && !u.kraeverNoegle && !vaerdi) throw new ActionError(A.adresseHttp(u.standardUrl ?? 'http://127.0.0.1'));
   if (u.kraeverNoegle && raa && !vaerdi) throw new ActionError(A.noegleForLang);
-  const posted = { lille: str(body['lille'], 80), taenker: str(body['taenker'], 80) };
+  // KC-0265: the included AI has one fixed model; whatever the form posted for the tiers is not taken.
+  const posted = u.inkluderet ? { lille: '', taenker: '' } : { lille: str(body['lille'], 80), taenker: str(body['taenker'], 80) };
   return deps.runs.local('gem', async () => {
     const nu = await m.laes();
     const s = (await laesState(deps)) ?? ny(deps.now());
@@ -449,7 +507,8 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
     await m.vaelg({ udbyder: u.id, lille: valg('lille'), taenker: valg('taenker') });
     await deps.store.writeState(RUM, { ...s, model: gemt });
     const hvad = github ? A.hvadGithub(gemt.github?.login) : gemt.noegle ? (deps.hermes.mode === 'direkte' ? A.hvadNoegleGemt : A.hvadNoegle)(gemt.noegle.laengde) : gemt.url ? A.hvadAdresse(gemt.url) : '';
-    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.valgteModel(T.udbyderNavn(u), hvad, valg('lille'), valg('taenker')) });
+    // KC-0265: the log of the included AI names no model (the person it is for never sees one).
+    await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: u.inkluderet ? T.inkluderet.valgtLog : A.valgteModel(T.udbyderNavn(u), hvad, valg('lille'), valg('taenker')) });
     if (gemt.kommando && vaerdi) return faerdigt(deps, A.koerKommandoen);
     return faerdigt(deps, await testBegge(deps));
   }, { room: RUM, label: T.label.modelGem });
@@ -550,7 +609,7 @@ export const startRoom: RoomModule = {
   startFortryd,
   startChat,
   startAction,
-  tik: async (deps) => { await rydGamleUploads(deps).catch(() => 0); }, // KC-0129: an upload never outlives an hour
+  tik: async (deps) => { await rydGamleUploads(deps).catch(() => 0); await inkluderetSikr(deps).catch(() => undefined); }, // KC-0129: an upload never outlives an hour; KC-0265: the included AI chosen and tested
   venter: async (deps) => (await aabneObligatoriske(deps)).length,
   hjemVenter: async (deps) => (await aabneObligatoriske(deps)).map((titel) => ({ roomId: RUM, tekst: startTekst().akt.nuLinje(titel) })),
 };

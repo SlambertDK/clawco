@@ -15,6 +15,7 @@ import { anthropicStream, openaiStream, startFalskUdbyder, type FalskSvar, type 
 const NOEGLE = 'sk-ant-test-HEMMELIG-0180abcdef';
 const FEJL: Record<DirekteFejlArt, string> = {
   'model-noegle': 'F-MANGLER', 'kun-hermes': 'F-KUN', noegle: 'F-NOEGLE', kredit: 'F-KREDIT', model: 'F-MODEL', forbindelse: 'F-FORB', ukendt: 'F-UKENDT',
+  kvote: 'F-KVOTE', 'inkluderet-ikke-klar': 'F-IKKEKLAR', 'inkluderet-utilgaengelig': 'F-UTILG', // KC-0265 (the included model: test/agent/direkte-inkluderet.test.ts)
 };
 
 function udbydere(base: string): DirekteUdbyder[] {

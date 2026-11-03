@@ -115,13 +115,16 @@ test('laesDokumenter: earlier versions are the archived files, newest first; non
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
-test('the real files: all twelve are published (1.0; the generated subprocessor list 1.1, KC-0205), pass the publication check, and the pairs agree', () => {
+test('the real files: all twelve are published (1.0; privacy and DPA 1.1, the generated subprocessor list 1.2, KC-0266), pass the publication check, and the pairs agree', () => {
   const alle = laesDokumenter(DOCS);
   assert.equal(alle.length, 12);
   for (const d of alle) {
     // Published 2026-11-02 under the owner's standing decision (b); accounts that accepted 0.1-udkast re-accept 1.0.
     // underdatabehandlere is generated from docs/legal/behandlinger.json (KC-0205) and is 1.1; its 1.0 is in arkiv/.
-    assert.equal(d.meta.version, d.id === 'underdatabehandlere' ? '1.1' : '1.0', d.fil);
+    // KC-0266 (2026-11-03): AWS runs the included model; privatlivspolitik and databehandleraftale went to 1.1 and the
+    // generated list to 1.2, each earlier version archived. Accounts re-accept the privacy policy at their next visit.
+    const forventet: Record<string, string> = { underdatabehandlere: '1.2', privatliv: '1.1', databehandler: '1.1' };
+    assert.equal(d.meta.version, forventet[d.id] ?? '1.0', d.fil);
     assert.equal(d.meta.status, 'udgivet', d.fil);
     assert.deepEqual(tjekUdgivelse(d.meta.status, readFileSync(path.join(DOCS, `${d.fil}.${d.sprog}.md`), 'utf8')), [], d.fil);
     assert.ok(d.titel.length > 3, `${d.fil} has an h1`);

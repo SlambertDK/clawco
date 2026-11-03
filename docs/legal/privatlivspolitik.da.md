@@ -1,14 +1,14 @@
 ---
-version: 1.0
-dato: 2026-11-02
+version: 1.1
+dato: 2026-11-03
 status: udgivet
 sprog: da
 ---
-Version 1.0 · 2026-11-02
+Version 1.1 · 2026-11-03
 
 # Privatlivspolitik for Clawco Sky
 
-Gælder fra: 2026-11-02
+Gælder fra: 2026-11-03
 
 Her står, hvilke oplysninger vi behandler, hvorfor, hvem der kan se dem, og hvad du kan gøre. Politikken følger GDPR art. 13 og 14. Den gælder for Clawco Sky, ikke for Clawco, du kører selv.
 
@@ -40,7 +40,7 @@ Du kan koble din mail, din kalender, dine noter og andet til Clawco. Det er dit 
 
 Rollefordelingen er: du bestemmer, hvad du kobler til, og vi er databehandler for indholdet. Hvis du ønsker en databehandleraftale, kan du få en. Bruger du Clawco til rent personlige formål, gælder databeskyttelsesforordningen måske ikke for din egen behandling (husholdningsundtagelsen i GDPR art. 2(2)(c)), men den gælder altid for os.
 
-Din instans sender de dele af dit indhold, som modellen skal læse, til den modeludbyder, du har valgt med din egen nøgle: i dag Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) eller OpenRouter (USA), eller en model, du selv kører (LM Studio eller Ollama). Det sker efter din aftale med udbyderen.
+Din instans sender de dele af dit indhold, som modellen skal læse, til den modeludbyder, du har valgt med din egen nøgle: i dag Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) eller OpenRouter (USA), eller en model, du selv kører (LM Studio eller Ollama). Det sker efter din aftale med udbyderen. Bruger du i stedet Clawcos AI, der er med i din Sky-plan, sender din instans de samme dele til Amazon Web Services i EU, som kører modellen for os (se afsnit 5).
 
 ## 4. Hvorfor vi må behandle oplysningerne
 
@@ -57,8 +57,9 @@ Vi bruger disse underdatabehandlere (den fulde liste står i Underdatabehandlere
 - Cloudflare, Inc. (USA): tunnel og DNS for clawco.work og din instans. Krypteringen (TLS) afsluttes i Cloudflares kant, så Cloudflare kan teknisk se trafikken til og fra din Clawco dér, også indhold.
 - Stripe Payments Europe Ltd (Irland): betaling, abonnement og moms
 - Resend, Inc. (USA): sender mails fra os fra EU-regionen i Irland. Resend gemmer kontodata, metadata og logs om mailene i USA.
+- Amazon Web Services EMEA SARL (Luxembourg): kører Clawcos AI, der er med i din plan (Claude Haiku 5.5 gennem Amazon Bedrock), i AWS' regioner i EU. Kun når du ikke bruger din egen AI. For konti fra før 2026-11-03 begynder det tidligst 2026-12-03.
 
-Vi bruger ingen ekstern fejlovervågning og ingen modeludbyder på dine vegne: tillægget "inkluderet model" findes ikke endnu. Din instans ligger på vores egen server i Danmark.
+Vi bruger ingen ekstern fejlovervågning. Den eneste modeludbyder på dine vegne er AWS, og kun for Clawcos AI, der er med i din plan. Din instans ligger på vores egen server i Danmark.
 
 Vi giver kun oplysninger videre til myndigheder, hvis loven kræver det.
 

@@ -6,11 +6,11 @@ import { afled, FORMAAL } from '../../src/hemmeligheder/afled.ts';
 import { nyDataNoegle } from '../../src/hemmeligheder/kuvert.ts';
 import { skjul } from '../../src/hemmeligheder/skjul.ts';
 
-test('the three labels give three different 32-byte keys, none equal to the DEK', () => {
-  assert.deepEqual([...FORMAAL], ['volume', 'backup', 'lager']);
+test('the four labels give four different 32-byte keys, none equal to the DEK', () => {
+  assert.deepEqual([...FORMAAL], ['volume', 'backup', 'lager', 'model']);
   const dek = nyDataNoegle();
   const noegler = FORMAAL.map((f) => afled(dek, 'hus-abcdefgh', f).aaben().toString('hex'));
-  assert.equal(new Set([...noegler, dek.aaben().toString('hex')]).size, 4);
+  assert.equal(new Set([...noegler, dek.aaben().toString('hex')]).size, 5);
   for (const n of noegler) assert.equal(n.length, 64);
 });
 

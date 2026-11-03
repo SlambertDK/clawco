@@ -10,7 +10,10 @@ export type Beloeb = { dkk: number; eur: number };
 /** The two currencies Clawco charges in (KC-0194). */
 export type Valuta = keyof Beloeb;
 export const VALUTAER: readonly Valuta[] = ['dkk', 'eur'];
-export type Plan = { navn: string; medlemmer: number; maanedlig: Beloeb; aarlig: Beloeb };
+/** KC-0264: the Calm model a plan includes — its monthly cap in micro-USD of model cost (a household shares it) and
+ *  the model ids it allows (config/modelpriser.json prices them). Absent = the plan includes no model. */
+export type InkluderetModel = { loftMikroUsd: number; modeller: string[] };
+export type Plan = { navn: string; medlemmer: number; maanedlig: Beloeb; aarlig: Beloeb; inkluderetModel?: InkluderetModel };
 export type Tilvalg = { navn: string; status: 'senere' | 'aktiv'; fraMaanedlig: Beloeb };
 export type Priser = {
   /** Gate G5: `udkast` until Henrik says yes; live Stripe is only written with `godkendt`. */
@@ -38,11 +41,11 @@ function fejl(sti: string, hvad: string): Error {
   return new Error(`config/priser.json: ${sti} ${hvad}`);
 }
 
-function objekt(v: unknown, sti: string, noegler: readonly string[] | null): Record<string, unknown> {
+function objekt(v: unknown, sti: string, noegler: readonly string[] | null, valgfri: readonly string[] = []): Record<string, unknown> {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) throw fejl(sti, 'skal være et objekt');
   const o = v as Record<string, unknown>;
   if (noegler) {
-    for (const k of Object.keys(o)) if (!k.startsWith('_') && !noegler.includes(k)) throw fejl(sti ? `${sti}.${k}` : k, 'er ukendt (stavefejl?)');
+    for (const k of Object.keys(o)) if (!k.startsWith('_') && !noegler.includes(k) && !valgfri.includes(k)) throw fejl(sti ? `${sti}.${k}` : k, 'er ukendt (stavefejl?)');
     for (const k of noegler) if (!(k in o)) throw fejl(sti ? `${sti}.${k}` : k, 'mangler');
   }
   return o;
@@ -106,13 +109,22 @@ export function validerPriser(raw: unknown): Priser {
   const proeve = { dage: heltal(pr['dage'], 'proeve.dage', 0), kort: sandhed(pr['kort'], 'proeve.kort') };
 
   const planer = ordbog(r['planer'], 'planer', (v, sti) => {
-    const o = objekt(v, sti, ['navn', 'medlemmer', 'maanedlig', 'aarlig']);
-    return {
+    const o = objekt(v, sti, ['navn', 'medlemmer', 'maanedlig', 'aarlig'], ['inkluderetModel']);
+    const plan: Plan = {
       navn: tekst(o['navn'], `${sti}.navn`),
       medlemmer: heltal(o['medlemmer'], `${sti}.medlemmer`, 1),
       maanedlig: beloeb(o['maanedlig'], `${sti}.maanedlig`),
       aarlig: beloeb(o['aarlig'], `${sti}.aarlig`),
     };
+    if (o['inkluderetModel'] !== undefined) {
+      const m = objekt(o['inkluderetModel'], `${sti}.inkluderetModel`, ['loftMikroUsd', 'modeller']);
+      const liste = m['modeller'];
+      if (!Array.isArray(liste) || liste.length === 0 || liste.some((x) => typeof x !== 'string' || !/^[a-z0-9]+([.-][a-z0-9]+)*$/.test(x))) {
+        throw fejl(`${sti}.inkluderetModel.modeller`, 'skal være en liste med mindst ét model-id (små bogstaver, tal, punktum og bindestreg)');
+      }
+      plan.inkluderetModel = { loftMikroUsd: heltal(m['loftMikroUsd'], `${sti}.inkluderetModel.loftMikroUsd`, 1), modeller: liste as string[] };
+    }
+    return plan;
   });
   if (Object.keys(planer).length === 0) throw fejl('planer', 'skal have mindst én plan');
 

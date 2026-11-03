@@ -26,7 +26,7 @@ import type { Froe, Moment } from './typer.ts';
 import { idagKbh, lavUr, type Ur } from './ur.ts';
 import { skrivFroe, testMailRunner } from './skriv.ts';
 import { ALLE_MOMENTER, froe as lavFroe, MOMENTER, svar } from './indhold.ts';
-import { erGithubMoment, erKold, KOLD_GOOGLE, modelTestUdfald, testGithub } from './indhold/start.ts';
+import { erGithubMoment, erInkluderetMoment, erKold, KOLD_GOOGLE, modelTestUdfald, testGithub, testInkluderet } from './indhold/start.ts';
 import { falskTailscale, tailscaleLaptop } from './indhold/tailscale.ts'; // KC-0161
 import { fakta, KOE, momentNr, momentPlus, plusDag } from './indhold/fakta.ts';
 import { familiekalender, TEST_EJER, testKanal } from './indhold/husstand.ts';
@@ -189,8 +189,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     modelTest: () => modelTestUdfald(nu.id),
   });
   const hermes: AgentClient = {
-    // KC-0263: the GitHub moments run as the built-in agent, so Start offers Copilot with its sign-in.
-    get mode() { return erGithubMoment(nu.id) ? 'direkte' as const : 'fake' as const; },
+    // KC-0263: the GitHub moments run as the built-in agent, so Start offers Copilot with its sign-in; KC-0265: so do the Sky-plan moments, with Clawco's AI included.
+    get mode() { return erGithubMoment(nu.id) || erInkluderetMoment(nu.id) ? 'direkte' as const : 'fake' as const; },
     async run(req) {
       if (req.input === HOLD_INPUT) return holdFake.run(req);
       const g = gen;
@@ -305,7 +305,7 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     omkostninger: { laes: async () => testOmkostninger(nu.id).regnskab, mrr: () => testOmkostninger(nu.id).mrr },
     ...(o.publicDir ? { publicDir: o.publicDir } : {}),
     // KC-0127: model discovery never leaves the test world (no list), and Clawco's own key goes to a file in its data dir.
-    model: { fetchImpl: (async () => new Response('{}', { status: 404 })) as typeof fetch, miljoe: { fil: path.join(dir, 'clawco.env'), env: {} }, github: testGithub(() => nu.id) },
+    model: { fetchImpl: (async () => new Response('{}', { status: 404 })) as typeof fetch, miljoe: { fil: path.join(dir, 'clawco.env'), env: {} }, github: testGithub(() => nu.id), inkluderet: testInkluderet(() => nu.id) },
   });
 
   // The scripted Claude Code: each step after trinMs, only within the generation that scheduled it.

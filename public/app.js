@@ -86,13 +86,28 @@
     var lokal = Boolean(valgt && valgt.hasAttribute('data-lokal'));
     // KC-0263: GitHub Copilot under the built-in agent signs in with GitHub: no key field, the sign-in instead.
     var github = Boolean(valgt && valgt.getAttribute('data-login') === 'github');
+    // KC-0265: Clawco's AI of a Sky plan has no key, no address and no model to choose.
+    var inkl = Boolean(valgt && valgt.hasAttribute('data-clawco-ai'));
     var noegle = sel.form.querySelector('[data-model-felt="noegle"]');
     var url = sel.form.querySelector('[data-model-felt="url"]');
     var gh = sel.form.querySelector('[data-model-felt="github"]');
-    if (noegle) { noegle.hidden = lokal || github; var inp = noegle.querySelector('input'); if (inp) inp.placeholder = lokal || github ? '' : (valgt.getAttribute('data-placeholder') || ''); }
+    var modeller = sel.form.querySelector('[data-model-felt="modeller"]');
+    if (noegle) { noegle.hidden = lokal || github || inkl; var inp = noegle.querySelector('input'); if (inp) inp.placeholder = lokal || github || inkl ? '' : (valgt.getAttribute('data-placeholder') || ''); }
     if (url) { url.hidden = !lokal; var ui = url.querySelector('input'); if (ui && lokal) ui.placeholder = valgt.getAttribute('data-placeholder') || ''; }
     if (gh) gh.hidden = !github;
+    if (modeller) modeller.hidden = inkl;
   });
+  // KC-0265: "Use the AI you already have" (a link from Nu) lands on Start's provider form: open the fold around it.
+  function aabnModelForm() {
+    if (location.hash !== '#model-form') return;
+    var f = document.getElementById('model-form');
+    if (!f) return;
+    var d = f.closest('details');
+    if (d) d.open = true;
+    f.scrollIntoView({ block: 'start' });
+  }
+  aabnModelForm();
+  window.addEventListener('hashchange', aabnModelForm);
   document.addEventListener('click', function (ev) {
     var b = ev.target && ev.target.closest ? ev.target.closest('[data-fold]') : null;
     if (b) visFold(b, b.getAttribute('aria-expanded') !== 'true');
@@ -1045,6 +1060,15 @@
       });
     }
     aabnLive();
+    // KC-0265: the first stream message only says "the page was just rendered", so a change made in the few moments between the
+    // render and the stream (Clawco's AI being made ready on a fresh tenant, tested in milliseconds) would never be shown.
+    // While a card says it is getting ready, look again every few seconds (at most 30 times).
+    var klarTaeller = 0;
+    var klarTimer = setInterval(function () {
+      if (!roomEl.querySelector('[data-inkluderet="proever"]')) { klarTaeller = 0; return; }
+      if (++klarTaeller > 30) { clearInterval(klarTimer); return; }
+      hentSnart();
+    }, 2500);
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) { skjultSiden = Date.now(); return; }
       if (window.KCFrisk.vedSynlig(skjultSiden, Date.now())) hentSnart();
@@ -1163,6 +1187,7 @@
       });
   });
   var omkostningerPanel = document.querySelector('[data-omkostninger="panel"]');
+  var inkluderetPanel = document.querySelector('[data-inkluderet="panel"]');
   // `tving`: the panel's own change (a source added or removed) is shown at once, whatever is open or half typed.
   function loadKoe(tving) {
     var medKilder = kilderPanel && koePanel && !koePanel.hidden;
@@ -1181,6 +1206,8 @@
       }
       // KC-0212: the owner's cost card, rendered (escaped) by the server while the panel is open; '' = no card.
       if (omkostningerPanel && typeof d.omkostninger === 'string') { omkostningerPanel.innerHTML = d.omkostninger; omkostningerPanel.hidden = !d.omkostninger; }
+      // KC-0265: the month's meter of Clawco's AI (the owner's; '' = none: another provider is chosen or it is not part of this plan).
+      if (inkluderetPanel && typeof d.inkluderet === 'string') { inkluderetPanel.innerHTML = d.inkluderet; inkluderetPanel.hidden = !d.inkluderet; }
       var active = d.runs.filter(function (r) { return r.status === 'running' || r.status === 'queued'; }).length;
       if (koeCount) { koeCount.hidden = !active; koeCount.textContent = String(active); }
     }).catch(function () {});
@@ -1253,6 +1280,9 @@
   function loadIndstillinger() {
     if (!indForm) return;
     fetch('/api/indstillinger').then(function (r) { return r.json(); }).then(function (d) {
+      // KC-0265: Clawco's AI has one fixed model: the tiers (and the model names) are not shown while it is the chosen one.
+      var tier = indForm.querySelector('[data-tier-felter]');
+      if (tier) tier.hidden = Boolean(d.inkluderet);
       indForm.elements.lille.value = d.modeller.lille || '';
       indForm.elements.taenker.value = d.modeller.taenker || '';
       visModelNavne();

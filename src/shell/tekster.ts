@@ -232,6 +232,18 @@ const da = {
     fejlChip: 'Fejl',
   },
 
+  // inkluderet.ts (KC-0265): the included AI of a Sky plan — the month's meter (Start, Kø) and the one calm card in Nu
+  inkl: {
+    titel: 'Din AI',
+    maalerTitel: 'Clawcos AI i planen',
+    maaler: (procent: number, dato: string): string => `${procent} % af månedens AI er brugt · starter forfra ${dato}`,
+    maalerLabel: 'Hvor meget af månedens AI der er brugt',
+    brugtTitel: 'Månedens AI er brugt',
+    brugtMedDato: (dato: string): string => `Den AI, der er med i din plan, er brugt op for denne måned. Den starter forfra ${dato}.`,
+    brugtUdenDato: 'Den AI, der er med i din plan, er brugt op for denne måned. Den starter forfra i næste måned.',
+    brugEgen: 'Brug den AI, du allerede har',
+  },
+
   // visuel.ts: the words inside the small pictures (the rest is data from Hermes)
   billede: {
     nu: 'nu', passer: 'Passer', under: 'under', af: 'af', min: 'min', hvorfor: 'Hvorfor?',
@@ -625,6 +637,17 @@ const en: Tekster = {
     fejlTitel: 'The cost list could not be read',
     fejlNote: 'Nothing paid may be switched on until config/omkostninger.json is fixed.',
     fejlChip: 'Error',
+  },
+
+  inkl: {
+    titel: 'Your AI',
+    maalerTitel: "Clawco's AI in your plan",
+    maaler: (procent, dato) => `${procent}% of this month's AI used · starts over ${dato}`,
+    maalerLabel: "How much of this month's AI is used",
+    brugtTitel: "This month's AI is used up",
+    brugtMedDato: (dato) => `The AI that comes with your plan is used up for this month. It starts over ${dato}.`,
+    brugtUdenDato: 'The AI that comes with your plan is used up for this month. It starts over next month.',
+    brugEgen: 'Use the AI you already have',
   },
 
   billede: {

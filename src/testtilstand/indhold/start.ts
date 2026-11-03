@@ -13,7 +13,7 @@ import type { Kuvert as KildeKuvert } from '../../kilder/types.ts';
 import type { StartState } from '../../rooms/start/schema.ts';
 import { TEST_EJER, TEST_HUSSTAND } from './husstand.ts';
 import { modelRevision, type Settings } from '../../settings.ts';
-import { udbyderAf } from '../../rooms/start/udbydere.ts';
+import { INKLUDERET, udbyderAf } from '../../rooms/start/udbydere.ts';
 import { byggForhaandsvisning } from '../../rooms/start/forhaandsvisning.ts';
 import { kildeData } from './kilder.ts';
 import { dagenState } from './dagen.ts';
@@ -29,6 +29,7 @@ import { fenced } from './faelles.ts';
 import { lavForslag, type ForslagFelter } from '../../tillid/forslag.ts';
 import { erTailscaleMoment, KOLD_TAILSCALE } from './tailscale.ts'; // KC-0161
 import type { GithubLogin, GithubTilstand } from '../../agent/github-enhed.ts';
+import type { Inkluderet } from '../../agent/inkluderet.ts';
 
 /** KC-0170: the cold moment where step 1 chose English. */
 export const KOLD_ENGELSK = 'kold-engelsk';
@@ -65,12 +66,30 @@ export const KOLD_START: readonly Moment[] = [
   // KC-0263: the built-in agent with GitHub Copilot: the code shown while waiting for the approval, then signed in and tested.
   { id: 'kold-github', tid: '09:09', navn: 'Kold start: log ind med GitHub', url: '/rum/start', replik: 'Hvor skriver jeg koden?' },
   { id: 'kold-github-inde', tid: '09:11', navn: 'Kold start: logget ind med GitHub', url: '/rum/start', replik: 'Kører den på mit Copilot nu?' },
+  // KC-0265: a tenant on a Sky plan with Clawco's AI included: step 2 did itself; and the month's allowance used up (Nu's one calm card).
+  { id: 'kold-inkluderet', tid: '09:13', navn: 'Kold start: Clawcos AI er med', url: '/rum/start', replik: 'Skal jeg vælge en model?' },
+  { id: 'kold-inkluderet-brugt', tid: '09:14', navn: 'Kold start: månedens AI er brugt', url: '/rum/hjem', replik: 'Hvad gør jeg, nu AI\'en er brugt?' },
   ...KOLD_KILDER,
   ...KOLD_TAILSCALE, // KC-0161: one moment per state of the Tailscale card
 ];
 
 /** KC-0263: the moments that run as the built-in agent (KC_AGENT=direkte), where Copilot signs in with GitHub. */
 export const erGithubMoment = (momentId: string): boolean => momentId === 'kold-github' || momentId === 'kold-github-inde';
+/** KC-0265: the moments of a Sky plan with Clawco's AI included (they run as the built-in agent, with the proxy's meter scripted). */
+export const erInkluderetMoment = (momentId: string): boolean => momentId === 'kold-inkluderet' || momentId === 'kold-inkluderet-brugt';
+/**
+ * The world's window on the included AI: the month's meter at 12 %, and used up only in the moment that says so. No proxy is
+ * called and no token exists; the request a real tenant would make is the app's own (test/server-start-inkluderet.test.ts).
+ */
+export function testInkluderet(moment: () => string): Pick<Inkluderet, 'forbrug' | 'brugt' | 'utilgaengelig' | 'lyt'> {
+  const brugt = (): boolean => moment() === 'kold-inkluderet-brugt';
+  return {
+    forbrug: async () => ({ procent: brugt() ? 100 : 12, nulstilles: '2026-12-01' }),
+    brugt: async () => (brugt() ? { nulstilles: '2026-12-01' } : undefined),
+    utilgaengelig: () => false,
+    lyt: () => {},
+  };
+}
 /** The invented GitHub account of the test world (no such login is ever asked for). */
 export const TEST_GITHUB_LOGIN = 'alma-testverden';
 const TEST_GITHUB_LAENGDE = 40;
@@ -149,6 +168,14 @@ export function koldFroe(momentId: string, f: Fakta): Froe {
     const model = { udbyder: cu.id, noegle: { laengde: TEST_GITHUB_LAENGDE, tid: f.iso('09:10') }, github: { login: TEST_GITHUB_LOGIN } };
     const log = { id: 'start-github', tid: f.iso('09:10'), kilde: 'henrik' as const, zone: 'privat' as const, ejer: TEST_EJER.id, tekst: `Loggede ind med GitHub som ${TEST_GITHUB_LOGIN}; adgangen er gemt i Clawco (${TEST_GITHUB_LAENGDE} tegn).` };
     return { ...base, indstillinger, rum: { ...base.rum, start: { state: { ...state, model }, log: [velkommen, log] } } };
+  }
+  if (erInkluderetMoment(momentId)) {
+    // KC-0265: a fresh Sky tenant: the installation chose Clawco's AI at 09.01 and both tiers passed the live test; the card names no model.
+    const iu = INKLUDERET;
+    const t = (model: string, ms: number) => ({ ok: true, tid: f.iso('09:01'), ms, rev: modelRevision(iu.id, model) });
+    const indstillinger: Settings = { modeller: { ...iu.standardModeller }, stemme: {}, udbyder: iu.id, modelTest: { lille: t(iu.standardModeller.lille, 620), taenker: t(iu.standardModeller.taenker, 710) } };
+    const log = { id: 'start-inkluderet', tid: f.iso('09:01'), kilde: 'system' as const, zone: 'privat' as const, tekst: 'Valgte Clawcos AI, der er med i planen.' };
+    return { ...base, indstillinger, rum: { ...base.rum, start: { state: { ...state, model: { udbyder: iu.id } }, log: [velkommen, log] } } };
   }
   if (momentId === KOLD_ENGELSK) {
     const engelsk = { ...velkommen, tekst: `Gemte profilen: ${TEST_EJER.navn}, Hermes svarer på engelsk, en husstand.` }; // the room's log stays Danish (follow-up)

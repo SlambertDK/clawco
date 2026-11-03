@@ -5,7 +5,7 @@
 // KC-0180: the direct-model agent (src/agent/direkte.ts) fails with these sentences themselves (injected by the
 // composition root); a fixed sentence maps back to its own kind before any rule is tried.
 
-export type ModelFejlArt = 'noegle' | 'kredit' | 'model' | 'forbindelse' | 'tid' | 'agent-noegle' | 'agent-afvist' | 'model-noegle' | 'kun-hermes' | 'github' | 'vaerktoej' | 'copilot-start' | 'tom' | 'ukendt';
+export type ModelFejlArt = 'noegle' | 'kredit' | 'model' | 'forbindelse' | 'tid' | 'agent-noegle' | 'agent-afvist' | 'model-noegle' | 'kun-hermes' | 'github' | 'vaerktoej' | 'copilot-start' | 'kvote' | 'inkluderet-ikke-klar' | 'inkluderet-utilgaengelig' | 'tom' | 'ukendt';
 
 export const MODEL_FEJL: Record<ModelFejlArt, string> = {
   noegle: 'Nøglen er afvist. Tjek, at du har kopieret hele nøglen, og at den stadig findes hos udbyderen.',
@@ -21,6 +21,10 @@ export const MODEL_FEJL: Record<ModelFejlArt, string> = {
   github: 'GitHub Copilot afviste adgangen. Tjek, at din GitHub-konto har Copilot, og log ind med GitHub igen i Start.',
   vaerktoej: 'Modellen forsøgte at bruge et værktøj, og det må den ikke her. Kørslen blev stoppet.',
   'copilot-start': 'GitHub Copilot kunne ikke starte på denne maskine. Prøv igen om lidt.',
+  // KC-0265: the included AI of a Sky plan (Clawco's model proxy). Plain words: no key, no provider, no model name.
+  kvote: 'Månedens AI, der er med i din plan, er brugt. Den starter forfra i næste måned. Du kan bruge den AI, du allerede har.',
+  'inkluderet-ikke-klar': 'Clawcos AI er ikke klar endnu. Prøv igen om lidt.',
+  'inkluderet-utilgaengelig': 'Clawcos AI er ikke tilgængelig lige nu. Prøv igen om lidt.',
   tom: 'Modellen svarede, men uden tekst.',
   ukendt: 'Modellen svarede ikke som ventet. Prøv igen om lidt.',
 };

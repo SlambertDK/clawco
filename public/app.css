@@ -74,6 +74,13 @@ aside { flex: 1 1 320px; max-width: 100%; background: var(--nav); border-left: 1
 .row-title { font-weight: 500; } a.row-title { color: var(--ink); } a.row-title:hover { color: var(--handling); }
 .row-note { font-size: 12px; color: var(--muted); line-height: 1.4; }
 .row-note.tilstand-kraever { color: var(--kraever); } /* KC-0143: a bill that waits for a rule says so in the amber of Kræver dig */
+/* KC-0265: a wrapper that hides a group of form fields without changing the form's layout; the month's meter of Clawco's AI */
+.felter { display: contents; }
+.inkl-maaler { display: flex; flex-direction: column; gap: 4px; }
+.inkl-meter { width: 100%; height: 8px; border: 0; border-radius: 4px; background: var(--raised); appearance: none; -webkit-appearance: none; overflow: hidden; }
+.inkl-meter::-webkit-meter-bar { height: 8px; border: 0; border-radius: 4px; background: var(--raised); }
+.inkl-meter::-webkit-meter-optimum-value, .inkl-meter::-webkit-meter-suboptimum-value, .inkl-meter::-webkit-meter-even-less-good-value { background: var(--ink-2); border-radius: 4px; }
+.inkl-meter::-moz-meter-bar { background: var(--ink-2); border-radius: 4px; }
 /* KC-0263: the GitHub sign-in code in Start, large enough to read off and type on another device */
 .github-kode { margin: 6px 0 10px; font-size: 28px; font-weight: 600; letter-spacing: 0.12em; color: var(--ink); overflow-wrap: normal; }
 .time { color: var(--muted); width: 72px; flex-shrink: 0; }

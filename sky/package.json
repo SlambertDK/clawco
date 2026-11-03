@@ -11,9 +11,12 @@
     "start": "node --env-file-if-exists=.env src/server.ts",
     "typecheck": "tsc --noEmit",
     "test": "node --test 'test/**/*.test.ts'",
-    "stripe:opsaet": "node --env-file-if-exists=.env scripts/stripe-opsaet.ts"
+    "stripe:opsaet": "node --env-file-if-exists=.env scripts/stripe-opsaet.ts",
+    "model:forbrug": "node --env-file-if-exists=.env scripts/model-forbrug.ts"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "1.1.0",
+    "@anthropic-ai/sdk": "1.3.0",
     "@hono/node-server": "2.1.5",
     "@simplewebauthn/server": "14.0.3",
     "hono": "4.13.14",

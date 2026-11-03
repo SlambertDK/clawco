@@ -157,7 +157,7 @@ import { DanmarkFejl, lavDanmarkLager } from './danmark/tilstand.ts';
 import { DanmarkAfvist, lavDanmark, type MailSyn } from './danmark/vindue.ts';
 import { parseStartState } from './rooms/start/schema.ts';
 import { manifest } from './shell/manifest.ts';
-import { MODEL_ENV_NOEGLER, udbyderAf, UDBYDERE } from './rooms/start/udbydere.ts';
+import { INKLUDERET, MODEL_ENV_NOEGLER, udbyderAf, UDBYDERE } from './rooms/start/udbydere.ts';
 import { MODEL_FEJL } from './rooms/start/modelfejl.ts';
 import { modelKlaret, type ModelSyn } from './rooms/start/trin.ts';
 import { createDirekte } from './agent/direkte.ts';
@@ -165,6 +165,9 @@ import { envNoegleLager } from './agent/noeglelager.ts';
 import { createCopilot, type CopilotTransport, type LavKlient } from './agent/copilot.ts';
 import { createGithubLogin, githubAdresser, githubBase, GITHUB_KLIENT_ID, type GithubLogin } from './agent/github-enhed.ts';
 import { filNoegleLager } from './hemmeligheder/lager-fil.ts';
+import { inkluderetFraMiljoe, medInkluderetToken, type Inkluderet } from './agent/inkluderet.ts';
+import { renderKoeMaaler } from './shell/inkluderet.ts';
+import { registrerHemmelighed } from './graenser/redaktion.ts';
 import { registrerNoegleLager } from './hemmeligheder/registrer.ts';
 import { redigerKonsol } from './graenser/redaktion.ts';
 import { lavAgentNoegleSkriver, saetMiljoeNoegle } from './kilder/hemmeligheder.ts';
@@ -185,7 +188,7 @@ export type AppDeps = {
    * KC-0127: Start's step 2. `fetchImpl` for model discovery (tests: a stub), `testMs` the live test's timeout
    * (default 20 s), `miljoe` where Clawco's own key to Hermes is saved (default KC_ENV_FILE / .env and process.env).
    */
-  model?: { fetchImpl?: typeof fetch; testMs?: number; miljoe?: { fil?: string; env?: Record<string, string | undefined> }; /** KC-0263: "Sign in with GitHub" for Copilot (lavAgentMedLogin, beside the built-in agent). */ github?: GithubLogin };
+  model?: { fetchImpl?: typeof fetch; testMs?: number; miljoe?: { fil?: string; env?: Record<string, string | undefined> }; /** KC-0263: "Sign in with GitHub" for Copilot (lavAgentMedLogin, beside the built-in agent). */ github?: GithubLogin; /** KC-0265: Clawco's AI included in a Sky plan (lavAgentMedLogin: KC_MODEL_PROXY_URL + KC_MODEL_TOKEN_FIL); absent = not part of this installation. */ inkluderet?: Pick<Inkluderet, 'forbrug' | 'brugt' | 'utilgaengelig' | 'lyt'> };
   sourceGlob: string;
   mailStateDir?: string;
   mailRunner?: Runner;
@@ -369,7 +372,10 @@ export function createApp(deps: AppDeps) {
       ...(deps.model?.fetchImpl ? { fetchImpl: deps.model.fetchImpl } : {}),
       testMs: deps.model?.testMs ?? 20_000,
       ...(deps.model?.github ? { github: deps.model.github } : {}),
+      ...(deps.model?.inkluderet ? { inkluderet: deps.model.inkluderet } : {}),
     };
+    // KC-0265: what the proxy last said (used up, not available) changes what Start, Nu and the Kø panel show: refresh them.
+    deps.model?.inkluderet?.lyt(() => { live.notify(HJEM); live.notify(START_RUM); });
   }
   // KC-0132: the connector registry; which are connected lives in kilder.json on the data dir.
   // KC-0139: health state of the connected sources; a read through the registry tells it how it went (the controller is made below).
@@ -665,6 +671,16 @@ export function createApp(deps: AppDeps) {
     } catch { return undefined; }
   }
   /** KC-0203: what Nu is told about the beta: the plain card first, else the feedback card that is due; the owner's only. */
+  /**
+   * KC-0265: the month's allowance of Clawco's AI is used up — the owner's one card in Nu, only while that AI is the chosen
+   * one (another provider chosen: gone) and only until the reset date (or a run that goes through). Never an error here.
+   */
+  async function inkluderetBrugt(): Promise<{ nulstilles?: string } | undefined> {
+    const ink = deps.model?.inkluderet;
+    if (!ink || d.person.rolle !== 'ejer' || (await settings.read()).udbyder !== INKLUDERET.id) return undefined;
+    return ink.brugt().catch(() => undefined);
+  }
+
   async function betaVisning(): Promise<BetaVisning | undefined> {
     if (d.person.rolle !== 'ejer') return undefined;
     const t = await betaNu();
@@ -943,11 +959,13 @@ export function createApp(deps: AppDeps) {
     return c.json({ ok: true, sha: deps.sha ?? 'dev', uptimeSec: Math.round((Date.now() - START) / 1000), hermes: agent, agent, pause: runs.paaPause() });
   });
 
-  app.get('/api/indstillinger', async (c) => c.json({ ...(await settings.read()), niveauer: TIER_KINDS }));
+  // KC-0265: while Clawco's AI is the chosen one its one model is fixed: the Kø panel does not show the tiers and cannot change them.
+  app.get('/api/indstillinger', async (c) => { const s = await settings.read(); return c.json({ ...s, niveauer: TIER_KINDS, ...(s.udbyder === INKLUDERET.id ? { inkluderet: true } : {}) }); });
   app.post('/api/indstillinger', async (c) => {
     const b = await body(c);
     const m = typeof b['modeller'] === 'object' && b['modeller'] !== null ? (b['modeller'] as Record<string, string>) : {};
-    let s = await settings.setModels(m);
+    const foer = await settings.read();
+    let s = foer.udbyder === INKLUDERET.id ? foer : await settings.setModels(m);
     runs.setModels(s.modeller, hermesProvider(s));
     const st = typeof b['stemme'] === 'object' && b['stemme'] !== null ? (b['stemme'] as Record<string, unknown>) : null;
     if (st && typeof st['voiceId'] === 'string') { s = await settings.setStemme({ voiceId: st['voiceId'].trim() }); for (const k of Object.keys(voiceId) as Sprog[]) delete voiceId[k]; for (const k of Object.keys(agentSync) as Sprog[]) delete agentSync[k]; }
@@ -1006,10 +1024,18 @@ export function createApp(deps: AppDeps) {
     }
   }
 
+  /** KC-0265: the owner's meter of Clawco's AI in the Kø panel (escaped); '' for anyone else, when another provider is chosen, or when the meter cannot be read. */
+  async function inkluderetMaaler(person: Person): Promise<string> {
+    const ink = deps.model?.inkluderet;
+    if (!ink || person.rolle !== 'ejer' || (await settings.read()).udbyder !== INKLUDERET.id) return '';
+    const f = await ink.forbrug().catch(() => undefined);
+    return f ? String(renderKoeMaaler(f)) : '';
+  }
+
   app.get('/api/koe', async (c) => c.json({
     nu: now().getTime(),
     // KC-0120: only while the panel is open (?kilder=1), so a page load never waits on a health check.
-    ...(c.req.query('kilder') === '1' ? { kilder: await kilderPanel(c.get('person')), omkostninger: await omkostningsKort(c.get('person')) } : {}),
+    ...(c.req.query('kilder') === '1' ? { kilder: await kilderPanel(c.get('person')), omkostninger: await omkostningsKort(c.get('person')), inkluderet: await inkluderetMaaler(c.get('person')) } : {}),
     pause: runs.paaPause(),
     // KC-0124: "Hvad Clawco har gjort", rendered here (one renderer, escaped); a guest gets nothing.
     revision: c.get('person').rolle === 'gaest' ? '' : String(renderRevision(await revisionFor(c.get('person'), 50), { nu: now(), navne: navne(c) })),
@@ -1653,7 +1679,7 @@ export function createApp(deps: AppDeps) {
   }
   async function ventendeForslagNu(): Promise<Regelforslag[]> { return ventendeForslag(synligKurator(await laesKurator(deps.store), d.person)); }
 
-  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true; beta?: BetaVisning; digitalPost?: PostVisning; aula?: AulaVisning }> {
+  async function hjemEgneData(): Promise<{ kort: Kort[]; gjort: string[]; claudeCode: CcRaekke[]; kurator: Awaited<ReturnType<typeof laesKurator>>; egne: LogEntry[]; reglerFejl?: { hvorfor: string; fil: string }; kildeHelbred: KildeHelbredKort[]; regelforslag?: Regelforslag[]; stikproeve?: Stikuge; stopTilbud?: true; beta?: BetaVisning; digitalPost?: PostVisning; aula?: AulaVisning; inkluderet?: { nulstilles?: string } }> {
     // KC-0117: Hjem shows (and counts) only what the person looking may see.
     const egne = (await deps.store.readLog(HJEM, 200)).filter((e) => synligFor(d.person, e));
     const gjort = egne.filter((e) => e.handlingId && !e.handlingId.startsWith('regnskab:') && !e.fortrudt).map((e) => e.handlingId as string);
@@ -1667,7 +1693,7 @@ export function createApp(deps: AppDeps) {
     // KC-0142: a rules file that cannot be read is the owner's to fix (one card); otherwise nothing is shown.
     const r = d.person.rolle === 'ejer' && regler ? await regler.laes() : undefined;
     // KC-0144: only the owner answers proposals (the rules file is the household's).
-    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...await postVisning().then((p) => (p ? { digitalPost: p } : {})), ...await aulaVisning().then((v) => (v ? { aula: v } : {})), ...(ventendeForslag(kurator).length ? { regelforslag: ventendeForslag(kurator) } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
+    return { kort, gjort, claudeCode, kurator, egne, kildeHelbred: await kildeHelbredNu(), ...(await soendagNu()), ...await betaVisning().then((b) => (b ? { beta: b } : {})), ...await postVisning().then((p) => (p ? { digitalPost: p } : {})), ...await aulaVisning().then((v) => (v ? { aula: v } : {})), ...await inkluderetBrugt().then((v) => (v ? { inkluderet: v } : {})), ...(ventendeForslag(kurator).length ? { regelforslag: ventendeForslag(kurator) } : {}), ...(r?.tilstand === 'ulaeselig' && regler ? { reglerFejl: { hvorfor: r.hvorfor, fil: regler.fil } } : {}) };
   }
 
   /** Hjem is not a room module: its page is built here from every room's hjemVenter, the logs and Kuratoren's cards. */
@@ -1679,7 +1705,7 @@ export function createApp(deps: AppDeps) {
     // Every active univers: today's prepared meeting.
     for (const u of (await laesIndeks(deps.store)).univers) if (!u.arkiveret) vent.push(...(await universRoom(u.id).hjemVenter(d)));
     const logs = await Promise.all(ROOM_MODULES.map(async (m) => (await deps.store.readLog(m.id, 8)).filter((e) => synligFor(d.person, e))));
-    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud, beta, digitalPost, aula } = await hjemEgneData();
+    const { kort, gjort, claudeCode, kurator, egne, reglerFejl, kildeHelbred, regelforslag, stikproeve, stopTilbud, beta, digitalPost, aula, inkluderet } = await hjemEgneData();
     const gamle = await gamleNu();
     const egneIds = new Set(egne.slice(0, 8).map((e) => e.id));
     // Only Hjem's own entries can be undone from Hjem; the other rooms' lines are shown plain.
@@ -1696,7 +1722,7 @@ export function createApp(deps: AppDeps) {
     const ccTal = tillid(await laesOpgaver(deps.store)).map((t) => ({ ...t, projekt: findProjekt(t.projekt)?.navn ?? t.projekt }));
     const sit = await situationNu();
     const foerste = (await forhaandsvisningerNu(d)).map((f) => ({ id: forhaandsvisningId(f.kildeId), html: renderForhaandsvisning(f, now(), gamle[f.slags]) }));
-    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn, deps.standardSprog === 'en'), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(digitalPost ? { digitalPost } : {}), ...(aula ? { aula } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
+    return { hermesStatus, data: ({ ...(foerste.length ? { forhaandsvisninger: foerste } : {}), hilsen: hilsen(now(), profil?.laesNu()?.navn, deps.standardSprog === 'en'), venter: vent, hermes, ...(naeste ? { naeste } : {}), situation: sit.situation, ...(sit.moede ? { moede: { titel: sit.moede.titel, url: sit.moede.url, slut: sit.moede.slut } } : {}), kort, intet: kurator.intet, gjort, skrivIgen, regnskab, claudeCode, ccTal, igang: runs.igang(null), now: now(), venterIalt: antalVenter(nav.venter), venterPaaAndre, ...(synligeNu ? { synlige: synligeNu } : {}), person: d.person, ...(reglerFejl ? { reglerFejl } : {}), ...(regelforslag ? { regelforslag } : {}), ...(stikproeve ? { stikproeve } : {}), ...(stopTilbud ? { stopTilbud } : {}), ...(beta ? { beta } : {}), ...(digitalPost ? { digitalPost } : {}), ...(aula ? { aula } : {}), ...(inkluderet ? { inkluderet } : {}), ...(kildeHelbred.length ? { kildeHelbred } : {}), ...(Object.keys(gamle).length ? { gamle } : {}) }) };
   }
 
   /**
@@ -2401,7 +2427,7 @@ export function lavAgent(e: Record<string, string | undefined>, o: { env?: Recor
 export function lavAgentMedLogin(e: Record<string, string | undefined>, o: {
   env?: Record<string, string | undefined>; fetchImpl?: typeof fetch;
   githubFetch?: typeof fetch; githubVent?: (ms: number, signal?: AbortSignal) => Promise<void>; copilotKlient?: LavKlient;
-} = {}): { agent: AgentClient; github?: GithubLogin; copilot?: CopilotTransport } {
+} = {}): { agent: AgentClient; github?: GithubLogin; copilot?: CopilotTransport; inkluderet?: Inkluderet } {
   const valg = agentValg(e);
   if (valg === 'fake') return { agent: createFakeAgent({ answer: devAnswer, delayMs: 800 }) };
   const kilde = o.env ?? e;
@@ -2410,7 +2436,11 @@ export function lavAgentMedLogin(e: Record<string, string | undefined>, o: {
     const settings = createSettings(dataDir);
     const noeglefil = (e['KC_HEMMELIGHEDER_FIL'] ?? '').trim();
     const udbyderIds = UDBYDERE.map((u) => u.id);
-    const lager = registrerNoegleLager(noeglefil ? filNoegleLager({ udbydere: udbyderIds, dataDir, noeglefil }) : envNoegleLager({ udbydere: udbyderIds, env: kilde }));
+    // KC-0265: Clawco's AI included in a Sky plan: only where both the proxy's address and the token file are given. Its "key" is
+    // that file, read at every call (the lager answers the provider from it; nothing of it is saved, logged or shown).
+    const inkluderet = inkluderetFraMiljoe(e, { registrer: registrerHemmelighed, ...(o.fetchImpl ? { fetchImpl: o.fetchImpl } : {}) });
+    const baseLager = noeglefil ? filNoegleLager({ udbydere: udbyderIds, dataDir, noeglefil }) : envNoegleLager({ udbydere: udbyderIds, env: kilde });
+    const lager = registrerNoegleLager(inkluderet ? medInkluderetToken(baseLager, inkluderet) : baseLager);
     const copilot = createCopilot({ fejl: MODEL_FEJL, ...(o.copilotKlient ? { lavKlient: o.copilotKlient } : {}) });
     const base = githubBase(e['KC_GITHUB_BASE_URL']);
     const github = createGithubLogin({
@@ -2423,14 +2453,15 @@ export function lavAgentMedLogin(e: Record<string, string | undefined>, o: {
       ...(o.githubVent ? { vent: o.githubVent } : {}),
     });
     const agent = createDirekte({
-      udbydere: UDBYDERE,
+      udbydere: [...UDBYDERE, INKLUDERET],
       lager,
       fejl: MODEL_FEJL,
       testet: async () => { const s = await settings.read(); return { ...(s.udbyder ? { udbyder: s.udbyder } : {}), ok: modelKlaret(modelSyn(s)) }; },
       ...(o.fetchImpl ? { fetchImpl: o.fetchImpl } : {}),
       copilot,
+      ...(inkluderet ? { inkluderet } : {}),
     });
-    return { agent, github, copilot };
+    return { agent, github, copilot, ...(inkluderet ? { inkluderet } : {}) };
   }
   const fil = (e['KC_HERMES_ENV_FILE'] ?? '').trim();
   const [kommando, ...args] = ((e['KC_HERMES_GENSTART'] ?? '').trim() || 'hermes gateway restart').split(/\s+/);
@@ -2471,7 +2502,7 @@ export async function main(): Promise<void> {
   const konto = kontoFraMiljoe(process.env);
   // KC-0160: KC_LAPTOP=ja — one owner, loopback only; a LAN address or konto mode refuses to start, naming the key.
   const laptop = laptopFraMiljoe(process.env);
-  const { agent: hermes, github, copilot } = lavAgentMedLogin(process.env);
+  const { agent: hermes, github, copilot, inkluderet } = lavAgentMedLogin(process.env);
   // KC-0263: the Copilot runtime is a child process; stop it (and remove its tmp folder) when the service stops.
   if (copilot) {
     const stop = (): void => { void Promise.race([copilot.stop(), new Promise((r) => setTimeout(r, 3000))]).finally(() => process.exit(0)); };
@@ -2492,7 +2523,7 @@ export async function main(): Promise<void> {
   const { app, frontload, kurator, konflikt, soendag, moedeTik, rumTik, helbredTik } = createApp({
     store: createFileStore(env('KC_DATA_DIR', './data')),
     hermes,
-    ...(github ? { model: { github } } : {}), // KC-0263
+    ...(github || inkluderet ? { model: { ...(github ? { github } : {}), ...(inkluderet ? { inkluderet } : {}) } } : {}), // KC-0263, KC-0265
     ...(stemme ? { stemme } : {}),
     sourceGlob: env('KC_DAGEN_SOURCE_GLOB', '/tmp/avis_data_{date}.json'),
     mailStateDir: mode === 'fake' ? await devMailStateDir(env('KC_DATA_DIR', './data'), new Date()) : env('KC_MAIL_STATE_DIR', path.join(process.env['HOME'] ?? '', '.hermes', 'state')),

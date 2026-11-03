@@ -23,6 +23,7 @@ import type { Stikuge } from '../../tillid/stikproeve.ts';
 import { stikproeveKort, stopKort } from './stikproeve.ts';
 import { regelforslagKort } from '../../shell/regelforslagkort.ts';
 import { betaKort, feedbackKort, type BetaVisning } from './beta.ts';
+import { inkluderetBrugtKort, type InkluderetBrugt } from '../../shell/inkluderet.ts';
 import { POST_GRUPPE, postElementer, type PostVisning } from './digitalpost.ts';
 import { AULA_GRUPPE, aulaElementer, type AulaVisning } from './aula.ts';
 import { hjemTekst, intetHvorfor } from './tekster.ts';
@@ -87,6 +88,8 @@ export type HjemData = {
   digitalPost?: PostVisning;
   /** KC-0236: the Danmark-pakke's Aula events due today or tomorrow (only for whom the shared week is for; absent = nothing due). Not something that waits: it never counts. */
   aula?: AulaVisning;
+  /** KC-0265: the month's allowance of Clawco's AI is used up (the owner's; only while it is the chosen AI and the month has not started over); absent = no card. */
+  inkluderet?: InkluderetBrugt;
 };
 
 export type CcRaekke = { id: string; status: 'sendt' | 'modtaget' | 'i-gang' | 'parkeret' | 'faerdig'; projekt: string; saetning: string; oprettet: string; ticket?: string; bevis?: string; pr?: string; grund?: string;
@@ -244,20 +247,20 @@ function logRaekke(h: HjemData['hermes'][number], now: Date): Markup {
 }
 
 /** What waits on Henrik in Hjem itself: Claude Code's questions and parked opgaver, and Kuratoren's open cards. */
-type EgneFelter = 'kort' | 'gjort' | 'claudeCode' | 'person' | 'reglerFejl' | 'kildeHelbred' | 'regelforslag' | 'stikproeve' | 'stopTilbud' | 'beta' | 'digitalPost';
+type EgneFelter = 'kort' | 'gjort' | 'claudeCode' | 'person' | 'reglerFejl' | 'kildeHelbred' | 'regelforslag' | 'stikproeve' | 'stopTilbud' | 'beta' | 'digitalPost' | 'inkluderet';
 function egneDele(d: Pick<HjemData, EgneFelter>) {
   const gjort = new Set(d.gjort ?? []);
   const cc = d.claudeCode ?? [];
   // A card is done when its handling ran (and was not undone) or, without a handling, when it was written to the ledger.
   const erGjort = (k: Kort): boolean => (k.handling ? gjort.has(k.handling.id) : Boolean(k.skrevet));
   const rangeret = kunSynlige(d.kort ?? [], d.person).sort((a, b) => a.prioritet - b.prioritet);
-  return { gjort, erGjort, rangeret, aabne: rangeret.filter((k) => !erGjort(k)), spoerger: cc.filter(erSpoergsmaal), parkerede: cc.filter((o) => venterPaaHenrik(o) && !o.spoergsmaal), forbindelser: kunSynlige(d.kildeHelbred ?? [], d.person), forslag: kunSynlige(d.regelforslag ?? [], d.person).filter((f) => f.status === 'afventer'), beta: betaElementer(d), post: postElementer(d.digitalPost, d.person) };
+  return { gjort, erGjort, rangeret, aabne: rangeret.filter((k) => !erGjort(k)), spoerger: cc.filter(erSpoergsmaal), parkerede: cc.filter((o) => venterPaaHenrik(o) && !o.spoergsmaal), forbindelser: kunSynlige(d.kildeHelbred ?? [], d.person), forslag: kunSynlige(d.regelforslag ?? [], d.person).filter((f) => f.status === 'afventer'), beta: betaElementer(d), post: postElementer(d.digitalPost, d.person), inkluderet: inkluderetElementer(d) };
 }
 
 /** KC-0093: Hjem's own share of "venter på dig" — the nav and the tab title add it to every room's count. */
 export function hjemEgne(d: Pick<HjemData, EgneFelter>): number {
   const e = egneDele(d);
-  return e.aabne.length + e.spoerger.length + e.parkerede.length + e.forbindelser.length + e.forslag.length + (d.reglerFejl ? 1 : 0) + (d.stikproeve ? 1 : 0) + (d.stopTilbud ? 1 : 0) + e.beta.length + e.post.length;
+  return e.aabne.length + e.spoerger.length + e.parkerede.length + e.forbindelser.length + e.forslag.length + (d.reglerFejl ? 1 : 0) + (d.stikproeve ? 1 : 0) + (d.stopTilbud ? 1 : 0) + e.beta.length + e.post.length + e.inkluderet.length;
 }
 
 /** KC-0203: the beta's cards — the owner's only (a member never sees them even if handed the data). Their ids start with BETA_ID. */
@@ -265,6 +268,12 @@ const BETA_ID = 'beta:';
 function betaElementer(d: Pick<HjemData, 'beta' | 'person'>): Element[] {
   if (!d.beta || (d.person && d.person.rolle !== 'ejer')) return [];
   return [...(d.beta.kort ? [{ id: `${BETA_ID}kort`, html: betaKort() }] : []), ...(d.beta.feedback ? [{ id: `${BETA_ID}feedback:${d.beta.feedback.dag}`, html: feedbackKort(d.beta.feedback.dag, d.beta.feedback.priser) }] : [])];
+}
+
+/** KC-0265: the one calm card when the included AI is used up — the owner's only (the AI is the plan's, the choice of another is theirs). Its id is stable, so the card is one element until the month starts over. */
+function inkluderetElementer(d: Pick<HjemData, 'inkluderet' | 'person'>): Element[] {
+  if (!d.inkluderet || (d.person && d.person.rolle !== 'ejer')) return [];
+  return [{ id: 'inkluderet:brugt', html: inkluderetBrugtKort(d.inkluderet) }];
 }
 
 /** KC-0099: nothing waits anywhere — say so calmly, with what comes next today, instead of an empty page. */
@@ -295,7 +304,7 @@ function moedeNu(m: NonNullable<HjemData['moede']>): Markup {
  * what required Henrik) reads the very same groups, so the count can never disagree with the screen (§0 r6).
  */
 function kraeverGrupper(d: HjemData, nu: Date, unik: (id: string) => string): Gruppe[] {
-  const { gjort, aabne, spoerger, parkerede, forbindelser, forslag, beta, post } = egneDele(d);
+  const { gjort, aabne, spoerger, parkerede, forbindelser, forslag, beta, post, inkluderet } = egneDele(d);
   const t = hjemTekst();
   const igen = new Set(d.skrivIgen ?? []);
   const stor = aabne.find((k) => k.handling)?.id; // rule 6: the one large card
@@ -305,6 +314,8 @@ function kraeverGrupper(d: HjemData, nu: Date, unik: (id: string) => string): Gr
     { titel: t.betaGruppe, form: 'kort', elementer: beta },
     // KC-0233: new Digital Post (the Danmark-pakke): one card per unseen notice, gone when marked "Set den".
     { titel: POST_GRUPPE, form: 'kort', elementer: post },
+    // KC-0265: Clawco's AI included in the plan is used up: one calm card, gone when the month starts over or another AI is chosen.
+    { titel: tekst().inkl.titel, form: 'kort', elementer: inkluderet },
     { titel: t.regler, form: 'kort', elementer: [...(d.reglerFejl ? [{ id: 'regler:ulaeselig', html: reglerFejlKort(d.reglerFejl) }] : []), ...forslag.map((f) => ({ id: `regelforslag:${f.id}`, html: regelforslagKort(f) }))] },
     // KC-0145: the Sunday sample (one bunke, gone when all lines are answered) and the stop question.
     { titel: t.soendagstjek, form: 'kort', elementer: [...(d.stikproeve ? [{ id: `stikproeve:${d.stikproeve.uge}`, html: stikproeveKort(d.stikproeve) }] : []), ...(d.stopTilbud ? [{ id: 'soendagstjek:stop', html: stopKort() }] : [])] },

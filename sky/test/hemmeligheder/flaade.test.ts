@@ -7,6 +7,7 @@ import { afled } from '../../src/hemmeligheder/afled.ts';
 import { flaadeNoegler, ingenMasternoegle } from '../../src/hemmeligheder/flaade.ts';
 import { NOEGLE_STI, type KoerselMedInput } from '../../src/hemmeligheder/levering.ts';
 import { destruerUdloebne, hentDataNoegle } from '../../src/hemmeligheder/tenantnoegle.ts';
+import { MODEL_TOKEN_STI, modelToken, tenantForModelToken } from '../../src/hemmeligheder/modeltoken.ts';
 import { afprovisioner } from '../../src/fleet/afprovisioner.ts';
 import { provisioner } from '../../src/fleet/provisioner.ts';
 import { bestil, hentTenant, laase } from '../../src/fleet/tilstand.ts';
@@ -34,7 +35,7 @@ test('a tenant is provisioned with its data key: the row exists wrapped, and the
   const [raekke] = await o.db.query<{ status: string; kek_version: number }>('SELECT status, kek_version FROM hemmeligheder.tenant_noegle WHERE tenant = $1', [slug]);
   assert.deepEqual({ ...raekke }, { status: 'aktiv', kek_version: 1 });
   const lager = afled(await hentDataNoegle(o.db, r, slug), slug, 'lager').aaben();
-  assert.equal(kald.length, 1);
+  assert.equal(kald.length, 2, 'the lager key, then (KC-0264) the model token');
   assert.deepEqual(kald[0]!.argv.slice(0, 4), ['docker', 'exec', '-i', `clawco-t-${slug}`]);
   assert.equal(kald[0]!.argv.at(-1), NOEGLE_STI);
   assert.equal(kald[0]!.input, `${lager.toString('base64')}\n`);
@@ -92,5 +93,33 @@ test('without a master key (SKY_MASTERNOEGLE) nothing is provisioned: the key st
   assert.match(t.fejl ?? '', /SKY_MASTERNOEGLE/);
   await assert.rejects(noegler.lever(slug, 'clawco-t-x'), /SKY_MASTERNOEGLE/);
   await noegler.markerSlettet(slug); // a deletion needs no master key and is never held up by its absence
+  await o.db.close();
+});
+
+test('KC-0264: provisioning gives the tenant a model token on its tmpfs (stdin only); deletion revokes it', async () => {
+  const { o, r, kald, pdeps, noegler } = await opsaetMedNoegler();
+  const { slug } = await bestil(o.db, { kontoId: o.kontoId, driver: 'lokal', nu: o.ur.nu() });
+  await provisioner(pdeps, slug);
+  const token = await modelToken(o.db, r, slug);
+  assert.equal(await tenantForModelToken(o.db, token), slug);
+  const k = kald.find((x) => x.argv.at(-1) === MODEL_TOKEN_STI)!;
+  assert.deepEqual(k.argv.slice(0, 4), ['docker', 'exec', '-i', `clawco-t-${slug}`]);
+  assert.equal(k.input, `${token}\n`);
+  assert.ok(!k.argv.join(' ').includes(token));
+  // Every later start delivers the same token (the reconciler, a rollout): no rotation by restarting.
+  await noegler.lever(slug, `clawco-t-${slug}`);
+  assert.equal(kald.filter((x) => x.argv.at(-1) === MODEL_TOKEN_STI).at(-1)!.input, `${token}\n`);
+  await afprovisioner({ db: o.db, flaade: pdeps.flaade, noegler: pdeps.noegler, laas: pdeps.laas, nu: o.ur.nu, udAfGateway: async () => {} }, slug);
+  assert.equal(await tenantForModelToken(o.db, token), null);
+  await o.db.close();
+});
+
+test('KC-0264: a tenant made before the model token gets one at its next start (lever makes it first)', async () => {
+  const { o, r, kald, noegler } = await opsaetMedNoegler();
+  const { opretTenantNoegle } = await import('../../src/hemmeligheder/tenantnoegle.ts');
+  await opretTenantNoegle(o.db, r, 'hus-gammelaa', o.ur.nu());
+  await noegler.lever('hus-gammelaa', 'clawco-t-hus-gammelaa');
+  const token = await modelToken(o.db, r, 'hus-gammelaa');
+  assert.equal(kald.at(-1)!.input, `${token}\n`);
   await o.db.close();
 });

@@ -439,3 +439,13 @@ test('KC-0246: without the seam the container is exactly what it was (no KC_ADRE
   const run = d.kald.find((a) => a[1] === 'run' && !a.includes('--rm'))!;
   assert.ok(!run.some((x) => x.startsWith('KC_ADRESSE') || x.startsWith('KC_SPROG')));
 });
+
+test('KC-0264 tenantMiljoe: with the model proxy on, the proxy URL and the PATH of the token file (never the token)', () => {
+  assert.deepEqual(tenantMiljoe({ adresse: null, sprog: null, model: { proxyUrl: 'https://konto.example.dk/model', tokenFil: '/run/secrets/model-token' } }),
+    { KC_MODEL_PROXY_URL: 'https://konto.example.dk/model', KC_MODEL_TOKEN_FIL: '/run/secrets/model-token' });
+  assert.deepEqual(tenantMiljoe({ adresse: null, sprog: null, model: null }), {});
+  for (const proxyUrl of ['konto.example.dk/model', 'https://konto.example.dk/model?x=1', 'javascript:1', 'https://a b/model']) {
+    assert.throws(() => tenantMiljoe({ adresse: null, sprog: null, model: { proxyUrl, tokenFil: '/run/secrets/model-token' } }), /model/, proxyUrl);
+  }
+  assert.throws(() => tenantMiljoe({ adresse: null, sprog: null, model: { proxyUrl: 'https://konto.example.dk/model', tokenFil: '/data/model-token' } }), /model/, 'never a file on the volume');
+});

@@ -21,6 +21,10 @@ export type SkyConfig = {
   /** KC-0198: SKY_TILMELDING — `invitation` (closed beta, the default: an invite code instead of the plan step)
    *  or `open` (the plan step). Never both ways at once. */
   tilmelding: 'invitation' | 'open';
+  /** KC-0264: SKY_INKLUDERET_MODEL=ja switches the included Calm model on: tenants are told the proxy's address
+   *  (KC_MODEL_PROXY_URL) and the proxy answers. It still answers 503 until a provider key is set and the provider
+   *  is a listed subprocessor (model/udbyder.ts). Off by default. */
+  inkluderetModel: boolean;
 };
 
 export type FlaadeValg = { driver: 'ingen' } | { driver: 'hetzner' } | { driver: 'lokal'; billede: string; netvaerk: string; kontoPubkey: string;
@@ -70,7 +74,10 @@ export function laesConfig(env: Record<string, string | undefined>): SkyConfig {
   const tilmelding = (env['SKY_TILMELDING'] ?? '').trim() || 'invitation';
   if (tilmelding !== 'invitation' && tilmelding !== 'open') throw ugyldig('SKY_TILMELDING', 'skal være invitation eller open');
 
-  return { databaseUrl, publicUrl, port, basedomain, rpId, dev, flaade: flaadeValg(env), tilmelding };
+  const model = (env['SKY_INKLUDERET_MODEL'] ?? '').trim() || 'nej';
+  if (model !== 'ja' && model !== 'nej') throw ugyldig('SKY_INKLUDERET_MODEL', 'skal være ja eller nej');
+
+  return { databaseUrl, publicUrl, port, basedomain, rpId, dev, flaade: flaadeValg(env), tilmelding, inkluderetModel: model === 'ja' };
 }
 
 function flaadeValg(env: Record<string, string | undefined>): FlaadeValg {

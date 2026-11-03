@@ -116,7 +116,7 @@ test("the direct agent's own timer: Danish as before, English in en", async () =
     const agent = createDirekte({
       udbydere: [{ id: 'anthropic', envNavn: 'ANTHROPIC_API_KEY', hermesProvider: 'anthropic', kraeverNoegle: true, direkte: { api: 'anthropic-messages', url: 'http://m.example/v1/messages' } }],
       lager: { hent: async () => 'k', gem: async () => {}, laengde: async () => 1 } as never,
-      fejl: { 'model-noegle': 'a', 'kun-hermes': 'b', noegle: 'c', kredit: 'd', model: 'e', forbindelse: 'f', ukendt: 'g' },
+      fejl: { 'model-noegle': 'a', 'kun-hermes': 'b', noegle: 'c', kredit: 'd', model: 'e', forbindelse: 'f', ukendt: 'g', kvote: 'h', 'inkluderet-ikke-klar': 'i', 'inkluderet-utilgaengelig': 'j' },
       fetchImpl: (async (_u: unknown, init?: RequestInit) => new Response(new ReadableStream<Uint8Array>({ start(c) { init?.signal?.addEventListener('abort', () => c.error(new Error('x'))); } }), { status: 200 })) as typeof fetch,
       timeoutMs: 30,
     });

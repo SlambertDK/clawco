@@ -1,5 +1,5 @@
 // What the gateway never does (KC-0183, AGENTS §0 r7, D16): forward a tenant's /health (open by design, shows
-// the sha; Sky reads it over the private network), anything under /_sky/ or /intern/ (KC-0184); pass on a header a client could use
+// the sha; Sky reads it over the private network), anything under /_sky/ or /intern/ (KC-0184) or /model/ (KC-0264); pass on a header a client could use
 // to claim an identity, or the gateway's own cookie; let a tenant set the gateway's cookie; or log a path, a
 // query string, a cookie, a header or a body.
 import type { IncomingHttpHeaders } from 'node:http';
@@ -17,7 +17,9 @@ export function aldrigVidere(sti: string): boolean {
   const p = somTenantSer(sti);
   // KC-0184: /intern/ is the tenant's control route (Sky's own signed calls over the private network only).
   // KC-0203: so is the beta pull, GET /api/beta/maal — a browser never needs it, and the only caller is Sky's own signed call.
-  return p === '/health' || p.startsWith('/health/') || p === '/_sky' || p.startsWith('/_sky/') || p === '/intern' || p.startsWith('/intern/') || p === '/api/beta/maal';
+  // KC-0264: /model/ is Sky's model proxy on the account host only; a tenant host never passes it on to a tenant.
+  return p === '/health' || p.startsWith('/health/') || p === '/_sky' || p.startsWith('/_sky/') || p === '/intern' || p.startsWith('/intern/') || p === '/api/beta/maal'
+    || p === '/model' || p.startsWith('/model/');
 }
 
 const HOP = new Set(['connection', 'keep-alive', 'proxy-authorization', 'proxy-authenticate', 'proxy-connection', 'te', 'trailer', 'transfer-encoding', 'upgrade']);

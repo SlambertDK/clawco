@@ -18,7 +18,7 @@ export type ImportVisning = {
   /** Start can set up a new notes folder itself. */
   kanLavMappe: boolean;
   /** Who reads the text: the chosen provider by name (`lokal`: on the user's own machine), or null = the model Hermes is set up with. */
-  udbyder: { navn: string; lokal: boolean } | null;
+  udbyder: { navn: string; lokal: boolean; /** KC-0265: Clawco's AI of a Sky plan. */ inkluderet?: true } | null;
   bunke?: ImportBunke;
   gemt: ImportGemt[];
   /** Hermes is reading an import right now. */
@@ -33,7 +33,7 @@ const knap = (aktion: string, arg: Record<string, string> | null, tekst: string,
 /** Who sees the text, said before the first send. */
 function udbyderLinje(u: ImportVisning['udbyder']): Markup {
   const T = startTekst().imp;
-  const tekst = u === null ? T.udbyderIngen : u.lokal ? T.udbyderLokal(u.navn) : T.udbyderValgt(u.navn);
+  const tekst = u === null ? T.udbyderIngen : u.inkluderet ? T.udbyderInkluderet : u.lokal ? T.udbyderLokal(u.navn) : T.udbyderValgt(u.navn);
   return html`<p class="row-note" data-import-udbyder>${tekst}</p>`;
 }
 

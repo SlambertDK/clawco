@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
-import { createSkyApp, kontoDeps, flaadeFra, tenantMiljoeFra, noegleskiftFra, forbind, fordeler } from '../src/server.ts';
+import { createSkyApp, kontoDeps, flaadeFra, tenantMiljoeFra, noegleskiftFra, forbind, fordeler, modelFra } from '../src/server.ts';
+import { laesPriser } from '../src/abonnement/priser.ts';
+import { saetGave } from '../src/abonnement/synk.ts';
+import type { ModelUdbyder } from '../src/model/udbyder.ts';
 import { FROE as GW_FROE, OFFENTLIG as GW_OFFENTLIG } from './gateway/hjaelp.ts';
 import { laesConfig } from '../src/config.ts';
 import { pgliteDatabase } from './pglite.ts';
@@ -415,5 +418,103 @@ test('KC-0246 tenantMiljoeFra: the dev origin keeps the scheme and port of SKY_P
   await migrer(db);
   const config = laesConfig({ SKY_DATABASE_URL: 'postgres:///sky', SKY_PUBLIC_URL: 'http://localhost:8793', SKY_DEV: '1', SKY_BASEDOMAIN: 'localhost' });
   assert.deepEqual(await tenantMiljoeFra(config, db)('hus-abcdefgh'), { KC_ADRESSE: 'http://hus-abcdefgh.localhost:8793' });
+  await db.close();
+});
+
+// KC-0264: the included model's wiring.
+test('KC-0264 tenantMiljoeFra: with SKY_INKLUDERET_MODEL=ja a tenant is told the proxy address and the token file path, never a token', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  const til = await tenantMiljoeFra(laesConfig({ ...ENV, SKY_INKLUDERET_MODEL: 'ja' }), db)('hus-abcdefgh');
+  assert.equal(til['KC_MODEL_PROXY_URL'], 'https://konto.example.test/model');
+  assert.equal(til['KC_MODEL_TOKEN_FIL'], '/run/secrets/model-token');
+  const fra = await tenantMiljoeFra(laesConfig(ENV), db)('hus-abcdefgh');
+  assert.equal(fra['KC_MODEL_PROXY_URL'], undefined);
+  assert.equal(fra['KC_MODEL_TOKEN_FIL'], undefined);
+  await db.close();
+});
+
+const falskUdbyder: ModelUdbyder = { navn: 'anthropic', send: async () => new Response('') };
+const listet = { underdatabehandlere: [{ id: 'anthropic', vaerter: ['api.anthropic.com'] }] };
+
+test('KC-0264 modelFra: the proxy is on only with the switch, a provider and the provider listed as a subprocessor; each reason is said', async () => {
+  const db = await pgliteDatabase();
+  const priser = laesPriser();
+  const med = { udbyder: falskUdbyder, grund: null, vaert: 'api.anthropic.com' };
+  const fra = modelFra({ config: laesConfig(ENV), db, priser, laest: med, behandlinger: listet });
+  assert.equal(fra.deps.udbyder, null);
+  assert.match(fra.besked, /SKY_INKLUDERET_MODEL/);
+  const ja = laesConfig({ ...ENV, SKY_INKLUDERET_MODEL: 'ja' });
+  const uden = modelFra({ config: ja, db, priser, laest: { udbyder: null, grund: 'SKY_ANTHROPIC_API_KEY mangler' }, behandlinger: listet });
+  assert.equal(uden.deps.udbyder, null);
+  assert.match(uden.besked, /SKY_ANTHROPIC_API_KEY mangler/);
+  const ikkeListet = modelFra({ config: ja, db, priser, laest: med, behandlinger: { underdatabehandlere: [] } });
+  assert.equal(ikkeListet.deps.udbyder, null);
+  assert.match(ikkeListet.besked, /api\.anthropic\.com.*behandlinger\.json.*KC-0266/);
+  const paa = modelFra({ config: ja, db, priser, laest: med, behandlinger: listet });
+  assert.equal(paa.deps.udbyder, falskUdbyder);
+  assert.match(paa.besked, /anthropic/);
+  // Today's real legal data lists AWS (Bedrock, KC-0266) and not Anthropic direct, so the default read keeps anthropic off.
+  assert.equal(modelFra({ config: ja, db, priser, laest: med }).deps.udbyder, null);
+  const bedrock = { udbyder: { ...falskUdbyder, navn: 'bedrock' as const }, grund: null, vaert: 'bedrock-runtime.eu-central-1.amazonaws.com' };
+  assert.notEqual(modelFra({ config: ja, db, priser, laest: bedrock }).deps.udbyder, null, 'the listed Bedrock host switches on');
+  await db.close();
+});
+
+test('KC-0264 modelFra.inkluderet: the plan\'s cap for a tenant whose owner has a trial, a plan or the beta gift; nothing otherwise', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  const priser = laesPriser();
+  const nu = new Date('2026-11-03T10:00:00Z');
+  const { deps } = modelFra({ config: laesConfig({ ...ENV, SKY_INKLUDERET_MODEL: 'ja' }), db, priser, laest: { udbyder: falskUdbyder, grund: null, vaert: 'api.anthropic.com' }, behandlinger: listet });
+  const { konto } = await findEllerOpretKonto(db, 'ejer@example.test', nu);
+  const t = await bestil(db, { kontoId: konto.id, driver: 'lokal', nu });
+  assert.equal(await deps.inkluderet(t.slug, nu), null, 'no plan, no model');
+  await saetGave(db, konto.id, 'sky-husstand', priser, nu);
+  assert.deepEqual(await deps.inkluderet(t.slug, nu), { loftMikroUsd: 8_000_000, modeller: ['claude-haiku-5-5'] }, 'the beta gift is Husstand: the household cap');
+  await saetGave(db, konto.id, 'sky-solo', priser, nu);
+  assert.deepEqual(await deps.inkluderet(t.slug, nu), { loftMikroUsd: 4_000_000, modeller: ['claude-haiku-5-5'] });
+  // A paused or overdue plan keeps the Clawco running (the help texts promise it), so it keeps the model; a cancelled one does not.
+  for (const [status, ja] of [['pause', true], ['forfalden', true], ['opsagt', false], ['ingen', false]] as const) {
+    await db.query("UPDATE abonnement.rettigheder SET kilde = 'stripe', status = $2 WHERE konto_id = $1", [konto.id, status]);
+    assert.equal((await deps.inkluderet(t.slug, nu)) !== null, ja, status);
+  }
+  assert.equal(await deps.inkluderet('hus-ukendt1', nu), null);
+  await db.query("UPDATE flaade.tenant SET tilstand = 'slettet' WHERE slug = $1", [t.slug]);
+  assert.equal(await deps.inkluderet(t.slug, nu), null, 'a deleted tenant has no model');
+  await db.close();
+});
+
+test('KC-0266 modelFra.inkluderet: 30 days\' notice — an account from before AWS was listed waits until its start date, a newer one does not', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  const priser = laesPriser();
+  const listetMedDato = { underdatabehandlere: [{ id: 'aws', vaerter: ['bedrock-runtime.eu-central-1.amazonaws.com'], ibrugtagning: '2026-12-03' }] };
+  const laest = { udbyder: { ...falskUdbyder, navn: 'bedrock' as const }, grund: null, vaert: 'bedrock-runtime.eu-central-1.amazonaws.com' };
+  const { deps } = modelFra({ config: laesConfig({ ...ENV, SKY_INKLUDERET_MODEL: 'ja' }), db, priser, laest, behandlinger: listetMedDato });
+  const gammelTid = new Date('2026-10-31T10:00:00Z');
+  const nyTid = new Date('2026-11-05T10:00:00Z');
+  const { konto: gammel } = await findEllerOpretKonto(db, 'gammel@example.test', gammelTid);
+  const { konto: ny } = await findEllerOpretKonto(db, 'ny@example.test', nyTid);
+  const tg = await bestil(db, { kontoId: gammel.id, driver: 'lokal', nu: gammelTid });
+  const tn = await bestil(db, { kontoId: ny.id, driver: 'lokal', nu: nyTid });
+  for (const k of [gammel, ny]) await saetGave(db, k.id, 'sky-solo', priser, gammelTid);
+  assert.equal(await deps.inkluderet(tg.slug, new Date('2026-11-05T12:00:00Z')), null, 'existing customer: not before the start date');
+  assert.notEqual(await deps.inkluderet(tn.slug, new Date('2026-11-05T12:00:00Z')), null, 'new customer accepted the list with AWS');
+  assert.notEqual(await deps.inkluderet(tg.slug, new Date('2026-12-03T00:00:01Z')), null, 'existing customer from the start date');
+  await db.close();
+});
+
+test('KC-0264: the model routes are mounted ahead of konto, so its 64 KB body limit never cuts a model call short', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  const config = laesConfig({ ...ENV, SKY_DEV: '1' });
+  const f = await forbind(config, db, { ...ENV, SKY_DEV: '1' });
+  const { deps } = modelFra({ config, db, priser: laesPriser(), laest: { udbyder: null, grund: 'SKY_MODEL_UDBYDER er ikke sat' } });
+  const app = createSkyApp({ db, sha: 'x', startet: Date.now(), konto: f.konto, abonnement: f.abonnement, dev: f.dev, tilmelding: f.tilmelding, model: deps });
+  const stor = JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 1, messages: [{ role: 'user', content: 'x'.repeat(200_000) }] });
+  const r = await app.request('/model/v1/messages', { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${'A'.repeat(43)}=` }, body: stor });
+  assert.equal(r.status, 401);
+  assert.equal(((await r.json()) as { error: { type: string } }).error.type, 'ugyldig_noegle');
   await db.close();
 });

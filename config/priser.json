@@ -1,5 +1,5 @@
 {
-  "_note": "The one price source (KC-0190, AGENTS §0 r6). Amounts are integers in øre/cent. Approved by Henrik 2026-10-31 (KC-0169). EUR = DKK / 7.46, monthly rounded to the nearest 0.10 EUR, yearly to the nearest whole EUR. Change a price here, then run `npm run stripe:opsaet` (dry run) and `-- --anvend`.",
+  "_note": "The one price source (KC-0190, AGENTS §0 r6). Amounts are integers in øre/cent. KC-0264: inkluderetModel = the Calm model a plan includes, its monthly cap in micro-USD of model cost (shared by a household) and the model ids it allows. Approved by Henrik 2026-10-31 (KC-0169). EUR = DKK / 7.46, monthly rounded to the nearest 0.10 EUR, yearly to the nearest whole EUR. Change a price here, then run `npm run stripe:opsaet` (dry run) and `-- --anvend`.",
   "status": "godkendt",
   "moms": {
     "_note": "KC-0194, gate G6: Henrik is not VAT-registered, so aktiv is false: no VAT is charged or shown anywhere and Stripe Tax is off. varselOere: paid invoices over the trailing 12 months at which the owner gets the 'Momsregistrering nærmer sig' alert (the legal threshold is 50,000 kr). eurKurs: kroner per euro for that sum, the same rate the EUR prices were set with. Once CVR and VAT are registered, set aktiv to true and run `npm run stripe:opsaet` (prices become VAT-inclusive, Stripe Tax on Checkout).",
@@ -20,17 +20,20 @@
       "navn": "Sky Solo",
       "medlemmer": 1,
       "maanedlig": { "dkk": 7900, "eur": 1060 },
-      "aarlig": { "dkk": 79000, "eur": 10600 }
+      "aarlig": { "dkk": 79000, "eur": 10600 },
+      "inkluderetModel": { "loftMikroUsd": 4000000, "modeller": ["claude-haiku-5-5"] }
     },
     "sky-husstand": {
       "navn": "Sky Husstand",
       "medlemmer": 6,
       "maanedlig": { "dkk": 12900, "eur": 1730 },
-      "aarlig": { "dkk": 129000, "eur": 17300 }
+      "aarlig": { "dkk": 129000, "eur": 17300 },
+      "inkluderetModel": { "loftMikroUsd": 8000000, "modeller": ["claude-haiku-5-5"] }
     }
   },
   "tilvalg": {
     "inkluderet-model": {
+      "_note": "Superseded 2026-11-03 (KC-0253 D1, KC-0264): the Calm model is now INCLUDED in every Sky plan (planer.*.inkluderetModel, priced in config/modelpriser.json), not sold as an add-on. This line stays, status senere, only because the public price page still reads it; what the page should say instead is public copy for Henrik (follow-up with KC-0266).",
       "navn": "Inkluderet model",
       "status": "senere",
       "fraMaanedlig": { "dkk": 4900, "eur": 660 }

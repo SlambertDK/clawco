@@ -65,3 +65,8 @@ test('real requests leave log lines with no path, query string, cookie, header o
 test('KC-0246 aldrigVidere: the OAuth callback of the Google connectors is forwarded to the tenant', () => {
   for (const s of ['/api/kilder/google-kalender/tilbage?state=a&code=b', '/api/kilder/mail-gmail/tilbage?state=a&code=b']) assert.equal(aldrigVidere(new URL(s, 'http://x.invalid').pathname), false, s);
 });
+
+test('KC-0264 aldrigVidere: the model proxy path is never forwarded to a tenant from its public host, in any spelling', () => {
+  for (const s of ['/model', '/model/', '/model/v1/messages', '/MODEL/v1/forbrug', '/%6dodel/v1/messages', '//model/v1', '/x/../model/v1/messages']) assert.equal(aldrigVidere(s), true, s);
+  for (const s of ['/models', '/rum/model', '/modeller']) assert.equal(aldrigVidere(s), false, s);
+});

@@ -7,9 +7,9 @@
     "cvr": { "da": "intet CVR-nummer (ikke momsregistreret; registreres når lovens grænse nås)", "en": "no CVR number (not VAT-registered; registers when the legal threshold is reached)" },
     "kontakt": "kontakt@clawco.work"
   },
-  "dato": "2026-11-02",
+  "dato": "2026-11-03",
   "tjekketDPF": "2026-11-02",
-  "udgave": { "version": "1.1", "status": "udgivet" },
+  "udgave": { "version": "1.2", "status": "udgivet" },
   "behandlinger": [
     {
       "id": "konto-login",
@@ -97,12 +97,12 @@
         "da": "Til kunden sletter kontoen. Så stopper instansen, og volumenet slettes (dag 0). Sikkerhedskopier: se sikkerhedskopier.",
         "en": "Until the customer deletes the account. Then the instance is stopped and the volume is wiped (day 0). Backups: see sikkerhedskopier."
       },
-      "modtagere": ["cloudflare"],
+      "modtagere": ["cloudflare", "aws"],
       "overfoersel": {
         "tredjeland": true,
         "grundlag": {
-          "da": "Indholdet hostes i EU, på vores egen server i Danmark. Trafikken til og fra instansen går gennem Cloudflare, Inc. (USA), hvor krypteringen (TLS) afsluttes: Cloudflare står som aktiv deltager i EU-US Data Privacy Framework (tjekket {dpf}), og Cloudflares databehandleraftale indeholder desuden EU's standardkontrakter.",
-          "en": "The content is hosted in the EU, on our own server in Denmark. Traffic to and from the instance goes through Cloudflare, Inc. (USA), where the encryption (TLS) ends: Cloudflare is listed as an active participant in the EU-US Data Privacy Framework (checked {dpf}), and Cloudflare's data processing agreement also contains the EU Standard Contractual Clauses."
+          "da": "Indholdet hostes i EU, på vores egen server i Danmark. Trafikken til og fra instansen går gennem Cloudflare, Inc. (USA), hvor krypteringen (TLS) afsluttes: Cloudflare står som aktiv deltager i EU-US Data Privacy Framework (tjekket {dpf}), og Cloudflares databehandleraftale indeholder desuden EU's standardkontrakter. Kører Clawcos AI, der er med i planen, behandler AWS de dele af indholdet, modellen skal læse, i AWS' EU-regioner; de forlader ikke EU.",
+          "en": "The content is hosted in the EU, on our own server in Denmark. Traffic to and from the instance goes through Cloudflare, Inc. (USA), where the encryption (TLS) ends: Cloudflare is listed as an active participant in the EU-US Data Privacy Framework (checked {dpf}), and Cloudflare's data processing agreement also contains the EU Standard Contractual Clauses. When Clawco's AI that is included in the plan runs, AWS processes the parts of the content the model needs to read in AWS' EU regions; they do not leave the EU."
         }
       },
       "sikkerhed": {
@@ -320,18 +320,40 @@
       "ibrugtagning": null,
       "kunHvisValgt": false,
       "vaerter": ["api.resend.com"]
+    },
+    {
+      "id": "aws",
+      "navn": "Amazon Web Services EMEA SARL",
+      "hvad": {
+        "da": "Kører Clawcos AI, der er med i din Sky-plan (Claude Haiku 5.5 fra Anthropic gennem Amazon Bedrock), når du ikke bruger din egen AI. AWS modtager de dele af dit indhold, som modellen skal læse, og sender svaret tilbage. Ifølge AWS har modelleverandøren Anthropic ingen adgang til indholdet eller AWS' logs.",
+        "en": "Runs Clawco's AI that is included in your Sky plan (Claude Haiku 5.5 from Anthropic through Amazon Bedrock), when you do not use your own AI. AWS receives the parts of your content that the model needs to read and sends the answer back. According to AWS, the model maker Anthropic has no access to the content or to AWS' logs."
+      },
+      "hvor": {
+        "da": "AWS' regioner i EU: Frankfurt, og gennem AWS' EU-profil også Stockholm, Milano, Spanien, Irland og Paris. Indholdet forlader ikke EU.",
+        "en": "AWS' regions in the EU: Frankfurt, and through AWS' EU profile also Stockholm, Milan, Spain, Ireland and Paris. The content does not leave the EU."
+      },
+      "land": "Luxembourg",
+      "eu": true,
+      "grundlag": {
+        "da": "Selskabet er i EU, og behandlingen sker i EU. AWS' databehandlertillæg med EU's standardkontrakter er en del af AWS' vilkår. AWS oplyser, at selskabet er omfattet af Amazon.com, Inc.'s certificering under EU-US Data Privacy Framework.",
+        "en": "The company is in the EU, and the processing takes place in the EU. AWS' data processing addendum, with the EU Standard Contractual Clauses, is part of AWS' terms. AWS states that it is covered by Amazon.com, Inc.'s certification under the EU-US Data Privacy Framework."
+      },
+      "dpa": "https://d1.awsstatic.com/legal/aws-dpa/aws-dpa.pdf",
+      "ibrugtagning": "2026-12-03",
+      "kunHvisValgt": false,
+      "vaerter": ["bedrock-runtime.eu-central-1.amazonaws.com"]
     }
   ],
   "efterTabel": {
-    "da": "Der er ingen hostingleverandør på listen: din Clawco og vores database kører på vores egen server i Danmark. Vi bruger ingen ekstern fejlovervågning, og vi bruger ingen modeludbyder på dine vegne.",
-    "en": "There is no hosting provider on the list: your Clawco and our database run on our own server in Denmark. We use no external error monitoring, and we use no model provider on your behalf."
+    "da": "Der er ingen hostingleverandør på listen: din Clawco og vores database kører på vores egen server i Danmark. Vi bruger ingen ekstern fejlovervågning. Den eneste modeludbyder på dine vegne er AWS ovenfor, og kun når Clawcos AI, der er med i din plan, kører.",
+    "en": "There is no hosting provider on the list: your Clawco and our database run on our own server in Denmark. We use no external error monitoring. The only model provider on your behalf is AWS above, and only when Clawco's AI that is included in your plan runs."
   },
   "ikkeUnderdatabehandlere": [
     {
       "titel": { "da": "Din egen modeludbyder", "en": "Your own model provider" },
       "tekst": {
-        "da": "Bruger du din egen nøgle, vælger du selv udbyderen, og din instans sender dit indhold dertil efter din aftale med dem. I dag kan du vælge Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) eller OpenRouter (USA), eller en model, du selv kører (LM Studio eller Ollama). Det er dit valg og dit forhold til udbyderen. Tillægget \"inkluderet model\", hvor vi betaler modellen, findes ikke endnu. Når det kommer, kommer udbyderne på listen med 30 dages varsel.",
-        "en": "If you use your own key, you choose the provider yourself, and your instance sends your content there under your agreement with them. Today you can choose Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) or OpenRouter (USA), or a model you run yourself (LM Studio or Ollama). It is your choice and your relationship with the provider. The \"included model\" add-on, where we pay for the model, does not exist yet. When it comes, the providers join the list with 30 days' notice."
+        "da": "Bruger du din egen nøgle, vælger du selv udbyderen, og din instans sender dit indhold dertil efter din aftale med dem. I dag kan du vælge Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) eller OpenRouter (USA), eller en model, du selv kører (LM Studio eller Ollama). Det er dit valg og dit forhold til udbyderen. Bruger du i stedet Clawcos AI, der er med i din plan, er det AWS, der kører modellen som vores underdatabehandler (se listen).",
+        "en": "If you use your own key, you choose the provider yourself, and your instance sends your content there under your agreement with them. Today you can choose Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) or OpenRouter (USA), or a model you run yourself (LM Studio or Ollama). It is your choice and your relationship with the provider. If you use Clawco's AI that is included in your plan instead, AWS runs the model as our subprocessor (see the list)."
       }
     },
     {
@@ -386,6 +408,11 @@
       "dato": "2026-11-02",
       "da": "Listen genereres nu fra en datafil (samme leverandører, samme grundlag); datoen øverst udfyldt.",
       "en": "The list is now generated from a data file (same suppliers, same bases); the date at the top filled in."
+    },
+    {
+      "dato": "2026-11-03",
+      "da": "Amazon Web Services EMEA SARL tilføjet: kører Clawcos AI, der er med i Sky-planerne, i AWS' EU-regioner. Behandlingen begynder tidligst 2026-12-03 for konti, der fandtes før denne udgave (30 dages varsel).",
+      "en": "Amazon Web Services EMEA SARL added: runs Clawco's AI included in the Sky plans, in AWS' EU regions. Processing starts no earlier than 2026-12-03 for accounts that existed before this version (30 days' notice)."
     }
   ]
 }

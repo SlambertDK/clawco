@@ -131,7 +131,12 @@ const HAAND: [string, string][] = [
   ['start-model-fejl', 'data-model-test="fejl"'],                             // step 2: a live test failed, with the Danish reason (the moment "Kold start: nøglen afvist")
   ['start-model-virker', 'data-model-test="ok"'],                             // step 2: Virker and how fast (the moment "Kold start: modellen virker")
   ['start-github-kode', 'data-github-kode'],                                  // KC-0263: Copilot's GitHub sign-in: the code and the link while waiting (the moment "Kold start: log ind med GitHub")
-  ['start-github-inde', 'data-aktion="github-ud"'],                           // KC-0263: signed in as the login, with Log ud (the moment "Kold start: logget ind med GitHub")
+  ['start-github-inde', 'data-aktion="github-ud"'],
+  ['start-inkluderet', 'data-inkluderet="ok"'],                              // KC-0265: a Sky tenant: step 2 did itself, Clawco's AI is in the plan (the moment "Kold start: Clawcos AI er med")
+  ['start-inkluderet-maaler', 'data-inkluderet-maaler="'],                    // KC-0265: the month's meter on that card
+  ['start-inkluderet-brugt', 'data-inkluderet="brugt"'],                      // KC-0265: the allowance is used up, said on Start's card (the moment "Kold start: månedens AI er brugt")
+  ['nu-inkluderet-brugt', 'data-inkluderet-kort="brugt"'],                    // KC-0265: Nu's one calm card with the date and "Brug den AI, du allerede har" (the same moment)
+  ['koe-inkluderet-maaler', 'data-inkluderet-panel'],                         // KC-0265: the meter in the Kø panel (the owner's)                           // KC-0263: signed in as the login, with Log ud (the moment "Kold start: logget ind med GitHub")
   ['husstand-uge', 'data-uge-hvem="'],                                        // Husstanden: the shared week with whose each entry is (KC-0148; the family calendar)
   ['start-forhaandsvisning', 'data-forhaandsvisning="'],                      // KC-0128: a first source's preview in Nu (the moment "første kilde forbundet")
   ['start-kilde-kort', 'data-kilde-kort="'],                                  // KC-0128: a connect card from the registry in Start (steps 3 and 4)

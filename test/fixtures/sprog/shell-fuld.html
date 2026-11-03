@@ -25,14 +25,14 @@
       <div id="koe-list" class="card-list"><p class="muted row">Intet i gang.</p></div>
       <div class="revision"><div class="revision-head"><h3 class="eyebrow">Hvad Clawco har gjort</h3><button type="button" class="btn btn-ghost" data-revision-filter aria-pressed="false">Det Clawco sagde nej til</button></div><div class="revision-indhold" data-revision="liste"><p class="muted row">Henter …</p></div></div>
       <div class="kilder-panel" data-kilder="panel" hidden></div>
-      <div class="omkostninger-panel" data-omkostninger="panel" hidden></div>
+      <div class="omkostninger-panel" data-omkostninger="panel" hidden></div><div class="inkluderet-panel" data-inkluderet="panel" hidden></div>
       <div class="viden-link"><a class="btn btn-ghost" href="/viden">Hvad Clawco ved om dig</a></div>
       <div class="viden-link"><a class="btn btn-ghost" href="https://konto.example.com/hjaelp" data-hjaelp>Få hjælp</a></div>
       <div class="stoette-kort" data-stoette="til"><span class="eyebrow">Lad support se med</span><p class="row-note">Support kigger med til 13.00. Du kan slå det fra i det røde bånd.</p></div>
       <form id="indstillinger" class="indstillinger" onsubmit="return false">
-        <span class="eyebrow">Tænkeniveau</span>
+        <div class="felter" data-tier-felter><span class="eyebrow">Tænkeniveau</span>
         <label class="field"><span class="row-note">Småting (chat, handlinger, kladder)</span><input name="lille" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="lille"></span></label>
-        <label class="field"><span class="row-note">Analyse og forslag (bygge rum, udkast, forslag)</span><input name="taenker" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="taenker"></span></label>
+        <label class="field"><span class="row-note">Analyse og forslag (bygge rum, udkast, forslag)</span><input name="taenker" type="text" placeholder="Hermes' standard" maxlength="80"><span class="row-note model-navn" data-model-navn="taenker"></span></label></div>
         <span class="eyebrow">Hermes' stemme</span>
         <label class="field"><span class="row-note">Stemme</span><input name="voiceId" type="text" placeholder="vælges automatisk" maxlength="80"><span class="row-note">Tom = jeg vælger selv en dansk stemme.</span></label>
         <div class="actions"><button type="button" class="btn" id="indstillinger-gem">Gem</button><button type="button" class="btn btn-ghost" id="stemme-proev" data-sig="Hej Henrik. Sådan lyder jeg. Skal vi tage det, der venter?">Prøv stemmen</button><span class="row-note" id="indstillinger-status"></span></div>

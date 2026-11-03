@@ -1,10 +1,10 @@
 ---
-version: 1.0
-dato: 2026-11-02
+version: 1.1
+dato: 2026-11-03
 status: udgivet
 sprog: en
 ---
-Version 1.0 · 2026-11-02
+Version 1.1 · 2026-11-03
 
 > English translation of the Danish text. If the two versions differ, the Danish text applies.
 
@@ -46,7 +46,7 @@ The customer gives general authorisation for the subprocessors on our public lis
 
 We notify the customer by email at least 30 days before we add or replace a subprocessor. The customer may object within the 30 days if there is a good reason. If we cannot meet the objection, the customer may cancel the subscription at no extra cost, and we refund the unused part of the paid period.
 
-If the customer uses their own model key, the chosen model provider is the customer's own supplier, not our subprocessor.
+If the customer uses their own model key, the chosen model provider is the customer's own supplier, not our subprocessor. If the customer uses Clawco's AI that is included in the plan, Amazon Web Services EMEA SARL runs the model as our subprocessor in AWS' EU regions.
 
 ## 7. Transfers outside the EU
 

@@ -167,14 +167,14 @@ ${stoetteBaand(o)}
       <div id="koe-list" class="card-list"><p class="muted row">${T.intetIGang}</p></div>
       ${o.person?.rolle === 'gaest' ? '' : html`<div class="revision"><div class="revision-head"><h3 class="eyebrow">${T.hvadGjort}</h3><button type="button" class="btn btn-ghost" data-revision-filter aria-pressed="false">${T.sagdeNej}</button></div><div class="revision-indhold" data-revision="liste"><p class="muted row">${T.henter}</p></div></div>`}
       <div class="kilder-panel" data-kilder="panel" hidden></div>
-      ${!o.person || o.person.rolle === 'ejer' ? html`<div class="omkostninger-panel" data-omkostninger="panel" hidden></div>` : ''}
+      ${!o.person || o.person.rolle === 'ejer' ? html`<div class="omkostninger-panel" data-omkostninger="panel" hidden></div><div class="inkluderet-panel" data-inkluderet="panel" hidden></div>` : ''}
       ${!o.person || o.person.rolle === 'ejer' ? html`<div class="viden-link"><a class="btn btn-ghost" href="/viden">${T.hvadVed}</a></div>` : ''}
       ${o.hjaelp ? html`<div class="viden-link"><a class="btn btn-ghost" href="${o.hjaelp.href}" data-hjaelp>${T.faaHjaelp}</a></div>` : ''}${o.beta && (!o.person || o.person.rolle === 'ejer') ? html`<div class="viden-link"><a class="btn btn-ghost" href="/beta/deling" data-beta-deling-link>${T.hvadDeler}</a></div>` : ''}
       ${stoetteKort(o)}
       <form id="indstillinger" class="indstillinger" onsubmit="return false">
-        <span class="eyebrow">${T.taenkeniveau}</span>
+        <div class="felter" data-tier-felter><span class="eyebrow">${T.taenkeniveau}</span>
         <label class="field"><span class="row-note">${T.smaating}</span><input name="lille" type="text" placeholder="${T.hermesStandard}" maxlength="80"><span class="row-note model-navn" data-model-navn="lille"></span></label>
-        <label class="field"><span class="row-note">${T.analyse}</span><input name="taenker" type="text" placeholder="${T.hermesStandard}" maxlength="80"><span class="row-note model-navn" data-model-navn="taenker"></span></label>
+        <label class="field"><span class="row-note">${T.analyse}</span><input name="taenker" type="text" placeholder="${T.hermesStandard}" maxlength="80"><span class="row-note model-navn" data-model-navn="taenker"></span></label></div>
         ${o.stemme ? html`<span class="eyebrow">${T.hermesStemme}</span>
         <label class="field"><span class="row-note">${T.stemme}</span><input name="voiceId" type="text" placeholder="${T.stemmeAuto}" maxlength="80"><span class="row-note">${T.stemmeTom}</span></label>` : ''}
         <div class="actions"><button type="button" class="btn" id="indstillinger-gem">${T.gem}</button>${o.stemme ? html`<button type="button" class="btn btn-ghost" id="stemme-proev" data-sig="${T.stemmeProeve}">${T.proevStemmen}</button>` : ''}<span class="row-note" id="indstillinger-status"></span></div>

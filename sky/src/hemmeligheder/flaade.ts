@@ -6,6 +6,7 @@ import type { Database } from '../db/pool.ts';
 import { leverTilTenant, type KoerselMedInput } from './levering.ts';
 import type { Noeglering } from './masternoegle.ts';
 import { markerSlettet, opretTenantNoegle } from './tenantnoegle.ts';
+import { leverModelToken, modelToken, sikrModelToken, tilbagekaldModelToken } from './modeltoken.ts';
 
 type Dele = { db: Database; koer: KoerselMedInput; nu: () => Date };
 
@@ -17,9 +18,20 @@ export type FlaadeNoegler = {
 
 export function flaadeNoegler(o: Dele & { ring: Noeglering }): FlaadeNoegler {
   return {
-    async sikr(slug) { await opretTenantNoegle(o.db, o.ring, slug, o.nu()); },
-    lever: (slug, container) => leverTilTenant({ db: o.db, ring: o.ring, tenant: slug, container, koer: o.koer }),
-    async markerSlettet(slug) { await markerSlettet(o.db, slug, o.nu()); },
+    async sikr(slug) {
+      await opretTenantNoegle(o.db, o.ring, slug, o.nu());
+      await sikrModelToken(o.db, o.ring, slug, o.nu());
+    },
+    // KC-0264: the model token goes with the lager key after every start; a tenant made before it gets one here.
+    async lever(slug, container) {
+      await leverTilTenant({ db: o.db, ring: o.ring, tenant: slug, container, koer: o.koer });
+      await sikrModelToken(o.db, o.ring, slug, o.nu());
+      await leverModelToken({ koer: o.koer, container, token: await modelToken(o.db, o.ring, slug) });
+    },
+    async markerSlettet(slug) {
+      await markerSlettet(o.db, slug, o.nu());
+      await tilbagekaldModelToken(o.db, slug, o.nu());
+    },
   };
 }
 
@@ -28,5 +40,5 @@ export function flaadeNoegler(o: Dele & { ring: Noeglering }): FlaadeNoegler {
  *  so a customer's deletion is never held up by it. */
 export function ingenMasternoegle(o: Dele): FlaadeNoegler {
   const nej = (): Promise<never> => Promise.reject(new Error('SKY_MASTERNOEGLE mangler: ingen beholder startes uden en nøgle til kunden (sky/deploy/NOEGLE.md)'));
-  return { sikr: nej, lever: nej, async markerSlettet(slug) { await markerSlettet(o.db, slug, o.nu()); } };
+  return { sikr: nej, lever: nej, async markerSlettet(slug) { await markerSlettet(o.db, slug, o.nu()); await tilbagekaldModelToken(o.db, slug, o.nu()); } };
 }

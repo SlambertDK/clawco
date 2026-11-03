@@ -37,7 +37,7 @@ test('the real file validates, has the rule in its header, and breaks no invaria
   assert.deepEqual(d.behandlinger.map((b) => b.id), [
     'konto-login', 'betaling', 'instans', 'transaktionsmail', 'fejlrapporter', 'sikkerhedskopier', 'support-indblik', 'statusfeed',
   ]);
-  assert.deepEqual(d.underdatabehandlere.map((u) => u.id), ['cloudflare', 'stripe', 'resend']);
+  assert.deepEqual(d.underdatabehandlere.map((u) => u.id), ['cloudflare', 'stripe', 'resend', 'aws']); // KC-0266: AWS runs the included model
 });
 
 test('valider: a missing or empty field is refused with its path', () => {
@@ -101,9 +101,9 @@ test('D13: a provider outside the EU/EEA needs a stated basis in both languages;
   d.behandlinger[0].modtagere.push('usa-leverandoer');
   const fejl = tjekBehandlinger(valider(d)).join('\n');
   assert.match(fejl, /usa-leverandoer.*grundlag|usa-leverandoer.*basis/i);
-  d.underdatabehandlere[3].grundlag = { da: 'EU\'s standardkontrakter', en: 'EU Standard Contractual Clauses' };
+  d.underdatabehandlere.find((u: { id: string }) => u.id === 'usa-leverandoer')!.grundlag = { da: 'EU\'s standardkontrakter', en: 'EU Standard Contractual Clauses' };
   assert.deepEqual(tjekBehandlinger(valider(d)), []);
-  d.underdatabehandlere[3].grundlag = { da: 'EU\'s standardkontrakter', en: '' };
+  d.underdatabehandlere.find((u: { id: string }) => u.id === 'usa-leverandoer')!.grundlag = { da: 'EU\'s standardkontrakter', en: '' };
   assert.match(tjekBehandlinger(valider(d)).join('\n'), /usa-leverandoer/);
 });
 
@@ -178,14 +178,17 @@ test('the generated public texts are valid published documents: frontmatter, no 
   }
 });
 
-test('v1.1 replaces v1.0; the published 1.0 is archived unchanged so the page can show it', () => {
+test('v1.2 (AWS added, KC-0266) replaces v1.1 and v1.0; the published earlier versions are archived unchanged so the page can show them', () => {
   const alle = laesDokumenter(DOCS);
   for (const sprog of ['da', 'en'] as const) {
     const dok = alle.find((x) => x.id === 'underdatabehandlere' && x.sprog === sprog)!;
-    assert.equal(dok.meta.version, '1.1');
-    assert.deepEqual(dok.tidligere.map((t) => t.meta.version), ['1.0']);
-    assert.equal(dok.tidligere[0]!.meta.status, 'udgivet');
-    assert.match(dok.tidligere[0]!.raa, /\[dato\]|\[date\]/, 'the archive keeps the text as it was published');
+    assert.equal(dok.meta.version, '1.2');
+    assert.deepEqual(dok.tidligere.map((t) => t.meta.version).sort(), ['1.0', '1.1']);
+    for (const t of dok.tidligere) assert.equal(t.meta.status, 'udgivet');
+    const v10 = dok.tidligere.find((t) => t.meta.version === '1.0')!;
+    assert.match(v10.raa, /\[dato\]|\[date\]/, 'the archive keeps the text as it was published');
+    const v11 = dok.tidligere.find((t) => t.meta.version === '1.1')!;
+    assert.doesNotMatch(v11.raa, /Amazon Web Services/, 'the archived 1.1 is the list before AWS');
   }
 });
 
@@ -295,7 +298,7 @@ test('the matcher: an unlisted host fails, a wildcard covers its own subdomains,
 /** The files in sky/src that can open a connection to something outside the process, and whom each one talks to.
  *  A provider id is an entry in `underdatabehandlere`; a behandling id is an activity; `intern` is our own
  *  tenant containers. A new file that calls out fails here until it is put on the right line. */
-const UDGAAENDE: Record<string, { til: 'underdatabehandler' | 'behandling' | 'intern'; id?: string; vaerter?: string[] }> = {
+const UDGAAENDE: Record<string, { til: 'underdatabehandler' | 'behandling' | 'intern' | 'planlagt'; id?: string; vaerter?: string[] }> = {
   'drift/backup/lager.ts': { til: 'underdatabehandler', id: 'cloudflare' },
   'abonnement/stripe-sdk.ts': { til: 'underdatabehandler', id: 'stripe', vaerter: ['api.stripe.com'] },
   'delt/post-udbyder.ts': { til: 'underdatabehandler', id: 'resend' },
@@ -303,11 +306,21 @@ const UDGAAENDE: Record<string, { til: 'underdatabehandler' | 'behandling' | 'in
   'fleet/provisioner.ts': { til: 'intern' },
   'gateway/kontrolkald.ts': { til: 'intern' },
   'gateway/tenantkald.ts': { til: 'intern' },
+  // KC-0264: the included model's providers. 'planlagt' = Sky can call them only once they are listed here (the runtime gate
+  // juridiskGodkendt in that file keeps the proxy at 503 until then); KC-0266 lists them and turns this line into 'underdatabehandler'.
+  // KC-0266: the included model runs on Bedrock (AWS, EU); Anthropic direct stays unlisted and its gate refuses it.
+  'model/udbyder.ts': { til: 'underdatabehandler', id: 'aws', vaerter: ['bedrock-runtime.eu-central-1.amazonaws.com'] },
 };
+
+/** The hosts the model proxy's providers live on (config/modelpriser.json, {region} filled in). */
+function modelVaerter(): string[] {
+  const p = JSON.parse(readFileSync(path.join(ROD, 'config/modelpriser.json'), 'utf8')) as { udbydere: Record<string, { url: string; region?: string }> };
+  return Object.values(p.udbydere).map((u) => new URL(u.url.replace('{region}', u.region ?? '')).hostname);
+}
 
 test('the files in sky/src that call out are the known ones, each tied to a listed provider or activity', () => {
   const d = rigtige();
-  const moenster = /(^|[^.A-Za-z0-9_])fetch\(|\?\? *fetch\b|= *fetch\b|new Stripe\(|node:https|https\.request|net\.connect|tls\.connect/;
+  const moenster = /(^|[^.A-Za-z0-9_])fetch\(|\?\? *fetch\b|= *fetch\b|new Stripe\(|new Anthropic\(|new AnthropicBedrock\(|new AnthropicBedrockMantle\(|node:https|https\.request|net\.connect|tls\.connect/;
   const fundet = tsFiler(SKY).filter((f) => moenster.test(readFileSync(f, 'utf8'))).map((f) => path.relative(SKY, f)).sort();
   assert.deepEqual(fundet, Object.keys(UDGAAENDE).sort(), 'a new file that calls out needs an entry in docs/legal/behandlinger.json and a line here');
   for (const [fil, e] of Object.entries(UDGAAENDE)) {
@@ -317,6 +330,10 @@ test('the files in sky/src that call out are the known ones, each tied to a list
       for (const h of e.vaerter ?? []) assert.ok(daekker(u.vaerter, h), `${fil}: ${h} is among ${e.id}'s hosts`);
     } else if (e.til === 'behandling') {
       assert.ok(d.behandlinger.some((b) => b.id === e.id), `${fil}: ${e.id} is a recorded activity`);
+    } else if (e.til === 'planlagt') {
+      assert.match(readFileSync(path.join(SKY, fil), 'utf8'), /juridiskGodkendt/, `${fil}: carries the gate that refuses an unlisted provider`);
+      const vaerter = d.underdatabehandlere.flatMap((u) => u.vaerter);
+      for (const h of modelVaerter()) assert.ok(!daekker(vaerter, h), `${h} is listed now: tie ${fil} to its provider instead of 'planlagt' (${e.id})`);
     }
   }
 });

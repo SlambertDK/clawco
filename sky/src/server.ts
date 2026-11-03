@@ -46,7 +46,7 @@ import { StripeBetalingsKlient } from './abonnement/stripe-sdk.ts';
 import { FalskBetalingsKlient } from './abonnement/falsk.ts';
 import { anvend, planlaeg } from './abonnement/opsaet.ts';
 import { opsaetPortal, portalReturUrl } from './abonnement/portal.ts';
-import { laesPriser } from './abonnement/priser.ts';
+import { laesPriser, type Priser } from './abonnement/priser.ts';
 import { opsigVedSletning } from './abonnement/kunde.ts';
 import { hentRettigheder, kontiMedAdgang } from './abonnement/synk.ts';
 import { kontoResume } from './abonnement/render.ts';
@@ -90,9 +90,13 @@ import { byggFeed, feedCache, statusOrigin, statusRuter, type StatusDeps } from 
 import { adgangsProbe, maaltPost, type KomponentDeps } from './drift/helbred/komponenter.ts';
 import { noterPost } from './drift/helbred/historik.ts';
 import { pollerLoekke } from './drift/helbred/poller.ts';
+import { modelRuter, type ModelDeps } from './model/ruter.ts';
+import { laesModelpriser, type Modelpriser } from './model/priser.ts';
+import { ibrugtagningFor, juridiskGodkendt, laesBehandlingsdata, laesUdbyder, maaBehandle } from './model/udbyder.ts';
+import { MODEL_TOKEN_STI, tenantForModelToken } from './hemmeligheder/modeltoken.ts';
 
 export type DevStripe = Parameters<typeof devStripeRuter>[0];
-export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport; status?: StatusDeps };
+export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport; status?: StatusDeps; model?: ModelDeps };
 
 export function createSkyApp(deps: SkyDeps): Hono {
   const app = new Hono();
@@ -110,6 +114,8 @@ export function createSkyApp(deps: SkyDeps): Hono {
   });
   // KC-0189: the public status feed (counts only); its handler ends the chain like /health.
   if (deps.status) app.route('/', statusRuter(deps.status));
+  // KC-0264: the model proxy, ahead of konto (whose '*' middleware caps bodies at 64 KB and sets its own CSP).
+  if (deps.model) app.route('/', modelRuter(deps.model));
   // Billing first: its handlers end the chain, so konto's '*' middleware (64 KB body limit, its own
   // CSP) never runs on the webhook or the plan pages.
   if (deps.abonnement) app.route('/', abonnementRuter(deps.abonnement));
@@ -141,7 +147,9 @@ export function tenantMiljoeFra(config: SkyConfig, db: Database): (slug: string)
   return async (slug) => {
     const t = await hentTenant(db, slug);
     const profil = t ? await hentProfil(db, t.ejerKontoId) : null;
-    return tenantMiljoe({ adresse: tenantOrigin(slug, config.publicUrl, config.basedomain), sprog: profil?.sprog ?? null });
+    // KC-0264: with the included model switched on, the proxy's address and the PATH of the token file (delivered after each start).
+    const model = config.inkluderetModel ? { proxyUrl: `${new URL(config.publicUrl).origin}/model`, tokenFil: MODEL_TOKEN_STI } : null;
+    return tenantMiljoe({ adresse: tenantOrigin(slug, config.publicUrl, config.basedomain), sprog: profil?.sprog ?? null, model });
   };
 }
 
@@ -393,6 +401,48 @@ export function velkomstDeps(o: { db: Database; basedomain: string; koeb: KoebDe
   };
 }
 
+/** KC-0264: the model proxy's seams. On only when all three hold: the switch (SKY_INKLUDERET_MODEL=ja), a provider with its
+ *  keys (`laest`, from model/udbyder.ts laesUdbyder, read in main before any child process starts), and that provider's
+ *  host listed as a subprocessor in docs/legal/behandlinger.json (KC-0266 adds it once Henrik has chosen). Otherwise every
+ *  call is 503 and `besked` (key names only) says why. What a tenant may use is its owner's plan (config/priser.json
+ *  inkluderetModel) while the owner has a trial, a plan (also paused or overdue) or a gift; the token is looked up in
+ *  hemmeligheder/modeltoken.ts. KC-0266: an owner whose account predates the provider's addition to the list waits until the
+ *  provider's start date (the list's 30 days' notice). */
+export function modelFra(o: { config: SkyConfig; db: Database; priser: Priser; laest: ReturnType<typeof laesUdbyder>; modelpriser?: Modelpriser; behandlinger?: Parameters<typeof juridiskGodkendt>[1] }): { deps: ModelDeps; besked: string } {
+  const { db, priser } = o;
+  const modelpriser = o.modelpriser ?? laesModelpriser();
+  let udbyder = null;
+  let besked: string;
+  const behandlinger = o.behandlinger === undefined ? laesBehandlingsdata() : o.behandlinger;
+  // KC-0266: the provider's start date from the list (its 30 days' notice to customers who existed before it was added).
+  const start = ibrugtagningFor(o.laest.vaert ?? '', behandlinger);
+  if (!o.config.inkluderetModel) besked = 'slået fra (SKY_INKLUDERET_MODEL er ikke ja)';
+  else if (!o.laest.udbyder) besked = `slået til, men svarer 503: ${o.laest.grund}`;
+  else if (!juridiskGodkendt(o.laest.vaert ?? '', behandlinger)) besked = `slået til, men svarer 503: ${o.laest.vaert} er ikke en underdatabehandler i docs/legal/behandlinger.json (KC-0266)`;
+  else { udbyder = o.laest.udbyder; besked = `slået til via ${udbyder.navn} (${o.laest.vaert})`; }
+  return {
+    besked,
+    deps: {
+      db, priser: modelpriser, udbyder,
+      tenantForToken: (token) => tenantForModelToken(db, token),
+      inkluderet: async (slug, nu) => {
+        const t = await hentTenant(db, slug);
+        if (!t || t.tilstand === 'slettet' || t.tilstand === 'afvikles') return null;
+        const r = await hentRettigheder(db, t.ejerKontoId, priser, nu);
+        // Every state in which the Clawco keeps running (the help texts promise a paused or overdue plan stops nothing,
+        // site/hjaelp trial and payment-failed); a cancelled plan or none includes no model. The cap bounds the cost either way.
+        const aktiv = r.status === 'proeve' || r.status === 'aktiv' || r.status === 'forfalden' || r.status === 'pause';
+        const m = aktiv && Object.hasOwn(priser.planer, r.plan) ? priser.planer[r.plan]!.inkluderetModel : undefined;
+        if (!m) return null;
+        // KC-0266: an owner whose account is older than the provider's addition is processed from its start date only.
+        const ejer = await hentKonto(db, t.ejerKontoId);
+        if (!ejer || !maaBehandle(start, ejer.oprettet, nu)) return null;
+        return { loftMikroUsd: m.loftMikroUsd, modeller: [...m.modeller] };
+      },
+    },
+  };
+}
+
 export type GatewayForbindelse = { noegle: GatewayNoegle | null; fejl: string | null; status: 'ok' | 'mangler'; ruter: RuteTabel; loginVej: LoginVejDeps; stoette: StoetteSeams; stoetteSide: StoetteSideDeps };
 
 export async function forbind(config: SkyConfig, db: Database, env: Record<string, string | undefined>, n: Noegler = noeglering(env)): Promise<{ konto: KontoDeps; abonnement: AbonnementDeps; dev: DevStripe | null; flaade: AfstemDeps | null; noegler: 'ok' | 'mangler'; noeglefejl: string | null; gateway: GatewayForbindelse; adgang: ReturnType<typeof kontoAdgang>; tilmelding: TilmeldingDeps }> {
@@ -556,6 +606,13 @@ export async function main(): Promise<void> {
   }
   // KC-0185: read (and remove from the environment) the R2 credentials before any child process is started.
   const kopiConfig = laesKopiConfig(process.env);
+  // KC-0264: the model provider's keys, read (and removed from the environment) before any child process starts.
+  let modelLaest: ReturnType<typeof laesUdbyder>;
+  try { modelLaest = laesUdbyder(process.env, laesModelpriser()); } catch (err) {
+    console.error(`sky: ${(err as Error).message}`);
+    process.exitCode = 1;
+    return;
+  }
   // KC-0187 (D16): error reports, always on with a DSN; read (and removed from env) before any child process starts.
   const fejl = skyFejlrapport(process.env, { release: gitSha() });
   console.log(`sky: ${fejl.grund}`);
@@ -624,7 +681,9 @@ export async function main(): Promise<void> {
   });
   console.log(`sky: status på ${new URL(config.publicUrl).origin}/status.json${statusSide ? ` (CORS for ${statusSide})` : ' (SKY_STATUS_ORIGIN ikke sat: ingen CORS)'}`);
   const status: StatusDeps = { feed: feedCache({ bygg: () => byggFeed(db, new Date()) }), origin: statusSide, side: `${statusSide ?? new URL(config.publicUrl).origin}/status`, feedUrl: `${new URL(config.publicUrl).origin}/status.atom` };
-  const skyApp = createSkyApp({ db, sha: gitSha(), startet, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, ...(noegleskiftFra(config) ? { noegleskift: 'forberedt' as const } : {}), loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, ...fl });
+  const model = modelFra({ config, db, priser: f.abonnement.priser, laest: modelLaest });
+  console.log(`sky: inkluderet model ${model.besked}`);
+  const skyApp = createSkyApp({ db, sha: gitSha(), startet, model: model.deps, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, ...(noegleskiftFra(config) ? { noegleskift: 'forberedt' as const } : {}), loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, ...fl });
   const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette, noterSet: noterSet({ db }) });
   // KC-0203: once a day (a pass at start) the klar beta tenants are asked for their consented measures over the signed
   // control call; a pass with no beta household is one query.

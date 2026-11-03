@@ -58,11 +58,18 @@ const SKRIVER = [
 
 const CONTAINER = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/;
 
+/** Pipes one 32-byte value (base64) into a file on the running container's tmpfs, on stdin. A failure names the container
+ *  and Docker's message, never the value. Shared by the lager key and the model token (KC-0264, modeltoken.ts). */
+export async function leverTilFil(o: { koer: KoerselMedInput; container: string; base64: string; sti: string }): Promise<void> {
+  if (!CONTAINER.test(o.container)) throw new Error('ugyldigt containernavn');
+  if (!o.sti.startsWith(`${NOEGLE_MAPPE}/`)) throw new Error('kun filer på nøglernes tmpfs');
+  const r = await o.koer(['docker', 'exec', '-i', o.container, 'node', '-e', SKRIVER, o.sti], `${o.base64}\n`);
+  if (r.kode !== 0) throw new Error(`nøglen kunne ikke leveres til ${o.container} (${r.kode}): ${r.fejl.trim().slice(0, 200)}`);
+}
+
 /** Pipes one key into the running container's tmpfs. A failure names the container and Docker's message, never the key. */
 export async function leverLagerNoegle(o: { koer: KoerselMedInput; container: string; noegle: Hemmelig }): Promise<void> {
-  if (!CONTAINER.test(o.container)) throw new Error('ugyldigt containernavn');
-  const r = await o.koer(['docker', 'exec', '-i', o.container, 'node', '-e', SKRIVER, NOEGLE_STI], `${o.noegle.aaben().toString('base64')}\n`);
-  if (r.kode !== 0) throw new Error(`nøglen kunne ikke leveres til ${o.container} (${r.kode}): ${r.fejl.trim().slice(0, 200)}`);
+  await leverTilFil({ koer: o.koer, container: o.container, base64: o.noegle.aaben().toString('base64'), sti: NOEGLE_STI });
 }
 
 /** The one call after a tenant container starts: open its DEK, derive `lager`, deliver it, forget both. */

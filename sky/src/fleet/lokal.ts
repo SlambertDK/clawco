@@ -134,8 +134,17 @@ export function tenantKoersel(o: { tenantId: string; gateway: string; kontoPubke
  *  it the tenant's Google cards say the owner must set it, which no customer can. `sprog` is the language the owner chose at
  *  sign-up = KC_SPROG, read by a NEW data folder only (the tenant's store/installation.ts), so Start does not ask again.
  *  Each is left out when unknown; a value that is not a bare origin or a known language is refused, never passed on. */
-export function tenantMiljoe(o: { adresse: string | null; sprog: 'da' | 'en' | null }): Record<string, string> {
+export function tenantMiljoe(o: { adresse: string | null; sprog: 'da' | 'en' | null;
+  /** KC-0264: the included model, when Sky's proxy is on: its URL (KC_MODEL_PROXY_URL) and the PATH of the token file on the
+   *  private key tmpfs (KC_MODEL_TOKEN_FIL; the token itself is delivered after each start, never in env). */
+  model?: { proxyUrl: string; tokenFil: string } | null }): Record<string, string> {
   const ud: Record<string, string> = {};
+  if (o.model) {
+    if (!/^https?:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?\/model$/.test(o.model.proxyUrl)) throw new Error('ugyldig model-adresse: skal være Skys oprindelse efterfulgt af /model');
+    if (!/^\/run\/secrets\/[a-z-]+$/.test(o.model.tokenFil)) throw new Error('ugyldig model-nøglefil: skal ligge på nøglernes tmpfs (/run/secrets)');
+    ud['KC_MODEL_PROXY_URL'] = o.model.proxyUrl;
+    ud['KC_MODEL_TOKEN_FIL'] = o.model.tokenFil;
+  }
   if (o.adresse !== null) {
     if (!/^https?:\/\/[a-z0-9]([a-z0-9.-]*[a-z0-9])?(:\d{1,5})?$/.test(o.adresse)) throw new Error('ugyldig tenant-adresse: skal være en ren oprindelse (skema, værtsnavn og evt. port), uden sti');
     ud['KC_ADRESSE'] = o.adresse;

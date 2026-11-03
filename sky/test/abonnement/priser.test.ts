@@ -26,8 +26,9 @@ test('the real price file is approved and carries the prices Henrik said yes to'
   assert.equal(p.fristVedFejl, 14);
   assert.equal(p.paamindelseVedFejl, 7);
   assert.deepEqual(Object.keys(p.planer), ['sky-solo', 'sky-husstand']);
-  assert.deepEqual(p.planer['sky-solo'], { navn: 'Sky Solo', medlemmer: 1, maanedlig: { dkk: 7900, eur: 1060 }, aarlig: { dkk: 79000, eur: 10600 } });
-  assert.deepEqual(p.planer['sky-husstand'], { navn: 'Sky Husstand', medlemmer: 6, maanedlig: { dkk: 12900, eur: 1730 }, aarlig: { dkk: 129000, eur: 17300 } });
+  // KC-0264 (Henrik 2026-11-03, D1): every Sky plan includes the Calm model up to a monthly cap; a household shares its cap.
+  assert.deepEqual(p.planer['sky-solo'], { navn: 'Sky Solo', medlemmer: 1, maanedlig: { dkk: 7900, eur: 1060 }, aarlig: { dkk: 79000, eur: 10600 }, inkluderetModel: { loftMikroUsd: 4_000_000, modeller: ['claude-haiku-5-5'] } });
+  assert.deepEqual(p.planer['sky-husstand'], { navn: 'Sky Husstand', medlemmer: 6, maanedlig: { dkk: 12900, eur: 1730 }, aarlig: { dkk: 129000, eur: 17300 }, inkluderetModel: { loftMikroUsd: 8_000_000, modeller: ['claude-haiku-5-5'] } });
   assert.equal(p.tilvalg['inkluderet-model']?.status, 'senere');
   assert.equal(p.tilvalg['inkluderet-model']?.fraMaanedlig.dkk, 4900);
 });
@@ -112,4 +113,21 @@ test('an unknown key is a typo, not silently ignored', () => {
 
 test('a missing or broken file names the path, not a stack of JSON internals', () => {
   assert.throws(() => laesPriser('/findes/ikke/priser.json'), /priser\.json/);
+});
+
+test('KC-0264: inkluderetModel is optional per plan, and when present needs a whole positive cap and at least one model id', () => {
+  const r = raa(); delete r.planer['sky-solo'].inkluderetModel;
+  assert.equal(validerPriser(r).planer['sky-solo']!.inkluderetModel, undefined, 'a plan without it includes no model');
+  afviser((x) => { x.planer['sky-solo'].inkluderetModel.loftMikroUsd = 0; }, 'planer.sky-solo.inkluderetModel.loftMikroUsd');
+  afviser((x) => { x.planer['sky-solo'].inkluderetModel.loftMikroUsd = 1.5; }, 'planer.sky-solo.inkluderetModel.loftMikroUsd');
+  afviser((x) => { x.planer['sky-solo'].inkluderetModel.modeller = []; }, 'planer.sky-solo.inkluderetModel.modeller');
+  afviser((x) => { x.planer['sky-solo'].inkluderetModel.modeller = ['Claude Haiku']; }, 'planer.sky-solo.inkluderetModel.modeller');
+  afviser((x) => { x.planer['sky-solo'].inkluderetModel.ekstra = 1; }, 'planer.sky-solo.inkluderetModel.ekstra');
+  afviser((x) => { x.planer['sky-solo'].ekstra = 1; }, 'planer.sky-solo.ekstra');
+});
+
+test('KC-0264: the add-on "Inkluderet model" is superseded by the included Calm model, and says so; its line stays for the price page', () => {
+  const r = raa();
+  assert.match(r.tilvalg['inkluderet-model']._note, /KC-0264/);
+  assert.match(r.tilvalg['inkluderet-model']._note, /superseded/i);
 });

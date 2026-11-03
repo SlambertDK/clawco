@@ -11,7 +11,7 @@ import { dagensLog } from '../../shell/log.ts';
 import type { LogEntry } from '../../store/types.ts';
 import { NIVEAUER, type ModelSyn, type Niveau, type Trin } from './trin.ts';
 import { NAVN_MAKS, type Forslag, type Profil, type StartModel, type StartRet, type TrinStatus } from './schema.ts';
-import { UDBYDERE, udbyderAf, type Udbyder } from './udbydere.ts';
+import { INKLUDERET, UDBYDERE, udbyderAf, type Udbyder } from './udbydere.ts';
 import { erModelFejlArt, type ModelFejlArt } from './modelfejl.ts';
 import type { AgentStatus } from '../../agent/types.ts';
 import type { GithubTilstand } from '../../agent/github-enhed.ts';
@@ -26,6 +26,8 @@ import { renderDanmarkPakke, type AulaStartVisning } from './danmarkpakke.ts';
 import { startTekst } from './tekster.ts';
 import { sprogNu, tekst } from '../../shell/tekster.ts';
 import { klokkeIso } from '../../shell/friskhed.ts';
+import { renderMaaler } from '../../shell/inkluderet.ts';
+import type { Forbrug } from '../../agent/inkluderet.ts';
 
 const FORTRYD_TIMER = 24;
 
@@ -47,6 +49,11 @@ export type StartVisning = {
     syn: ModelSyn; agent: AgentStatus; gemt?: StartModel; kanGemme: boolean;
     /** KC-0245: the built-in agent (no Hermes): only providers it can call, and no Hermes wording. */ direkte?: boolean;
     /** KC-0263: the GitHub sign-in for Copilot (only beside the built-in agent). */ github?: GithubTilstand;
+    /**
+     * KC-0265: Clawco's AI included in a Sky plan (absent = this installation does not have it, so it is never offered).
+     * `valgt` = it is the chosen one, or nothing is chosen yet (the installation is about to choose it).
+     */
+    inkluderet?: { valgt: boolean; forbrug?: Forbrug; brugt?: { nulstilles?: string }; utilgaengelig: boolean };
   };
   /** KC-0128: steps 3–4 — the registry's cards, the previews and step 4's pile; absent = nothing to connect. */
   kilder?: KildeVisning;
@@ -119,7 +126,8 @@ function githubIndhold(m: NonNullable<StartVisning['model']>): Markup {
 /** Step 2's form: provider, key (write-only) or local address, the two tiers' models with the discovered names offered. */
 function modelForm(m: NonNullable<StartVisning['model']>): Markup {
   // KC-0263: Copilot needs Clawco's GitHub app; without it (no client id) the choice is not shown at all (KC-0052).
-  const udbydere = (m.direkte ? UDBYDERE.filter((u) => u.direkte) : UDBYDERE)
+  // KC-0265: Clawco's AI first, where the installation has it, so going back to it is one choice.
+  const udbydere = [...(m.inkluderet ? [INKLUDERET] : []), ...(m.direkte ? UDBYDERE.filter((u) => u.direkte) : UDBYDERE)]
     .filter((u) => !(medGithub(m, u) && (m.github?.tilstand ?? 'ikke-sat-op') === 'ikke-sat-op'));
   const igang = githubIGang(m.github) ? udbydere.find((u) => medGithub(m, u)) : undefined;
   const valgt = igang ?? udbydere.find((u) => u.id === m.syn.udbyder) ?? udbydere[0]!;
@@ -128,15 +136,17 @@ function modelForm(m: NonNullable<StartVisning['model']>): Markup {
   const gemt = m.gemt?.udbyder === valgt.id ? m.gemt : undefined;
   const navne = gemt?.navne ?? [];
   const forslag = [...new Set([...navne, valgt.standardModeller.lille, valgt.standardModeller.taenker])];
-  const lokal = !valgt.kraeverNoegle;
+  const inkl = Boolean(valgt.inkluderet);
+  const lokal = !valgt.kraeverNoegle && !inkl;
   const vaerdi = (n: Niveau): string => (m.syn.udbyder === valgt.id ? m.syn.modeller[n] : undefined) ?? valgt.standardModeller[n];
   const T = startTekst();
+  const modelFelter = html`${NIVEAUER.map((n) => html`<label class="field"><span class="row-note">${T.nyModel(T.niveau[n])}</span><input name="${n}" type="text" list="model-navne" spellcheck="false" maxlength="80" value="${vaerdi(n)}"></label>`)}
+    <datalist id="model-navne">${forslag.map((x) => html`<option value="${x}"></option>`)}</datalist>`;
   return html`<form id="model-form" class="nyt-form" onsubmit="return false" autocomplete="off">
-    <label class="field"><span class="row-note">${T.udbyder}</span><select name="udbyder" data-model-udbyder>${udbydere.map((u) => html`<option value="${u.id}"${medGithub(m, u) ? html` data-login="github"` : html` data-placeholder="${T.noeglePlaceholder(u)}"`}${u.kraeverNoegle ? '' : html` data-lokal`}${u.id === valgt.id ? html` selected` : ''}>${T.udbyderNavn(u)}</option>`)}</select></label>
-    ${harGithub ? html`<div class="field" data-model-felt="github"${github ? '' : html` hidden`}>${githubIndhold(m)}</div>` : ''}<label class="field" data-model-felt="noegle"${lokal || github ? html` hidden` : ''}><span class="row-note">${T.noegleFra}${gemt?.noegle ? T.beholdGemte : ''}</span><input name="noegle" type="password" autocomplete="off" spellcheck="false" placeholder="${valgt.kraeverNoegle && !github ? T.noeglePlaceholder(valgt) : ''}"></label>
+    <label class="field"><span class="row-note">${T.udbyder}</span><select name="udbyder" data-model-udbyder>${udbydere.map((u) => html`<option value="${u.id}"${u.inkluderet ? html` data-clawco-ai` : medGithub(m, u) ? html` data-login="github"` : html` data-placeholder="${T.noeglePlaceholder(u)}"`}${u.kraeverNoegle || u.inkluderet ? '' : html` data-lokal`}${u.id === valgt.id ? html` selected` : ''}>${T.udbyderNavn(u)}</option>`)}</select></label>
+    ${harGithub ? html`<div class="field" data-model-felt="github"${github ? '' : html` hidden`}>${githubIndhold(m)}</div>` : ''}<label class="field" data-model-felt="noegle"${lokal || github || inkl ? html` hidden` : ''}><span class="row-note">${T.noegleFra}${gemt?.noegle ? T.beholdGemte : ''}</span><input name="noegle" type="password" autocomplete="off" spellcheck="false" placeholder="${valgt.kraeverNoegle && !github && !inkl ? T.noeglePlaceholder(valgt) : ''}"></label>
     <label class="field" data-model-felt="url"${lokal ? '' : html` hidden`}><span class="row-note">${T.adressen}</span><input name="url" type="url" inputmode="url" spellcheck="false" value="${lokal ? (gemt?.url ?? '') : ''}" placeholder="${valgt.standardUrl ?? 'http://127.0.0.1:1234'}"></label>
-    ${NIVEAUER.map((n) => html`<label class="field"><span class="row-note">${T.nyModel(T.niveau[n])}</span><input name="${n}" type="text" list="model-navne" spellcheck="false" maxlength="80" value="${vaerdi(n)}"></label>`)}
-    <datalist id="model-navne">${forslag.map((x) => html`<option value="${x}"></option>`)}</datalist>
+    ${m.inkluderet ? html`<div class="felter" data-model-felt="modeller"${inkl ? html` hidden` : ''}>${modelFelter}</div>` : modelFelter}
     <div class="actions"><button type="button" class="btn btn-primary" data-aktion="model-gem" data-form="model-form" data-status="${T.gemmerOgProever}">${T.gemOgTest}</button></div>
   </form>`;
 }
@@ -162,10 +172,29 @@ function noegleLinje(m: NonNullable<StartVisning['model']>, klaret = false): Mar
   return g.url ? html`<p class="row-note">${T.adresse}<span class="mono">${g.url}</span></p>` : html``;
 }
 
+/**
+ * KC-0265: the card of Clawco's AI included in the plan, in plain words: no key, no provider, no model name (those are
+ * behind the quiet link). One state at a time: it works (and the month's meter), it is being made ready, its test failed
+ * (the fixed sentence, a try-again), the month's allowance is used up, or the proxy is not available right now.
+ */
+function inkluderetKort(m: NonNullable<StartVisning['model']>, status: TrinStatus): Markup {
+  const I = startTekst().inkluderet;
+  const ink = m.inkluderet!;
+  const tests = NIVEAUER.map((n) => { const t = m.syn.test[n]; return t && t.rev === m.syn.rev[n] ? t : undefined; });
+  const fejl = tests.find((t) => t && !t.ok);
+  const tilstand = ink.utilgaengelig ? 'utilgaengelig' : ink.brugt ? 'brugt' : status === 'klaret' ? 'ok' : fejl ? 'fejl' : 'proever';
+  const linje = { utilgaengelig: I.utilgaengelig, brugt: I.brugt, ok: I.ok, fejl: fejl ? testTekst(fejl) : '', proever: I.proever }[tilstand];
+  const igen = tilstand === 'fejl' && m.kanGemme ? html`<div class="actions"><button type="button" class="btn btn-ghost" data-aktion="model-gem" data-arg="${JSON.stringify({ udbyder: INKLUDERET.id })}" data-status="${I.proeverIgen}">${I.proevIgen}</button></div>` : '';
+  return html`<div data-inkluderet="${tilstand}"><p class="row-note">${linje}</p>${ink.forbrug && tilstand !== 'proever' ? renderMaaler(ink.forbrug) : ''}${igen}</div>`;
+}
+
 function modelIndhold(status: TrinStatus, v: StartVisning): Markup {
   const m = v.model;
   const T = startTekst();
   if (!m) return html`<p class="row-note">${T.ingenDatamappe}</p>`;
+  // KC-0265: where Clawco's AI is the chosen one, the card is the plain one and the form (every provider, with keys and model
+  // names) waits behind the quiet link "Use the AI you already have"; the tier rows, which name the model, are not shown.
+  if (m.inkluderet?.valgt) return html`${inkluderetKort(m, status)}${m.kanGemme ? mere(modelForm(m), startTekst().inkluderet.brugEgen) : ''}`;
   if (m.agent === 'mangler-noegle') {
     if (!m.kanGemme) return html`<p class="row-note">${T.ingenAgentNoegleEjer}</p>`;
     return html`<p class="row-note" data-model-agent="mangler-noegle">${T.ingenAgentNoegle}</p>
@@ -240,7 +269,7 @@ function trinKort(t: Trin, status: TrinStatus, v: StartVisning): Markup {
   const chip = status === 'klaret' ? tilstandChip('ordnet', T.status.klaret) : tilstandChip(t.krav === 'obligatorisk' ? 'kraever' : 'rolig', t.krav === 'valgfri' && status === 'ikke-startet' ? T.valgfrit : T.status[status]);
   return html`<article class="card kort trin-kort" data-blok="kort" data-trin="${t.id}" data-trin-status="${status}" data-element="${T.trinElement(t.titel)}">
     <div class="kort-head">${chip}<span class="row-title">${t.titel}</span></div>
-    ${status === 'klaret' ? '' : html`<p>${v.laptop && t.id === 'velkommen' ? T.laptopVelkommen : t.tekst}</p>`}
+    ${status === 'klaret' ? '' : html`<p>${v.laptop && t.id === 'velkommen' ? T.laptopVelkommen : t.id === 'model' && v.model?.inkluderet?.valgt ? T.inkluderet.trinTekst : t.tekst}</p>`}
     ${indholdAf(t, status, v)}
   </article>`;
 }

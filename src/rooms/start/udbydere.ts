@@ -6,6 +6,7 @@
 // server with the pasted key in a header; the key never reaches the browser.
 
 import type { DirekteApi } from '../../agent/direkte.ts';
+import { INKLUDERET_ID } from '../../agent/inkluderet.ts';
 
 export type Udbyder = {
   id: string;
@@ -24,6 +25,8 @@ export type Udbyder = {
   hentModeller?: { url: string; auth: 'bearer' | 'x-api-key' | 'ingen' };
   /** KC-0180: how the direct-model agent calls it (none = only through Hermes); no url = the saved local address. KC-0263: copilot-sdk = "Sign in with GitHub", no key field. */
   direkte?: DirekteApi;
+  /** KC-0265: Clawco's own AI of a Sky plan (not a provider the person brings): no key, no address, no model to choose; offered only where the proxy is configured. */
+  inkluderet?: true;
 };
 
 export const UDBYDERE: readonly Udbyder[] = [
@@ -35,7 +38,18 @@ export const UDBYDERE: readonly Udbyder[] = [
   { id: 'ollama', navn: 'Ollama på din egen maskine', noeglePlaceholder: 'http://127.0.0.1:11434', kraeverNoegle: false, envNavn: 'CUSTOM_BASE_URL', hermesProvider: 'ollama', standardModeller: { lille: 'qwen3:8b', taenker: 'qwen3:14b' }, standardUrl: 'http://127.0.0.1:11434', hentModeller: { url: '/models', auth: 'ingen' }, direkte: { api: 'openai-chat' } },
 ];
 
-export const udbyderAf = (id: string): Udbyder | undefined => UDBYDERE.find((u) => u.id === id);
+/**
+ * KC-0265: the included AI of a Sky plan. Deliberately NOT in UDBYDERE: that list is what a person may bring (and what the
+ * agent's env-file allowlist is derived from); this one exists only where KC_MODEL_PROXY_URL and KC_MODEL_TOKEN_FIL are set
+ * (ModelVindue.inkluderet). Both tiers are the one small model (Calm, spec 2026-11-03 §3); its token is the file Sky delivers.
+ * `envNavn` is the env name that names that file and is never written anywhere.
+ */
+export const INKLUDERET: Udbyder = {
+  id: INKLUDERET_ID, navn: 'Clawcos AI', noeglePlaceholder: '', kraeverNoegle: false, envNavn: 'KC_MODEL_TOKEN_FIL', hermesProvider: 'clawco',
+  standardModeller: { lille: 'claude-haiku-5-5', taenker: 'claude-haiku-5-5' }, inkluderet: true, direkte: { api: 'anthropic-proxy' },
+};
+
+export const udbyderAf = (id: string): Udbyder | undefined => UDBYDERE.find((u) => u.id === id) ?? (id === INKLUDERET.id ? INKLUDERET : undefined);
 
 /** The env names Clawco may write into the agent's env file: derived from the list, never kept by hand. */
 export const MODEL_ENV_NOEGLER: readonly string[] = UDBYDERE.map((u) => u.envNavn);

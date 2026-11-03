@@ -211,6 +211,61 @@ node --env-file=/srv/sky/.env sky/scripts/haendelse.mjs liste                   
 node --env-file=/srv/sky/.env sky/scripts/haendelse.mjs slut <id>                         # ended now
 ```
 
+## The included model (KC-0264)
+
+Every Sky plan includes the Calm model (Henrik 2026-11-03, KC-0253 D1) through Sky's own model proxy on the account host:
+`POST <SKY_PUBLIC_URL>/model/v1/messages` (the Messages wire, SSE passed through) and `GET …/model/v1/forbrug`. The gateway
+never forwards `/model/` from a tenant host. Each tenant has its own model token: derived from its data key, stored only as
+a SHA-256 (`hemmeligheder.model_token`, migration 0019), delivered after every container start to
+`/run/secrets/model-token` on the private key tmpfs (the env carries the path, `KC_MODEL_TOKEN_FIL`, never the token),
+revoked when the tenant is deleted. Each call is one row in `model.forbrug` (token counts and micro-USD, never content);
+the month's cap is the plan's `inkluderetModel.loftMikroUsd` in `config/priser.json` (a household shares it), checked before
+each call (402 `kvote_brugt` with the reset date, the first of next UTC month).
+
+**Off until all three hold** (each missing piece is named in the start log line `sky: inkluderet model …`, /model answers 503):
+
+1. `SKY_INKLUDERET_MODEL=ja` (also what tells tenants `KC_MODEL_PROXY_URL`, at their next create or recreate:
+   `sky/scripts/genstart-flaade.ts`).
+2. A provider: `SKY_MODEL_UDBYDER=anthropic` with `SKY_ANTHROPIC_API_KEY`, or `SKY_MODEL_UDBYDER=bedrock` with
+   `SKY_AWS_ACCESS_KEY_ID` + `SKY_AWS_SECRET_ACCESS_KEY` (optional `SKY_AWS_REGION`, default eu-central-1). Set each with
+   `sky/scripts/saet-hemmelighed.sh <NAME>` (name and length only), then restart Sky. Sky removes the keys from its
+   environment at start, so no child process (docker, pg_dump) inherits them.
+   Bedrock means `bedrock-runtime.eu-central-1.amazonaws.com` with the EU cross-region inference profile
+   `eu.anthropic.claude-haiku-5-5` (`config/modelpriser.json`; requests stay within eu-central-1, eu-north-1, eu-south-1,
+   eu-south-2, eu-west-1, eu-west-3). The IAM user behind `SKY_AWS_ACCESS_KEY_ID` gets only this policy (ACCOUNT_ID = the
+   AWS account):
+
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [
+       { "Sid": "Profil", "Effect": "Allow",
+         "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream", "bedrock:GetInferenceProfile"],
+         "Resource": "arn:aws:bedrock:eu-central-1:ACCOUNT_ID:inference-profile/eu.anthropic.claude-haiku-5-5" },
+       { "Sid": "ModelViaProfil", "Effect": "Allow",
+         "Action": ["bedrock:InvokeModel", "bedrock:InvokeModelWithResponseStream"],
+         "Resource": [
+           "arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-haiku-5-5",
+           "arn:aws:bedrock:eu-north-1::foundation-model/anthropic.claude-haiku-5-5",
+           "arn:aws:bedrock:eu-south-1::foundation-model/anthropic.claude-haiku-5-5",
+           "arn:aws:bedrock:eu-south-2::foundation-model/anthropic.claude-haiku-5-5",
+           "arn:aws:bedrock:eu-west-1::foundation-model/anthropic.claude-haiku-5-5",
+           "arn:aws:bedrock:eu-west-3::foundation-model/anthropic.claude-haiku-5-5"
+         ],
+         "Condition": { "StringEquals": { "bedrock:InferenceProfileArn": "arn:aws:bedrock:eu-central-1:ACCOUNT_ID:inference-profile/eu.anthropic.claude-haiku-5-5" } } }
+     ]
+   }
+   ```
+
+   The very first call also needs `aws-marketplace:Subscribe` and `aws-marketplace:ViewSubscriptions` (Resource `*`) to
+   enable the model in the account; add them for that call, or enable the model once as an admin, then remove them.
+3. The provider's host listed as a subprocessor in `docs/legal/behandlinger.json` (KC-0266, after Henrik's provider choice;
+   then `node scripts/behandlinger.ts --skriv` regenerates the public list).
+
+Rotate one tenant's token: `node --env-file=/srv/sky/.env sky/scripts/roter-modeltoken.ts <slug>` (delivers the new one to the
+running container; prints no token). The owner's cost view, per UTC day and the month so far:
+`node --env-file=/srv/sky/.env sky/scripts/model-forbrug.ts [--dage 30] [--json]`.
+
 ## Local run (development)
 
 ```bash

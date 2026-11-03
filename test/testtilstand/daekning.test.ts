@@ -46,9 +46,10 @@ const sider: Promise<Map<string, string>> = (async () => {
     // KC-0120: the Kø panel's Kilder section, as the open panel fetches it.
     const koe = await v.app.request('/api/koe?kilder=1');
     assert.equal(koe.status, 200, `${m.id} /api/koe svarer ${koe.status}`);
-    const k = (await koe.json()) as { kilder?: string; omkostninger?: string };
+    const k = (await koe.json()) as { kilder?: string; omkostninger?: string; inkluderet?: string };
     ud.set(`${m.id} /api/koe?kilder=1`, k.kilder ?? '');
     ud.set(`${m.id} /api/koe?kilder=1 omkostninger`, k.omkostninger ?? ''); // KC-0212: the owner's cost card
+    ud.set(`${m.id} /api/koe?kilder=1 inkluderet`, k.inkluderet ?? ''); // KC-0265: the owner's meter of Clawco's AI
   }
   return ud;
 })();

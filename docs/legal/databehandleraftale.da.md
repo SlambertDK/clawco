@@ -1,10 +1,10 @@
 ---
-version: 1.0
-dato: 2026-11-02
+version: 1.1
+dato: 2026-11-03
 status: udgivet
 sprog: da
 ---
-Version 1.0 · 2026-11-02
+Version 1.1 · 2026-11-03
 
 # Databehandleraftale for Clawco Sky
 
@@ -44,7 +44,7 @@ Kunden giver generel tilladelse til de underdatabehandlere, der står i vores of
 
 Vi varsler kunden på e-mail mindst 30 dage, før vi tilføjer eller skifter en underdatabehandler. Kunden kan gøre indsigelse inden for de 30 dage, hvis der er en saglig grund. Kan vi ikke imødekomme indsigelsen, kan kunden opsige abonnementet uden ekstra omkostning, og vi refunderer den betalte periode, som ikke er brugt.
 
-Hvis kunden bruger sin egen modelnøgle, er den valgte modeludbyder kundens egen leverandør, ikke vores underdatabehandler.
+Hvis kunden bruger sin egen modelnøgle, er den valgte modeludbyder kundens egen leverandør, ikke vores underdatabehandler. Bruger kunden Clawcos AI, der er med i planen, kører Amazon Web Services EMEA SARL modellen som vores underdatabehandler i AWS' EU-regioner.
 
 ## 7. Overførsel uden for EU
 

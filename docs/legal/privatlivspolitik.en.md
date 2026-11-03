@@ -1,16 +1,16 @@
 ---
-version: 1.0
-dato: 2026-11-02
+version: 1.1
+dato: 2026-11-03
 status: udgivet
 sprog: en
 ---
-Version 1.0 · 2026-11-02
+Version 1.1 · 2026-11-03
 
 > English translation of the Danish text. If the two versions differ, the Danish text applies.
 
 # Privacy Policy for Clawco Sky
 
-Effective from: 2026-11-02
+Effective from: 2026-11-03
 
 This page says what information we process, why, who can see it, and what you can do. The policy follows GDPR Art. 13 and 14. It applies to Clawco Sky, not to a Clawco you run yourself.
 
@@ -42,7 +42,7 @@ You can connect your email, calendar, notes and more to Clawco. It is your conte
 
 The split of roles is: you decide what you connect, and we are the processor for the content. If you want a data processing agreement, you can have one. If you use Clawco for purely personal purposes, the GDPR may not apply to your own processing (the household exemption in GDPR Art. 2(2)(c)), but it always applies to us.
 
-Your instance sends the parts of your content that the model needs to read to the model provider you have chosen with your own key: today Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) or OpenRouter (USA), or a model you run yourself (LM Studio or Ollama). That happens under your agreement with the provider.
+Your instance sends the parts of your content that the model needs to read to the model provider you have chosen with your own key: today Anthropic (USA), OpenAI (USA), GitHub Copilot (GitHub, USA) or OpenRouter (USA), or a model you run yourself (LM Studio or Ollama). That happens under your agreement with the provider. If you use Clawco's AI that is included in your Sky plan instead, your instance sends the same parts to Amazon Web Services in the EU, which runs the model for us (see section 5).
 
 ## 4. Why we may process the information
 
@@ -59,8 +59,9 @@ We use these subprocessors (the full list is in Subprocessors):
 - Cloudflare, Inc. (USA): tunnel and DNS for clawco.work and your instance. Encryption (TLS) ends at Cloudflare's edge, so Cloudflare can technically see the traffic to and from your Clawco there, content included.
 - Stripe Payments Europe Ltd (Ireland): payment, subscription and VAT
 - Resend, Inc. (USA): sends emails from us from its EU region in Ireland. Resend keeps account data, metadata and logs about the emails in the USA.
+- Amazon Web Services EMEA SARL (Luxembourg): runs Clawco's AI that is included in your plan (Claude Haiku 5.5 through Amazon Bedrock), in AWS' regions in the EU. Only when you do not use your own AI. For accounts from before 2026-11-03 it starts no earlier than 2026-12-03.
 
-We use no external error monitoring and no model provider on your behalf: the "included model" add-on does not exist yet. Your instance runs on our own server in Denmark.
+We use no external error monitoring. The only model provider on your behalf is AWS, and only for Clawco's AI that is included in your plan. Your instance runs on our own server in Denmark.
 
 We only pass information to public authorities if the law requires it.
 
