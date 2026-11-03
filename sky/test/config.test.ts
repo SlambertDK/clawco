@@ -66,9 +66,17 @@ test('an SKY_RP_ID that does not cover the public host, a bare top-level name or
 });
 
 test('SKY_DEV=1 turns on dev mode (the outbox page); anything else leaves it off', () => {
-  assert.equal(laesConfig({ ...gyldig, SKY_DEV: '1' }).dev, true);
+  const lokal = { ...gyldig, SKY_PUBLIC_URL: 'http://localhost:8782' };
+  assert.equal(laesConfig({ ...lokal, SKY_DEV: '1' }).dev, true);
   assert.equal(laesConfig({ ...gyldig, SKY_DEV: 'true' }).dev, false);
   assert.equal(laesConfig(gyldig).dev, false);
+});
+
+// KC-0272 (D3): dev mode shows everyone's login links at /dev/udbakke and mounts the fake Checkout that signs its own
+// webhook. On a public address that is a free plan and every account for whoever finds it, so Sky refuses to start.
+test('KC-0272: SKY_DEV=1 on a public address refuses to start; only localhost and *.localhost may run dev mode', () => {
+  for (const url of ['http://localhost:8782', 'https://localhost', 'http://konto.localhost:8796']) assert.equal(laesConfig({ ...gyldig, SKY_PUBLIC_URL: url, SKY_DEV: '1' }).dev, true, url);
+  for (const url of ['https://kontrol.example.test', 'https://konto.clawco.work', 'http://localhost.example.test', 'http://evil-localhost']) afviser({ ...gyldig, SKY_PUBLIC_URL: url, SKY_DEV: '1' }, 'SKY_DEV');
 });
 
 test('KC-0212: SKY_FLAADE picks the fleet driver; ingen by default, lokal needs the tenant image and the gateway\'s public key', () => {
@@ -110,9 +118,10 @@ test('KC-0217: SKY_KONTO_PUBKEY_NY is the next public key of a rotation; absent 
 });
 
 test('KC-0183: the base domain localhost (tenants on <slug>.localhost) is for local development only', () => {
-  assert.equal(laesConfig({ ...gyldig, SKY_DEV: '1', SKY_BASEDOMAIN: 'localhost' }).basedomain, 'localhost');
+  const lokal = { ...gyldig, SKY_PUBLIC_URL: 'http://localhost:8782' };
+  assert.equal(laesConfig({ ...lokal, SKY_DEV: '1', SKY_BASEDOMAIN: 'localhost' }).basedomain, 'localhost');
   afviser({ ...gyldig, SKY_BASEDOMAIN: 'localhost' }, 'SKY_BASEDOMAIN');
-  afviser({ ...gyldig, SKY_DEV: '1', SKY_BASEDOMAIN: 'intranet' }, 'SKY_BASEDOMAIN');
+  afviser({ ...lokal, SKY_DEV: '1', SKY_BASEDOMAIN: 'intranet' }, 'SKY_BASEDOMAIN');
 });
 
 test('KC-0198: SKY_TILMELDING is invitation (closed beta) by default or open; anything else refuses to start and names the key', () => {

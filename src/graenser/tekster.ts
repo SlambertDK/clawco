@@ -37,6 +37,7 @@ const da = {
 
   // nodstop.ts: the kill switch
   pause: 'Clawco er sat på pause',
+  koeFuld: 'Der venter allerede mange opgaver. Vent lidt, til nogle af dem er færdige.',
   rolleKanIkkeStoppe: 'Din rolle i husstanden kan ikke stoppe Clawco.',
   kunEjerenStarter: 'Kun ejeren kan starte Clawco igen.',
   stopIntet: 'Stop alt: intet var i gang.',
@@ -78,6 +79,7 @@ const en: GraenserTekster = {
   hvadSendMail: 'send an email',
 
   pause: 'Clawco is paused',
+  koeFuld: 'Many tasks are already waiting. Wait a moment until some of them are done.',
   rolleKanIkkeStoppe: 'Your role in the household cannot stop Clawco.',
   kunEjerenStarter: 'Only the owner can start Clawco again.',
   stopIntet: 'Stop everything: nothing was running.',

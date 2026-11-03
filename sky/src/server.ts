@@ -18,7 +18,9 @@ import { randomBytes } from 'node:crypto';
 import { kontoAdgang, kontoRuter, type KontoDeps } from './konto/ruter.ts';
 import { ingenAfvikler, ingenHusstand } from './konto/slet.ts';
 import type { Flaade } from './fleet/flaade.ts';
-import { lokalFlaade, koerProces, tenantMiljoe } from './fleet/lokal.ts';
+import { deltNetvaerk, lokalFlaade, koerProces, tenantMiljoe } from './fleet/lokal.ts';
+import { laesTenantPool, netfilterTilstand, undernetFor, type NetfilterTilstand, type Vaern } from './fleet/netfilter.ts';
+import { tildelUndernet } from './fleet/tilstand.ts';
 import { hetznerFlaade } from './fleet/hetzner.ts';
 import { flaadeAfvikler, flaadeHusstand, clawcoFor } from './fleet/afvikler.ts';
 import { hentSundhed } from './fleet/provisioner.ts';
@@ -96,7 +98,9 @@ import { ibrugtagningFor, juridiskGodkendt, laesBehandlingsdata, laesUdbyder, ma
 import { MODEL_TOKEN_STI, tenantForModelToken } from './hemmeligheder/modeltoken.ts';
 
 export type DevStripe = Parameters<typeof devStripeRuter>[0];
-export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt'; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport; status?: StatusDeps; model?: ModelDeps };
+export type SkyDeps = { db: Database; sha: string; startet: number; konto?: KontoDeps; abonnement?: AbonnementDeps; dev?: DevStripe | null; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt'; netfilter?: () => Promise<NetfilterTilstand>; loginVej?: LoginVejDeps; tilmelding?: TilmeldingDeps; stoetteSide?: StoetteSideDeps ; fejlrapport?: Fejlrapport; status?: StatusDeps; model?: ModelDeps;
+  /** KC-0272 (D6): the public URL is https, so every answer of the account app says so (HSTS). */
+  hsts?: boolean };
 
 export function createSkyApp(deps: SkyDeps): Hono {
   const app = new Hono();
@@ -108,8 +112,9 @@ export function createSkyApp(deps: SkyDeps): Hono {
     deps.fejlrapport?.rapporter(err, { rute: c.req.routePath, status: 500 });
     return c.text('Internal Server Error', 500);
   });
+  if (deps.hsts) app.use('*', async (c, next) => { await next(); c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains'); });
   app.get('/health', async (c) => {
-    const h = await helbred({ db: deps.db, sha: deps.sha, startet: deps.startet, ...(deps.flaade ? { flaade: deps.flaade } : {}), ...(deps.noegler ? { noegler: deps.noegler } : {}), ...(deps.gateway ? { gateway: deps.gateway } : {}), ...(deps.noegleskift ? { noegleskift: deps.noegleskift } : {}) });
+    const h = await helbred({ db: deps.db, sha: deps.sha, startet: deps.startet, ...(deps.flaade ? { flaade: deps.flaade } : {}), ...(deps.noegler ? { noegler: deps.noegler } : {}), ...(deps.gateway ? { gateway: deps.gateway } : {}), ...(deps.noegleskift ? { noegleskift: deps.noegleskift } : {}), ...(deps.netfilter ? { netfilter: await deps.netfilter() } : {}) });
     return c.json(h, h.ok ? 200 : 503);
   });
   // KC-0189: the public status feed (counts only); its handler ends the chain like /health.
@@ -153,13 +158,26 @@ export function tenantMiljoeFra(config: SkyConfig, db: Database): (slug: string)
   };
 }
 
+/** KC-0273: the tenant pool (SKY_TENANT_POOL, read in fleet/netfilter.ts) and whether the host-side filter deploy.sh
+ *  puts in place covers it (the marker /run/sky/netfilter.ok). Sky itself never runs sudo. */
+export function vaernFra(env: Record<string, string | undefined> = process.env): Vaern {
+  const pool = laesTenantPool(env);
+  return { pool, tilstand: () => netfilterTilstand(pool) };
+}
+
+/** KC-0273: restore copies and release checks run on the shared pool network (index 0), behind the same filter. */
+function deltNet(netvaerk: string): { netvaerk: string; undernet: ReturnType<typeof undernetFor>; vaern: Vaern } {
+  const vaern = vaernFra();
+  return { netvaerk: deltNetvaerk(netvaerk), undernet: undernetFor(vaern.pool, 0), vaern };
+}
+
 /** KC-0212: the fleet SKY_FLAADE picks; null = none (deprovisioning keeps refusing). No paid customers are read
  *  yet, so the hetzner driver sees MRR 0 and refuses (D18). Volumes are not encrypted at rest on the lokal driver
  *  (no root on kira-home for LUKS): the tenant's model keys are, in its own key file (KC-0181). */
 export function flaadeFra(config: SkyConfig, db?: Database): Flaade | null {
   const f = config.flaade;
   // KC-0203: a beta household's container is told so (and what it consented to); `db` absent = nobody is a beta.
-  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, kontoPubkeyNy: f.kontoPubkeyNy, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...(db ? { beta: async (slug: string) => { const b = await betaForTenant(db, slug); return b ? { samtykke: b.samtykke } : null; }, miljoe: tenantMiljoeFra(config, db) } : {}) });
+  if (f.driver === 'lokal') return lokalFlaade({ koer: koerProces, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, kontoPubkeyNy: f.kontoPubkeyNy, skyUrl: config.publicUrl, kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), vaern: vaernFra(), undernet: db ? (id: string) => tildelUndernet(db, id) : async () => { throw new Error('ingen database: et undernet kan ikke tildeles'); }, ...(db ? { beta: async (slug: string) => { const b = await betaForTenant(db, slug); return b ? { samtykke: b.samtykke } : null; }, miljoe: tenantMiljoeFra(config, db) } : {}) });
   if (f.driver === 'hetzner') return hetznerFlaade({ omkostninger: () => laesOmkostninger(), mrr: () => 0 });
   return null;
 }
@@ -293,7 +311,7 @@ export function kopiFra(o: { config: SkyConfig; db: Database; ring: Noeglering |
   const f = o.config.flaade;
   const nej = (): Promise<never> => Promise.reject(new Error('ingen flåde (SKY_FLAADE er ikke lokal): ingen kundediske at kopiere'));
   const node: KopiNode = f.driver === 'lokal'
-    ? lokalKopiNode({ koer, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() })
+    ? lokalKopiNode({ koer, billede: f.billede, ...deltNet(f.netvaerk), kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() })
     : { pak: nej, udpak: nej, start: nej, pakGendannet: nej, fjern: nej };
   const k = o.kopi;
   return {
@@ -339,9 +357,9 @@ export function udrulFra(o: { config: SkyConfig; db: Database; ring: Noeglering 
         opdateres: (slug, ja) => saetOpdateres(db, slug, ja ? new Date() : null),
         noterKoersel: (slug, x) => noterKoersel(db, slug, x, new Date()),
       },
-      koerer: lokalBilledKoerer({ koer: koerProces, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() }),
+      koerer: lokalBilledKoerer({ koer: koerProces, ...deltNet(f.netvaerk), kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() }),
       kopi: {
-        node: lokalKopiNode({ koer: koerBinaer, billede: f.billede, netvaerk: f.netvaerk, kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() }),
+        node: lokalKopiNode({ koer: koerBinaer, billede: f.billede, ...deltNet(f.netvaerk), kontoPubkey: f.kontoPubkey, skyUrl: o.config.publicUrl, noegleFlag: noegleRunFlag() }),
         noegler: kopiNoegler({ db, ring }),
       },
       lagre: {
@@ -638,6 +656,11 @@ export async function main(): Promise<void> {
   // KC-0182: the reconciler orders, resumes and cleans up tenants — a pass now (resuming anything a restart
   // interrupted), then every 15 s.
   const loekke = f.flaade ? afstemLoekke(f.flaade, { interval: 15_000 }) : null;
+  // KC-0273: a bad SKY_TENANT_POOL stops the start, naming the key; the filter itself is deploy.sh's (never sudo here).
+  if (config.flaade.driver === 'lokal') {
+    const v = vaernFra();
+    console.log(`sky: tenant-pulje ${v.pool.cidr} (værtsfilter: ${await v.tilstand()})`);
+  }
   console.log(`sky: flåde ${f.flaade ? `${f.flaade.flaade.navn}${f.flaade.billede ? ` (billede ${f.flaade.billede})` : ''}` : 'ingen (SKY_FLAADE ikke sat): ingen kunde får en beholder'}`);
   // KC-0181: the daily purge of keys whose 30 days have passed (crypto-shredding of a deleted tenant).
   const destruktion = destruktionsLoekke(db);
@@ -683,7 +706,7 @@ export async function main(): Promise<void> {
   const status: StatusDeps = { feed: feedCache({ bygg: () => byggFeed(db, new Date()) }), origin: statusSide, side: `${statusSide ?? new URL(config.publicUrl).origin}/status`, feedUrl: `${new URL(config.publicUrl).origin}/status.atom` };
   const model = modelFra({ config, db, priser: f.abonnement.priser, laest: modelLaest });
   console.log(`sky: inkluderet model ${model.besked}`);
-  const skyApp = createSkyApp({ db, sha: gitSha(), startet, model: model.deps, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, ...(noegleskiftFra(config) ? { noegleskift: 'forberedt' as const } : {}), loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, ...fl });
+  const skyApp = createSkyApp({ db, sha: gitSha(), startet, model: model.deps, konto: f.konto, abonnement: f.abonnement, dev: f.dev, noegler: f.noegler, gateway: f.gateway.status, ...(noegleskiftFra(config) ? { noegleskift: 'forberedt' as const } : {}), loginVej: f.gateway.loginVej, tilmelding: f.tilmelding, fejlrapport: fejl.rapport, stoetteSide: f.gateway.stoetteSide, status, hsts: new URL(config.publicUrl).protocol === 'https:', ...fl, ...(f.flaade && config.flaade.driver === 'lokal' ? { netfilter: vaernFra().tilstand } : {}) });
   const gw = gateway({ db, publicUrl: config.publicUrl, basedomain: config.basedomain, noegle: f.gateway.noegle, ruter: f.gateway.ruter, samtykkeOk: f.gateway.loginVej.samtykkeOk, stoette: f.gateway.stoette, noterSet: noterSet({ db }) });
   // KC-0203: once a day (a pass at start) the klar beta tenants are asked for their consented measures over the signed
   // control call; a pass with no beta household is one query.

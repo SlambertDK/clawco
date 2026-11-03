@@ -8,7 +8,7 @@ import path from 'node:path';
 import { erRolle, type Rolle } from './roller.ts';
 
 /** `stoette` (KC-0188): set only on the support person made from the gateway's claim (identitet/stoette.ts); never in husstand.json. */
-export type Person = { id: string; login: string | null; navn: string; rolle: Rolle; stoette?: { adgang: string; personale: string; session: string } };
+export type Person = { id: string; login: string | null; navn: string; rolle: Rolle; stoette?: { adgang: string; personale: string; session: string; /** KC-0277: whose eyes support looks through (the owner's id). */ ejer: string } };
 export type Husstand = { personer: Person[] };
 
 export class HusstandFejl extends Error {}

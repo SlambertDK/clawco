@@ -63,6 +63,7 @@ const da = {
   // adresse.ts: the address guard
   intern: 'Adressen peger på en intern tjeneste, som Clawco ikke må kalde.',
   lokalt: 'Adressen peger på dit lokale netværk. Skriv den selv ind, hvis det er meningen.',
+  lokaltHostet: 'Adressen peger på et lokalt netværk, som Clawco ikke kan nå herfra.',
   tomEllerLang: 'Adressen er tom eller for lang.',
   skalBegynde: 'Adressen skal begynde med http:// eller https://.',
   kanIkkeLaeses: 'Adressen kan ikke læses.',
@@ -79,6 +80,7 @@ const da = {
   forStor: 'Kilden er for stor.',
   ukendtKomprimering: 'Kilden bruger en ukendt komprimering.',
   hoererIkkeTil: 'Adressen hører ikke til den tjeneste, kilden må tale med.',
+  adresseSkiftet: 'Adressen peger nu et andet sted end dengang du tilføjede den, så Clawco henter den ikke. Fjern kilden og tilføj den igen, hvis det er meningen.',
   forMangeOmdirigeringer: 'Kilden sender dig videre for mange gange.',
   omdirigeringUdenMaal: 'Kilden sender dig videre uden at sige hvorhen.',
   omdirigeringIkkeBrugbar: 'Kilden sender dig videre til en adresse, der ikke kan bruges.',
@@ -148,6 +150,7 @@ const en: RssTekster = {
 
   intern: 'The address points at an internal service, which Clawco may not call.',
   lokalt: 'The address points at your local network. Type it in yourself if that is the intention.',
+  lokaltHostet: 'The address points at a local network, which Clawco cannot reach from here.',
   tomEllerLang: 'The address is empty or too long.',
   skalBegynde: 'The address must begin with http:// or https://.',
   kanIkkeLaeses: 'The address cannot be read.',
@@ -163,6 +166,7 @@ const en: RssTekster = {
   forStor: 'The source is too large.',
   ukendtKomprimering: 'The source uses an unknown compression.',
   hoererIkkeTil: 'The address does not belong to the service the source may talk to.',
+  adresseSkiftet: 'The address now points somewhere other than when you added it, so Clawco does not fetch it. Remove the source and add it again if that is the intention.',
   forMangeOmdirigeringer: 'The source sends you on too many times.',
   omdirigeringUdenMaal: 'The source sends you on without saying where.',
   omdirigeringIkkeBrugbar: 'The source sends you on to an address that cannot be used.',

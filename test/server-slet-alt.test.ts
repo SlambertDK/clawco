@@ -4,7 +4,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { access, readdir } from 'node:fs/promises';
+import { access, readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { MAJA, videnApp } from './helpers/viden.ts';
 
@@ -37,7 +37,8 @@ test('the owner with SLET: the data dir and Clawco/ are empty, the vault and its
     const res = await t.form('/api/tillid/slet-alt', { bekraeft: 'SLET' });
     assert.equal(res.status, 303);
     assert.equal(res.headers.get('location'), '/viden?slettet=1');
-    assert.deepEqual(await readdir(t.dataDir), [], 'the data dir is empty (and still there)');
+    // KC-0275: what survives by design — the pause, and the fresh audit log (the tombstone) with its anchor.
+    assert.deepEqual((await readdir(t.dataDir)).sort().map((n) => n.replace(/^revision-\d{4}-\d{2}\.jsonl$/, 'revision-log')), ['pause.json', 'revision-log', 'revision.anker'], 'the data dir holds only that (and is still there)');
     assert.deepEqual(await readdir(path.join(t.vault, 'Clawco')), []);
     assert.ok(await findes(path.join(t.vault, '00-Indbakke', 'egen note.md')), 'the user\'s own note');
     assert.ok(await findes(path.join(t.personer, 'familie', 'Maja.md')), 'the people register');
@@ -83,5 +84,16 @@ test('never reachable from the chat, the voice overview or a voice id', async ()
     assert.ok(!o.punkter.some((p) => p.valg.some((v) => /slet|viden/.test(v.id))));
     for (const id of ['viden:slet-alt', 'tillid:slet-alt', 'hjem:slet-alt']) assert.ok((await t.post('/api/stemme/udfoer', { id })).status >= 400, id);
     assert.ok(await findes(path.join(t.dataDir, 'rum', 'mail', 'log.jsonl')));
+  } finally { await t.ryd(); }
+});
+
+test('KC-0275: an app the owner had stopped stays stopped after Slet alt (and the wipe\'s own pause does not)', async () => {
+  const t = await videnApp();
+  try {
+    await t.post('/api/nodstop', {});
+    assert.equal(t.sut.runs.paaPause(), true);
+    assert.equal((await t.form('/api/tillid/slet-alt', { bekraeft: 'SLET' })).status, 303);
+    assert.equal(t.sut.runs.paaPause(), true, 'still stopped');
+    assert.equal(JSON.parse(await readFile(path.join(t.dataDir, 'pause.json'), 'utf8')).pause, true, 'and on disk, so a restart keeps it');
   } finally { await t.ryd(); }
 });

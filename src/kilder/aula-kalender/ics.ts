@@ -15,6 +15,11 @@ export const MAKS_HAENDELSER = 500;
 const MAKS_TITEL = 200;
 const MAKS_STED = 200;
 const MAKS_TRIN = 20_000;
+/** KC-0274: ONE step budget for the whole file, shared by every series (500 events × MAKS_TRIN steps was minutes of work). */
+export const MAKS_TRIN_PER_FIL = 20_000;
+/** Free text is examined only in its first MAKS_HOVED_FAKTOR × max characters: the scrub below is quadratic in what it sees. */
+const MAKS_HOVED_FAKTOR = 20;
+const MAKS_HOVED_TEGN = 64 * 1024;
 
 export class IcsFejl extends Error {
   readonly kode: 'stor' | 'ikke-kalender';
@@ -30,7 +35,7 @@ export type IcsSvar = {
   ustoettet: number;
   /** Events and lines that could not be read. */
   sprunget: number;
-  /** More than MAKS_HAENDELSER events: the rest was not read. */
+  /** More than MAKS_HAENDELSER events, or the file's repeat-step budget ran out: the rest was not read or not expanded. */
   afkortet: boolean;
 };
 
@@ -114,10 +119,20 @@ function laesLinje(raa: string): Linje | null {
   return { navn, param, vaerdi: l.slice(kolon + 1) };
 }
 
-const EPOST = /[^\s@<>()]+@[^\s@<>()]+\.[^\s@<>()]+/g;
-/** Free text as plain text: escapes undone, newlines as spaces, e-mail addresses removed, capped. */
-function renTekst(v: string | undefined, maks: number): string {
-  if (!v) return '';
+const EPOST = /[^\s@<>()]{1,254}@[^\s@<>()]{1,254}\.[^\s@<>()]{1,254}/g;
+/**
+ * Free text as plain text: escapes undone, newlines as spaces, e-mail addresses removed, capped. The raw text is cut to a
+ * small multiple of `maks` FIRST (KC-0274, C1), at a space so no half e-mail address survives the cut.
+ */
+function renTekst(raa: string | undefined, maks: number): string {
+  if (!raa) return '';
+  const graense = Math.min(maks * MAKS_HOVED_FAKTOR, MAKS_HOVED_TEGN);
+  let v = raa;
+  if (v.length > graense) {
+    v = v.slice(0, graense);
+    const sidsteMellemrum = Math.max(v.lastIndexOf(' '), v.lastIndexOf('\t'));
+    v = sidsteMellemrum > 0 ? v.slice(0, sidsteMellemrum) : '';
+  }
   return v.replace(/\\(.)/g, (_m, c: string) => (c === 'n' || c === 'N' ? ' ' : c)).replace(EPOST, '').replace(/\s+/g, ' ').trim().slice(0, maks);
 }
 
@@ -186,10 +201,12 @@ function laesRegel(raa: string): Regel | null {
 const ugedagAf = (dag: number): number => new Date(dag * DAG_MS).getUTCDay();
 
 /** The dates of the occurrences of a rule from `start` up to (not including) `slut`; COUNT counts from the first. */
-function forekomster(start: number, r: Regel, slut: number, ikkeEfterUntil: (dag: number) => boolean): number[] {
+function forekomster(start: number, r: Regel, slut: number, ikkeEfterUntil: (dag: number) => boolean, trin: { rest: number; opbrugt: boolean }): number[] {
   const ud: number[] = [];
   let antal = 0;
   const tag = (dag: number): boolean => {
+    if (trin.rest <= 0) { trin.opbrugt = true; return false; }
+    trin.rest -= 1;
     if (dag < start) return true;
     if (r.count !== null && antal >= r.count) return false;
     if (!ikkeEfterUntil(dag)) return false;
@@ -295,6 +312,7 @@ export function parseIcs(tekst: string, vindue: { fra: string; til: string }): I
   for (const r of raa) if (r.erstatter) erstattet.add(`${r.uid}|${noegle(r.erstatter)}`);
 
   const ud: IcsHaendelse[] = [];
+  const trin = { rest: MAKS_TRIN_PER_FIL, opbrugt: false };
   let ustoettet = 0;
   const hold = (r: Raa, start: string, slut: string | null, heldag: boolean): void => {
     ud.push({ uid: r.uid, titel: r.titel || '(uden titel)', start, slut, heldag, sted: r.sted || null });
@@ -314,7 +332,7 @@ export function parseIcs(tekst: string, vindue: { fra: string; til: string }): I
       const dage = r.slut?.heldag && r.slut.dag > s.dag ? r.slut.dag - s.dag : 1;
       const until = regel?.until ? laesTid(regel.until, {}) : null;
       const efterUntil = (d: number): boolean => !until || (until.heldag ? d <= until.dag : d <= until.mur.dag);
-      const dagene = regel ? forekomster(s.dag, regel, tilDag + 1, efterUntil) : [s.dag];
+      const dagene = regel ? forekomster(s.dag, regel, tilDag + 1, efterUntil, trin) : [s.dag];
       for (const d of dagene) {
         if (!(d < tilDag && d + dage > fraDag)) continue;
         if (undtagelser.has(`d:${d}`) || erstattet.has(`${r.uid}|d:${d}`)) continue;
@@ -332,7 +350,7 @@ export function parseIcs(tekst: string, vindue: { fra: string; til: string }): I
       if (until.heldag) return d <= until.dag;
       return murTilMs({ ...s.mur, dag: d }, s.tz) <= murTilMs(until.mur, until.tz === 'UTC' && regel?.until?.endsWith('Z') ? 'UTC' : s.tz);
     };
-    const dagene = regel ? forekomster(s.mur.dag, regel, Math.ceil(tilMs / DAG_MS) + 2, efterUntil) : [s.mur.dag];
+    const dagene = regel ? forekomster(s.mur.dag, regel, Math.ceil(tilMs / DAG_MS) + 2, efterUntil, trin) : [s.mur.dag];
     for (const d of dagene) {
       const ms = murTilMs({ ...s.mur, dag: d }, s.tz);
       const slutMs = varighed !== null && varighed >= 0 ? ms + varighed : null;
@@ -341,5 +359,5 @@ export function parseIcs(tekst: string, vindue: { fra: string; til: string }): I
       hold(r, kbhIso(ms), slutMs === null ? null : kbhIso(slutMs), false);
     }
   }
-  return { kalenderNavn, haendelser: ud, ustoettet, sprunget, afkortet };
+  return { kalenderNavn, haendelser: ud, ustoettet, sprunget, afkortet: afkortet || trin.opbrugt };
 }

@@ -24,6 +24,7 @@
 // Invariant (§0 r2/r7): envelope-only, read-only, no token or client secret in
 // any message, card or log.
 
+import { registrerHemmelighed } from '../../graenser/redaktion.ts';
 import { KildeFejl, type Helbred, type Kilde, type KildeKontekst, type KildeKort } from '../types.ts';
 import { googleOpsaetTrin, googleTilfoejTrin } from '../google/opsaet.ts';
 import { googleTekst } from '../google/tekster.ts';
@@ -92,6 +93,7 @@ export function mailGmail(o: {
     try {
       const t = await forny({ hent, klient: k, refresh });
       cache = { refresh, adgang: t.adgang, udloeber: nu + t.udloeberMs };
+      registrerHemmelighed(t.adgang); // KC-0274: the access token is a bearer secret too (the refresh token is registered by the secret store)
       return { token: t.adgang, refresh, adresse };
     } catch (err) {
       if (err instanceof GoogleFejl && err.art === 'afvist') { afvist = refresh; cache = null; }

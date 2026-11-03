@@ -81,7 +81,7 @@ const da = {
   filerIClawco: (antal: string): string => `${antal} i Clawco-mappen i din vault`,
   andreFilerKort: (antal: string, produkt: string): string => `${antal}: forbindelser, indstillinger og hvad ${produkt} har gjort`,
   noeglerFilerKort: (antal: string): string => `${antal} med nøgler og logins til dine kilder`,
-  blivLiggende: 'Bliver liggende: din vault og dine egne noter, også personerne i personregisteret.',
+  blivLiggende: 'Bliver liggende: din vault og dine egne noter, også personerne i personregisteret, samt om Clawco er sat på pause og hvem der hører til i husstanden.',
   hentAltFoerst: 'Hent alt først',
   skrivOrd: 'Skriv SLET for at bekræfte',
 
@@ -105,6 +105,8 @@ const da = {
   ingenMappe: '(ingen mappe)',
   dataErVault: 'Datamappen er også din vault; Slet alt sletter ikke dine noter',
   sletRevision: 'Slet alt: ejeren bekræftede med SLET',
+  sletFaerdig: 'Slet alt er udført: pausen og husstanden er bevaret, alt andet er slettet',
+  revisionUsikret: 'Loggen over hvad Clawco har gjort er ikke forseglet med en nøgle her, så den kan omskrives uden at det ses.',
 
   // the rules file's own header (regler.ts)
   reglerTitel: '# Regler for Clawco',
@@ -176,7 +178,7 @@ const en: TillidTekster = {
   filerIClawco: (antal) => `${antal} in the Clawco folder in your vault`,
   andreFilerKort: (antal, produkt) => `${antal}: connections, settings and what ${produkt} has done`,
   noeglerFilerKort: (antal) => `${antal} with keys and logins to your sources`,
-  blivLiggende: 'What stays: your vault and your own notes, also the people in the people register.',
+  blivLiggende: 'What stays: your vault and your own notes, also the people in the people register, and whether Clawco is paused and who is in the household.',
   hentAltFoerst: 'Download everything first',
   skrivOrd: 'Type DELETE to confirm',
 
@@ -198,6 +200,8 @@ const en: TillidTekster = {
   ingenMappe: '(no folder)',
   dataErVault: 'The data folder is also your vault; Delete everything does not delete your notes',
   sletRevision: 'Delete everything: the owner confirmed with DELETE',
+  sletFaerdig: 'Delete everything is done: the pause and the household are kept, everything else is deleted',
+  revisionUsikret: 'The log of what Clawco has done is not sealed with a key here, so it can be rewritten without it showing.',
 
   reglerTitel: '# Rules for Clawco',
   indledning: (trin) => `What Hermes may do on its own. One rule per section: the heading has the rule's fixed number, then step (${trin}), what it applies to, where it came from and whether it is active or paused; then your own text. You may edit the file. A rule that is written wrongly is not followed. Do not touch the line naeste-id: it makes sure a number is never used twice.`,

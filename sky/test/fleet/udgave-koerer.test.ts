@@ -5,12 +5,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { lokalBilledKoerer } from '../../src/fleet/udgave-koerer.ts';
+import { laesTenantPool, undernetFor, type NetfilterTilstand } from '../../src/fleet/netfilter.ts';
 import { SKRIV_HUSSTAND, type Koersel } from '../../src/fleet/lokal.ts';
 
 const ID = `sha256:${'c'.repeat(64)}`;
 const PUBKEY = 'A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg';
 
-function falsk(o: { sha?: string; doerStraks?: boolean } = {}) {
+function falsk(o: { sha?: string; doerStraks?: boolean; filter?: NetfilterTilstand } = {}) {
   const kald: string[][] = [];
   const volumener = new Set<string>();
   const containere = new Set<string>();
@@ -25,7 +26,7 @@ function falsk(o: { sha?: string; doerStraks?: boolean } = {}) {
     if (a === 'volume' && b === 'create') { volumener.add(sidste); return ok(sidste); }
     if (a === 'volume' && b === 'inspect') return volumener.has(sidste) ? ok('[]') : { kode: 1, ud: '', fejl: `get ${sidste}: no such volume` };
     if (a === 'volume' && b === 'rm') { volumener.delete(sidste); return ok(); }
-    if (a === 'network' && b === 'inspect') return ok(JSON.stringify([{ Options: { 'com.docker.network.bridge.enable_icc': 'false' }, IPAM: { Config: [{ Gateway: '172.18.0.1' }] } }]));
+    if (a === 'network' && b === 'inspect') return ok(JSON.stringify([{ Options: { 'com.docker.network.bridge.enable_icc': 'false' }, IPAM: { Config: [{ Subnet: '10.200.0.0/24', Gateway: '10.200.0.1' }] } }]));
     if (a === 'run') { containere.add(argv[argv.indexOf('--name') + 1]!); return ok('id'); }
     if (a === 'rm') { containere.delete(sidste); return ok(); }
     if (a === 'container' && b === 'inspect') {
@@ -36,7 +37,7 @@ function falsk(o: { sha?: string; doerStraks?: boolean } = {}) {
     }
     return { kode: 125, ud: '', fejl: `ukendt: ${argv.slice(0, 3).join(' ')}` };
   };
-  const k = lokalBilledKoerer({ koer, netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', noegleFlag: ['--tmpfs', '/run/secrets:rw'], tilfaeldig: () => '0123abcd' });
+  const k = lokalBilledKoerer({ koer, netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', noegleFlag: ['--tmpfs', '/run/secrets:rw'], tilfaeldig: () => '0123abcd' , undernet: undernetFor(laesTenantPool({}), 0), vaern: { pool: laesTenantPool({}), tilstand: async () => o.filter ?? 'ok' } });
   return { k, kald, volumener, containere };
 }
 
@@ -86,4 +87,12 @@ test('a scratch container that exits at once is removed by start itself, so its 
   assert.equal(f.containere.size, 0, 'no scratch container outlives a failed start');
   await f.k.fjernDisk(disk);
   assert.equal(f.volumener.size, 0);
+});
+
+test('KC-0273: a release check runs on the shared pool network (index 0) and only while the host-side filter is ok', async () => {
+  const f = falsk({ filter: 'forældet' });
+  const disk = await f.k.nyDisk(ID).catch(() => 'clawco-u-0123abcd-data');
+  f.volumener.add(disk);
+  await assert.rejects(f.k.start(ID, disk), /netfilter: forældet/);
+  assert.ok(!f.kald.some((a) => a[1] === 'run' && a.includes('--detach')));
 });

@@ -48,11 +48,12 @@ export async function sessionLever(db: Database, p: { s: number; k: number }, nu
   return r?.email ?? null;
 }
 
-/** Our cookie's value out of a Cookie header (the first one, as browsers send the most specific first). */
-export function cookieFra(header: string | undefined): string | undefined {
+/** Our cookie's value out of a Cookie header (the first one, as browsers send the most specific first). `navn`
+ *  (KC-0272): another of the gateway's own cookies. */
+export function cookieFra(header: string | undefined, navn: string = COOKIE): string | undefined {
   for (const del of (header ?? '').split(';')) {
     const i = del.indexOf('=');
-    if (i > 0 && del.slice(0, i).trim() === COOKIE) return del.slice(i + 1).trim();
+    if (i > 0 && del.slice(0, i).trim() === navn) return del.slice(i + 1).trim();
   }
   return undefined;
 }

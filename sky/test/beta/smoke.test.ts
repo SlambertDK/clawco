@@ -20,7 +20,8 @@ import { betaRapport } from '../../scripts/beta-rapport.ts';
 import { falskFlaade, falskNoegler } from '../fleet/hjaelp.ts';
 import { FROE } from '../gateway/hjaelp.ts';
 
-const PUBLIC = 'https://konto.example.test';
+// KC-0272: dev mode (the outbox, the fake Checkout) runs only on a localhost address.
+const PUBLIC = 'https://konto.localhost';
 
 class Browser {
   jar = new Map<string, string>();

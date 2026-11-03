@@ -26,7 +26,7 @@ test('200: the text, the validators, the final address and a polite User-Agent',
   const s = await stub((req, res) => { ua = String(req.headers['user-agent']); res.writeHead(200, { 'content-type': 'application/rss+xml', etag: '"v1"', 'last-modified': 'Mon, 02 Nov 2026 06:00:00 GMT' }); res.end('<rss/>'); });
   const hent = lavHenter({ agent: 'Clawco/9.9' });
   const r = await hent(s.url('/feed'), bruger);
-  assert.deepEqual(r, { status: 'ny', tekst: '<rss/>', etag: '"v1"', sidstRettet: 'Mon, 02 Nov 2026 06:00:00 GMT', endeligAdresse: s.url('/feed') });
+  assert.deepEqual(r, { status: 'ny', tekst: '<rss/>', etag: '"v1"', sidstRettet: 'Mon, 02 Nov 2026 06:00:00 GMT', endeligAdresse: s.url('/feed'), adresser: ['127.0.0.1'] });
   assert.equal(ua, 'Clawco/9.9');
 });
 
@@ -34,7 +34,7 @@ test('304: the conditional headers go out and "uændret" comes back', async () =
   let set: Record<string, unknown> = {};
   const s = await stub((req, res) => { set = { inm: req.headers['if-none-match'], ims: req.headers['if-modified-since'] }; res.writeHead(304); res.end(); });
   const r = await lavHenter()(s.url(), { ...bruger, etag: '"v1"', sidstRettet: 'Mon, 02 Nov 2026 06:00:00 GMT' });
-  assert.deepEqual(r, { status: 'uaendret' });
+  assert.deepEqual(r, { status: 'uaendret', adresser: ['127.0.0.1'] });
   assert.deepEqual(set, { inm: '"v1"', ims: 'Mon, 02 Nov 2026 06:00:00 GMT' });
 });
 
@@ -158,4 +158,48 @@ test('tilladtVaert: the first address and every redirect must be on an accepted 
 test('a refused status carries the HTTP status', async () => {
   const s = await stub((_req, res) => { res.writeHead(410); res.end(); });
   await assert.rejects(lavHenter()(s.url(), bruger), (e: unknown) => e instanceof HentFejl && e.kode === 'status' && e.httpStatus === 410);
+});
+
+// KC-0274 (C3): the user's permission to reach the local network belongs to the ADDRESS that was judged, not to the name.
+test('a feed the user pinned to an address is refused when its name later points somewhere else (DNS rebinding)', async () => {
+  const s = await stub((_req, res) => { res.writeHead(200); res.end('hjemme'); });
+  const hjem = async () => [{ address: '127.0.0.1', family: 4 as const }];
+  const r = await lavHenter({ opslag: hjem })(`http://hjem.test:${s.port}/f`, { ...bruger, kunAdresser: ['127.0.0.1'] });
+  assert.deepEqual((r as { adresser?: string[] }).adresser, ['127.0.0.1'], 'the judged addresses come back, so they can be stored');
+  // The name now answers with loopback, but the user pinned a LAN address: refused, nothing is sent.
+  let ramt = 0;
+  const s2 = await stub((_req, res) => { ramt += 1; res.writeHead(200); res.end('x'); });
+  await assert.rejects(lavHenter({ opslag: hjem })(`http://hjem.test:${s2.port}/f`, { ...bruger, kunAdresser: ['192.168.1.5'] }), afvist('afvist'));
+  assert.equal(ramt, 0);
+  // ... and so is a name that now answers with a public address.
+  await assert.rejects(lavHenter({ opslag: async () => [{ address: '93.184.216.34', family: 4 as const }] })('http://hjem.test/f', { ...bruger, kunAdresser: ['192.168.1.5'] }), afvist('afvist'));
+});
+
+test('a public name with a private record is never upgraded to the user\'s own address: the private answer is refused', async () => {
+  const s = await stub((_req, res) => { res.writeHead(200); res.end('x'); });
+  const blandet = async () => [{ address: '93.184.216.34', family: 4 as const }, { address: '127.0.0.1', family: 4 as const }];
+  await assert.rejects(lavHenter({ opslag: blandet })(`http://blandet.test:${s.port}/f`, bruger), afvist('afvist'));
+  await assert.rejects(lavHenter({ opslag: async () => [{ address: '127.0.0.1', family: 4 as const }, { address: '93.184.216.34', family: 4 as const }] })(`http://blandet.test:${s.port}/f`, bruger), afvist('afvist'));
+});
+
+test('a hosted install judges as "hostet": local is refused with its own words, and nothing is upgraded', async () => {
+  const s = await stub((_req, res) => { res.writeHead(200); res.end('x'); });
+  await assert.rejects(lavHenter()(s.url('/f'), { oprindelse: 'hostet' }), (e: unknown) => e instanceof HentFejl && e.kode === 'afvist' && /ikke kan nå|cannot reach/i.test(e.message));
+});
+
+// KC-0274 (C3): Aula answers over https on the default port at EVERY hop, not only on the first one.
+test('tilladtAdresse: a redirect to http, or to another port, on an accepted host is refused', async () => {
+  const s = await stub((req, res) => {
+    const port = (res.socket?.localPort) ?? 0;
+    if (req.url === '/http') { res.writeHead(302, { location: `http://x.aula.dk:${port}/maal` }); res.end(); return; }
+    if (req.url === '/port') { res.writeHead(302, { location: `https://x.aula.dk:${port}/maal` }); res.end(); return; }
+    res.writeHead(200); res.end('maal');
+  });
+  const kunHttps = (u: URL): boolean => u.hostname === '127.0.0.1' || (u.protocol === 'https:' && u.port === '');
+  const hent = lavHenter({ opslag: lokalOpslag, tilladLoopbackUdefra: true, tilladtVaert: (v) => v === '127.0.0.1' || kunAula(v), tilladtAdresse: kunHttps });
+  assert.equal(((await hent(s.url('/maal'), bruger)) as { tekst: string }).tekst, 'maal');
+  await assert.rejects(hent(s.url('/http'), bruger), afvist('afvist'));
+  await assert.rejects(hent(s.url('/port'), bruger), afvist('afvist'));
+  // The first address is judged by the same hook.
+  await assert.rejects(hent(`http://x.aula.dk:${s.port}/maal`, bruger), afvist('afvist'));
 });

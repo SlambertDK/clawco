@@ -176,7 +176,7 @@ test('with a grant, staff read: the request carries a signed support claim, the 
     assert.equal(r.status, 200);
     const sidste = s.t.modtaget.at(-1)!;
     const p = payload(String(sidste.headers['clawco-konto']));
-    assert.deepEqual(Object.keys(p), ['t', 'k', 'e', 'iat', 'sa', 'su', 'sn']);
+    assert.deepEqual(Object.keys(p), ['t', 'k', 'e', 'iat', 'm', 'p', 'sa', 'su', 'sn']);
     assert.deepEqual([p['t'], p['k'], p['sa'], p['su']], [s.o.slug, String(s.personale.id), String(a!.id), Math.floor(a!.udloeber.getTime() / 1000)]);
     assert.match(String(p['sn']), /^[a-f0-9]{16}$/);
     assert.deepEqual((await stoetteHaendelser(s.o.db, a!.id)).map((h) => [h.slags, h.kontoId]), [['givet', s.o.ejer.id], ['aabnet', s.personale.id]]);

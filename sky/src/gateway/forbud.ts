@@ -2,8 +2,18 @@
 // the sha; Sky reads it over the private network), anything under /_sky/ or /intern/ (KC-0184) or /model/ (KC-0264); pass on a header a client could use
 // to claim an identity, or the gateway's own cookie; let a tenant set the gateway's cookie; or log a path, a
 // query string, a cookie, a header or a body.
+//
+// KC-0272 (D2): a tenant's cookies are host-only by the gateway's hand. Every tenant, konto. and the apex are one
+// site, so a cookie another *.<basedomain> host sets with Domain= would otherwise reach every tenant, and the server
+// cannot see a cookie's Domain. So a tenant's Set-Cookie goes out as __Host-<name> (no Domain, Path=/, Secure) and
+// only __Host- cookies come back in, unprefixed — a sibling host cannot set a __Host- cookie on this host. The
+// gateway's own cookies (the tenant cookie and the entry binding) never pass either way.
 import type { IncomingHttpHeaders } from 'node:http';
 import { COOKIE } from './cookie.ts';
+import { BINDING_COOKIE } from './login-vej.ts';
+
+const HOST = '__Host-';
+const EGNE = new Set([COOKIE, BINDING_COOKIE]);
 
 /** The path as a tenant's router would see it: dot segments resolved, percent-decoded, lower case, single slashes. */
 function somTenantSer(sti: string): string {
@@ -38,7 +48,10 @@ export function rensInd(h: IncomingHttpHeaders): Ud {
   for (const [k, v] of Object.entries(h)) {
     if (v === undefined || HOP.has(k) || navngivne.has(k) || IDENTITET.test(k)) continue;
     if (k === 'cookie') {
-      const rest = String(v).split(';').map((s) => s.trim()).filter((s) => s && s.slice(0, s.indexOf('=')).trim() !== COOKIE);
+      const rest = String(v).split(';').map((s) => s.trim()).flatMap((s) => {
+        const navn = s.slice(0, Math.max(0, s.indexOf('='))).trim();
+        return navn.startsWith(HOST) && navn.length > HOST.length && !EGNE.has(navn) ? [s.slice(s.indexOf(HOST) + HOST.length)] : [];
+      });
       if (rest.length) ud[k] = rest.join('; ');
       continue;
     }
@@ -54,7 +67,14 @@ export function rensUd(h: IncomingHttpHeaders): Ud {
   for (const [k, v] of Object.entries(h)) {
     if (v === undefined || HOP.has(k) || navngivne.has(k)) continue;
     if (k === 'set-cookie') {
-      const rest = [v].flat().filter((c) => c.slice(0, c.indexOf('=')).trim() !== COOKIE);
+      const rest = [v].flat().flatMap((c) => {
+        const [par = '', ...attr] = c.split(';').map((d) => d.trim());
+        const i = par.indexOf('=');
+        const navn = i > 0 ? par.slice(0, i).trim() : '';
+        if (!navn || EGNE.has(navn) || EGNE.has(HOST + navn)) return [];
+        const behold = attr.filter((a) => a && !/^(domain|path|secure)(=|$)/i.test(a));
+        return [[`${HOST}${navn}${par.slice(i)}`, ...behold, 'Path=/', 'Secure'].join('; ')];
+      });
       if (rest.length) ud[k] = rest;
       continue;
     }

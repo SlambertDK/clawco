@@ -22,6 +22,11 @@ export class PauseFejl extends Error {
   constructor() { super(pauseTekst()); this.name = 'PauseFejl'; }
 }
 
+/** KC-0275 (B7): a run asked for while the person already has the maximum waiting. The server answers 429 with the message. */
+export class KoeFuld extends Error {
+  constructor() { super(graenserTekst().koeFuld); this.name = 'KoeFuld'; }
+}
+
 /** A person whose role may not stop or resume. The server answers 403 with the message. */
 export class NodstopNaegtet extends Error {
   constructor(hvorfor: string) { super(hvorfor); this.name = 'NodstopNaegtet'; }

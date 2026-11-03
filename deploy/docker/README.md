@@ -73,7 +73,9 @@ docker compose --profile tailscale up -d
 ```
 
 The official `tailscale/tailscale` image joins your tailnet and serves Clawco over HTTPS with
-`deploy/docker/tailscale/serve.json`, proxying to `http://clawco:8750` on the compose network.
+`deploy/docker/tailscale/serve.json`, proxying to `http://127.0.0.1:8750` from inside the app container's network
+namespace (`network_mode: service:clawco`), so the app sees Tailscale's identity headers and a household's roles
+work; a tagged or shared-in node is not the owner (KC-0277).
 The loopback port stays as it is. Funnel is off (`AllowFunnel: false`) and must stay off.
 
 What was checked (2026-10-31), and against which source:

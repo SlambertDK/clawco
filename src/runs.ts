@@ -11,7 +11,7 @@ import type { DataZone } from './identitet/zoner.ts';
 import { omslutData } from './agent/prompt.ts';
 import { PROMPT_TEKSTER, promptTekst } from './agent/prompt-tekster.ts';
 import { STANDARD_VERB, VERB_NU, vaerktoejTilladt } from './graenser/opsyn.ts';
-import { lavPause, PauseFejl, pauseTekst, type Pause, type PauseTilstand } from './graenser/nodstop.ts';
+import { lavPause, KoeFuld, PauseFejl, pauseTekst, type Pause, type PauseTilstand } from './graenser/nodstop.ts';
 import type { Profil } from './store/profil.ts';
 import { redigeres } from './graenser/redaktion.ts';
 import { medSprog, sprogNu } from './store/sprog.ts';
@@ -80,6 +80,8 @@ type StartOpts = {
   tier?: Tier;
   /** KC-0226: the one data zone this run reads (a Kuratoren run per zone); absent = privat, as before. It decides who sees the run in the Kø panel. */
   zone?: DataZone;
+  /** KC-0275 (B7): whose run this is, for the per-person cap on queued runs; absent = the owner's. */
+  ejer?: string;
   spec: { input: string; instructions: string; sessionId?: string };
   /** Turns Hermes' final text into what the browser needs. May throw. */
   onDone: (output: string) => Promise<DoneResult>;
@@ -119,9 +121,13 @@ const stoppet = (): string => tekst().stoppet(pauseTekst());
  * `pause` (KC-0124): the kill switch's state; absent = in memory only (tests without a data dir). `personer`: the
  * people register's path, or (KC-0136) a function read when each run starts — the vault chosen on the notes card.
  */
-export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: number; personer?: string | (() => string); now?: () => Date; pause?: Pause; profil?: () => Profil | null } = {}) {
+/** KC-0275 (B7): how many runs one person may have waiting for a slot; the next is refused (the server answers 429). */
+export const MAKS_KOE_PER_PERSON = 20;
+
+export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: number; maksKoe?: number; personer?: string | (() => string); now?: () => Date; pause?: Pause; profil?: () => Profil | null } = {}) {
   const nu = opts.now ?? (() => new Date()); // KC-0068: the test world runs on its own clock
   const maxParallel = Math.max(1, opts.maxParallel ?? 2);
+  const maksKoe = Math.max(1, opts.maksKoe ?? MAKS_KOE_PER_PERSON);
   const mennesker = (): string => omMennesker((typeof opts.personer === 'function' ? opts.personer() : opts.personer) || undefined);
   const pause = opts.pause ?? lavPause();
   const runs = new Map<string, RunRecord & { events: RunEvent[]; listeners: Set<(e: RunEvent) => void> }>();
@@ -195,6 +201,9 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
 
   function start(o: StartOpts): RunRecord {
     ikkePaaPause();
+    let koeet = 0;
+    for (const r of runs.values()) if (r.status === 'queued' && r.hosHermes && (r.ejer ?? '') === (o.ejer ?? '')) koeet++;
+    if (koeet >= maksKoe) throw new KoeFuld();
     const id = `kc_${randomUUID()}`;
     let resolveFinished!: (r: RunRecord) => void;
     const finished = new Promise<RunRecord>((res) => { resolveFinished = res; });
@@ -202,6 +211,7 @@ export function createRunRegistry(hermes: AgentClient, opts: { maxParallel?: num
     if (o.room) rec.room = o.room;
     if (o.label) rec.label = o.label;
     if (o.zone) rec.zone = o.zone;
+    if (o.ejer) rec.ejer = o.ejer;
     runs.set(id, rec); order.set(id, ++seq);
 
     // KC-0124: settled once — by the run itself, or at once by "Stop alt" (the run's own ending is then dropped).

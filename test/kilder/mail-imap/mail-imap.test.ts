@@ -16,6 +16,7 @@ import { laesKildeHemmelighed } from '../../../src/kilder/hemmeligheder.ts';
 import { MAIL_IMAP_ID, mailImapKilde } from '../../../src/kilder/mail-imap/mail-imap.ts';
 import { FEJLTEKST } from '../../../src/kilder/mail-imap/fejl.ts';
 import { PRESETS, TJENESTER } from '../../../src/kilder/mail-imap/presets.ts';
+import { imapTekst } from '../../../src/kilder/mail-imap/tekster.ts';
 import { KildeFejl, type Kilde, type KildeKontekst } from '../../../src/kilder/types.ts';
 import type { Person } from '../../../src/identitet/husstand.ts';
 import { medMailImap } from '../../../src/server.ts';
@@ -228,4 +229,17 @@ test('kort: says what the connector does and never does (moves and drafts on you
   const kort = await mailImapKilde().kort(ctxFor({}, null));
   assert.doesNotMatch(kort.tekst, /kan ikke flytte/);
   assert.match(kort.tekst, /sender og sletter aldrig/);
+});
+
+// KC-0274 (C2): the host name of a hosted "anden" server is resolved and judged before any connection is made.
+test('hosted: a server NAME that resolves to a local or private address is refused before any connection, with the fixed sentence', async () => {
+  const valg = { tjeneste: 'anden', adresse: 'mig@b.example', server: 'mail.indre.example' };
+  const c = ctxFor(valg, 'x');
+  for (const svar of [[{ address: '10.0.0.5', family: 4 as const }], [{ address: '93.184.216.34', family: 4 as const }, { address: '127.0.0.1', family: 4 as const }], [{ address: '169.254.169.254', family: 4 as const }], []]) {
+    const k = mailImapKilde({ hostet: true, opslag: async () => svar, ...TID });
+    await assert.rejects(k.read(c), (e: unknown) => e instanceof KildeFejl && e.status === 400 && e.message === imapTekst().serverIkkeHostet);
+    assert.equal((await k.helbred(c)).status, 'nede');
+  }
+  // The literal form is refused by forbindelse() itself, also through the connector.
+  await assert.rejects(mailImapKilde({ hostet: true, ...TID }).read(ctxFor({ ...valg, server: '127.0.0.1' }, 'x')), (e: unknown) => e instanceof KildeFejl && e.status === 400 && e.message === imapTekst().serverIkkeHostet);
 });

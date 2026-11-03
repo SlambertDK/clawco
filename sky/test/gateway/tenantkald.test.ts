@@ -48,7 +48,7 @@ test('Hent alt: GET /api/tillid/eksport signed as the owner for this tenant; the
   assert.equal(t.set.length, 1);
   assert.equal(t.set[0]!.metode, 'GET');
   assert.equal(t.set[0]!.sti, '/api/tillid/eksport');
-  assert.deepEqual(t.set[0]!.paastand, { t: 'hus-abcdefgh', k: '7', e: 'ejer@example.test', iat: Math.floor(NU.getTime() / 1000) });
+  assert.deepEqual(t.set[0]!.paastand, { t: 'hus-abcdefgh', k: '7', e: 'ejer@example.test', iat: Math.floor(NU.getTime() / 1000), m: 'GET', p: '/api/tillid/eksport' });
   await t.luk();
 });
 
@@ -59,6 +59,7 @@ test('Slet alt: POST /api/tillid/slet-alt with the typed word, signed as the own
   assert.equal(t.set[0]!.sti, '/api/tillid/slet-alt');
   assert.deepEqual(JSON.parse(t.set[0]!.krop), { bekraeft: 'SLET' });
   assert.equal(t.set[0]!.paastand?.['e'], 'ejer@example.test');
+  assert.deepEqual([t.set[0]!.paastand?.['m'], t.set[0]!.paastand?.['p']], ['POST', '/api/tillid/slet-alt'], 'KC-0272: bound to method and path');
   await t.luk();
 });
 
@@ -72,4 +73,20 @@ test('any other answer is an error (never an empty or HTML "zip"); without the g
   await assert.rejects(tenantKald({ noegle: null }).sletAlt({ ...EJER, adresse: t.adresse }), /nøgle/);
   assert.equal(t.set.length, foer, 'fail closed: no request without the key');
   await t.luk();
+});
+
+test('KC-0273 (D5): every tenant answer is read bounded: a 1 MiB JSON answer and an export over its bound throw; normal ones pass', async () => {
+  const fyld = 'x'.repeat(1024 * 1024);
+  const t = await tenant((s) => (s.sti === '/api/tillid/eksport'
+    ? { status: 200, type: 'application/zip', krop: ZIP }
+    : { status: 200, type: 'application/json', krop: s.sti === '/api/tillid/slet-alt' ? JSON.stringify({ slettet: true, fyld }) : JSON.stringify({ aktiv: true }) }));
+  try {
+    const k = tenantKald({ noegle: NOEGLE, nu: () => NU });
+    await assert.rejects(k.sletAlt({ ...EJER, adresse: t.adresse }), /for stort/);
+    await k.stoetteStart({ ...EJER, adresse: t.adresse }, 'bevis');
+    assert.deepEqual(await k.eksport({ ...EJER, adresse: t.adresse }), ZIP);
+    await assert.rejects(tenantKald({ noegle: NOEGLE, nu: () => NU, eksportMaks: ZIP.length - 1 }).eksport({ ...EJER, adresse: t.adresse }), /for stort/);
+  } finally {
+    await t.luk();
+  }
 });

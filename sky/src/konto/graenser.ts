@@ -5,8 +5,11 @@ import type { Database } from '../db/pool.ts';
 
 /** Length of one counting window. */
 export const VINDUE_MS = 15 * 60_000;
-/** Login links one email address can be sent per window. */
+/** Login links one email address can be sent per window at the request of one IP address (KC-0272: per requester,
+ *  so one address cannot lock a person out of their own login). */
 export const KODER_PR_EMAIL = 5;
+/** Login links one email address can be sent per window by all requesters together (no mail-bombing one inbox). */
+export const KODER_PR_EMAIL_I_ALT = 20;
 /** Login links one IP address can ask for per window (any emails). */
 export const KODER_PR_IP = 20;
 /** Failed confirmations (bad link, bad passkey answer) one IP address may make per window. */
@@ -14,6 +17,7 @@ export const FEJL_PR_IP = 10;
 
 const noegle = (art: string, v: string): string => createHash('sha256').update(`${art}:${v}`).digest('hex');
 export const emailNoegle = (email: string): string => noegle('email', email);
+export const emailIpNoegle = (email: string, ip: string): string => noegle('email-ip', `${email}\n${ip}`);
 export const ipNoegle = (ip: string): string => noegle('ip', ip);
 export const fejlNoegle = (ip: string): string => noegle('fejl', ip);
 

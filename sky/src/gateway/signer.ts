@@ -2,7 +2,9 @@
 // src/identitet/konto.ts in the app; the two share no code, only test/fixtures/konto-vektorer.json).
 // After login the gateway (KC-0183) puts who the person is on every request to the tenant as
 //   Clawco-Konto: v1.<keyid>.<base64url payload>.<base64url signature>
-// payload = JSON {t: tenant id, k: konto id, e: verified email, iat: unix seconds}, in that key order;
+// payload = JSON {t: tenant id, k: konto id, e: verified email, iat: unix seconds, m: method, p: path}, in that key
+// order (KC-0272: m and p bind the header to the one request it was made for, so a captured header cannot be
+// replayed onto another method or path within the window; p is the path without the query);
 // signature = Ed25519 over the exact ASCII bytes "v1.<keyid>.<payload>"; keyid = the first 8 bytes of
 // SHA-256 of the raw 32-byte public key, base64url — derived from the key, so a tenant configured with
 // two public keys (rotation) picks the right one without a separate id setting.
@@ -13,7 +15,9 @@ export const KONTO_HEADER = 'Clawco-Konto';
  *  ends, unix seconds) and sn (this session's random id). The tenant accepts them only beside its own record of the
  *  grant (src/identitet/stoette.ts), so a gateway bug cannot extend one. */
 export type StoettePaastand = { sa: string; su: number; sn: string };
-export type KontoPaastand = { t: string; k: string; e: string; iat: number } & Partial<StoettePaastand>;
+export type KontoPaastand = { t: string; k: string; e: string; iat: number; m: string; p: string } & Partial<StoettePaastand>;
+/** The longest path a header can name (the tenant caps the whole header; a longer path is refused at the gateway). */
+export const STI_MAKS = 512;
 
 /** The key id of a raw 32-byte Ed25519 public key. */
 export function noegleId(offentligRaw: Buffer): string {
@@ -40,10 +44,12 @@ function offentligAf(privat: KeyObject): { offentlig: string; id: string } {
 export function signerKonto(privat: KeyObject, p: KontoPaastand): string {
   for (const felt of ['t', 'k', 'e'] as const) if (typeof p[felt] !== 'string' || !p[felt]) throw new Error(`påstanden mangler ${felt}`);
   if (!Number.isSafeInteger(p.iat) || p.iat < 0) throw new Error('iat skal være hele sekunder');
+  if (typeof p.m !== 'string' || !/^[A-Z]{3,7}$/.test(p.m)) throw new Error('m skal være metoden');
+  if (typeof p.p !== 'string' || !p.p.startsWith('/') || p.p.length > STI_MAKS || p.p.includes('?')) throw new Error('p skal være stien');
   const stoette = p.sa !== undefined || p.su !== undefined || p.sn !== undefined;
   if (stoette && (typeof p.sa !== 'string' || !/^\d{1,18}$/.test(p.sa) || !Number.isSafeInteger(p.su) || typeof p.sn !== 'string' || !/^[a-f0-9]{16}$/.test(p.sn))) throw new Error('støttepåstanden er ufuldstændig');
   const { id } = offentligAf(privat);
-  const krop = stoette ? { t: p.t, k: p.k, e: p.e, iat: p.iat, sa: p.sa, su: p.su, sn: p.sn } : { t: p.t, k: p.k, e: p.e, iat: p.iat };
+  const krop = stoette ? { t: p.t, k: p.k, e: p.e, iat: p.iat, m: p.m, p: p.p, sa: p.sa, su: p.su, sn: p.sn } : { t: p.t, k: p.k, e: p.e, iat: p.iat, m: p.m, p: p.p };
   return signer(privat, 'v1', id, krop);
 }
 

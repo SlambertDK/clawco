@@ -10,7 +10,7 @@ import type { Husstand } from '../../src/identitet/husstand.ts';
 
 const FIL = new URL('../fixtures/konto-vektorer.json', import.meta.url);
 const V = JSON.parse(readFileSync(FIL, 'utf8')) as {
-  tenant: string; nu: number;
+  tenant: string; nu: number; anmodning: { metode: string; sti: string };
   noegler: Record<'a' | 'b' | 'c', { froe: string; offentlig: string; id: string }>;
   vektorer: { navn: string; header: string; forventet: string | number }[];
 };
@@ -26,10 +26,11 @@ const MAJA = { id: 'maja', login: 'maja@example.com', navn: 'Maja', rolle: 'medl
 const TO: Husstand = { personer: [HENRIK, MAJA] };
 const PERSON: Record<string, unknown> = { maja: MAJA, henrik: HENRIK };
 
-const med = (header: string | null, ekstra: Record<string, string> = {}, peer: string | undefined = GATEWAY): Anmodning => {
+/** One request as the tenant sees it; by default the method and path every vector was signed for (KC-0272). */
+const med = (header: string | null, ekstra: Record<string, string> = {}, peer: string | undefined = GATEWAY, anmodning = V.anmodning): Anmodning => {
   const h = new Headers(ekstra);
   if (header !== null) h.set('Clawco-Konto', header);
-  return { headers: h, peer };
+  return { headers: h, peer, ...anmodning };
 };
 
 test('the two fixture files are byte-identical (the tenant and the gateway hold the same contract)', () => {
@@ -113,11 +114,35 @@ function signerRaa(payload: unknown, n: 'a' | 'b' | 'c' = 'a'): string {
   return `${til}.${sign(null, Buffer.from(til), privat).toString('base64url')}`;
 }
 
-test('a validly signed payload with the wrong shape is still refused (v1 is exactly {t,k,e,iat})', () => {
-  const p = { t: V.tenant, k: 'konto-maja', e: 'maja@example.com', iat: V.nu };
+test('a validly signed payload with the wrong shape is still refused (v1 is exactly {t,k,e,iat,m,p})', () => {
+  const p = { t: V.tenant, k: 'konto-maja', e: 'maja@example.com', iat: V.nu, m: 'GET', p: '/rum/hjem' };
   assert.deepEqual(verificerKonto(med(signerRaa(p)), K, V.nu), { ok: true, email: 'maja@example.com' });
-  const forkerte: unknown[] = ['ikke json', [p], null, { ...p, ekstra: 1 }, { ...p, iat: String(V.nu) }, { ...p, iat: V.nu + 0.5 }, { ...p, e: '' }, { ...p, k: 7 }, { ...p, t: undefined }, { ...p, e: 'x'.repeat(201) }];
+  const forkerte: unknown[] = ['ikke json', [p], null, { ...p, ekstra: 1 }, { ...p, iat: String(V.nu) }, { ...p, iat: V.nu + 0.5 }, { ...p, e: '' }, { ...p, k: 7 }, { ...p, t: undefined }, { ...p, e: 'x'.repeat(201) },
+    { ...p, m: 7 }, { ...p, p: undefined }, { ...p, m: undefined }, { ...p, p: '' }];
   for (const f of forkerte) assert.equal(verificerKonto(med(signerRaa(f)), K, V.nu).ok, false, JSON.stringify(f));
+});
+
+// KC-0272 (D2): a captured header is good only for the request it was made for, not replayed onto another method or path.
+test('KC-0272: the header names the request: another method, another path or a request without them is refused', () => {
+  const gyldig = vektor('gyldig');
+  assert.deepEqual(hvemKontoKigger(med(gyldig), TO, K, V.nu), MAJA);
+  for (const anmodning of [{ metode: 'POST', sti: '/rum/hjem' }, { metode: 'GET', sti: '/api/koe' }, { metode: 'GET', sti: '/rum/hjem/' }, { metode: 'get', sti: '/rum/hjem' }]) {
+    const r = hvemKontoKigger(med(gyldig, {}, GATEWAY, anmodning), TO, K, V.nu);
+    assert.ok(erAfvist(r) && r.afvist === 401, JSON.stringify(anmodning));
+  }
+  const uden = hvemKontoKigger({ headers: med(gyldig).headers, peer: GATEWAY }, TO, K, V.nu);
+  assert.ok(erAfvist(uden) && uden.afvist === 401, 'a caller that does not say which request it is');
+});
+
+test('KC-0272: a header without method and path (a gateway from before) is refused, unless KC_KONTO_TOLERANT=ja for the switch-over', () => {
+  const gammel = vektor('uden-metode-og-sti');
+  assert.ok(erAfvist(hvemKontoKigger(med(gammel), TO, K, V.nu)));
+  assert.equal(K.tolerant, false);
+  const tolerant = kontoFraMiljoe({ ...MILJOE, KC_KONTO_TOLERANT: 'ja' }) as KontoIndstilling;
+  assert.equal(tolerant.tolerant, true);
+  assert.deepEqual(hvemKontoKigger(med(gammel), TO, tolerant, V.nu), MAJA);
+  assert.ok(erAfvist(hvemKontoKigger(med(vektor('anden-sti')), TO, tolerant, V.nu)), 'tolerant still checks a header that names its request');
+  for (const v of ['nej', 'JA', '1', 'true']) assert.equal((kontoFraMiljoe({ ...MILJOE, KC_KONTO_TOLERANT: v }) as KontoIndstilling).tolerant, false, v);
 });
 
 test('a valid signature from any peer but the gateway is 401', () => {

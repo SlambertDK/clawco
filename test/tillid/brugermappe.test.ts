@@ -100,7 +100,7 @@ test('opgoer: per room the log and chat lines and the bytes; Clawco files; the r
     assert.deepEqual(o.rum[0]?.filer, ['data/rum/mail/chat.jsonl', 'data/rum/mail/log.jsonl', 'data/rum/mail/state.json']);
     assert.ok((o.rum[0]?.bytes ?? 0) > 0);
     assert.deepEqual(o.clawco, ['vault/Clawco/Om mig.md', 'vault/Clawco/regler.md']);
-    assert.equal(o.andre, 2, 'kilder.json and the audit file');
+    assert.equal(o.andre, 1, 'kilder.json; the audit trail stays out of the count (KC-0275: Slet alt leaves one tombstone line by design)');
     assert.equal(o.noegler, 8, 'the env files, the key/token/secret names, the encrypted store and its temp name, one source login');
     assert.ok(o.bytes >= (o.rum[0]?.bytes ?? 0));
   } finally { await f.ryd(); }

@@ -18,7 +18,8 @@ import { aabneRefusioner } from '../../src/abonnement/bestilling.ts';
 import { FROE } from '../gateway/hjaelp.ts';
 import type { Database } from '../../src/db/pool.ts';
 
-const PUBLIC = 'https://konto.example.test';
+// KC-0272: dev mode (the outbox, the fake Checkout) runs only on a localhost address.
+const PUBLIC = 'https://konto.localhost';
 
 /** A browser with a click counter: every link followed and every button pressed is one click, every box ticked is one. */
 class Browser {

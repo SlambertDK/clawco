@@ -9,6 +9,7 @@
 import { spawn } from 'node:child_process';
 import { tjekTenantId } from './flaade.ts';
 import { BRUGER, HAERDNING, beholderAdresse, dockerKommando, sikrNetvaerk, tenantKoersel, type Koersel } from './lokal.ts';
+import { kraevFilter, type Undernet, type Vaern } from './netfilter.ts';
 
 export type KoerselBinaer = (argv: string[], input?: Buffer, env?: Record<string, string>) => Promise<{ kode: number; ud: Buffer; fejl: string }>;
 
@@ -29,7 +30,9 @@ export const koerBinaer: KoerselBinaer = (argv, input, env) => new Promise((reso
 
 const ETIKET = 'clawco.kopi';
 
-export function lokalKopiNode(o: { koer: KoerselBinaer; billede: string; netvaerk: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[] }) {
+export function lokalKopiNode(o: { koer: KoerselBinaer; billede: string; netvaerk: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[];
+  /** KC-0273: `netvaerk` is the shared pool network (lokal.ts deltNetvaerk) on this /24 (index 0); `vaern` must be ok. */
+  undernet: Undernet; vaern: Vaern }) {
   const tekst: Koersel = async (argv) => { const r = await o.koer(argv); return { kode: r.kode, ud: r.ud.toString('utf8'), fejl: r.fejl }; };
   const docker = dockerKommando(tekst);
 
@@ -73,7 +76,8 @@ export function lokalKopiNode(o: { koer: KoerselBinaer; billede: string; netvaer
     },
     async start(navn: string, tenant: string) {
       tjekNavn(navn, tjekTenantId(tenant));
-      const gateway = await sikrNetvaerk(docker, o.netvaerk);
+      await kraevFilter(o.vaern);
+      const gateway = await sikrNetvaerk(docker, o.netvaerk, o.undernet);
       // No restart policy: a restored or scratch container never comes back on its own after a host restart.
       await docker([
         'run', '--detach', '--name', navn, '--label', `${ETIKET}=${tenant}`, '--network', o.netvaerk,

@@ -5,11 +5,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { noegleRunFlag } from '../../src/hemmeligheder/levering.ts';
-import { lokalFlaade, koerProces, tenantKoersel, SKRIV_HUSSTAND, type Koersel } from '../../src/fleet/lokal.ts';
+import { lokalFlaade, koerProces, sikrNetvaerk, tenantKoersel, SKRIV_HUSSTAND, type Docker, type Koersel } from '../../src/fleet/lokal.ts';
 import { ingenKryptering } from '../../src/fleet/kryptering.ts';
+import { laesTenantPool, type NetfilterTilstand } from '../../src/fleet/netfilter.ts';
 
 type Svar = { kode: number; ud: string; fejl: string };
-type C = { koerer: boolean; ip: string; labels: Record<string, string>; startet: string; billede: string };
+type C = { koerer: boolean; ip: string; net: string; labels: Record<string, string>; startet: string; billede: string };
+type N = { icc: boolean; subnet: string; gateway: string; ipv6?: boolean; naeste: number };
 
 /** The image id a container started from a tag gets in the fake (what `{{.Image}}` prints). */
 export const GAMMEL = `sha256:${'a'.repeat(64)}`;
@@ -18,15 +20,17 @@ const NY = `sha256:${'b'.repeat(64)}`;
 export const PUBKEY = 'A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg';
 
 /** A fake Docker host: containers, volumes and networks in memory, every argv recorded. */
-export function falskDocker(start: { containere?: Record<string, boolean>; volumener?: string[]; netvaerk?: Record<string, { icc: boolean }>; fejlPaa?: (argv: string[]) => string | null } = {}) {
+export function falskDocker(start: { containere?: Record<string, boolean>; volumener?: string[]; netvaerk?: Record<string, { icc: boolean; subnet?: string; gateway?: string; ipv6?: boolean }>; fejlPaa?: (argv: string[]) => string | null } = {}) {
   const containere = new Map<string, C>();
   let naesteIp = 2;
   const nyIp = () => `172.18.0.${naesteIp++}`;
   let starter = 0;
   const nyStart = () => `2026-11-01T10:00:${String(starter++).padStart(2, '0')}.123456789Z`;
-  for (const [n, k] of Object.entries(start.containere ?? {})) containere.set(n, { koerer: k, ip: nyIp(), labels: { 'clawco.tenant': n.replace(/^clawco-t-/, '') }, startet: nyStart(), billede: GAMMEL });
+  // Containers that exist from the start sit on the old shared network (a tenant from before KC-0273).
+  for (const [n, k] of Object.entries(start.containere ?? {})) containere.set(n, { koerer: k, ip: nyIp(), net: 'clawco-sky', labels: { 'clawco.tenant': n.replace(/^clawco-t-/, '') }, startet: nyStart(), billede: GAMMEL });
   const volumener = new Map<string, Record<string, string>>((start.volumener ?? []).map((v) => [v, { 'clawco.tenant': v.replace(/^clawco-t-/, '').replace(/-data$/, '') }]));
-  const netvaerk = new Map(Object.entries(start.netvaerk ?? {}));
+  const netvaerk = new Map<string, N>(Object.entries(start.netvaerk ?? {}).map(([k, v]) => [k, { subnet: '172.18.0.0/16', gateway: '172.18.0.1', ...v, naeste: 2 }]));
+  const arg = (argv: string[], flag: string) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined);
   const husstande = new Map<string, string>();
   const kald: string[][] = [];
   const ok = (ud = ''): Svar => ({ kode: 0, ud, fejl: '' });
@@ -59,7 +63,7 @@ export function falskDocker(start: { containere?: Record<string, boolean>; volum
         if (fundne.length < navne.length) return ingen('container: ' + navne.find((n) => !containere.has(n)));
         return ok(fundne.map(([n, x]) => `${x.labels['clawco.tenant']}\t/${n}\t${x.startet}`).join('\n') + '\n');
       }
-      if (format === '{{json .NetworkSettings.Networks}}') return ok(JSON.stringify(c.koerer ? { 'clawco-sky': { IPAddress: c.ip, Gateway: '172.18.0.1' } } : { 'clawco-sky': { IPAddress: '' } }) + '\n');
+      if (format === '{{json .NetworkSettings.Networks}}') return ok(JSON.stringify({ [c.net]: { IPAddress: c.koerer ? c.ip : '' } }) + '\n');
       return { kode: 125, ud: '', fejl: 'ukendt format' };
     }
     if (a === 'container' && b === 'ls' && argv.includes('status=running')) {
@@ -69,9 +73,10 @@ export function falskDocker(start: { containere?: Record<string, boolean>; volum
     if (a === 'network' && b === 'inspect') {
       const n = netvaerk.get(sidste);
       if (!n) return ingenNetvaerk(sidste);
-      return ok(JSON.stringify([{ Name: sidste, Options: n.icc ? {} : { 'com.docker.network.bridge.enable_icc': 'false' }, IPAM: { Config: [{ Subnet: '172.18.0.0/16', Gateway: '172.18.0.1' }] } }]));
+      return ok(JSON.stringify([{ Name: sidste, EnableIPv6: n.ipv6 === true, Options: n.icc ? {} : { 'com.docker.network.bridge.enable_icc': 'false' }, IPAM: { Config: [{ Subnet: n.subnet, Gateway: n.gateway }] } }]));
     }
-    if (a === 'network' && b === 'create') { netvaerk.set(sidste, { icc: !argv.includes('com.docker.network.bridge.enable_icc=false') }); return ok(); }
+    if (a === 'network' && b === 'create') { netvaerk.set(sidste, { icc: !argv.includes('com.docker.network.bridge.enable_icc=false'), subnet: arg(argv, '--subnet') ?? '172.18.0.0/16', gateway: arg(argv, '--gateway') ?? '172.18.0.1', naeste: 2 }); return ok(); }
+    if (a === 'network' && b === 'rm') return netvaerk.delete(sidste) ? ok() : ingenNetvaerk(sidste);
     if (a === 'volume' && b === 'create') { if (!volumener.has(sidste)) volumener.set(sidste, labels(argv)); return ok(sidste); }
     if (a === 'volume' && b === 'inspect') return volumener.has(sidste) ? ok('[]') : ingenVolumen(sidste);
     if (a === 'volume' && b === 'ls') return ok([...volumener.values()].map((l) => l['clawco.tenant']).join('\n'));
@@ -86,7 +91,10 @@ export function falskDocker(start: { containere?: Record<string, boolean>; volum
     if (a === 'run') {
       const navn = argv[argv.indexOf('--name') + 1]!;
       if (containere.has(navn)) return { kode: 125, ud: '', fejl: 'Conflict. The container name is already in use' };
-      containere.set(navn, { koerer: true, ip: nyIp(), labels: labels(argv), startet: nyStart(), billede: sidste.startsWith('sha256:') ? sidste : GAMMEL });
+      const net = arg(argv, '--network') ?? 'bridge';
+      const n = netvaerk.get(net);
+      const ip = n && n.subnet.endsWith('.0/24') ? `${n.subnet.slice(0, -'.0/24'.length)}.${n.naeste++}` : nyIp();
+      containere.set(navn, { koerer: true, ip, net, labels: labels(argv), startet: nyStart(), billede: sidste.startsWith('sha256:') ? sidste : GAMMEL });
       return ok('abc123');
     }
     if (a === 'start') { const c = containere.get(b!); if (!c) return ingen('container'); c.koerer = true; c.startet = nyStart(); return ok(); }
@@ -97,21 +105,27 @@ export function falskDocker(start: { containere?: Record<string, boolean>; volum
   return { koer, kald, containere, volumener, netvaerk, husstande };
 }
 
-const lav = (d: ReturnType<typeof falskDocker>) => lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
+/** KC-0273: the pool and its filter (ok unless a test says otherwise) and an in-memory /24 index per tenant (1, 2, …). */
+export function vaernOgUndernet(tilstand: NetfilterTilstand = 'ok') {
+  const tildelt = new Map<string, number>();
+  return { vaern: { pool: laesTenantPool({}), tilstand: async () => tilstand }, undernet: async (id: string) => { if (!tildelt.has(id)) tildelt.set(id, tildelt.size + 1); return tildelt.get(id)!; } };
+}
+const lav = (d: ReturnType<typeof falskDocker>, tilstand: NetfilterTilstand = 'ok') => lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...vaernOgUndernet(tilstand) });
 const EJER = { id: 'hus-abcdefgh', ejer: 'Mette.Hansen@example.test' };
 
 test('klargoer on a clean host: an ICC-off network, the volume, the household file, then one hardened container — exact argv', async () => {
   const d = falskDocker();
   const k = await lav(d).klargoer(EJER);
-  assert.deepEqual(k, { tenantId: 'hus-abcdefgh', container: 'clawco-t-hus-abcdefgh', volumen: 'clawco-t-hus-abcdefgh-data', adresse: 'http://172.18.0.2:8750', krypteret: false });
+  assert.deepEqual(k, { tenantId: 'hus-abcdefgh', container: 'clawco-t-hus-abcdefgh', volumen: 'clawco-t-hus-abcdefgh-data', adresse: 'http://10.200.1.2:8750', krypteret: false });
+  // KC-0273: the tenant's own network, on its /24 of the pool.
   assert.deepEqual(d.kald.find((a) => a[1] === 'network' && a[2] === 'create'), [
-    'docker', 'network', 'create', '--driver', 'bridge', '--label', 'clawco.sky=1', '--opt', 'com.docker.network.bridge.enable_icc=false', 'clawco-sky',
+    'docker', 'network', 'create', '--driver', 'bridge', '--label', 'clawco.sky=1', '--opt', 'com.docker.network.bridge.enable_icc=false', '--subnet', '10.200.1.0/24', '--gateway', '10.200.1.1', 'clawco-t-hus-abcdefgh-net',
   ]);
   assert.deepEqual(d.kald.find((a) => a[1] === 'volume' && a[2] === 'create'), ['docker', 'volume', 'create', '--label', 'clawco.tenant=hus-abcdefgh', 'clawco-t-hus-abcdefgh-data']);
   const run = d.kald.find((a) => a[1] === 'run' && !a.includes('--rm'))!;
   assert.deepEqual(run, [
     'docker', 'run', '--detach', '--name', 'clawco-t-hus-abcdefgh', '--label', 'clawco.tenant=hus-abcdefgh',
-    '--network', 'clawco-sky', '--restart', 'unless-stopped',
+    '--network', 'clawco-t-hus-abcdefgh-net', '--restart', 'unless-stopped',
     '--volume', 'clawco-t-hus-abcdefgh-data:/data',
     '--read-only', '--tmpfs', '/tmp:rw,noexec,nosuid,size=64m',
     '--tmpfs', '/run/secrets:rw,noexec,nosuid,nodev,size=16k,mode=0700,uid=1000,gid=1000', '--env', 'KC_HEMMELIGHEDER_FIL=/run/secrets/clawco-lager',
@@ -121,7 +135,7 @@ test('klargoer on a clean host: an ICC-off network, the volume, the household fi
     '--log-driver', 'journald',
     '--env', 'KC_DATA_DIR=/data', '--env', 'KC_PORT=8750', '--env', 'KC_HOST=0.0.0.0',
     '--env', 'KC_IDENTITET=konto', '--env', 'KC_KONTO_TENANT=hus-abcdefgh', '--env', `KC_KONTO_PUBKEY=${PUBKEY}`,
-    '--env', 'KC_KONTO_GATEWAY=172.18.0.1', '--env', 'KC_AGENT=direkte',
+    '--env', 'KC_KONTO_GATEWAY=10.200.1.1', '--env', 'KC_AGENT=direkte',
     '--env', 'KC_SKY=ja', '--env', 'KC_SKY_URL=https://konto.example.dk',
     'clawco:test',
   ]);
@@ -165,7 +179,7 @@ test('the helper script writes husstand.json once and never overwrites an existi
 });
 
 test('an existing network with inter-container traffic on is refused (tenants would see each other)', async () => {
-  const d = falskDocker({ netvaerk: { 'clawco-sky': { icc: true } } });
+  const d = falskDocker({ netvaerk: { 'clawco-t-hus-abcdefgh-net': { icc: true, subnet: '10.200.1.0/24', gateway: '10.200.1.1' } } });
   await assert.rejects(lav(d).klargoer(EJER), /enable_icc/);
   assert.ok(!d.kald.some((a) => a[1] === 'run' || (a[1] === 'volume' && a[2] === 'create')));
 });
@@ -237,7 +251,7 @@ test('maerkede lists every tenant id carrying the label on a container or a volu
 
 test('KC-0216: startede maps every running tenant container to its current start, in two Docker calls for the whole fleet', async () => {
   const d = falskDocker({ containere: { 'clawco-t-a1': true, 'clawco-t-b2': false, 'clawco-t-c3': true } });
-  d.containere.set('fremmed', { koerer: true, ip: '172.18.0.99', labels: {}, startet: 'x', billede: GAMMEL });
+  d.containere.set('fremmed', { koerer: true, ip: '172.18.0.99', net: 'clawco-sky', labels: {}, startet: 'x', billede: GAMMEL });
   const f = lav(d);
   const foer = d.kald.length;
   const m = await f.startede();
@@ -262,7 +276,7 @@ test('KC-0216: startede with no running tenant makes one Docker call; a containe
 
 test('a Docker error that is not "no such" is not swallowed', async () => {
   const koer: Koersel = async () => ({ kode: 1, ud: '', fejl: 'Cannot connect to the Docker daemon' });
-  const f = lokalFlaade({ koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
+  const f = lokalFlaade({ koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...vaernOgUndernet() });
   await assert.rejects(f.status('a1'), /Docker/);
   await assert.rejects(f.klargoer(EJER), /Docker/);
 });
@@ -290,7 +304,7 @@ test("beholder reports the running container's image id and address; null when i
   const f = lav(d);
   assert.equal(await f.beholder(EJER.id), null);
   await f.klargoer(EJER);
-  assert.deepEqual(await f.beholder(EJER.id), { billede: GAMMEL, adresse: 'http://172.18.0.2:8750', container: 'clawco-t-hus-abcdefgh' });
+  assert.deepEqual(await f.beholder(EJER.id), { billede: GAMMEL, adresse: 'http://10.200.1.2:8750', container: 'clawco-t-hus-abcdefgh' });
   await f.stop(EJER.id);
   assert.equal(await f.beholder(EJER.id), null);
 });
@@ -319,7 +333,7 @@ test("opgrader replaces the container with the given image id on the same volume
   assert.deepEqual(nye[iRun], [...foer.slice(0, -1), NY]);
   assert.ok(!nye.some((a) => a[1] === 'volume' && (a[2] === 'rm' || a[2] === 'create')), 'the volume is never removed or made');
   assert.equal(d.volumener.has('clawco-t-hus-abcdefgh-data'), true);
-  assert.deepEqual(k, { tenantId: EJER.id, container: 'clawco-t-hus-abcdefgh', volumen: 'clawco-t-hus-abcdefgh-data', adresse: 'http://172.18.0.3:8750', krypteret: false });
+  assert.deepEqual(k, { tenantId: EJER.id, container: 'clawco-t-hus-abcdefgh', volumen: 'clawco-t-hus-abcdefgh-data', adresse: 'http://10.200.1.3:8750', krypteret: false });
   assert.equal((await f.beholder(EJER.id))!.billede, NY);
 });
 
@@ -345,7 +359,7 @@ test('KC-0203 betaMiljoe: nothing for a non-beta; KC_BETA and the consent answer
 });
 
 const lavBeta = (d: ReturnType<typeof falskDocker>, beta: (id: string) => Promise<{ samtykke: boolean } | null>) =>
-  lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), beta });
+  lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), beta, ...vaernOgUndernet() });
 
 const envAf = (argv: string[]): string[] => argv.flatMap((a, i) => (argv[i - 1] === '--env' ? [a] : []));
 
@@ -388,7 +402,7 @@ test('KC-0217: tenantKoersel hands a tenant the next key beside the current one;
 test('KC-0217: a tenant container created or recreated while a rotation is prepared carries both keys; the data volume is the same', async () => {
   const NY_NOEGLE = 'Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc';
   const d = falskDocker();
-  const f = lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, kontoPubkeyNy: NY_NOEGLE, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag() });
+  const f = lokalFlaade({ koer: d.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, kontoPubkeyNy: NY_NOEGLE, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), ...vaernOgUndernet() });
   await f.klargoer(EJER);
   const run = d.kald.find((a) => a[1] === 'run' && !a.includes('--rm'))!;
   assert.ok(run.includes(`KC_KONTO_PUBKEY=${PUBKEY}`) && run.includes(`KC_KONTO_PUBKEY_NY=${NY_NOEGLE}`));
@@ -423,7 +437,7 @@ test('KC-0246 tenantMiljoe: a value that is not a plain origin or a known langua
 test('KC-0246: the container gets KC_ADRESSE and KC_SPROG after KC_SKY_URL — first start and upgrade — and the image stays last', async () => {
   const d = falskDocker();
   const miljoe = async (id: string) => tenantMiljoe({ adresse: `https://${id}.example.dk`, sprog: 'da' });
-  const lavMed = (x: ReturnType<typeof falskDocker>) => lokalFlaade({ koer: x.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), miljoe });
+  const lavMed = (x: ReturnType<typeof falskDocker>) => lokalFlaade({ koer: x.koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', kryptering: ingenKryptering(), noegleFlag: noegleRunFlag(), miljoe, ...vaernOgUndernet() });
   await lavMed(d).klargoer(EJER);
   const run = d.kald.find((a) => a[1] === 'run' && !a.includes('--rm'))!;
   assert.deepEqual(envAf(run).slice(-3), ['KC_SKY_URL=https://konto.example.dk', 'KC_ADRESSE=https://hus-abcdefgh.example.dk', 'KC_SPROG=da']);
@@ -448,4 +462,45 @@ test('KC-0264 tenantMiljoe: with the model proxy on, the proxy URL and the PATH 
     assert.throws(() => tenantMiljoe({ adresse: null, sprog: null, model: { proxyUrl, tokenFil: '/run/secrets/model-token' } }), /model/, proxyUrl);
   }
   assert.throws(() => tenantMiljoe({ adresse: null, sprog: null, model: { proxyUrl: 'https://konto.example.dk/model', tokenFil: '/data/model-token' } }), /model/, 'never a file on the volume');
+});
+
+test('KC-0273: no tenant container starts unless the host-side filter covers the pool (mangler, forældet): refused before any Docker call, naming deploy.sh', async () => {
+  for (const t of ['mangler', 'forældet'] as const) {
+    const d = falskDocker({ volumener: ['clawco-t-hus-abcdefgh-data'] });
+    await assert.rejects(lav(d, t).klargoer(EJER), new RegExp(`netfilter: ${t}.*deploy\\.sh`));
+    await assert.rejects(lav(d, t).opgrader({ id: EJER.id, billede: NY }), new RegExp(`netfilter: ${t}`));
+    assert.ok(!d.kald.some((a) => a[1] === 'run' || a[1] === 'start' || a[1] === 'rm' || a[1] === 'network'), JSON.stringify(d.kald));
+  }
+});
+
+test('KC-0273: every tenant gets its own network on its own /24 of the pool, with its own gateway; slet removes the network too', async () => {
+  const d = falskDocker();
+  const f = lav(d);
+  const a = await f.klargoer(EJER);
+  const b = await f.klargoer({ id: 'hus-bcdefghi', ejer: 'b@example.test' });
+  assert.equal(a.adresse, 'http://10.200.1.2:8750');
+  assert.equal(b.adresse, 'http://10.200.2.2:8750');
+  assert.deepEqual([...d.netvaerk].map(([n, x]) => [n, x.subnet, x.gateway]), [['clawco-t-hus-abcdefgh-net', '10.200.1.0/24', '10.200.1.1'], ['clawco-t-hus-bcdefghi-net', '10.200.2.0/24', '10.200.2.1']]);
+  const envB = d.kald.filter((x) => x[1] === 'run' && !x.includes('--rm'))[1]!;
+  assert.ok(envB.includes('KC_KONTO_GATEWAY=10.200.2.1'), 'the tenant trusts its own bridge gateway');
+  await f.slet(EJER.id);
+  assert.equal(d.netvaerk.has('clawco-t-hus-abcdefgh-net'), false);
+  assert.equal(d.netvaerk.has('clawco-t-hus-bcdefghi-net'), true);
+});
+
+test('KC-0273: an existing network outside its /24 of the pool, or with IPv6, is refused before any container runs', async () => {
+  const uden = falskDocker({ netvaerk: { 'clawco-t-hus-abcdefgh-net': { icc: false, subnet: '172.18.0.0/16', gateway: '172.18.0.1' } } });
+  await assert.rejects(lav(uden).klargoer(EJER), /172\.18\.0\.0\/16, ikke 10\.200\.1\.0\/24.*docker network rm clawco-t-hus-abcdefgh-net/);
+  const v6 = falskDocker({ netvaerk: { 'clawco-t-hus-abcdefgh-net': { icc: false, subnet: '10.200.1.0/24', gateway: '10.200.1.1', ipv6: true } } });
+  await assert.rejects(lav(v6).klargoer(EJER), /IPv6/);
+  for (const d of [uden, v6]) assert.ok(!d.kald.some((a) => a[1] === 'run'));
+});
+
+test('KC-0273: a tenant from before (on the old shared network) is still found at its address, and an upgrade moves it onto its own network', async () => {
+  const d = falskDocker({ containere: { 'clawco-t-hus-abcdefgh': true }, volumener: ['clawco-t-hus-abcdefgh-data'], netvaerk: { 'clawco-sky': { icc: false } } });
+  const f = lav(d);
+  assert.equal((await f.beholder(EJER.id))!.adresse, 'http://172.18.0.2:8750');
+  const k = await f.opgrader({ id: EJER.id, billede: NY });
+  assert.equal(k.adresse, 'http://10.200.1.2:8750');
+  assert.equal(d.containere.get('clawco-t-hus-abcdefgh')!.net, 'clawco-t-hus-abcdefgh-net');
 });

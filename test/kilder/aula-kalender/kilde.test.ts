@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { AULA_KALENDER_ID, aulaKalender, erAulaVaert } from '../../../src/kilder/aula-kalender/kilde.ts';
+import { AULA_KALENDER_ID, aulaKalender, erAulaAdresse, erAulaVaert } from '../../../src/kilder/aula-kalender/kilde.ts';
 import { HentFejl } from '../../../src/kilder/nyheder-rss/hent.ts';
 import { KildeFejl, type Laesning } from '../../../src/kilder/types.ts';
 import { KILDER_LOG, lavRegister } from '../../../src/kilder/register.ts';
@@ -247,4 +247,15 @@ test('the link lives only in the secret store: not in kilder.json, the log, the 
       assert.equal((await r.hvor(AULA_KALENDER_ID)).zone, 'husstand');
     } finally { Object.assign(console, gemt); }
   });
+});
+
+// KC-0274 (C3): the real fetcher is built with the https-and-default-port rule on every hop.
+test('erAulaAdresse: https on the default port on an Aula host, nothing else', () => {
+  assert.equal(erAulaAdresse(new URL('https://www.aula.dk/ugekalender/x.ics')), true);
+  for (const u of ['http://www.aula.dk/x.ics', 'https://www.aula.dk:8443/x.ics', 'https://aula.dk.anden.example/x.ics', 'https://anden.example/x.ics']) {
+    assert.equal(erAulaAdresse(new URL(u)), false, u);
+  }
+  const medLogin = new URL('https://www.aula.dk/x.ics'); medLogin.username = 'u';
+  assert.equal(erAulaAdresse(medLogin), false, 'credentials');
+  assert.equal(erAulaAdresse(new URL('https://www.aula.dk:443/x.ics')), true, 'the explicit default port is the default port');
 });

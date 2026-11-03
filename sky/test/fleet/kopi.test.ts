@@ -5,13 +5,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { koerBinaer, lokalKopiNode, type KoerselBinaer } from '../../src/fleet/kopi.ts';
+import { laesTenantPool, undernetFor, type NetfilterTilstand } from '../../src/fleet/netfilter.ts';
 import { tenanterTilKopi, bestil, skift } from '../../src/fleet/tilstand.ts';
 import { opsaet } from './hjaelp.ts';
 
 const T = 'hus-aaaaaaaa';
 const PUBKEY = 'A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg';
 
-function falsk(start: { volumener?: string[] } = {}) {
+function falsk(start: { volumener?: string[]; filter?: NetfilterTilstand } = {}) {
+  const o = { filter: start.filter };
   const volumener = new Set(start.volumener ?? []);
   const containere = new Set<string>();
   const kald: { argv: string[]; input: Buffer | null }[] = [];
@@ -28,12 +30,12 @@ function falsk(start: { volumener?: string[] } = {}) {
       if (!containere.has(sidste)) return { kode: 1, ud: Buffer.alloc(0), fejl: `Error response from daemon: No such container: ${sidste}` };
       return ok(JSON.stringify({ 'clawco-sky': { IPAddress: '172.18.0.9' } }));
     }
-    if (a === 'network' && b === 'inspect') return ok(JSON.stringify([{ Options: { 'com.docker.network.bridge.enable_icc': 'false' }, IPAM: { Config: [{ Gateway: '172.18.0.1' }] } }]));
+    if (a === 'network' && b === 'inspect') return ok(JSON.stringify([{ Options: { 'com.docker.network.bridge.enable_icc': 'false' }, IPAM: { Config: [{ Subnet: '10.200.0.0/24', Gateway: '10.200.0.1' }] } }]));
     if (a === 'run' && argv.includes('--detach')) { containere.add(argv[argv.indexOf('--name') + 1]!); return ok('id'); }
     if (a === 'run') return ok(argv.includes('-cf') ? Buffer.from('TAR-BYTES') : '');
     return { kode: 125, ud: Buffer.alloc(0), fejl: `ukendt: ${argv.slice(0, 3).join(' ')}` };
   };
-  const node = lokalKopiNode({ koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', noegleFlag: ['--tmpfs', '/run/secrets:rw', '--env', 'KC_HEMMELIGHEDER_FIL=/run/secrets/clawco-lager'] });
+  const node = lokalKopiNode({ koer, billede: 'clawco:test', netvaerk: 'clawco-sky', kontoPubkey: PUBKEY, skyUrl: 'https://konto.example.dk', noegleFlag: ['--tmpfs', '/run/secrets:rw', '--env', 'KC_HEMMELIGHEDER_FIL=/run/secrets/clawco-lager'] , undernet: undernetFor(laesTenantPool({}), 0), vaern: { pool: laesTenantPool({}), tilstand: async () => o.filter ?? 'ok' } });
   return { node, kald, volumener, containere };
 }
 
@@ -79,7 +81,7 @@ test("start runs the restored volume like the tenant (same image, identity and h
   const run = f.kald.find((k) => k.argv[1] === 'run')!.argv;
   assert.deepEqual(run.slice(0, 9), ['docker', 'run', '--detach', '--name', navn, '--label', `clawco.kopi=${T}`, '--network', 'clawco-sky']);
   assert.ok(!run.includes('--restart'));
-  for (const a of ['--read-only', `${navn}-data:/data`, `KC_KONTO_TENANT=${T}`, `KC_KONTO_PUBKEY=${PUBKEY}`, 'KC_KONTO_GATEWAY=172.18.0.1', 'KC_IDENTITET=konto', 'KC_HEMMELIGHEDER_FIL=/run/secrets/clawco-lager', '--pids-limit']) assert.ok(run.includes(a), a);
+  for (const a of ['--read-only', `${navn}-data:/data`, `KC_KONTO_TENANT=${T}`, `KC_KONTO_PUBKEY=${PUBKEY}`, 'KC_KONTO_GATEWAY=10.200.0.1', 'KC_IDENTITET=konto', 'KC_HEMMELIGHEDER_FIL=/run/secrets/clawco-lager', '--pids-limit']) assert.ok(run.includes(a), a);
   assert.equal(run.at(-1), 'clawco:test');
 });
 
@@ -110,4 +112,11 @@ test('the real binary runner passes bytes through stdin and stdout untouched, ad
   const r = await koerBinaer([process.execPath, '-e', "process.stdin.on('data',(d)=>process.stdout.write(d));process.stdin.on('end',()=>process.stdout.write(process.env.KC_PROEVE ?? ''))"], bytes, { KC_PROEVE: '$(echo nej)' });
   assert.equal(r.kode, 0);
   assert.deepEqual(r.ud, Buffer.concat([bytes, Buffer.from('$(echo nej)')]));
+});
+
+test('KC-0273: a restore copy starts on the shared pool network (index 0) and only while the host-side filter is ok', async () => {
+  const navn = `clawco-g-${T}-0123abcd`;
+  const f = falsk({ volumener: [`${navn}-data`], filter: 'mangler' });
+  await assert.rejects(f.node.start(navn, T), /netfilter: mangler/);
+  assert.ok(!f.kald.some((k) => k.argv[1] === 'run'));
 });

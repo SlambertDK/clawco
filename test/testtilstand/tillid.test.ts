@@ -64,7 +64,9 @@ test('KC-0146: Slet alt in the test world empties the world\'s own data dir only
   assert.match(side, /data-slet-alt="bekraeft"/);
   const res = await v.app.request('/api/tillid/slet-alt', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'bekraeft=SLET' });
   assert.equal(res.status, 303);
-  assert.deepEqual(await readdir(dir), ['vault'], 'only the world\'s vault is left');
+  const rester = (await readdir(dir)).sort();
+  assert.deepEqual(rester.filter((n) => !/^revision-\d{4}-\d{2}\.jsonl$/.test(n)), ['husstand.json', 'pause.json', 'revision.anker', 'vault'], 'the vault, and what Slet alt keeps by design (KC-0275): the household, the pause and the fresh audit log with its anchor');
+  assert.equal(rester.filter((n) => /^revision-/.test(n)).length, 1, 'one fresh audit log (the tombstone)');
   assert.deepEqual(await readdir(path.join(dir, 'vault', 'Clawco')), [], 'its Clawco folder is empty');
   assert.ok((await readdir(path.join(dir, 'vault', '40-Mennesker', 'People'), { recursive: true })).some((n) => n.endsWith('.md')), 'the invented people stay');
   assert.deepEqual(await readdir(ved), ['rigtig.json'], 'nothing next to the world is touched');

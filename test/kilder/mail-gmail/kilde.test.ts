@@ -20,6 +20,7 @@ import { KildeFejl, type KildeKontekst } from '../../../src/kilder/types.ts';
 import type { Person } from '../../../src/identitet/husstand.ts';
 import { startFalskImap, testCertifikat } from '../../helpers/falsk-imap.ts';
 import { medData, NU } from '../hjaelp.ts';
+import { nulstilRegistrerede, redigeres } from '../../../src/graenser/redaktion.ts';
 import { GMAIL_KASSER } from '../../helpers/gmail-kasser.ts';
 
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
@@ -266,4 +267,16 @@ test('disconnect revokes the grant at Google and removes the stored login', asyn
     assert.equal(await laesKildeHemmelighed(v.dir, MAIL_GMAIL_ID), null);
     await assert.rejects(v.r.laes(MAIL_GMAIL_ID), (e) => e instanceof KildeFejl && e.status === 409);
   });
+});
+
+// KC-0274 (C4): the access token Google issues is a secret like the refresh token: masked wherever text leaves the process.
+test('the access token is registered for masking as soon as it is issued', async () => {
+  nulstilRegistrerede();
+  const g = falskGoogle({ klient: KLIENT, kalendere: () => [], kendteMailRefresh: ['1//m'] });
+  const k = mailGmail({ env: { ...ENV }, adresse: ADR, hent: g.hent, laes: async () => { throw new Error('stop'); } });
+  await k.helbred(ctx({ refresh_token: '1//m', adresse: ADRESSE })).catch(() => undefined);
+  const [token] = g.udstedteAdgange();
+  assert.ok(token && token.length >= 8, 'the fake issued an access token');
+  assert.equal(redigeres(`Authorization: Bearer ${token}`).includes(token), false);
+  nulstilRegistrerede();
 });

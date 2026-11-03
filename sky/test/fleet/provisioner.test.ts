@@ -231,3 +231,8 @@ test('KC-0181: a run resumed in startet restarts the container if needed and del
   assert.deepEqual(f.kald, [`noegle-sikr ${slug}`, `klargoer ${slug}`, `noegle-lever ${slug} clawco-t-${slug}`]);
   await o.db.close();
 });
+
+test('KC-0273 (D5): hentSundhed reads the tenant\'s answer bounded: a 1 MiB /health is not ok', async () => {
+  const stor = (async () => new Response(JSON.stringify({ ok: true, sha: 'abc1234', fyld: 'x'.repeat(1024 * 1024) }), { status: 200 })) as typeof fetch;
+  assert.deepEqual(await hentSundhed('http://172.18.0.2:8750', stor), { ok: false, sha: null });
+});

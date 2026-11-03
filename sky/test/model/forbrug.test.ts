@@ -1,7 +1,8 @@
 // KC-0264: reading the token counts out of a provider's answer as it streams past, without touching its content.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { forbrugsLaeser } from '../../src/model/forbrug.ts';
+import { forbrugsLaeser, tilLejer } from '../../src/model/forbrug.ts';
+import { afregning } from '../../src/model/afregning.ts';
 import { maanedFor, nulstilles, procent } from '../../src/model/kvote.ts';
 import { SENTINEL, sseSvar } from './hjaelp.ts';
 
@@ -67,4 +68,49 @@ test('procent: whole percent of the cap, never above 100, 100 for a cap of 0', (
   assert.equal(procent(4_000_000, 4_000_000), 100);
   assert.equal(procent(9_000_000, 4_000_000), 100);
   assert.equal(procent(1, 0), 100);
+});
+
+test('KC-0273: komplet() is true only once the final count arrived (message_delta, or the JSON usage)', () => {
+  const hel = sseSvar({ input: 5, output: 9 });
+  const l = forbrugsLaeser('text/event-stream');
+  l.laes(enc.encode(hel.slice(0, hel.indexOf('event: message_delta'))));
+  assert.deepEqual(l.resultat()?.output, 1);
+  assert.equal(l.komplet(), false, 'message_start only');
+  const k = forbrugsLaeser('text/event-stream');
+  k.laes(enc.encode(hel));
+  k.resultat();
+  assert.equal(k.komplet(), true);
+  const j = forbrugsLaeser('application/json');
+  j.laes(enc.encode('{"usage":{"input_tokens":1,"output_tokens":2}}'));
+  j.resultat();
+  assert.equal(j.komplet(), true);
+});
+
+test('KC-0273: tilLejer rewrites only the usage, the same for every chunk boundary and CRLF line ends', () => {
+  const s = sseSvar({ input: 10, output: 3, cacheLaes: 7, cacheSkriv: 2, tekst: SENTINEL });
+  const hel = (tekst: string, n: number) => {
+    const t = tilLejer('text/event-stream');
+    const b = enc.encode(tekst);
+    const str = Math.max(1, Math.ceil(b.length / n));
+    let ud = '';
+    const dek = new TextDecoder();
+    for (let i = 0; i < b.length; i += str) ud += dek.decode(t.stykke(b.subarray(i, i + str)), { stream: true });
+    return ud + dek.decode(t.slut());
+  };
+  const ventet = hel(s, 1);
+  assert.match(ventet, /"usage":\{"input_tokens":19,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":1\}/);
+  assert.ok(!ventet.includes('cache_creation"'), 'the 5m/1h split is gone');
+  assert.equal(ventet.replace(/"usage":\{[^}]*\}/, 'U'), s.replace(/"usage":\{"input_tokens".*?"output_tokens":1\}/, 'U'), 'everything but the usage is byte-identical');
+  for (const n of [3, 17, 200, s.length]) assert.equal(hel(s, n), ventet, `${n} stykker`);
+  assert.equal(hel(s.replace(/\n/g, '\r\n'), 13), ventet.replace(/\n/g, '\r\n'));
+});
+
+test('KC-0273: afregning — measured when complete, nothing for a clean end without usage, else the reservation', () => {
+  const res = { forbrug: { input: 900, output: 256, cacheLaes: 0, cacheSkriv5m: 0, cacheSkriv1t: 0 }, pris: 999, maxTokens: 256 };
+  const set = { input: 40, output: 1, cacheLaes: 3, cacheSkriv5m: 0, cacheSkriv1t: 0 };
+  assert.deepEqual(afregning({ set: { ...set, output: 30 }, komplet: true, ren: true, reservation: res }), { forbrug: { ...set, output: 30 }, regel: 'maalt' });
+  assert.deepEqual(afregning({ set: null, komplet: false, ren: true, reservation: res }).regel, 'intet');
+  assert.deepEqual(afregning({ set, komplet: false, ren: false, reservation: res }), { forbrug: { ...set, output: 256 }, regel: 'reservation' });
+  assert.deepEqual(afregning({ set, komplet: false, ren: true, reservation: res }).forbrug.output, 256, 'a clean end without message_delta is a broken answer');
+  assert.deepEqual(afregning({ set: null, komplet: false, ren: false, reservation: res }).forbrug, { input: 900, output: 256, cacheLaes: 0, cacheSkriv5m: 0, cacheSkriv1t: 0 });
 });

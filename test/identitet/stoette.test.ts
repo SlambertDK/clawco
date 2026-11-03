@@ -50,8 +50,14 @@ function signer(version: 'v1' | 's1', krop: unknown, noegle = PRIVAT, id = V.noe
 const NU = V.nu;
 const ADGANG = '41';
 const SESSION = '0123456789abcdef';
-const stoetteKlaim = (o: Partial<{ sa: string; su: number; sn: string; iat: number; t: string }> = {}) =>
-  signer('v1', { t: o.t ?? V.tenant, k: '7', e: 'personale@example.com', iat: o.iat ?? NU - 2, sa: o.sa ?? ADGANG, su: o.su ?? NU + 3600, sn: o.sn ?? SESSION });
+const stoetteKrop = (o: Partial<{ sa: string; su: number; sn: string; iat: number; t: string }> = {}): Record<string, unknown> =>
+  ({ t: o.t ?? V.tenant, k: '7', e: 'personale@example.com', iat: o.iat ?? NU - 2, sa: o.sa ?? ADGANG, su: o.su ?? NU + 3600, sn: o.sn ?? SESSION });
+/** KC-0272: the gateway signs each request's method and path into the header (after iat, before the support claims). */
+const forAnmodning = (krop: Record<string, unknown>, m = 'GET', p = '/rum/hjem'): Record<string, unknown> => {
+  const { t, k, e, iat, ...resten } = krop;
+  return { t, k, e, iat, m, p, ...resten };
+};
+const stoetteKlaim = (o: Parameters<typeof stoetteKrop>[0] = {}) => signer('v1', forAnmodning(stoetteKrop(o)));
 
 const HENRIK: Person = { id: 'henrik', login: 'henrik@example.com', navn: 'Henrik', rolle: 'ejer' };
 const MAJA: Person = { id: 'maja', login: 'maja@example.com', navn: 'Maja', rolle: 'medlem' };
@@ -63,7 +69,7 @@ const lokal = (o: Partial<StoetteAdgang> = {}): StoetteAdgang => ({
 const med = (header: string | null, peer = GATEWAY): Anmodning => {
   const h = new Headers();
   if (header !== null) h.set('Clawco-Konto', header);
-  return { headers: h, peer };
+  return { headers: h, peer, metode: 'GET', sti: '/rum/hjem' };
 };
 
 // ---- the role --------------------------------------------------------------------------------------------------
@@ -113,7 +119,12 @@ test('the household rules: stoette may never handle (every handling and every ac
 test('a valid support claim with this tenant\'s own live grant is the owner\'s view in role stoette', () => {
   const r = hvemKontoKigger(med(stoetteKlaim()), HUS, K, NU, lokal());
   assert.ok(!erAfvist(r));
-  assert.deepEqual(r, { id: 'henrik', login: null, navn: 'Support', rolle: 'stoette', stoette: { adgang: ADGANG, personale: '7', session: SESSION } });
+  // KC-0277 (review A14): support's own id, never the owner's; whose eyes it looks through is carried separately.
+  assert.deepEqual(r, { id: 'stoette:7', login: null, navn: 'Support', rolle: 'stoette', stoette: { adgang: ADGANG, personale: '7', session: SESSION, ejer: 'henrik' } });
+  assert.equal(synligFor(r!, { zone: 'privat', ejer: 'henrik' }), true, 'the owner\'s own element, as the owner would see it');
+  assert.equal(synligFor(r!, { zone: 'privat' }), true, 'an element with no ejer is the owner\'s');
+  assert.equal(synligFor(r!, { zone: 'privat', ejer: 'maja' }), false, 'a member\'s private element: not even support');
+  assert.equal(synligFor(r!, { zone: 'husstand' }), true);
 });
 
 test('fail closed: after udloeber the signature is still valid, but the tenant refuses; so for revoked, unknown, unreadable', () => {
@@ -135,8 +146,8 @@ test('fail closed: after udloeber the signature is still valid, but the tenant r
   afvist(hvemKontoKigger(med(stoetteKlaim()), { personer: [MAJA] }, K, NU, lokal()), 'no owner to look through');
   afvist(hvemKontoKigger(med(stoetteKlaim({ iat: NU - 61 })), HUS, K, NU, lokal()), 'a stale header');
   // Half a claim is no claim.
-  afvist(hvemKontoKigger(med(signer('v1', { t: V.tenant, k: '7', e: 'p@example.com', iat: NU, sa: ADGANG })), HUS, K, NU, lokal()), 'half a claim');
-  afvist(hvemKontoKigger(med(signer('v1', { t: V.tenant, k: '7', e: 'p@example.com', iat: NU, sa: ADGANG, su: NU + 60, sn: 'x' })), HUS, K, NU, lokal()), 'a bad session id');
+  afvist(hvemKontoKigger(med(signer('v1', { t: V.tenant, k: '7', e: 'p@example.com', iat: NU, m: 'GET', p: '/rum/hjem', sa: ADGANG })), HUS, K, NU, lokal()), 'half a claim');
+  afvist(hvemKontoKigger(med(signer('v1', { t: V.tenant, k: '7', e: 'p@example.com', iat: NU, m: 'GET', p: '/rum/hjem', sa: ADGANG, su: NU + 60, sn: 'x' })), HUS, K, NU, lokal()), 'a bad session id');
 });
 
 test('aktiv: on only while not revoked and before udloeber; a bad time is off', () => {
@@ -202,9 +213,11 @@ async function app(navn: string, adgang: StoetteAdgang | null = lokal()) {
   const a = createApp({ store: createFileStore(dataDir), hermes: createFakeAgent({ answer: () => 'ok' }), sourceGlob: '/nonexistent/{date}.json', dataDir, sha: 'abc', publicDir, now: () => new Date(nu), identitet: { konto: K }, stoette: { slaaTil: '/_sky/stoette', slaaFra: '/_sky/stoette/slaa-fra' }, ...noMail });
   return { ...a, dataDir, frem: (ms: number) => { nu += ms; } };
 }
-const som = (header: string, init: RequestInit = {}): RequestInit => ({ ...init, headers: { ...(init.headers as Record<string, string> | undefined), 'Clawco-Konto': header } });
-const ejerHeader = () => signer('v1', { t: V.tenant, k: '1', e: 'henrik@example.com', iat: NU });
-const majaHeader = () => signer('v1', { t: V.tenant, k: '2', e: 'maja@example.com', iat: NU });
+/** One request from the gateway: the claim signed for this request's own method and path, as the gateway does (KC-0272). */
+const anmod = (a: { request: (sti: string, init: RequestInit, env: unknown) => Response | Promise<Response> }, sti: string, krop: Record<string, unknown>, init: RequestInit = {}) =>
+  a.request(sti, { ...init, headers: { ...(init.headers as Record<string, string> | undefined), 'Clawco-Konto': signer('v1', forAnmodning(krop, init.method ?? 'GET', new URL(sti, 'http://x.invalid').pathname)) } }, FRA_GATEWAY);
+const ejerKrop = () => ({ t: V.tenant, k: '1', e: 'henrik@example.com', iat: NU });
+const majaKrop = () => ({ t: V.tenant, k: '2', e: 'maja@example.com', iat: NU });
 const json = (b: unknown): RequestInit => ({ method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b) });
 
 async function revision(dataDir: string): Promise<Record<string, unknown>[]> {
@@ -216,14 +229,14 @@ async function revision(dataDir: string): Promise<Record<string, unknown>[]> {
 
 test('support reads the owner\'s screens, with the band; every write, the export, Slet alt, settings, chat, handlinger, fortryd and refresh are refused in Danish', async () => {
   const { app: a, dataDir } = await app('ruter');
-  const side = await a.request('/rum/hjem', som(stoetteKlaim()), FRA_GATEWAY);
+  const side = await anmod(a, '/rum/hjem', stoetteKrop());
   assert.equal(side.status, 200);
   const html = await side.text();
-  assert.match(html, /<body[^>]* data-person="henrik" data-rolle="stoette"/);
+  assert.match(html, /<body[^>]* data-person="stoette:7" data-rolle="stoette"/);
   assert.match(html, /data-stoette="baand"/);
   assert.match(html, /Support kigger med til/);
   assert.doesNotMatch(html, /data-stoette="slaa-fra"/, 'only the owner gets Slå fra');
-  assert.equal((await a.request('/rum/mail', som(stoetteKlaim()), FRA_GATEWAY)).status, 200);
+  assert.equal((await anmod(a, '/rum/mail', stoetteKrop())).status, 200);
   const statFoer = (await readdir(dataDir)).sort();
   const POST = ['/api/indstillinger', '/api/nodstop', '/api/nodstop/genoptag', '/api/graense/ja', '/api/kilder/falsk-mail/forbind', '/api/kilder/falsk-mail/frakobl',
     '/api/tillid/slet-alt', '/api/tillid/regler/R-0001/pause', '/api/tillid/forslag/x/godkend', '/api/rum/mail/opdater', '/api/rum/mail/handlinger/h1',
@@ -231,21 +244,21 @@ test('support reads the owner\'s screens, with the band; every write, the export
     '/api/rum/hjem/fortryd/l1', '/api/hushold/foresp/f1/send', '/api/hushold/medlem/m1/inviter', '/api/udvikling/opgaver', '/api/stemme/udfoer', '/api/stemme/samtale',
     '/api/stoette/start', '/api/stoette/slaa-fra'];
   for (const sti of POST) {
-    const r = await a.request(sti, som(stoetteKlaim(), json({ besked: 'slet alt', bekraeft: 'SLET' })), FRA_GATEWAY);
+    const r = await anmod(a, sti, stoetteKrop(), json({ besked: 'slet alt', bekraeft: 'SLET' }));
     assert.equal(r.status, 403, sti);
     assert.match(((await r.json()) as { error: string }).error, /Support kan kun se med/, sti);
   }
-  for (const metode of ['PUT', 'PATCH', 'DELETE']) assert.equal((await a.request('/api/rum/mail/chat', som(stoetteKlaim(), { method: metode }), FRA_GATEWAY)).status, 403, metode);
-  for (const sti of ['/api/tillid/eksport', '/viden', '/viden/slet-alt']) assert.equal((await a.request(sti, som(stoetteKlaim()), FRA_GATEWAY)).status, 403, sti);
+  for (const metode of ['PUT', 'PATCH', 'DELETE']) assert.equal((await anmod(a, '/api/rum/mail/chat', stoetteKrop(), { method: metode })).status, 403, metode);
+  for (const sti of ['/api/tillid/eksport', '/viden', '/viden/slet-alt']) assert.equal((await anmod(a, sti, stoetteKrop())).status, 403, sti);
   assert.deepEqual((await readdir(dataDir)).filter((f) => !/^revision-|^stoette\.json$/.test(f)).sort(), statFoer.filter((f) => !/^revision-|^stoette\.json$/.test(f)).sort(), 'nothing new was written but the audit log');
 });
 
 test('every session start and every page opened is in the audit log as a route template (never a query string), with the staff id; the owner sees it', async () => {
   const { app: a, dataDir } = await app('log');
-  await a.request('/rum/hjem?hemmelig=1', som(stoetteKlaim()), FRA_GATEWAY);
-  await a.request('/rum/mail', som(stoetteKlaim()), FRA_GATEWAY);
-  await a.request('/api/rum/mail/fragment?x=2', som(stoetteKlaim()), FRA_GATEWAY);
-  await a.request('/api/rum/mail/fragment?x=3', som(stoetteKlaim()), FRA_GATEWAY);
+  await anmod(a, '/rum/hjem?hemmelig=1', stoetteKrop());
+  await anmod(a, '/rum/mail', stoetteKrop());
+  await anmod(a, '/api/rum/mail/fragment?x=2', stoetteKrop());
+  await anmod(a, '/api/rum/mail/fragment?x=3', stoetteKrop());
   const linjer = (await revision(dataDir)).filter((l) => l['kilde'] === 'stoette');
   assert.deepEqual(linjer.map((l) => [l['verb'], l['rum']]), [['stoette-start', 'stoette'], ['stoette-aabnet', '/rum/hjem'], ['stoette-aabnet', '/rum/mail'], ['stoette-aabnet', '/api/rum/:id/fragment']]);
   for (const l of linjer) {
@@ -254,49 +267,49 @@ test('every session start and every page opened is in the audit log as a route t
     assert.doesNotMatch(JSON.stringify(l), /hemmelig|\?|x=/);
   }
   // A page support is refused (owner-only) is logged as a no, so the owner sees the attempt.
-  assert.equal((await a.request('/viden', som(stoetteKlaim()), FRA_GATEWAY)).status, 403);
+  assert.equal((await anmod(a, '/viden', stoetteKrop())).status, 403);
   const nej = (await revision(dataDir)).filter((l) => l['kilde'] === 'stoette').at(-1)!;
   assert.deepEqual([nej['verb'], nej['rum'], nej['udfald']], ['stoette-aabnet', '/viden', 'afvist']);
-  const ejer = await a.request('/api/revision', som(ejerHeader()), FRA_GATEWAY);
+  const ejer = await anmod(a, '/api/revision', ejerKrop());
   const { linjer: set } = (await ejer.json()) as { linjer: { kilde: string }[] };
   assert.ok(set.filter((l) => l.kilde === 'stoette').length >= 4, 'the owner sees them in Hvad er sket');
-  const maja = await a.request('/api/revision', som(majaHeader()), FRA_GATEWAY);
+  const maja = await anmod(a, '/api/revision', majaKrop());
   assert.equal(((await maja.json()) as { linjer: { kilde: string }[] }).linjer.filter((l) => l.kilde === 'stoette').length, 0, 'a member does not');
 });
 
 test('the tenant refuses a support identity after udloeber, even with a fresh valid signature; the expiry is logged once', async () => {
   const { app: a, dataDir, frem } = await app('udloeb');
-  assert.equal((await a.request('/rum/hjem', som(stoetteKlaim()), FRA_GATEWAY)).status, 200);
+  assert.equal((await anmod(a, '/rum/hjem', stoetteKrop())).status, 200);
   frem(3600 * 1000);
   // A gateway bug: a fresh header that claims the grant runs another hour.
-  const fejl = signer('v1', { t: V.tenant, k: '7', e: 'personale@example.com', iat: NU + 3600, sa: ADGANG, su: NU + 7200, sn: SESSION });
-  assert.equal((await a.request('/rum/hjem', som(fejl), FRA_GATEWAY)).status, 401);
-  const ejer = signer('v1', { t: V.tenant, k: '1', e: 'henrik@example.com', iat: NU + 3600 });
-  const side = await a.request('/rum/hjem', som(ejer), FRA_GATEWAY);
+  const fejl = { t: V.tenant, k: '7', e: 'personale@example.com', iat: NU + 3600, sa: ADGANG, su: NU + 7200, sn: SESSION };
+  assert.equal((await anmod(a, '/rum/hjem', fejl)).status, 401);
+  const ejer = { t: V.tenant, k: '1', e: 'henrik@example.com', iat: NU + 3600 };
+  const side = await anmod(a, '/rum/hjem', ejer);
   assert.doesNotMatch(await side.text(), /data-stoette="baand"/, 'the band is gone by clock');
-  await a.request('/rum/mail', som(ejer), FRA_GATEWAY);
+  await anmod(a, '/rum/mail', ejer);
   assert.equal((await revision(dataDir)).filter((l) => l['verb'] === 'stoette-udloeb').length, 1);
 });
 
 test('only Sky\'s bevis turns it on, and only for the owner; the owner turns it off; the agent, a rule or a script cannot', async () => {
   const { app: a, dataDir } = await app('kontakt', null);
   const bevis = signer('s1', bevisKrop());
-  assert.equal((await a.request('/api/stoette/start', som(majaHeader(), json({ bevis })), FRA_GATEWAY)).status, 403, 'a member');
-  assert.equal((await a.request('/api/stoette/start', som(ejerHeader(), json({})), FRA_GATEWAY)).status, 403, 'no bevis');
-  assert.equal((await a.request('/api/stoette/start', som(ejerHeader(), json({ bevis: stoetteKlaim() })), FRA_GATEWAY)).status, 403, 'a header as bevis');
+  assert.equal((await anmod(a, '/api/stoette/start', majaKrop(), json({ bevis }))).status, 403, 'a member');
+  assert.equal((await anmod(a, '/api/stoette/start', ejerKrop(), json({}))).status, 403, 'no bevis');
+  assert.equal((await anmod(a, '/api/stoette/start', ejerKrop(), json({ bevis: stoetteKlaim() }))).status, 403, 'a header as bevis');
   assert.equal(await lavStoetteLager(dataDir).laes(), null);
-  const r = await a.request('/api/stoette/start', som(ejerHeader(), json({ bevis })), FRA_GATEWAY);
+  const r = await anmod(a, '/api/stoette/start', ejerKrop(), json({ bevis }));
   assert.equal(r.status, 200);
   assert.deepEqual(await r.json(), { aktiv: true });
   assert.equal((await lavStoetteLager(dataDir).laes())?.id, ADGANG);
-  const side = await (await a.request('/rum/hjem', som(ejerHeader()), FRA_GATEWAY)).text();
+  const side = await (await anmod(a, '/rum/hjem', ejerKrop())).text();
   assert.match(side, /data-stoette="baand"/);
   assert.match(side, /data-stoette="slaa-fra"/, 'the owner gets Slå fra');
   assert.match(side, /action="\/_sky\/stoette\/slaa-fra"/);
-  assert.equal((await a.request('/api/stoette/slaa-fra', som(majaHeader(), json({})), FRA_GATEWAY)).status, 403, 'a member cannot');
-  const af = await a.request('/api/stoette/slaa-fra', som(ejerHeader(), json({})), FRA_GATEWAY);
+  assert.equal((await anmod(a, '/api/stoette/slaa-fra', majaKrop(), json({}))).status, 403, 'a member cannot');
+  const af = await anmod(a, '/api/stoette/slaa-fra', ejerKrop(), json({}));
   assert.deepEqual(await af.json(), { aktiv: false });
-  assert.equal((await a.request('/rum/hjem', som(stoetteKlaim()), FRA_GATEWAY)).status, 401, 'revoked at once on the tenant too');
+  assert.equal((await anmod(a, '/rum/hjem', stoetteKrop())).status, 401, 'revoked at once on the tenant too');
   const linjer = (await revision(dataDir)).filter((l) => l['kilde'] === 'stoette').map((l) => [l['verb'], l['person']]);
   assert.deepEqual(linjer, [['stoette-givet', 'henrik'], ['stoette-slut', 'henrik']]);
 });

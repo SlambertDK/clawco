@@ -2,7 +2,7 @@
 // and never the database's own error text (it can carry a host or user name).
 import type { Database } from './db/pool.ts';
 
-export type Helbred = { ok: boolean; sha: string; uptimeSec: number; db: { ok: boolean; version: number | null }; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt' };
+export type Helbred = { ok: boolean; sha: string; uptimeSec: number; db: { ok: boolean; version: number | null }; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt'; netfilter?: 'ok' | 'mangler' | 'forældet' };
 
 /** flaade: the fleet driver's name (KC-0182), when SKY_FLAADE chose one. noegler (KC-0181): whether the master key
  *  is loaded — one word, never a value; with a fleet, `mangler` makes /health 503 (no tenant can be started). */
@@ -10,7 +10,10 @@ export type Helbred = { ok: boolean; sha: string; uptimeSec: number; db: { ok: b
  *  503 (every tenant host answers 503 without it). */
 /** noegleskift (KC-0217): `forberedt` while SKY_KONTO_PUBKEY_NY is set — Sky hands tenants the next public key, so the
  *  operator can see the fleet is ready for step 3 of the rotation (gateway/README.md). Not a fault: ok is unaffected. */
-export type HelbredDeps = { db: Database; sha: string; startet: number; nu?: () => number; timeoutMs?: number; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt' };
+/** netfilter (KC-0273): the marker deploy.sh's netfilter.sh leaves (fleet/netfilter.ts): `ok` = the host-side filter
+ *  covers the configured tenant pool, `forældet` = it covers another pool, `mangler` = none (also after a reboot).
+ *  Visible, not a 503: Sky answers, but no tenant container is started until it is `ok`. */
+export type HelbredDeps = { db: Database; sha: string; startet: number; nu?: () => number; timeoutMs?: number; flaade?: string; noegler?: 'ok' | 'mangler'; gateway?: 'ok' | 'mangler'; noegleskift?: 'forberedt'; netfilter?: 'ok' | 'mangler' | 'forældet' };
 
 async function dbVersion(db: Database, timeoutMs: number): Promise<number | null> {
   let stop: NodeJS.Timeout | undefined;
@@ -35,5 +38,6 @@ export async function helbred(d: HelbredDeps): Promise<Helbred> {
   if (d.noegler) h.noegler = d.noegler;
   if (d.gateway) h.gateway = d.gateway;
   if (d.noegleskift) h.noegleskift = d.noegleskift;
+  if (d.netfilter) h.netfilter = d.netfilter;
   return h;
 }

@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Hono } from 'hono';
-import { sikkerNaeste, signerNaeste, loginUrl, tenantOrigin, opretKode, indloesKode, loginVejRuter, KODE_MS } from '../../src/gateway/login-vej.ts';
+import { sikkerNaeste, signerNaeste, loginUrl, tenantOrigin, opretKode, indloesKode, loginVejRuter, KODE_MS, bindingHash, nyBinding } from '../../src/gateway/login-vej.ts';
 import { laesGatewayNoegle } from '../../src/gateway/noegle.ts';
 import { ruteTabel } from '../../src/gateway/rute.ts';
 import { antal } from '../konto/hjaelp.ts';
@@ -35,27 +35,57 @@ test('loginUrl points at Sky’s /aabn with the slug, next and a signature over 
   assert.notEqual(signerNaeste(n.naeste, 'hus-bbbbbbbb', '/rum/mail?x=1'), u.searchParams.get('s'));
 });
 
+test('KC-0272: loginUrl with the browser\'s binding carries its hash as b, and the signature covers it too', () => {
+  const n = noegle();
+  const v = nyBinding();
+  const u = new URL(loginUrl({ publicUrl: PUBLIC, noegle: n, slug: 'hus-abcdefgh', naeste: '/rum/mail', binding: v }));
+  assert.equal(u.searchParams.get('b'), bindingHash(v));
+  assert.ok(!u.href.includes(v), 'the binding itself never leaves the tenant host');
+  assert.equal(u.searchParams.get('s'), signerNaeste(n.naeste, 'hus-abcdefgh', '/rum/mail', bindingHash(v)));
+  assert.notEqual(u.searchParams.get('s'), signerNaeste(n.naeste, 'hus-abcdefgh', '/rum/mail'));
+});
+
+const B = bindingHash('browserens-egen-tilstand-paa-lejerens-vaert-xyz');
+
 test('a code is exchanged once, only on its own tenant, only within 60 seconds; only its hash is stored', async () => {
   const o = await opsaet();
-  const a = { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, slug: o.slug, naeste: '/rum/mail', nu: o.ur.nu() };
+  const a = { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, slug: o.slug, naeste: '/rum/mail', nu: o.ur.nu(), binding: B };
   assert.equal(KODE_MS, 60_000);
   const kode = await opretKode(o.db, a);
   assert.ok(!JSON.stringify(await o.db.query('SELECT * FROM gateway.kode')).includes(kode));
-  assert.equal(await indloesKode(o.db, kode, 'hus-bbbbbbbb', o.ur.nu()), null, 'wrong tenant');
-  assert.deepEqual(await indloesKode(o.db, kode, o.slug, o.ur.nu()), { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, naeste: '/rum/mail' });
-  assert.equal(await indloesKode(o.db, kode, o.slug, o.ur.nu()), null, 'single use');
+  assert.equal(await indloesKode(o.db, kode, 'hus-bbbbbbbb', o.ur.nu(), B), null, 'wrong tenant');
+  assert.deepEqual(await indloesKode(o.db, kode, o.slug, o.ur.nu(), B), { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, naeste: '/rum/mail' });
+  assert.equal(await indloesKode(o.db, kode, o.slug, o.ur.nu(), B), null, 'single use');
 
   const k2 = await opretKode(o.db, a);
   o.ur.frem(60_000);
-  assert.equal(await indloesKode(o.db, k2, o.slug, o.ur.nu()), null, 'expired');
-  assert.equal(await indloesKode(o.db, 'gaet', o.slug, o.ur.nu()), null);
+  assert.equal(await indloesKode(o.db, k2, o.slug, o.ur.nu(), B), null, 'expired');
+  assert.equal(await indloesKode(o.db, 'gaet', o.slug, o.ur.nu(), B), null);
 });
 
 test('a wrong-tenant attempt does not burn the code for its own tenant', async () => {
   const o = await opsaet();
-  const kode = await opretKode(o.db, { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, slug: o.slug, naeste: '/', nu: o.ur.nu() });
-  await indloesKode(o.db, kode, 'hus-bbbbbbbb', o.ur.nu());
-  assert.ok(await indloesKode(o.db, kode, o.slug, o.ur.nu()));
+  const kode = await opretKode(o.db, { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, slug: o.slug, naeste: '/', nu: o.ur.nu(), binding: B });
+  await indloesKode(o.db, kode, 'hus-bbbbbbbb', o.ur.nu(), B);
+  assert.ok(await indloesKode(o.db, kode, o.slug, o.ur.nu(), B));
+});
+
+test('KC-0272 (D1): a member code is bound to the browser that asked for it; another browser cannot spend it, nor burn it', async () => {
+  const o = await opsaet();
+  const a = { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, slug: o.slug, naeste: '/', nu: o.ur.nu() };
+  await assert.rejects(opretKode(o.db, a), /binding/, 'a member code without a binding is never made');
+  const kode = await opretKode(o.db, { ...a, binding: B });
+  assert.equal(await indloesKode(o.db, kode, o.slug, o.ur.nu()), null, 'no binding (the victim\'s browser)');
+  assert.equal(await indloesKode(o.db, kode, o.slug, o.ur.nu(), bindingHash(nyBinding())), null, 'another browser\'s binding');
+  assert.ok(await indloesKode(o.db, kode, o.slug, o.ur.nu(), B), 'the asking browser still can');
+});
+
+test('KC-0272: a binding is 32 random bytes; its hash is what travels and what the code is bound to', () => {
+  const v = nyBinding();
+  assert.match(v, /^[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(nyBinding(), v);
+  assert.match(bindingHash(v), /^[A-Za-z0-9_-]{43}$/);
+  assert.notEqual(bindingHash(v), v);
 });
 
 function app(o: Opsat, hvem: { kontoId: number; sessionId: number } | null, n = noegle(), samtykkeOk: (kontoId: number) => Promise<boolean> = async () => true) {
@@ -63,7 +93,7 @@ function app(o: Opsat, hvem: { kontoId: number; sessionId: number } | null, n = 
   a.route('/', loginVejRuter({ db: o.db, publicUrl: PUBLIC, basedomain: 'eksempel.test', noegle: n, ruter: ruteTabel({ db: o.db }), login: async () => hvem, samtykkeOk, nu: o.ur.nu }));
   return a;
 }
-const aabn = (o: Opsat, naeste = '/rum/mail', s?: string) => `/aabn?t=${o.slug}&n=${encodeURIComponent(naeste)}&s=${s ?? signerNaeste(noegle().naeste, o.slug, naeste)}`;
+const aabn = (o: Opsat, naeste = '/rum/mail', s?: string, b = B) => `/aabn?t=${o.slug}&n=${encodeURIComponent(naeste)}&b=${b}&s=${s ?? signerNaeste(noegle().naeste, o.slug, naeste, b)}`;
 
 test('/aabn without a login sends the person to log in and back to exactly this /aabn', async () => {
   const o = await opsaet();
@@ -83,7 +113,30 @@ test('/aabn for a member issues a code bound to the tenant and redirects to its 
   const til = new URL(r.headers.get('location')!);
   assert.equal(til.origin + til.pathname, `https://${o.slug}.eksempel.test/_sky/faa`);
   assert.equal(r.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await indloesKode(o.db, til.searchParams.get('kode')!, o.slug, o.ur.nu()), { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, naeste: '/rum/mail' });
+  assert.equal(await indloesKode(o.db, til.searchParams.get('kode')!, o.slug, o.ur.nu()), null, 'not without the binding');
+  assert.deepEqual(await indloesKode(o.db, til.searchParams.get('kode')!, o.slug, o.ur.nu(), B), { kontoId: o.ejer.id, sessionId: o.ejer.sessionId, naeste: '/rum/mail' });
+});
+
+test('KC-0272: an /aabn link without a binding (the account page, an old link) issues no code: it sends the person to the tenant, whose gateway binds the browser first', async () => {
+  const o = await opsaet();
+  const legacy = `/aabn?t=${o.slug}&n=${encodeURIComponent('/rum/start')}&s=${signerNaeste(noegle().naeste, o.slug, '/rum/start')}`;
+  const r = await app(o, { kontoId: o.ejer.id, sessionId: o.ejer.sessionId }).request(legacy);
+  assert.equal(r.status, 303);
+  assert.equal(r.headers.get('location'), `https://${o.slug}.eksempel.test/rum/start`);
+  assert.equal(await antal(o.db, 'gateway.kode'), 0);
+  assert.equal((await app(o, { kontoId: o.fremmed.id, sessionId: o.fremmed.sessionId }).request(legacy)).status, 403, 'membership is still checked');
+});
+
+test('KC-0272: a binding swapped into a signed link, or a malformed one, is 400 and issues nothing', async () => {
+  const o = await opsaet();
+  const a = app(o, { kontoId: o.ejer.id, sessionId: o.ejer.sessionId });
+  const andet = bindingHash(nyBinding());
+  for (const sti of [
+    `/aabn?t=${o.slug}&n=%2Frum%2Fmail&b=${andet}&s=${signerNaeste(noegle().naeste, o.slug, '/rum/mail', B)}`,
+    `/aabn?t=${o.slug}&n=%2Frum%2Fmail&b=${andet}&s=${signerNaeste(noegle().naeste, o.slug, '/rum/mail')}`,
+    `/aabn?t=${o.slug}&n=%2Frum%2Fmail&b=kort&s=${signerNaeste(noegle().naeste, o.slug, '/rum/mail', 'kort')}`,
+  ]) assert.equal((await a.request(sti)).status, 400, sti);
+  assert.equal(await antal(o.db, 'gateway.kode'), 0);
 });
 
 test('/aabn for a stranger is 403 and issues nothing; an unknown tenant is 404', async () => {

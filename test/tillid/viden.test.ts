@@ -162,3 +162,14 @@ test('KC-0270 (B3): rules changed outside Clawco say they do not count, with one
   assert.match(s, /<form method="post" action="\/api\/tillid\/regler\/godkend"[^>]*data-regel-form="godkend:a{64}"[^>]*><button type="submit"[^>]*>Godkend reglerne<\/button><\/form>/);
   assert.doesNotMatch(String(renderViden(fuld())), /regler\/godkend/);
 });
+
+test('KC-0275 (B6): without a key the page says in one sentence that the audit log is not sealed; with a key it says nothing', () => {
+  const uden = String(renderViden(fuld({ revisionNoegle: false })));
+  assert.match(uden, /data-viden-revision-usikret/);
+  assert.match(uden, /ikke forseglet med en nøgle/);
+  assert.doesNotMatch(String(renderViden(fuld({ revisionNoegle: true }))), /data-viden-revision-usikret/);
+});
+
+test('KC-0275: the Slet alt confirmation says the pause and the household stay', () => {
+  assert.match(String(renderSletAlt(fuld())), /pause og hvem der hører til i husstanden/);
+});

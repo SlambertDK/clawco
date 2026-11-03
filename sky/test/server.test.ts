@@ -19,6 +19,8 @@ import { bestil } from '../src/fleet/tilstand.ts';
 import { tenantOrigin } from '../src/gateway/login-vej.ts';
 
 const ENV = { SKY_DATABASE_URL: 'postgres:///sky', SKY_PUBLIC_URL: 'https://konto.example.test' };
+/** KC-0272: dev mode runs only on a localhost address. */
+const DEV = { ...ENV, SKY_PUBLIC_URL: 'https://konto.localhost' };
 
 test('production wiring without SKY_RESEND_API_KEY: Post refuses (fail closed) and there is no outbox', async () => {
   const db = await pgliteDatabase();
@@ -32,7 +34,7 @@ test('production wiring without SKY_RESEND_API_KEY: Post refuses (fail closed) a
 
 test('dev wiring (SKY_DEV=1): the fake Post and its outbox', async () => {
   const db = await pgliteDatabase();
-  const d = kontoDeps(laesConfig({ ...ENV, SKY_DEV: '1' }), db);
+  const d = kontoDeps(laesConfig({ ...DEV, SKY_DEV: '1' }), db);
   await d.post.send({ til: 'a@example.test', skabelon: 'maillink', data: { link: 'https://konto.example.test/log-ind/link?t=x', kode: '4F7K-9Q2M', minutter: '15' } });
   assert.equal(d.udbakke?.length, 1);
   await db.close();
@@ -46,6 +48,17 @@ test('the account app is mounted beside /health', async () => {
   const r = await app.request('/log-ind');
   assert.equal(r.status, 200);
   assert.match(await r.text(), /Log ind på Clawco/);
+  await db.close();
+});
+
+// KC-0272 (D6): Sky says itself that its host is https only, instead of trusting the edge to (Cloudflare ASSUMED).
+test('KC-0272: over https every answer of the account app carries HSTS; over plain http (local development) none', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  const https = createSkyApp({ db, sha: 'x', startet: Date.now(), konto: kontoDeps(laesConfig(ENV), db), hsts: true });
+  for (const sti of ['/health', '/log-ind', '/findes-ikke']) assert.equal((await https.request(sti)).headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains', sti);
+  const http = createSkyApp({ db, sha: 'x', startet: Date.now(), konto: kontoDeps(laesConfig(ENV), db) });
+  assert.equal((await http.request('/log-ind')).headers.get('strict-transport-security'), null);
   await db.close();
 });
 
@@ -111,7 +124,7 @@ test('production without a Stripe key: billing is wired but answers 503 (fail cl
 test('dev without a key: the fake client with the config\'s prices, a per-process webhook secret, and the dev Checkout page', async () => {
   const db = await pgliteDatabase();
   await migrer(db);
-  const f = await forbind(laesConfig({ ...ENV, SKY_DEV: '1' }), db, {});
+  const f = await forbind(laesConfig({ ...DEV, SKY_DEV: '1' }), db, {});
   assert.ok(f.abonnement.klient instanceof FalskBetalingsKlient);
   assert.ok(await f.abonnement.klient.prisForLookupKey('clawco-sky-solo-maaned'));
   assert.match(f.abonnement.webhookHemmelighed ?? '', /^whsec_/);
@@ -122,7 +135,7 @@ test('dev without a key: the fake client with the config\'s prices, a per-proces
 test('billing is mounted before konto: its CSP stays on its own pages and the webhook is outside konto\'s 64 KB limit', async () => {
   const db = await pgliteDatabase();
   await migrer(db);
-  const f = await forbind(laesConfig({ ...ENV, SKY_DEV: '1' }), db, {});
+  const f = await forbind(laesConfig({ ...DEV, SKY_DEV: '1' }), db, {});
   const app = createSkyApp({ db, sha: 'x', startet: Date.now(), konto: f.konto, abonnement: f.abonnement, dev: f.dev });
   const logInd = await app.request('https://konto.example.test/log-ind');
   assert.match(logInd.headers.get('content-security-policy') ?? '', /form-action 'self';/);
@@ -138,7 +151,7 @@ test('billing is mounted before konto: its CSP stays on its own pages and the we
 test('konto and abonnement share one event bus: deleting an account cancels its subscription', async () => {
   const db = await pgliteDatabase();
   await migrer(db);
-  const f = await forbind(laesConfig({ ...ENV, SKY_DEV: '1' }), db, {});
+  const f = await forbind(laesConfig({ ...DEV, SKY_DEV: '1' }), db, {});
   const klient = f.abonnement.klient as FalskBetalingsKlient;
   const { konto } = await findEllerOpretKonto(db, 'a@example.test', new Date());
   const k = await sikrKunde(db, klient, { kontoId: konto.id, email: 'a@example.test', sprog: 'da', land: 'DK', nu: new Date() });
@@ -260,7 +273,7 @@ test('KC-0183: the Host dispatch — account host and loopback to Sky, a slug to
 test('KC-0198: sign-up is mounted on the account host with its own CSP; konto keeps form-action self', async () => {
   const db = await pgliteDatabase();
   await migrer(db);
-  const f = await forbind(laesConfig({ ...ENV, SKY_DEV: '1' }), db, {});
+  const f = await forbind(laesConfig({ ...DEV, SKY_DEV: '1' }), db, {});
   assert.equal(f.tilmelding.tilstand, 'invitation');
   const app = createSkyApp({ db, sha: 'x', startet: Date.now(), konto: f.konto, abonnement: f.abonnement, dev: f.dev, tilmelding: f.tilmelding });
   const r = await app.request('https://konto.example.test/tilmeld');
@@ -275,7 +288,7 @@ test('KC-0198: the account language chosen at sign-up reaches billing (Checkout 
   const db = await pgliteDatabase();
   await migrer(db);
   // KC-0220: Checkout needs open sign-up and a finished profile, so the language is always chosen first.
-  const f = await forbind(laesConfig({ ...ENV, SKY_DEV: '1', SKY_TILMELDING: 'open' }), db, {});
+  const f = await forbind(laesConfig({ ...DEV, SKY_DEV: '1', SKY_TILMELDING: 'open' }), db, {});
   const { konto } = await findEllerOpretKonto(db, 'en@example.test', new Date());
   const { gemProfil } = await import('../src/konto/profil.ts');
   const { laesSamtykke } = await import('../src/tilmelding/samtykke.ts');
@@ -287,9 +300,9 @@ test('KC-0198: the account language chosen at sign-up reaches billing (Checkout 
   const app = createSkyApp({ db, sha: 'x', startet: Date.now(), konto: f.konto, abonnement: f.abonnement, dev: f.dev });
   const klient = f.abonnement.klient as FalskBetalingsKlient;
   const checkout = async () => {
-    await app.request('https://konto.example.test/api/abonnement/checkout', {
+    await app.request('https://konto.localhost/api/abonnement/checkout', {
       method: 'POST',
-      headers: { cookie: `__Host-sky=${token}`, origin: 'https://konto.example.test', 'content-type': 'application/x-www-form-urlencoded' },
+      headers: { cookie: `__Host-sky=${token}`, origin: 'https://konto.localhost', 'content-type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({ csrf: session.csrf, plan: 'sky-solo', interval: 'maaned', land: 'SE', vilkaar: sam.vilkaar.version, straks: 'ja' }),
     });
     return (klient.kald.filter((k) => k.metode === 'opretCheckout').at(-1)?.args as { locale?: string } | undefined)?.locale;
@@ -369,7 +382,7 @@ test('KC-0201: forbind wires "Få hjælp": plan and state from billing, the plac
   assert.equal(efter.placering, 'lokal');
   assert.equal(efter.release, 'abc1234');
   assert.equal(f.konto.hjaelpSide, 'https://clawco.work/hjaelp');
-  const dev = await forbind(laesConfig({ ...ENV, SKY_DEV: '1' }), db, {});
+  const dev = await forbind(laesConfig({ ...DEV, SKY_DEV: '1' }), db, {});
   assert.equal(dev.konto.hjaelpSide, undefined, 'no public help page address in local development');
   await db.close();
 });
@@ -508,8 +521,8 @@ test('KC-0266 modelFra.inkluderet: 30 days\' notice — an account from before A
 test('KC-0264: the model routes are mounted ahead of konto, so its 64 KB body limit never cuts a model call short', async () => {
   const db = await pgliteDatabase();
   await migrer(db);
-  const config = laesConfig({ ...ENV, SKY_DEV: '1' });
-  const f = await forbind(config, db, { ...ENV, SKY_DEV: '1' });
+  const config = laesConfig({ ...DEV, SKY_DEV: '1' });
+  const f = await forbind(config, db, { ...DEV, SKY_DEV: '1' });
   const { deps } = modelFra({ config, db, priser: laesPriser(), laest: { udbyder: null, grund: 'SKY_MODEL_UDBYDER er ikke sat' } });
   const app = createSkyApp({ db, sha: 'x', startet: Date.now(), konto: f.konto, abonnement: f.abonnement, dev: f.dev, tilmelding: f.tilmelding, model: deps });
   const stor = JSON.stringify({ model: 'claude-haiku-5-5', max_tokens: 1, messages: [{ role: 'user', content: 'x'.repeat(200_000) }] });

@@ -9,7 +9,9 @@
 // and the protected folders are never entered, a symlink is removed as a link
 // and never followed (fs.rm does not follow links), a Clawco/ that is a symlink
 // is skipped. One audit line is written first — if it cannot be written,
-// nothing is deleted — and the audit files are the last thing removed.
+// nothing is deleted. Kept (KC-0275): pause.json (an app that was stopped stays stopped) and husstand.json
+// (without it every tailnet login would be the owner afterwards). After the wipe a tombstone — who deleted
+// everything, and when — is the first line of a fresh audit log.
 
 import { lstat, readdir, realpath, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -25,7 +27,8 @@ export type SletValg = {
   revision?: { skriv(e: Omit<Revision, 'tid'>): Promise<unknown> };
 };
 
-const REVISION = /^revision-\d{4}-\d{2}\.jsonl$/;
+/** What "Slet alt" keeps in the data dir: the kill switch's pause and the household's people. */
+const BEVARES = new Set(['pause.json', 'husstand.json']);
 const aegte = async (p: string): Promise<string> => { try { return await realpath(p); } catch { return path.resolve(p); } };
 const indenfor = (rod: string, p: string): boolean => p.startsWith(rod + path.sep);
 
@@ -79,8 +82,13 @@ export async function sletAlt(m: Brugermappe, o: SletValg): Promise<{ filer: num
   let filer = 0;
   if (clawco) filer += await ryd(clawco, []);
   if (findesData) {
-    filer += await ryd(data, beskyt, (navn) => REVISION.test(navn));
-    filer += await ryd(data, beskyt); // last: the audit files, with the line that says this happened
+    filer += await ryd(data, beskyt, (navn) => BEVARES.has(navn));
   }
+  // The old log went with the rest (its pre-wipe line included); the tombstone starts a new one. The data is gone, so a
+  // failure here must not turn a finished wipe into an error.
+  await o.revision?.skriv({
+    person: o.person, kanal: o.kanal, rum: 'viden', verb: 'slet', udfald: 'tillad',
+    hvorfor: tillidTekst().sletFaerdig, zoner: [], kilde: 'viden',
+  }).catch(() => undefined);
   return { filer };
 }

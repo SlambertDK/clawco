@@ -5,8 +5,9 @@
 // tier; a test counts only for the revision (provider + model) it ran with.
 
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { skrivAtomisk } from './store/atomisk.ts';
 
 export type Modeller = { lille?: string; taenker?: string };
 /** The ids of one synced agent (KC-0241: the English agent's live under `Stemme.en`; the top level is the Danish one). */
@@ -42,6 +43,19 @@ function cleanTests(v: unknown): ModelTests | undefined {
   const out: ModelTests = {};
   for (const k of TIERS) { const t = cleanTest((v as Record<string, unknown>)[k]); if (t) out[k] = t; }
   return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * KC-0275 (E4): every read-modify-write of one settings file runs one after the other, across all instances in this
+ * process (a setter reads, changes and writes the whole file, so two parallel ones lost each other's change).
+ */
+const KOEER = new Map<string, Promise<unknown>>();
+function serielt<T>(fil: string, arbejde: () => Promise<T>): Promise<T> {
+  const job = (KOEER.get(fil) ?? Promise.resolve()).then(arbejde, arbejde);
+  const hale = job.catch(() => undefined);
+  KOEER.set(fil, hale);
+  void hale.then(() => { if (KOEER.get(fil) === hale) KOEER.delete(fil); });
+  return job;
 }
 
 export function createSettings(dataDir: string) {
@@ -83,12 +97,13 @@ export function createSettings(dataDir: string) {
   }
   async function write(s: Settings): Promise<void> {
     await mkdir(dataDir, { recursive: true });
-    const tmp = `${file}.tmp-${process.pid}`;
-    await writeFile(tmp, JSON.stringify(s, null, 2), 'utf8');
-    await rename(tmp, file);
+    await skrivAtomisk(file, JSON.stringify(s, null, 2));
   }
   /** The tiers' models (the Kø panel and Start's step 2); `udbyder` also sets the provider (KC-0127). Tests stay, keyed to their revision. */
-  async function setModels(m: Record<string, string>, o: { udbyder?: string } = {}): Promise<Settings> {
+  function setModels(m: Record<string, string>, o: { udbyder?: string } = {}): Promise<Settings> {
+    return serielt(file, () => setModelsNu(m, o));
+  }
+  async function setModelsNu(m: Record<string, string>, o: { udbyder?: string }): Promise<Settings> {
     const out: Modeller = {};
     for (const k of TIERS) {
       const v = (m[k] ?? '').trim();
@@ -100,7 +115,10 @@ export function createSettings(dataDir: string) {
     return s;
   }
   /** KC-0127: sets (or with null clears) a tier's last live test. */
-  async function setModelTest(patch: Partial<Record<keyof Modeller, ModelTest | null>>): Promise<Settings> {
+  function setModelTest(patch: Partial<Record<keyof Modeller, ModelTest | null>>): Promise<Settings> {
+    return serielt(file, () => setModelTestNu(patch));
+  }
+  async function setModelTestNu(patch: Partial<Record<keyof Modeller, ModelTest | null>>): Promise<Settings> {
     const cur = await read();
     const tests: Record<string, unknown> = { ...cur.modelTest };
     for (const k of TIERS) if (patch[k] !== undefined) tests[k] = patch[k] ?? undefined;
@@ -111,7 +129,10 @@ export function createSettings(dataDir: string) {
     return s;
   }
   /** Merges into the stored stemme block (voice chosen by Henrik, ids from the agent sync); a patch's `en` merges into the stored `en`. */
-  async function setStemme(patch: Partial<Stemme>): Promise<Settings> {
+  function setStemme(patch: Partial<Stemme>): Promise<Settings> {
+    return serielt(file, () => setStemmeNu(patch));
+  }
+  async function setStemmeNu(patch: Partial<Stemme>): Promise<Settings> {
     const cur = await read();
     const en = patch.en ? { ...cur.stemme.en, ...patch.en } : cur.stemme.en;
     const s: Settings = { ...cur, stemme: cleanStemme({ ...cur.stemme, ...patch, ...(en ? { en } : {}) }) };
@@ -119,7 +140,10 @@ export function createSettings(dataDir: string) {
     return s;
   }
   /** KC-0145: the Sunday sample on (true) or off (false). */
-  async function setSoendagstjek(til: boolean): Promise<Settings> {
+  function setSoendagstjek(til: boolean): Promise<Settings> {
+    return serielt(file, () => setSoendagstjekNu(til));
+  }
+  async function setSoendagstjekNu(til: boolean): Promise<Settings> {
     const s: Settings = { ...(await read()), soendagstjek: til };
     await write(s);
     return s;

@@ -17,3 +17,11 @@ export function sseSvar(o: { input?: number; output?: number; cacheLaes?: number
   ].join('');
 }
 
+
+/** KC-0273: the same stream as the tenant gets it from the proxy: message_start's usage without the cache split
+ *  (input_tokens = every prompt token, the cache fields 0); every other byte as the provider sent it. */
+export function sseSvarTilLejer(o: Parameters<typeof sseSvar>[0] = {}): string {
+  const u = JSON.parse(/"usage":(\{"input_tokens".*?\}\}?,"output_tokens":1\})/.exec(sseSvar(o))![1]!) as Record<string, number>;
+  const lejer = { input_tokens: u['input_tokens']! + u['cache_read_input_tokens']! + u['cache_creation_input_tokens']!, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 1 };
+  return sseSvar(o).replace(JSON.stringify(u), JSON.stringify(lejer));
+}

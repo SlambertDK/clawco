@@ -172,6 +172,19 @@ test('another session can be ended from the account page', async () => {
   assert.equal((await mac.hent('/konto')).status, 200);
 });
 
+// KC-0272 (D6): an id that is not a whole number was handed to Postgres as NaN or 1e3 and answered 500.
+test('KC-0272: a session or passkey id that is not a whole number is 404, never a 500', async () => {
+  const { app, post, db } = await opsaet();
+  const b = new Browser(app);
+  await logIndMedLink(b, post);
+  const csrf = await csrfFra(await b.hent('/konto'));
+  for (const id of ['abc', '1e3', '-1', '1.5', '99999999999999999999']) {
+    assert.equal((await b.form(`/konto/sessioner/${id}/afslut`, { csrf })).status, 404, `session ${id}`);
+    assert.equal((await b.form(`/konto/passkeys/${id}/fjern`, { csrf })).status, 404, `passkey ${id}`);
+  }
+  assert.equal(await antal(db, 'session'), 1, 'nothing was ended');
+});
+
 test('passkey: add after a link login, log out, log in with it, counter regression refused', async () => {
   const { app, post } = await opsaet();
   const b = new Browser(app);

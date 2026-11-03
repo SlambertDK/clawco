@@ -17,8 +17,13 @@ log="$(mktemp)"
 npm ci --omit=dev --ignore-scripts --no-audit --no-fund >"$log" 2>&1 || { tail -20 "$log"; rm -f "$log"; exit 1; }
 rm -f "$log"
 test -f /srv/sky/.env || { echo "manglende /srv/sky/.env (se sky/.env.example)"; exit 1; }
-# The only root-level step `sky` may run (sudoers line in sky/deploy/README.md).
+# The two root-level steps `sky` may run (sudoers lines from sky/deploy/opsaet-root.sh): restart Sky, then (KC-0273)
+# filter the tenant address pool on the host and leave the marker Sky reads (/run/sky/netfilter.ok). Sky starts no
+# tenant container until the marker names its pool, so a failure here stops the deploy.
 sudo -n /usr/bin/systemctl restart sky
+pool="$(grep -E '^SKY_TENANT_POOL=' /srv/sky/.env | cut -d= -f2 || true)"
+pool="${pool:-10.200.0.0/16}"
+sudo -n /usr/bin/bash "$(pwd)/deploy/netfilter.sh" "$pool" || { echo "FEJL: værtsfiltret for $pool kunne ikke sættes (netfilter.sh) — kør sky/deploy/opsaet-root.sh igen (sudoers)"; exit 1; }
 want="$(git rev-parse --short HEAD)"
 port="$(grep -E '^SKY_PORT=' /srv/sky/.env | cut -d= -f2 || true)"
 for _ in $(seq 1 15); do

@@ -13,7 +13,7 @@ import { randomUUID } from 'node:crypto';
 import { AFBRUDT, AgentError } from './types.ts';
 import type { AgentClient, AgentEvent, AgentRunRequest, AgentRunResult, AgentStatus, NoegleSvar } from './types.ts';
 import type { NoegleLager } from './noeglelager.ts';
-import { parseSseChunks } from './sse.ts';
+import { parseSseChunks, SseForStor } from './sse.ts';
 import { agentTekst } from './tekster.ts';
 import { PROMPT_TEKSTER, promptTekst } from './prompt-tekster.ts';
 import type { CopilotTransport } from './copilot.ts';
@@ -185,11 +185,13 @@ export function createDirekte(o: {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       const parser = parseSseChunks();
+      // KC-0275 (B7): a stream past the buffer maximum is a failed run, in our words.
+      const push = (t: string): string[] => { try { return parser.push(t); } catch (e) { throw e instanceof SseForStor ? fejl('ukendt') : e; } };
       try {
         laes: for (;;) {
           let del: ReadableStreamReadResult<Uint8Array>;
           try { del = await reader.read(); } catch { throw stoppetFejl() ?? fejl('forbindelse'); }
-          const payloads = del.done ? parser.push(decoder.decode() + '\n\n') : parser.push(decoder.decode(del.value, { stream: true }));
+          const payloads = del.done ? push(decoder.decode() + '\n\n') : push(decoder.decode(del.value, { stream: true }));
           for (const p of payloads) {
             if (handle(p)) { faerdig = true; break laes; }
             if (afbrudt) throw new AgentError(AFBRUDT, runId);

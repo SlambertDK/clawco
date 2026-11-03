@@ -239,3 +239,67 @@ test('frakobl: the stored items and validators go with the connection', async ()
     await assert.rejects(access(path.join(dir, 'nyheder-rss')));
   });
 });
+
+// KC-0274 (C3): "the user pasted it" is a permission for the ADDRESS that was judged, kept with the feed.
+test('connect: a local address is stored with the addresses it was judged at, and every later read must match them', async () => {
+  const lokal = 'http://nas.hjem:8080/feed';
+  const kald: Kald[] = [];
+  const tabel = { [lokal]: { tekst: rss('Hjemmeserveren', [['Nyt', 'http://nas.hjem/1']]), adresser: ['192.168.1.5'] }, [A]: { tekst: FEED_A } };
+  const hent = falskHenter(tabel, kald);
+  const refuser = async (adr: string, o: Parameters<typeof hent>[1]) => { if (o.oprindelse === 'ekstern' && adr === lokal) throw new HentFejl('afvist', 'Lokalt.'); return hent(adr, o); };
+  const k = nyhederRss({ hent: refuser });
+  const feeds = feedsAf((await opsaet(k, { adresser: lokal })).valg) as (Feed & { adresser?: string[] })[];
+  assert.deepEqual(feeds.map((f) => [f.url, f.lokal, f.adresser]), [[lokal, true, ['192.168.1.5']]]);
+  await k.read(ctx({ feeds: JSON.stringify(feeds) }));
+  assert.deepEqual(kald.filter((c) => c.adresse === lokal).slice(-1)[0]?.kunAdresser, ['192.168.1.5']);
+  // An external feed never carries the set.
+  await k.read(ctx({ feeds: JSON.stringify([{ url: A, tilfoejet: 'x' }]) }));
+  assert.equal(kald.filter((c) => c.adresse === A).slice(-1)[0]?.kunAdresser, undefined);
+});
+
+test('read: a local feed whose name now points elsewhere is refused, shown as not answering, and nothing is served from it', async () => {
+  const lokal = 'http://nas.hjem:8080/feed';
+  const k = nyhederRss({ hent: async () => { throw new HentFejl('afvist', 'Adressen peger nu et andet sted.'); } });
+  const valg = { feeds: JSON.stringify([{ url: lokal, navn: 'Hjemmeserveren', tilfoejet: 'x', lokal: true, adresser: ['192.168.1.5'] }]) };
+  await assert.rejects(k.read(ctx(valg)), status(502));
+  const h = await k.helbred(ctx(valg));
+  assert.equal(h.status, 'nede');
+  assert.match(h.tekst ?? '', /Hjemmeserveren/);
+  assert.match((await k.kort(ctx(valg))).tekst, /Hjemmeserveren svarer ikke/);
+});
+
+test('read: a stored local feed from before the set existed is pinned to what it first answered from, in this process', async () => {
+  const lokal = 'http://nas.hjem:8080/feed';
+  const kald: Kald[] = [];
+  const hent = falskHenter({ [lokal]: { tekst: rss('Hjemme', [['Nyt', 'http://nas.hjem/1']]), adresser: ['192.168.1.5'] } }, kald);
+  const k = nyhederRss({ hent });
+  const valg = { feeds: JSON.stringify([{ url: lokal, tilfoejet: 'x', lokal: true }]) };
+  await k.read(ctx(valg));
+  await k.read(ctx(valg));
+  assert.equal(kald[0]?.kunAdresser, undefined, 'nothing to compare with the first time');
+  assert.deepEqual(kald[1]?.kunAdresser, ['192.168.1.5']);
+});
+
+// KC-0274 (C2): a hosted install never reaches its host's network: the pasted-local exception is off.
+test('hosted: a local address is refused at once with the hosted words, and no request is ever made as "bruger"', async () => {
+  const kald: Kald[] = [];
+  const lokal = 'http://192.168.1.5:8080/feed';
+  const hent = falskHenter({ [A]: { tekst: FEED_A } }, kald);
+  const k = nyhederRss({ hostet: true, hent: async (adr, o) => { if (adr === lokal) { kald.push({ adresse: adr, oprindelse: o.oprindelse }); throw new HentFejl('afvist', 'Hostet.'); } return hent(adr, o); } });
+  await assert.rejects(opsaet(k, { adresser: lokal }), (e: unknown) => e instanceof KildeFejl && e.status === 400 && !/Skriv den selv/.test(e.message));
+  assert.equal(kald.length, 0, 'the address is refused before anything is fetched');
+  assert.deepEqual(feedsAf((await opsaet(k, { adresser: A })).valg).map((f) => f.url), [A]);
+  assert.ok(kald.every((c) => c.oprindelse !== 'bruger'));
+});
+
+test('hosted: an address that the guard refuses as local is not retried as the user\'s own, and a stored local feed is read as hosted', async () => {
+  const kald: Kald[] = [];
+  const url = 'https://skjult.example/feed';
+  const hent = async (adr: string, o: Parameters<ReturnType<typeof falskHenter>>[1]) => { kald.push({ adresse: adr, oprindelse: o.oprindelse }); throw new HentFejl('afvist', 'Lokalt.'); };
+  const k = nyhederRss({ hostet: true, hent });
+  await assert.rejects(opsaet(k, { adresser: url }), status(400));
+  assert.deepEqual(kald.map((c) => c.oprindelse), ['hostet'], 'one try, as hosted');
+  kald.length = 0;
+  await assert.rejects(k.read(ctx({ feeds: JSON.stringify([{ url: 'http://192.168.1.5/f', tilfoejet: 'x', lokal: true, adresser: ['192.168.1.5'] }]) })), status(502));
+  assert.deepEqual(kald.map((c) => [c.oprindelse, c.kunAdresser]), [['hostet', undefined]]);
+});

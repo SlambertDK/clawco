@@ -17,6 +17,7 @@ import { tillidTekst, flertal } from './tekster.ts';
 import { trinNavn } from './trin.ts';
 import type { Opgoer } from './brugermappe.ts';
 import { ugeLinje, ugeSoejler, ugeVisning, type Ugetal } from './dagstal.ts';
+import { revisionNoegleFindes } from '../graenser/revisionslog.ts';
 
 export type VidenKilde = { id: string; navn: string; slags: string; zone?: string; forbundet: boolean };
 export type VidenPerson = { navn: string; relation: string; sti: string };
@@ -31,6 +32,8 @@ export type Viden = {
   ugetal?: Ugetal[];
   /** Just deleted: the page says so. */
   slettet?: boolean;
+  /** KC-0275: whether the audit log is sealed with a key (absent = ask the environment's key file). */
+  revisionNoegle?: boolean;
 };
 
 const oprindelse = (art: Oprindelse): string => tillidTekst().oprindelse[art] ?? art;
@@ -138,6 +141,7 @@ ${personerDel(v)}
 ${ugetalDel(v)}
 ${/* "Skjult i denne uge" (count + the Sunday sample) comes with KC-0145; until it is built the section is gone, not greyed (KC-0052). */ ''}
 ${gemtDel(v)}
+${(v.revisionNoegle ?? revisionNoegleFindes()) ? '' : html`<p class="row-note" data-viden-revision-usikret>${T.revisionUsikret}</p>`}
 <div class="actions viden-knapper"><a class="btn" href="/api/tillid/eksport" download data-viden-hent>${T.hentAlt}</a><a class="btn btn-graense" href="/viden/slet-alt" data-viden-slet>${T.sletAlt}</a></div>
 </div>`;
 }

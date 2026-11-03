@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createFileStore } from '../../src/store/fileStore.ts';
+import { createFileStore, skippedeLinjer } from '../../src/store/fileStore.ts';
 import type { RumLager } from '../../src/store/types.ts';
 
 async function medTempLager(fn: (lager: RumLager, rod: string) => Promise<void>): Promise<void> {
@@ -129,5 +129,51 @@ test('uden opts.now er tid stadig det rigtige nu', async () => {
     const foer = Date.now();
     const e = await lager.appendLog('lager', { kilde: 'hermes', tekst: 'x' });
     assert.ok(Date.parse(e.tid) >= foer && Date.parse(e.tid) - foer < 5000);
+  });
+});
+
+test('KC-0275 B6: 201 samtidige appendLog og 50 updateLog taber ingen linjer, og hver update slår igennem', async () => {
+  await medTempLager(async (lager) => {
+    const ids: string[] = [];
+    for (let i = 0; i < 50; i++) ids.push((await lager.appendLog('lager', { kilde: 'system', tekst: `h${i}` })).id);
+    const arbejde: Promise<unknown>[] = [];
+    for (let i = 0; i < 201; i++) arbejde.push(lager.appendLog('lager', { kilde: 'system', tekst: `ny${i}` }));
+    for (const id of ids) arbejde.push(lager.updateLog('lager', id, { fortrudt: 'ja' }));
+    await Promise.all(arbejde);
+    const alle = await lager.readLog('lager', 1000);
+    assert.equal(alle.length, 251, '50 + 201 linjer, ingen tabt');
+    for (const id of ids) assert.equal(alle.find((e) => e.id === id)?.fortrudt, 'ja', 'updaten blev ikke overskrevet');
+  });
+});
+
+test('KC-0275 B6: to lager på samme mappe deler køen (en ny createFileStore må ikke omgå den)', async () => {
+  const rod = await mkdtemp(join(tmpdir(), 'kc-store-'));
+  try {
+    const a = createFileStore(rod);
+    const b = createFileStore(rod);
+    const id = (await a.appendLog('lager', { kilde: 'system', tekst: 'x' })).id;
+    await Promise.all([a.updateLog('lager', id, { fortrudt: 'ja' }), ...Array.from({ length: 40 }, (_, i) => b.appendLog('lager', { kilde: 'system', tekst: `y${i}` }))]);
+    assert.equal((await a.readLog('lager', 100)).length, 41);
+  } finally { await rm(rod, { recursive: true, force: true }); }
+});
+
+test('KC-0275 E4: en ødelagt linje i chat/log springes over (talt), én advarsel pr. fil, resten læses', async () => {
+  await medTempLager(async (lager, rod) => {
+    await lager.appendChat('lager', { fra: 'henrik', tekst: 'hej' });
+    await lager.appendLog('lager', { kilde: 'system', tekst: 'a' });
+    await writeFile(join(rod, 'rum', 'lager', 'chat.jsonl'), '{"id":"1","rolle":"bruger","tekst":"hej","tid":"t"}\n{"id":"2","rol\n{"id":"3","rolle":"bruger","tekst":"igen","tid":"t"}\n');
+    await writeFile(join(rod, 'rum', 'lager', 'log.jsonl'), '{"id":"x","handling":"a"}\nikke json\n');
+    const advarsler: string[] = [];
+    const orig = console.warn;
+    console.warn = (...a: unknown[]) => { advarsler.push(a.join(' ')); };
+    try {
+      assert.deepEqual((await lager.readChat('lager')).map((e) => e.id), ['1', '3']);
+      await lager.readChat('lager');
+      assert.equal((await lager.readLog('lager')).length, 1);
+    } finally { console.warn = orig; }
+    assert.equal(advarsler.length, 2, 'én pr. fil, ikke pr. læsning');
+    assert.match(advarsler[0]!, /chat\.jsonl line 2/);
+    assert.match(advarsler[1]!, /log\.jsonl line 2/);
+    assert.equal(skippedeLinjer(join(rod, 'rum', 'lager', 'chat.jsonl')), 2, 'talt pr. læsning');
   });
 });

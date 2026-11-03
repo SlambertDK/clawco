@@ -33,7 +33,7 @@ test('the two fixture files are byte-identical, and signerKontrol makes exactly 
 
 test('a distinct audience: the control prefix and aud differ from a person\'s header and a support bevis, over the same key', () => {
   const kontrol = signerKontrol(NOEGLE.privat, { t: T.slug, m: 'POST', p: INTERN_STI, h: kropHash('{}'), iat: V.nu, n: '0123456789abcdef' });
-  const person = signerKonto(NOEGLE.privat, { t: T.slug, k: '7', e: 'ejer@example.test', iat: V.nu });
+  const person = signerKonto(NOEGLE.privat, { t: T.slug, k: '7', e: 'ejer@example.test', iat: V.nu, m: 'POST', p: '/intern/x' });
   assert.match(kontrol, /^k1\./);
   assert.match(person, /^v1\./);
   const payload = JSON.parse(Buffer.from(kontrol.split('.')[2]!, 'base64url').toString('utf8')) as Record<string, unknown>;
@@ -137,4 +137,20 @@ test('KC-0203: the read fails closed: no key sends nothing; a non-200, a redirec
   await assert.rejects(kald.hent({ ...T, adresse: t.adresse }, '/api/beta/maal'), /503/);
   await assert.rejects(kald.hent({ ...T, adresse: t.adresse }, '/api/andet'), /JSON/);
   await t.luk();
+});
+
+test('KC-0273 (D5): both control calls read the tenant\'s answer bounded: a 1 MiB answer throws, a normal one passes', async () => {
+  const fyld = 'x'.repeat(1024 * 1024);
+  const t = await tenant((s) => (s.metode === 'GET'
+    ? { status: 200, krop: s.sti.endsWith('stor') ? JSON.stringify({ fyld }) : '{"tal":1}' }
+    : { status: 200, krop: s.krop.includes('fjern') ? JSON.stringify({ ok: true, aendret: true, fyld }) : '{"ok":true,"aendret":false}' }));
+  const kald = kontrolKald({ noegle: NOEGLE, nu: () => NU });
+  try {
+    await assert.rejects(kald.medlem({ ...T, adresse: t.adresse }, { op: 'fjern', email: 'nora@example.test' }), /for stort/);
+    assert.deepEqual(await kald.medlem({ ...T, adresse: t.adresse }, { op: 'rolle', email: 'nora@example.test', rolle: 'barn' }), { aendret: false });
+    await assert.rejects(kald.hent({ ...T, adresse: t.adresse }, '/api/beta/stor'), /for stort/);
+    assert.deepEqual(await kald.hent({ ...T, adresse: t.adresse }, '/api/beta/maal'), { tal: 1 });
+  } finally {
+    await t.luk();
+  }
 });

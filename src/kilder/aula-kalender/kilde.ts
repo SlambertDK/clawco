@@ -39,6 +39,9 @@ export const erAulaVaert = (vaert: string): boolean => {
   return AULA_VAERTER.some((d) => v === d || v.endsWith(`.${d}`));
 };
 
+/** KC-0274 (C3): on EVERY hop (the link and each redirect) Aula answers over https on the default port; http or another port is refused. */
+export const erAulaAdresse = (u: URL): boolean => u.protocol === 'https:' && u.port === '' && !u.username && !u.password && erAulaVaert(u.hostname);
+
 const UGE_DAGE = 7;
 const OK_LEVETID_MS = 5 * 60_000; // Aula refreshes the Ugekalender every 5 minutes: asking more often is pointless
 const NEDE_LEVETID_MS = 10 * 60_000; // as nyheder-rss: the registry never reads a source that is not working, so "nede" must expire to recover
@@ -75,7 +78,7 @@ const REVOKERET = new Set([401, 403, 404, 410]);
 const trin = (): { tekst: string }[] => aulaTekst().trin.map((tekst) => ({ tekst }));
 
 export function aulaKalender(o: { hent?: Henter; ur?: () => number; langsomMs?: number; version?: string } = {}): Kilde {
-  const hent = o.hent ?? lavHenter({ agent: `Clawco/${o.version ?? '0.1'}`, accept: ICS_ACCEPT, maksBytes: MAKS_BYTES, tilladtVaert: erAulaVaert, perVaert: 1, samtidige: 2 });
+  const hent = o.hent ?? lavHenter({ agent: `Clawco/${o.version ?? '0.1'}`, accept: ICS_ACCEPT, maksBytes: MAKS_BYTES, tilladtVaert: erAulaVaert, tilladtAdresse: erAulaAdresse, perVaert: 1, samtidige: 2 });
   const ur = o.ur ?? ((): number => Date.now());
   const langsomMs = o.langsomMs ?? LANGSOM_MS;
   /** What was last learned of a link, by the hash of the link (the link itself is never a key anywhere). */

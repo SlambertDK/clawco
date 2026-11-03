@@ -8,8 +8,9 @@
 // The household changes (`medlem`) are called only by konto/medlemskab.ts, after an owner's own click (accept, remove,
 // role change) or a member's own "Forlad": never Hermes, chat, voice, the fleet or a script (sky/test/konto/medlemskab.test.ts
 // holds that). `hent` (KC-0203) is the read-only twin: GET with no body, for the daily beta measures (server.ts hands it
-// to beta/hent.ts); it can change nothing in a tenant.
+// to beta/hent.ts); it can change nothing in a tenant. Both read the tenant's answer bounded (KC-0273, delt/begraenset.ts).
 import { randomBytes } from 'node:crypto';
+import { LEJERSVAR_MAKS, laesBegraenset } from '../delt/begraenset.ts';
 import { KONTROL_HEADER, kropHash, signerKontrol } from './signer.ts';
 import type { GatewayNoegle } from './noegle.ts';
 
@@ -38,7 +39,9 @@ export function kontrolKald(o: { noegle: GatewayNoegle | null; fetch?: typeof fe
         method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(timeout),
         headers: { 'content-type': 'application/json', [KONTROL_HEADER.toLowerCase()]: header }, body: krop,
       });
-      const svar: unknown = await r.json().catch(() => null);
+      const tekst = await laesBegraenset(r, LEJERSVAR_MAKS);
+      let svar: unknown = null;
+      try { svar = JSON.parse(tekst); } catch { /* judged below */ }
       const s = svar as { ok?: unknown; aendret?: unknown } | null;
       if (r.status !== 200 || s?.ok !== true) throw new Error(`kundens Clawco svarede ${r.status} på husstandsændringen`);
       return { aendret: s.aendret === true };
@@ -49,7 +52,8 @@ export function kontrolKald(o: { noegle: GatewayNoegle | null; fetch?: typeof fe
       const header = signerKontrol(o.noegle.privat, { t: t.slug, m: 'GET', p: sti, h: kropHash(''), iat: Math.floor(nu().getTime() / 1000), n: nonce() });
       const r = await f(new URL(sti, t.adresse), { method: 'GET', redirect: 'manual', signal: AbortSignal.timeout(timeout), headers: { accept: 'application/json', [KONTROL_HEADER.toLowerCase()]: header } });
       if (r.status !== 200) throw new Error(`kundens Clawco svarede ${r.status} på ${sti}`);
-      try { return await r.json(); } catch { throw new Error(`kundens Clawco svarede ikke med JSON på ${sti}`); }
+      const tekst = await laesBegraenset(r, LEJERSVAR_MAKS);
+      try { return JSON.parse(tekst); } catch { throw new Error(`kundens Clawco svarede ikke med JSON på ${sti}`); }
     },
   };
 }

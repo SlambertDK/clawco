@@ -11,11 +11,14 @@
 // Health comes from the last attempt; a refused login is not retried on its
 // own (providers lock accounts after repeated failures).
 
+import dns from 'node:dns/promises';
+import { isIP } from 'node:net';
+import { AdresseFejl, tjekIp } from '../nyheder-rss/adresse.ts';
 import { KildeFejl, type Felt, type Helbred, type Kilde, type KildeKontekst, type KildeKort, type Resultat, type VerbSpec } from '../types.ts';
 import { FEJLTEKST, klassificer, type Klassifikation } from './fejl.ts';
 import { imapTekst } from './tekster.ts';
 import { flytMail, gemKladde, hentCertifikat, laesKonto, type Konto, type Tal } from './imap.ts';
-import { erLoopback, forbindelse, normalFingeraftryk, PRESETS, TJENESTER, type Forbindelse } from './presets.ts';
+import { erLoopback, forbindelse as forbindelseAf, normalFingeraftryk, PRESETS, TJENESTER, type Forbindelse } from './presets.ts';
 
 export const MAIL_IMAP_ID = 'mail-imap';
 /** How long a successful read vouches for the account's health before helbred() logs in again. */
@@ -80,8 +83,28 @@ function alder(ms: number): string {
   return imapTekst().sidstLaest(min);
 }
 
-/** `tidsgraenseMs`: per connection step (default 15 s); `levetidMs`: how long a good read keeps health ok. */
-export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } = {}): Kilde {
+/**
+ * `tidsgraenseMs`: per connection step (default 15 s); `levetidMs`: how long a good read keeps health ok. `hostet` (KC-0274, C2):
+ * the install runs on Clawco Sky's server, so "another server" may only be a server on the public internet (a literal in
+ * `forbindelse`, a NAME resolved and judged here before any connection); `opslag` is the resolver (tests).
+ */
+export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number; hostet?: boolean; opslag?: (vaert: string) => Promise<{ address: string }[]> } = {}): Kilde {
+  const hostet = o.hostet === true;
+  const forbindelse = (valg: Readonly<Record<string, string>>): Forbindelse => forbindelseAf(valg, { hostet });
+  const opslag = o.opslag ?? ((vaert: string) => dns.lookup(vaert, { all: true, verbatim: true }));
+  /** A hosted "anden" server name that resolves to any local, private or refused address (or to nothing) is refused: no connection is made. */
+  async function tjekHostet(f: Forbindelse): Promise<void> {
+    if (!hostet || f.tjeneste !== 'anden' || isIP(f.vaert)) return;
+    let svar: { address: string }[];
+    try { svar = await opslag(f.vaert); } catch { return; /* the connection attempt fails the same way and says so */ }
+    try {
+      if (!svar.length) throw new AdresseFejl('tom');
+      for (const a of svar) tjekIp(a.address, { oprindelse: 'hostet' });
+    } catch (err) {
+      if (err instanceof AdresseFejl) throw new KildeFejl(400, imapTekst().serverIkkeHostet);
+      throw err;
+    }
+  }
   const tilstand = new Map<string, Tilstand>();
   const levetid = o.levetidMs ?? STANDARD_LEVETID_MS;
   const tid = o.tidsgraenseMs ? { tidsgraenseMs: o.tidsgraenseMs } : {};
@@ -102,6 +125,7 @@ export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } 
 
   /** Reads the account, remembering the outcome; a failure becomes a KildeFejl with the Danish text. */
   async function laes(f: Forbindelse, ctx: KildeKontekst, adgangskode: string, pin?: string): Promise<Konto> {
+    await tjekHostet(f);
     try {
       const konto = await laesKonto(f, adgangskode, { ...(pin ? { pin } : {}), ...tid });
       huskOk(f, ctx.nu, konto);
@@ -114,6 +138,7 @@ export function mailImapKilde(o: { tidsgraenseMs?: number; levetidMs?: number } 
 
   /** Runs a verb's IMAP call: a refusal (KildeFejl) as it is, a connection or login failure classified like a read. */
   async function udfoer<T>(f: Forbindelse, ctx: KildeKontekst, kald: () => Promise<T>): Promise<T> {
+    await tjekHostet(f);
     try { return await kald(); } catch (err) {
       if (err instanceof KildeFejl) throw err;
       const k = huskFejl(f, ctx.nu, err);

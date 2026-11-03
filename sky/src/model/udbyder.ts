@@ -40,7 +40,8 @@ export class UdbyderFejl extends Error {
   }
 }
 
-/** The tenant may set these two (the wire version and its beta features); every other header is Sky's. */
+/** The tenant may set these two (the wire version and its beta features); every other header is Sky's. A beta value
+ *  reaches this list only after the route checked it against krop.ts TILLADTE_BETA (KC-0273; empty today). */
 export const VIDERE_HEADERS = ['anthropic-version', 'anthropic-beta'] as const;
 
 /** Upstream answers that are the tenant's own doing pass through; everything else is our side, and the tenant gets 503. */

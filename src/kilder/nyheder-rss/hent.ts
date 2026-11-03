@@ -13,12 +13,13 @@ import https from 'node:https';
 import { isIP } from 'node:net';
 import { createBrotliDecompress, createGunzip, createInflate } from 'node:zlib';
 import type { Readable } from 'node:stream';
-import { AdresseFejl, tjekAdresse, tjekIp, type Oprindelse } from './adresse.ts';
+import { AdresseFejl, klasseAf, sammeNet, tjekAdresse, tjekIp, type Oprindelse } from './adresse.ts';
 import { rssTekst } from './tekster.ts';
 
 export type Opslag = (vaert: string) => Promise<{ address: string; family: 4 | 6 }[]>;
-export type Svar = { status: 'ny'; tekst: string; etag?: string; sidstRettet?: string; endeligAdresse: string } | { status: 'uaendret' };
-export type Henter = (adresse: string, o: { oprindelse: Oprindelse; etag?: string; sidstRettet?: string }) => Promise<Svar>;
+/** `adresser` (KC-0274): the addresses the FIRST hop's name resolved to, all judged; a caller that let the user's own address through stores them. */
+export type Svar = { status: 'ny'; tekst: string; etag?: string; sidstRettet?: string; endeligAdresse: string; adresser?: string[] } | { status: 'uaendret'; adresser?: string[] };
+export type Henter = (adresse: string, o: { oprindelse: Oprindelse; etag?: string; sidstRettet?: string; kunAdresser?: readonly string[] }) => Promise<Svar>;
 
 export class HentFejl extends Error {
   readonly kode: 'afvist' | 'tid' | 'stor' | 'omdirigering' | 'status' | 'net';
@@ -44,6 +45,11 @@ export type HenterValg = {
    * refused before anything is sent — a source that may only talk to its own provider (Aula) never follows a redirect elsewhere.
    */
   tilladtVaert?: (vaert: string) => boolean;
+  /**
+   * KC-0274: like `tilladtVaert`, but on the whole address (scheme and port too), on EVERY hop — Aula answers over https on the
+   * default port only, so a redirect to http or to another port on an Aula host is refused too.
+   */
+  tilladtAdresse?: (adresse: URL) => boolean;
   /** Tests only: lets redirects reach loopback/LAN (link-local and metadata stay refused). The app never sets it. */
   tilladLoopbackUdefra?: boolean;
 };
@@ -61,6 +67,9 @@ function lavPlads(n: number): <T>(fn: () => Promise<T>) => Promise<T> {
     try { return await fn(); } finally { aktive -= 1; naeste(); }
   };
 }
+
+/** How many resolved addresses a feed remembers for the user's permission. */
+const MAKS_GEMTE_ADRESSER = 4;
 
 const STANDARD_ACCEPT = 'application/rss+xml, application/atom+xml, application/xml;q=0.9, text/xml;q=0.8, text/html;q=0.5, */*;q=0.1';
 
@@ -94,8 +103,13 @@ export function lavHenter(o: HenterValg = {}): Henter {
   };
   const oprindelseFor = (op: Oprindelse): Oprindelse => (o.tilladLoopbackUdefra ? 'bruger' : op);
 
-  /** Resolves the host once and judges every answer; the first one is the one to connect to. */
-  async function vaelgIp(u: URL, op: Oprindelse): Promise<{ address: string; family: 4 | 6 }> {
+  /**
+   * Resolves the host once and judges every answer; the first one is the one to connect to. KC-0274 (C3): the user's own
+   * permission ('bruger') is for an address, not for a name — a NAME with any public answer is judged as external (so its local
+   * answers are refused, never upgraded), and with `kun` (the addresses stored when the user added the feed) every answer must
+   * be one of them, or on the same small network, else the feed is refused as moved.
+   */
+  async function vaelgIp(u: URL, op: Oprindelse, kun?: readonly string[]): Promise<{ address: string; family: 4 | 6; alle: string[] }> {
     const vaert = u.hostname.startsWith('[') ? u.hostname.slice(1, -1) : u.hostname;
     const fam = isIP(vaert);
     let svar: { address: string; family: 4 | 6 }[];
@@ -108,10 +122,12 @@ export function lavHenter(o: HenterValg = {}): Henter {
       } catch { throw new HentFejl('net', rssTekst().findesIkke); }
     }
     if (!svar.length) throw new HentFejl('net', rssTekst().findesIkke);
+    if (kun && op === 'bruger' && svar.some((a) => !kun.some((k) => sammeNet(a.address, k)))) throw new HentFejl('afvist', rssTekst().adresseSkiftet);
+    const dom: Oprindelse = op === 'bruger' && !fam && svar.some((a) => klasseAf(a.address) === 'offentlig') ? 'ekstern' : op;
     for (const a of svar) {
-      try { tjekIp(a.address, { oprindelse: op }); } catch (err) { throw new HentFejl('afvist', err instanceof Error ? err.message : rssTekst().afvist); }
+      try { tjekIp(a.address, { oprindelse: dom }); } catch (err) { throw new HentFejl('afvist', err instanceof Error ? err.message : rssTekst().afvist); }
     }
-    return svar[0] as { address: string; family: 4 | 6 };
+    return { ...(svar[0] as { address: string; family: 4 | 6 }), alle: svar.map((a) => a.address).slice(0, MAKS_GEMTE_ADRESSER) };
   }
 
   function en(u: URL, ip: { address: string; family: 4 | 6 }, hoveder: Record<string, string>, signal: AbortSignal): Promise<Hop> {
@@ -175,25 +191,27 @@ export function lavHenter(o: HenterValg = {}): Henter {
     let u: URL;
     let op: Oprindelse = p.oprindelse;
     try { u = tjekAdresse(adresse, { oprindelse: oprindelseFor(op) }); } catch (err) { throw new HentFejl('afvist', err instanceof Error ? err.message : rssTekst().afvist); }
-    if (o.tilladtVaert && !o.tilladtVaert(u.hostname)) throw new HentFejl('afvist', rssTekst().hoererIkkeTil);
+    if ((o.tilladtVaert && !o.tilladtVaert(u.hostname)) || (o.tilladtAdresse && !o.tilladtAdresse(u))) throw new HentFejl('afvist', rssTekst().hoererIkkeTil);
+    let forste: string[] | undefined;
     for (let hop = 0; ; hop += 1) {
-      const ip = await vaelgIp(u, oprindelseFor(op));
+      const ip = await vaelgIp(u, oprindelseFor(op), hop === 0 ? p.kunAdresser : undefined);
+      if (hop === 0) forste = ip.alle;
       const hoveder: Record<string, string> = { 'user-agent': agent, accept, 'accept-encoding': 'gzip, deflate, br' };
       if (p.etag) hoveder['if-none-match'] = p.etag;
       if (p.sidstRettet) hoveder['if-modified-since'] = p.sidstRettet;
       const r = await iAlt(() => vaertPlads(`${u.hostname}:${u.port}`)(() => en(u, ip, hoveder, (signal ??= AbortSignal.timeout(tidMs)))));
-      if (r.status === 304) return { status: 'uaendret' };
+      if (r.status === 304) return { status: 'uaendret', ...(forste ? { adresser: forste } : {}) };
       if (r.status >= 300 && r.status < 400) {
         if (hop >= maksOmd) throw new HentFejl('omdirigering', rssTekst().forMangeOmdirigeringer);
         if (!r.location) throw new HentFejl('net', rssTekst().omdirigeringUdenMaal);
         try { u = tjekAdresse(new URL(r.location, u).href, { oprindelse: oprindelseFor('ekstern') }); } catch (err) {
           throw new HentFejl('afvist', err instanceof AdresseFejl ? err.message : rssTekst().omdirigeringIkkeBrugbar);
         }
-        if (o.tilladtVaert && !o.tilladtVaert(u.hostname)) throw new HentFejl('afvist', rssTekst().omdirigeringForbudt);
+        if ((o.tilladtVaert && !o.tilladtVaert(u.hostname)) || (o.tilladtAdresse && !o.tilladtAdresse(u))) throw new HentFejl('afvist', rssTekst().omdirigeringForbudt);
         op = 'ekstern';
         continue;
       }
-      return { status: 'ny', tekst: r.tekst ?? '', ...(r.etag ? { etag: r.etag } : {}), ...(r.sidstRettet ? { sidstRettet: r.sidstRettet } : {}), endeligAdresse: u.href };
+      return { status: 'ny', tekst: r.tekst ?? '', ...(r.etag ? { etag: r.etag } : {}), ...(r.sidstRettet ? { sidstRettet: r.sidstRettet } : {}), endeligAdresse: u.href, ...(forste ? { adresser: forste } : {}) };
     }
   };
 }

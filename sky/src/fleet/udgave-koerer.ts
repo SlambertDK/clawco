@@ -7,6 +7,7 @@
 import { randomBytes } from 'node:crypto';
 import { BILLED_ID } from './flaade.ts';
 import { BRUGER, HAERDNING, SKRIV_HUSSTAND, beholderAdresse, dockerKommando, sikrNetvaerk, tenantKoersel, type Koersel } from './lokal.ts';
+import { kraevFilter, type Undernet, type Vaern } from './netfilter.ts';
 
 const ETIKET = 'clawco.udgave=1';
 const KLADDE = /^clawco-u-[0-9a-f]{8}$/;
@@ -25,7 +26,9 @@ function kladdeDisk(disk: string): string {
   return disk;
 }
 
-export function lokalBilledKoerer(o: { koer: Koersel; netvaerk: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[]; tilfaeldig?: () => string }) {
+export function lokalBilledKoerer(o: { koer: Koersel; netvaerk: string; kontoPubkey: string; skyUrl: string; noegleFlag: string[]; tilfaeldig?: () => string;
+  /** KC-0273: `netvaerk` is the shared pool network (lokal.ts deltNetvaerk) on this /24 (index 0); `vaern` must be ok. */
+  undernet: Undernet; vaern: Vaern }) {
   const docker = dockerKommando(o.koer);
   const ny = () => (o.tilfaeldig ?? (() => randomBytes(4).toString('hex')))();
 
@@ -59,7 +62,8 @@ export function lokalBilledKoerer(o: { koer: Koersel; netvaerk: string; kontoPub
     async start(billede: string, disk: string): Promise<{ navn: string; adresse: string }> {
       const navn = kladdeDisk(disk).slice(0, -'-data'.length);
       if ((await docker(['volume', 'inspect', disk], true)) === null) throw new Error(`disken ${disk} findes ikke`);
-      const gateway = await sikrNetvaerk(docker, o.netvaerk);
+      await kraevFilter(o.vaern);
+      const gateway = await sikrNetvaerk(docker, o.netvaerk, o.undernet);
       await docker([
         'run', '--detach', '--name', navn, '--label', ETIKET, '--network', o.netvaerk, '--volume', `${disk}:/data`,
         ...tenantKoersel({ tenantId: navn, gateway, kontoPubkey: o.kontoPubkey, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag }),

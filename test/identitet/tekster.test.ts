@@ -144,10 +144,10 @@ const AFVISNINGER: [string, number, () => unknown][] = [
   ['ukendtPerson', 401, () => hvemKigger(ANM({}), HUS)],
   ['ikkeInviteret', 403, () => hvemKigger(ANM({ 'tailscale-user-login': 'fremmed@example.com' }), HUS)],
   ['kontoUkendt', 401, () => hvemKontoKigger(ANM({}, '10.20.0.2'), HUS, K, NU)],
-  ['husstandUlaeselig', 503, () => hvemKontoKigger(ANM({ 'clawco-konto': signerV1() }, '10.20.0.2'), null, K, NU)],
+  ['husstandUlaeselig', 503, () => hvemKontoKigger({ ...ANM({ 'clawco-konto': signerV1() }, '10.20.0.2'), metode: 'GET', sti: '/rum/hjem' }, null, K, NU)],
 ];
 function signerV1(): string {
-  const til = `v1.${V.noegler.a.id}.${Buffer.from(JSON.stringify({ t: V.tenant, k: '7', e: 'henrik@example.com', iat: NU })).toString('base64url')}`;
+  const til = `v1.${V.noegler.a.id}.${Buffer.from(JSON.stringify({ t: V.tenant, k: '7', e: 'henrik@example.com', iat: NU, m: 'GET', p: '/rum/hjem' })).toString('base64url')}`;
   return `${til}.${sign(null, Buffer.from(til), PRIVAT).toString('base64url')}`;
 }
 const DA_AFVIST: Record<string, string> = {

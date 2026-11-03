@@ -120,3 +120,24 @@ test('modelRevision changes with the provider and the model, and is stable', () 
   assert.notEqual(modelRevision('anthropic', 'a'), modelRevision('openai', 'a'));
   assert.notEqual(modelRevision(undefined, 'a'), modelRevision('anthropic', 'a'));
 });
+
+test('KC-0275 E4: parallel read-modify-write calls on one file all land, also from two instances', async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'kc-set-'));
+  try {
+    const a = createSettings(dir);
+    const b = createSettings(dir);
+    await Promise.all([
+      a.setModels({ lille: 'claude-haiku-5.5' }),
+      b.setStemme({ voiceId: 'abc123' }),
+      a.setSoendagstjek(false),
+      b.setModelTest({ lille: { ok: true, tid: '2026-11-03T10:00:00.000Z', ms: 12, rev: 'abc' } }),
+      a.setStemme({ agentId: 'ag_1' }),
+    ]);
+    const s = await createSettings(dir).read();
+    assert.equal(s.modeller.lille, 'claude-haiku-5.5');
+    assert.equal(s.stemme.voiceId, 'abc123');
+    assert.equal(s.stemme.agentId, 'ag_1');
+    assert.equal(s.soendagstjek, false);
+    assert.equal(s.modelTest?.lille?.ms, 12);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});

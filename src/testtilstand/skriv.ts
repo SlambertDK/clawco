@@ -40,7 +40,7 @@ export async function skrivFroe(dataDir: string, froe: Froe, store: RumLager, da
   for (const navn of OPRYDDES) await rm(path.join(rod, navn), { recursive: true, force: true });
   for (const navn of await readdir(rod)) if (/^avis_\d{4}-\d{2}-\d{2}\.json$/.test(navn)) await rm(path.join(rod, navn), { force: true });
   // KC-0124: the kill switch's pause and the audit log are per moment too.
-  for (const navn of await readdir(rod)) if (navn === 'pause.json' || navn === 'stoette.json' || navn === 'beta.json' || navn === 'kilder.json' || navn === 'helbred.json' || navn === 'profil.json' || navn === 'indstillinger.json' || /^revision-\d{4}-\d{2}\.jsonl$/.test(navn)) await rm(path.join(rod, navn), { force: true });
+  for (const navn of await readdir(rod)) if (navn === 'pause.json' || navn === 'stoette.json' || navn === 'beta.json' || navn === 'kilder.json' || navn === 'helbred.json' || navn === 'profil.json' || navn === 'revision.anker' || navn === 'indstillinger.json' || /^revision-\d{4}-\d{2}\.jsonl$/.test(navn)) await rm(path.join(rod, navn), { force: true });
 
   for (const [rum, r] of Object.entries(froe.rum)) {
     await store.writeState(rum, r.state);

@@ -14,7 +14,7 @@ import { migrer } from '../../src/db/migrer.ts';
 import { laesModelpriser, prisMikroUsd } from '../../src/model/priser.ts';
 import { modelRuter } from '../../src/model/ruter.ts';
 import { UdbyderFejl, bedrockKlient, sdkUdbyder, type BedrockKlient } from '../../src/model/udbyder.ts';
-import { SENTINEL, sseSvar } from './hjaelp.ts';
+import { SENTINEL, sseSvar, sseSvarTilLejer } from './hjaelp.ts';
 
 const AWS_ID = 'AKIAFALSKFALSKFALSK1';
 const AWS_HEMMELIG = 'falsk/HEMMELIG/aws+nogle0000000000000000';
@@ -105,7 +105,7 @@ test('bedrock through the proxy: the tenant gets the Anthropic SSE and ONE ledge
   const r = await a.request('/model/v1/messages', { method: 'POST', headers: { authorization: `Bearer ${'A'.repeat(43)}=`, 'content-type': 'application/json' }, body: JSON.stringify(krop) });
   assert.equal(r.status, 200);
   assert.match(r.headers.get('content-type') ?? '', /^text\/event-stream/);
-  assert.equal(await r.text(), sseSvar({ input: 1000, output: 200, cacheLaes: 5000, tekst: SENTINEL }));
+  assert.equal(await r.text(), sseSvarTilLejer({ input: 1000, output: 200, cacheLaes: 5000, tekst: SENTINEL }), 'KC-0273: the usage without the cache split');
   let rows: Record<string, unknown>[] = [];
   for (let i = 0; i < 100 && rows.length === 0; i++) { rows = await db.query('SELECT * FROM model.forbrug'); if (!rows.length) await new Promise((x) => setTimeout(x, 5)); }
   assert.equal(rows.length, 1);

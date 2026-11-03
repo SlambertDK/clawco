@@ -48,8 +48,12 @@ services:
   tailscale:
     profiles: [tailscale]
     image: tailscale/tailscale:stable
-    hostname: ${CLAWCO_TS_NAVN:-clawco}
     restart: unless-stopped
+    # KC-0277 (review A13): Serve runs inside the app's network namespace and proxies to 127.0.0.1:8750, so the app
+    # sees a loopback peer and honours Tailscale's identity headers (a household works; a tagged node is not the
+    # owner). On the compose network the peer was the bridge and every identity header was dropped. `hostname:` is
+    # not allowed with this mode; TS_HOSTNAME names the machine on the tailnet.
+    network_mode: "service:clawco"
     # KC-0276: no new privileges. `cap_drop: [ALL]` is NOT set here on purpose: the container runs as root and reads
     # the key file with the host owner's mode 0600 (needs DAC_OVERRIDE), and kernel networking needs NET_ADMIN; the
     # default userspace mode needs neither, but nobody has tested the profile with every capability dropped.

@@ -53,6 +53,8 @@ export const blandetZoner = (kilder: readonly DataZone[]): boolean => new Set(ki
 export function synligFor(person: Person, el: Zoneret): boolean {
   const zone = zoneAf(el);
   if (zone === 'husstand') return kan(person.rolle, 'se-husstand');
-  // KC-0188: support looks through the owner's eyes (its id is the owner's): what the owner could see, never more.
-  return el.ejer ? el.ejer === person.id : person.rolle === 'ejer' || person.rolle === 'stoette';
+  // KC-0188: support looks through the owner's eyes: what the owner could see, never more (KC-0277: by role and the
+  // owner's id it carries, not by sharing the owner's id).
+  if (el.ejer) return el.ejer === person.id || (person.rolle === 'stoette' && person.stoette?.ejer === el.ejer);
+  return person.rolle === 'ejer' || person.rolle === 'stoette';
 }

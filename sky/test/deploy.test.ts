@@ -135,6 +135,11 @@ test('the sudoers drop-in parses (visudo -cf), grants nothing that opens a pager
   assert.ok(kald('saet-hemmelighed.sh') && sky[0]!.includes(kald('saet-hemmelighed.sh')!));
   assert.ok(kald('ny-masternoegle.sh') && sky[0]!.includes(kald('ny-masternoegle.sh')!));
   assert.ok(sky[0]!.includes('/usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/deploy.sh ""'));
+  // KC-0273: sky itself may run exactly two things as root: restart its unit, and the netfilter script by path.
+  const somRod = tekst.split('\n').filter((l) => /^sky ALL=\(root\)/.test(l));
+  assert.equal(somRod.length, 1);
+  assert.deepEqual(somRod[0]!.replace(/^[^:]*NOPASSWD:\s*/, '').split(/,\s*(?=\/)/), ['/usr/bin/systemctl restart sky', '/usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/netfilter.sh *']);
+  assert.ok(fs.existsSync(path.join(skyRod, 'deploy', 'netfilter.sh')));
 });
 
 test('the tunnel unit runs as sky and reads its token from a file, never from a command line or the environment', () => {
@@ -240,6 +245,18 @@ test('deploy.sh installs with --ignore-scripts and a private log file (KC-0276)'
   const k = laes('deploy.sh');
   assert.match(k, /npm ci --omit=dev --ignore-scripts /);
   assert.ok(!k.includes('/tmp/sky-npm.log'));
+});
+
+test('KC-0273: deploy.sh puts the host-side filter in place right after the restart, by the sudoers path, for SKY_TENANT_POOL or the same default Sky uses', async () => {
+  const k = laes('deploy.sh');
+  const { STANDARD_POOL } = await import('../src/fleet/netfilter.ts');
+  const iRestart = k.indexOf('sudo -n /usr/bin/systemctl restart sky');
+  const iFilter = k.indexOf('sudo -n /usr/bin/bash "$(pwd)/deploy/netfilter.sh" "$pool"');
+  assert.ok(iRestart > 0 && iFilter > iRestart, 'after the restart');
+  assert.ok(iFilter < k.indexOf('curl -fsS'), 'before the health check, so a failure stops the deploy');
+  assert.match(k, /pool="\$\(grep -E '\^SKY_TENANT_POOL=' \/srv\/sky\/\.env \| cut -d= -f2 \|\| true\)"/);
+  assert.ok(k.includes(`pool="\${pool:-${STANDARD_POOL}}"`), 'the default is the one fleet/netfilter.ts uses');
+  assert.ok(!/sudo[^\n]*netfilter/.test(fs.readFileSync(path.join(skyRod, 'src', 'fleet', 'lokal.ts'), 'utf8')), 'Sky itself never runs it');
 });
 
 test('the sky-side wrappers refuse a bad name or mode and need no shell text from the caller (KC-0276)', () => {

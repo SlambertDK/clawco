@@ -1,10 +1,13 @@
 // Sessions (KC-0177): cookie __Host-sky holds a random id, the database only its SHA-256.
-// 30 days sliding; revocable one by one; every state-changing POST checks Origin and a per-session
+// 30 days sliding, never past 90 days from login (KC-0272); revocable one by one; every state-changing POST checks Origin and a per-session
 // CSRF token; "fresh" (passkey or link within 5 minutes) guards passkey changes and deletion.
 import type { Database } from '../db/pool.ts';
 import { ensTokens, hashToken, nytToken } from './token.ts';
 
 export const SESSION_DAGE = 30;
+/** KC-0272 (D6): however often it is used, a session ends this long after login (then the person logs in again). */
+export const SESSION_MAKS_DAGE = 90;
+const MAKS_MS = SESSION_MAKS_DAGE * 24 * 3_600_000;
 export const FRISK_MS = 5 * 60_000;
 const SESSION_MS = SESSION_DAGE * 24 * 3_600_000;
 /** Sliding writes at most this often per session (each request would otherwise be a write). */
@@ -25,7 +28,7 @@ export type Session = {
 
 export type SessionVisning = { id: number; oprettet: Date; sidstSet: Date; enhed: string; metode: Metode };
 
-type Raekke = { id: unknown; konto_id: unknown; csrf: string; metode: Metode; autentificeret: Date; udloeber: Date; sidst_set: Date };
+type Raekke = { id: unknown; konto_id: unknown; csrf: string; metode: Metode; autentificeret: Date; udloeber: Date; sidst_set: Date; oprettet: Date };
 
 const iso = (d: Date): string => d.toISOString();
 
@@ -45,16 +48,16 @@ export async function opretSession(db: Database, a: { kontoId: number; metode: M
 export async function hentSession(db: Database, token: string, nu: Date): Promise<Session | null> {
   if (!token) return null;
   const [r] = await db.query<Raekke>(
-    `SELECT s.id, s.konto_id, s.csrf, s.metode, s.autentificeret, s.udloeber, s.sidst_set
+    `SELECT s.id, s.konto_id, s.csrf, s.metode, s.autentificeret, s.udloeber, s.sidst_set, s.oprettet
        FROM session s JOIN konto k ON k.id = s.konto_id
-      WHERE s.hash = $1 AND s.udloeber > $2 AND k.slettet_ved IS NULL`,
-    [hashToken(token), iso(nu)],
+      WHERE s.hash = $1 AND s.udloeber > $2 AND s.oprettet > $3 AND k.slettet_ved IS NULL`,
+    [hashToken(token), iso(nu), iso(new Date(nu.getTime() - MAKS_MS))],
   );
   if (!r) return null;
   let udloeber = new Date(r.udloeber);
   let forlaenget = false;
   if (nu.getTime() - new Date(r.sidst_set).getTime() >= GLID_MS) {
-    udloeber = new Date(nu.getTime() + SESSION_MS);
+    udloeber = new Date(Math.min(nu.getTime() + SESSION_MS, new Date(r.oprettet).getTime() + MAKS_MS));
     await db.query('UPDATE session SET sidst_set = $2, udloeber = $3 WHERE id = $1', [r.id, iso(nu), iso(udloeber)]);
     forlaenget = true;
   }

@@ -16,7 +16,8 @@ import { IDENTITET_TEKSTER, identitetTekst } from './tekster.ts';
 export type { Person } from './husstand.ts';
 /** `log` (konto only): which check failed, for the server log; never shown, never the header value. */
 export type AfvistAdgang = { afvist: 401 | 403 | 503; hvorfor: string; log?: string };
-export type Anmodning = { headers: Headers; peer: string | undefined };
+/** `metode` and `sti` (KC-0272): the request's method and path (no query), which a Clawco-Konto header must name. */
+export type Anmodning = { headers: Headers; peer: string | undefined; metode?: string; sti?: string };
 
 /** The one person of a single-user install (dev, a laptop without Tailscale). */
 export const ENEBRUGER: Person = { id: 'ejer', login: null, navn: 'Ejer', rolle: 'ejer' };
@@ -106,5 +107,5 @@ type Henter = { fetch: (r: Request, env?: unknown) => Response | Promise<Respons
  * whose test world answers by cookie alone); everything else goes straight to `ellers` (the app), which refuses it.
  */
 export function kunSigneret(k: KontoIndstilling, nu: () => Date, signeret: Henter, ellers: Henter): (r: Request, env?: unknown) => Response | Promise<Response> {
-  return (r, env) => (verificerKonto({ headers: r.headers, peer: peerAf(env) }, k, Math.floor(nu().getTime() / 1000)).ok ? signeret : ellers).fetch(r, env);
+  return (r, env) => (verificerKonto({ headers: r.headers, peer: peerAf(env), metode: r.method, sti: new URL(r.url).pathname }, k, Math.floor(nu().getTime() / 1000)).ok ? signeret : ellers).fetch(r, env);
 }

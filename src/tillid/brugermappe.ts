@@ -127,6 +127,13 @@ async function linjer(fil: string): Promise<number> {
   try { return (await readFile(fil, 'utf8')).split('\n').filter((l) => l.trim() !== '').length; } catch { return 0; }
 }
 
+/**
+ * KC-0275: what "Slet alt" leaves by design — the kill switch's pause, the household's people and the audit trail (a wipe
+ * ends with one tombstone line in a fresh log). Not counted among "other files" (so a wiped install reads as empty); still
+ * in "Hent alt".
+ */
+const BEVARET = /^data\/(pause\.json|husstand\.json|revision\.anker|revision-\d{4}-\d{2}\.jsonl)$/;
+
 /** The page's tally of what Clawco keeps: per room (log and chat lines, bytes), Clawco's vault files, the rest. */
 export async function opgoer(m: Brugermappe): Promise<Opgoer> {
   const { filer, hemmelige } = await find(m);
@@ -144,7 +151,7 @@ export async function opgoer(m: Brugermappe): Promise<Opgoer> {
       if (r[2] === 'chat.jsonl') post.chat = await linjer(f.abs);
       rum.set(id, post);
     } else if (f.sti.startsWith('vault/')) clawco.push(f.sti);
-    else andre += 1;
+    else if (!BEVARET.test(f.sti)) andre += 1;
   }
   return { rum: [...rum.values()], clawco, andre, noegler: hemmelige, bytes: filer.reduce((s, f) => s + f.bytes, 0) };
 }

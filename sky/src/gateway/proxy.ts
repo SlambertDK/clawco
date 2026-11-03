@@ -10,11 +10,11 @@
 // and long requests pass unbuffered and nothing is decompressed or re-encoded on the way.
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Database } from '../db/pool.ts';
-import { signerKonto, signerStoetteBevis, type StoettePaastand } from './signer.ts';
+import { STI_MAKS, signerKonto, signerStoetteBevis, type StoettePaastand } from './signer.ts';
 import type { GatewayNoegle } from './noegle.ts';
 import type { Rute, RuteTabel } from './rute.ts';
 import { cookieFra, laesToken, saetCookie, sessionLever, sletCookie, udstedToken, type TokenIndhold } from './cookie.ts';
-import { FAA, indloesKode, loginUrl, sikkerNaeste, tenantOrigin } from './login-vej.ts';
+import { BINDING_COOKIE, BINDING_SEK, FAA, bindingHash, erBinding, indloesKode, loginUrl, nyBinding, sikkerNaeste, tenantOrigin } from './login-vej.ts';
 import { aldrigVidere, logLinje, rensInd, rensUd } from './forbud.ts';
 import { svarOpdaterer } from './opdaterer.ts';
 import { KONTAKT, SLAA_FRA, TEKST, laesFormular, nySessionId, sek, timerAf, type StoetteSeams } from './stoette-vej.ts';
@@ -89,7 +89,8 @@ export function gateway(d: GatewayDeps): Haandtering {
     if (req.method !== 'GET' && req.method !== 'HEAD') { svar(res, 405, 'Metoden er ikke tilladt.'); return null; }
     if (!tillad(klientIp(req))) { svar(res, 429, 'For mange forsøg. Vent et minut.'); return null; }
     if (!(await d.ruter.find(slug))) { svar(res, 404, 'Ikke fundet.'); return null; }
-    const k = await indloesKode(d.db, url.searchParams.get('kode') ?? '', slug, nu());
+    const b = cookieFra(req.headers.cookie, BINDING_COOKIE);
+    const k = await indloesKode(d.db, url.searchParams.get('kode') ?? '', slug, nu(), erBinding(b) ? bindingHash(b) : undefined);
     if (!k) { svar(res, 400, 'Linket er udløbet eller allerede brugt. Åbn din Clawco igen.'); return null; }
     const email = await sessionLever(d.db, { s: k.sessionId, k: k.kontoId }, nu());
     if (!email) { svar(res, 400, 'Du er logget ud. Åbn din Clawco igen.'); return k.kontoId; }
@@ -107,15 +108,27 @@ export function gateway(d: GatewayDeps): Haandtering {
     if (!(await d.ruter.medlem(slug, k.kontoId))) { svar(res, 403, 'Du har ikke adgang til denne Clawco.'); return k.kontoId; }
     if (!(await d.samtykkeOk(k.kontoId))) { svar(res, 403, 'Vilkårene er ændret. Åbn din Clawco igen fra din konto og sig ja til den nye version.'); return k.kontoId; }
     const token = udstedToken(noegle.cookie, { t: slug, k: k.kontoId, s: k.sessionId, e: email }, nu());
-    res.writeHead(303, { location: sikkerNaeste(k.naeste), 'set-cookie': saetCookie(token), 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
+    res.writeHead(303, { location: sikkerNaeste(k.naeste), 'set-cookie': [saetCookie(token), `${BINDING_COOKIE}=; Path=/; Max-Age=0; HttpOnly; Secure; SameSite=Lax`], 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' });
     res.end();
     return k.kontoId;
   }
 
+  function egenOprindelse(req: IncomingMessage, slug: string): boolean {
+    const origin = req.headers.origin;
+    if (origin !== undefined) return origin === tenantOrigin(slug, d.publicUrl, d.basedomain);
+    const site = req.headers['sec-fetch-site'];
+    return site === 'same-origin' || site === 'none';
+  }
+
   function videre(req: IncomingMessage, res: ServerResponse, rute: Rute, url: URL, p: TokenIndhold, nyCookie: string | null, noegle: GatewayNoegle, stoette?: StoettePaastand): void {
+    // KC-0272 (D2): tenants share one site, so SameSite=Lax does not keep another tenant's page from posting here
+    // with the member's cookie. A state-changing request passes only from the tenant's own page: its Origin, or
+    // (no Origin) the browser's Sec-Fetch-Site saying same-origin or none (typed or bookmarked).
+    if (req.method !== 'GET' && req.method !== 'HEAD' && !egenOprindelse(req, rute.slug)) { svar(res, 403, 'Forbudt.'); return; }
+    if (url.pathname.length > STI_MAKS) { svar(res, 414, 'Adressen er for lang.'); return; }
     const maal = new URL(rute.adresse);
     const headers = rensInd(req.headers);
-    headers['clawco-konto'] = signerKonto(noegle.privat, { t: rute.slug, k: String(p.k), e: p.e, iat: Math.floor(nu().getTime() / 1000), ...stoette });
+    headers['clawco-konto'] = signerKonto(noegle.privat, { t: rute.slug, k: String(p.k), e: p.e, iat: Math.floor(nu().getTime() / 1000), m: req.method ?? '', p: url.pathname, ...stoette });
     const ud = http.request({ protocol: maal.protocol, hostname: maal.hostname, port: maal.port, method: req.method, path: url.pathname + url.search, headers }, (s) => {
       const h = rensUd(s.headers);
       if (nyCookie) h['set-cookie'] = [...[h['set-cookie'] ?? []].flat(), nyCookie];
@@ -230,7 +243,11 @@ export function gateway(d: GatewayDeps): Haandtering {
       const ryd = raa !== undefined ? { 'set-cookie': sletCookie() } : {};
       if (req.method === 'GET' || req.method === 'HEAD') {
         const naeste = sikkerNaeste(url.pathname + url.search);
-        res.writeHead(302, { location: loginUrl({ publicUrl: d.publicUrl, noegle, slug, naeste }), 'cache-control': 'no-store', ...ryd });
+        // KC-0272 (D1): bind the code /aabn will mint to this browser (a second tab keeps the binding it has).
+        const foer = cookieFra(req.headers.cookie, BINDING_COOKIE);
+        const binding = erBinding(foer) ? foer : nyBinding();
+        const saet = [`${BINDING_COOKIE}=${binding}; Path=/; Max-Age=${BINDING_SEK}; HttpOnly; Secure; SameSite=Lax`, ...(raa !== undefined ? [sletCookie()] : [])];
+        res.writeHead(302, { location: loginUrl({ publicUrl: d.publicUrl, noegle, slug, naeste, binding }), 'cache-control': 'no-store', 'set-cookie': saet });
         res.end();
       } else svar(res, 401, 'Du er ikke logget ind.', ryd);
       return;

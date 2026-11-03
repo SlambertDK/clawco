@@ -37,12 +37,19 @@ export async function findEllerOpretKonto(db: Database, email: string, nu: Date)
   return { konto: k, ny: false };
 }
 
-/** Makes an existing account staff (KC-0188). Needs a passkey first: staff never log in by link. */
-export async function goerPersonale(db: Database, email: string): Promise<'ok' | 'ukendt' | 'ingen-passkey'> {
+export type PersonalePasskey = { id: number; navn: string; oprettet: Date };
+export type PersonaleUdfald = { udfald: 'ok' | 'ukendt' | 'ingen-passkey' | 'flere-passkeys'; passkeys: PersonalePasskey[] };
+
+/** Makes an existing account staff (KC-0188). Needs a passkey first: staff never log in by link. Every passkey the account
+ *  has becomes a staff login, so (KC-0272) they are returned to be named, and more than one is refused unless `alle`:
+ *  an unknown device must not become a staff key unseen. A refusal changes nothing. */
+export async function goerPersonale(db: Database, email: string, o: { alle?: boolean } = {}): Promise<PersonaleUdfald> {
   const k = await kontoForEmail(db, email);
-  if (!k) return 'ukendt';
-  const [p] = await db.query<{ n: number }>('SELECT count(*)::int AS n FROM passkey WHERE konto_id = $1', [k.id]);
-  if (!p?.n) return 'ingen-passkey';
+  if (!k) return { udfald: 'ukendt', passkeys: [] };
+  const rk = await db.query<{ id: unknown; navn: string; oprettet: Date }>('SELECT id, navn, oprettet FROM passkey WHERE konto_id = $1 ORDER BY id', [k.id]);
+  const passkeys = rk.map((r) => ({ id: Number(r.id), navn: r.navn, oprettet: new Date(r.oprettet) }));
+  if (!passkeys.length) return { udfald: 'ingen-passkey', passkeys };
+  if (passkeys.length > 1 && !o.alle) return { udfald: 'flere-passkeys', passkeys };
   await db.query('UPDATE konto SET personale = true WHERE id = $1', [k.id]);
-  return 'ok';
+  return { udfald: 'ok', passkeys };
 }

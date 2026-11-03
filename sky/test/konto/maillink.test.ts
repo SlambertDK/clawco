@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nyDb, ur, alleRaekker, antal } from './hjaelp.ts';
 import { anmodLink, bekraeftLink, findLink, LINK_MS, type LinkDeps } from '../../src/konto/maillink.ts';
-import { kontoForEmail, normaliserEmail, goerPersonale } from '../../src/konto/konto.ts';
-import { KODER_PR_EMAIL, KODER_PR_IP, FEJL_PR_IP } from '../../src/konto/graenser.ts';
-import { falskPost, type FalskPost } from '../../src/delt/post.ts';
+import { findEllerOpretKonto, kontoForEmail, normaliserEmail, goerPersonale } from '../../src/konto/konto.ts';
+import { KODER_PR_EMAIL, KODER_PR_EMAIL_I_ALT, KODER_PR_IP, FEJL_PR_IP } from '../../src/konto/graenser.ts';
+import { falskPost, type FalskPost, type Post } from '../../src/delt/post.ts';
 import type { Database } from '../../src/db/pool.ts';
 
 const PUBLIC = 'https://konto.example.test';
@@ -98,10 +98,22 @@ test('the answer is the same whatever happens: anmodLink resolves for junk, limi
   assert.equal(await antal(db, 'loginkode'), 0, 'a code that was never sent must not be stored');
 });
 
-test('per email: the sixth link in a window is not sent', async () => {
+test('per email and requester: the sixth link from one address in a window is not sent', async () => {
   const { post, d, u } = await opsaet();
-  for (let i = 0; i < KODER_PR_EMAIL + 1; i++) await anmodLink(d, { email: 'a@example.test', binding: BROWSER, ip: `203.0.113.${i}`, nu: u.nu() });
+  for (let i = 0; i < KODER_PR_EMAIL + 1; i++) await anmodLink(d, { email: 'a@example.test', binding: BROWSER, ip: '203.0.113.9', nu: u.nu() });
   assert.equal(post.udbakke.length, KODER_PR_EMAIL);
+});
+
+// KC-0272 (D6): the budget used to be per email alone, so one IP could lock a person out of their own login.
+test('KC-0272: one address that spends an email\'s budget does not lock its owner out; all requesters together stay capped', async () => {
+  const { post, d, u } = await opsaet();
+  for (let i = 0; i < KODER_PR_EMAIL + 3; i++) await anmodLink(d, { email: 'offer@example.test', binding: 'angriber', ip: '198.51.100.66', nu: u.nu() });
+  assert.equal(post.udbakke.length, KODER_PR_EMAIL);
+  await anmodLink(d, { email: 'offer@example.test', binding: BROWSER, ip: '203.0.113.1', nu: u.nu() });
+  assert.equal(post.udbakke.length, KODER_PR_EMAIL + 1, 'the owner, from their own address, still gets a link');
+  assert.ok(KODER_PR_EMAIL_I_ALT > KODER_PR_EMAIL);
+  for (let i = 0; i < KODER_PR_EMAIL_I_ALT + 5; i++) await anmodLink(d, { email: 'offer@example.test', binding: BROWSER, ip: `192.0.2.${i}`, nu: u.nu() });
+  assert.equal(post.udbakke.length, KODER_PR_EMAIL_I_ALT, 'many addresses together cannot mail-bomb one inbox');
 });
 
 test('per IP: one address cannot spray links at many emails', async () => {
@@ -123,16 +135,32 @@ test('staff accounts never get a link and never log in by one (passkey only)', a
   await anmodLink(d, { email: 'staff@example.test', binding: BROWSER, ip: '203.0.113.1', nu: u.nu() });
   const gammel = sidsteToken(post);
   const r = await bekraeftLink(db, { token: gammel, binding: BROWSER, ip: '203.0.113.1', nu: u.nu() });
-  assert.equal(await goerPersonale(db, 'staff@example.test'), 'ingen-passkey', 'personale kræver en passkey først');
+  assert.equal((await goerPersonale(db, 'staff@example.test')).udfald, 'ingen-passkey', 'personale kræver en passkey først');
   await anmodLink(d, { email: 'staff@example.test', binding: BROWSER, ip: '203.0.113.1', nu: u.nu() });
   const foerForfremmelse = sidsteToken(post);
   await db.query("INSERT INTO passkey (konto_id, credential_id, public_key, taeller, navn, oprettet) VALUES ($1, 'cred', 'pk', 0, 'nøgle', now())", [r!.kontoId]);
-  assert.equal(await goerPersonale(db, 'staff@example.test'), 'ok');
+  assert.equal((await goerPersonale(db, 'staff@example.test')).udfald, 'ok');
   assert.equal(await bekraeftLink(db, { token: foerForfremmelse, binding: BROWSER, ip: '203.0.113.1', nu: u.nu() }), null, 'et link fra før forfremmelsen virker ikke bagefter');
   const foer = post.udbakke.length;
   await anmodLink(d, { email: 'staff@example.test', binding: BROWSER, ip: '203.0.113.1', nu: u.nu() });
   assert.equal(post.udbakke.length, foer, 'personale får ingen mail');
-  assert.equal(await goerPersonale(db, 'ukendt@example.test'), 'ukendt');
+  assert.equal((await goerPersonale(db, 'ukendt@example.test')).udfald, 'ukendt');
+});
+
+// KC-0272 (D6): a staff address used to answer at once (no mail is sent), so the clock told staff apart.
+test('KC-0272: a staff address takes as long to answer as an ordinary one, and still gets no mail', async () => {
+  const { db, u } = await opsaet();
+  const inner = falskPost();
+  const post: Post = { send: async (b) => { await new Promise((r) => setTimeout(r, 120)); await inner.send(b); } };
+  const d: LinkDeps = { db, post, publicUrl: PUBLIC };
+  const { konto } = await findEllerOpretKonto(db, 'staff@example.test', u.nu());
+  await db.query('UPDATE konto SET personale = true WHERE id = $1', [konto.id]);
+  const tid = async (email: string, ip: string) => { const t = performance.now(); await anmodLink(d, { email, binding: BROWSER, ip, nu: u.nu() }); return performance.now() - t; };
+  const almindelig = await tid('a@example.test', '203.0.113.1');
+  const personale = await tid('staff@example.test', '203.0.113.2');
+  assert.ok(almindelig >= 110, `ordinary ${almindelig}`);
+  assert.ok(personale >= almindelig * 0.75, `staff ${personale} vs ordinary ${almindelig}`);
+  assert.equal(inner.udbakke.length, 1, 'staff still gets no mail');
 });
 
 test('no code path logs the link or the token', async () => {

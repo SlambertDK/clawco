@@ -11,7 +11,7 @@ import { renderRevision } from '../../src/shell/revision.ts';
 
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
 const MEDLEM: Person = { id: 'maja', login: null, navn: 'Maja', rolle: 'medlem' };
-const STOETTE: Person = { id: 'henrik', login: null, navn: 'Support', rolle: 'stoette', stoette: { adgang: '41', personale: '7', session: '0123456789abcdef' } };
+const STOETTE: Person = { id: 'stoette:7', login: null, navn: 'Support', rolle: 'stoette', stoette: { ejer: 'henrik', adgang: '41', personale: '7', session: '0123456789abcdef' } };
 // 13.05 UTC on 2 November 2026 = 14.05 in Copenhagen (CET).
 const AKTIV = { adgang: { udloeber: '2026-11-02T13:05:00.000Z', grund: '<img src=x onerror=alert(1)> "Mail" & co' }, slaaTil: '/_sky/stoette', slaaFra: '/_sky/stoette/slaa-fra' };
 const FRA = { adgang: null, slaaTil: '/_sky/stoette', slaaFra: '/_sky/stoette/slaa-fra' };

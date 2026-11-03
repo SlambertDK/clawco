@@ -1,7 +1,8 @@
 // Identity provider `konto` (KC-0179, spec §2 / D12): in Clawco Sky the gateway (KC-0183) has logged the
 // person in and puts who they are on every request it forwards, signed with its Ed25519 key:
 //   Clawco-Konto: v1.<keyid>.<base64url payload>.<base64url signature>
-// payload = JSON exactly {t: tenant id, k: konto id, e: verified email, iat: unix seconds}; the signature
+// payload = JSON exactly {t: tenant id, k: konto id, e: verified email, iat: unix seconds, m: method, p: path}
+// (KC-0272: m and p name the one request the header was made for; p is the path without the query); the signature
 // covers the ASCII bytes "v1.<keyid>.<payload>"; keyid = first 8 bytes of SHA-256 of the raw public key,
 // base64url. The gateway's half is sky/src/gateway/signer.ts; the two share only the test vectors
 // (test/fixtures/konto-vektorer.json, byte-identical in sky/test/fixtures/).
@@ -10,9 +11,10 @@
 // gateway key made for this tenant within the window, arriving from the gateway's address — never from
 // a cookie, query or body the client controls. Anything else fails closed.
 //
-// Replay: a captured header is valid for up to 60 seconds. Accepted risk: the hop gateway → tenant is a
-// private network and TLS terminates at the gateway, so nobody outside it sees a header to replay; the
-// peer check means a replay must also come from the gateway's own address.
+// Replay: a captured header is valid for up to 60 seconds, and (KC-0272) only for the method and path it names, so
+// it cannot be replayed onto another route. Accepted risk: the hop gateway → tenant is a private network and TLS
+// terminates at the gateway; the peer check means a replay must also come from the gateway's own address.
+// Switch-over: a header without m and p (a gateway from before KC-0272) is refused unless KC_KONTO_TOLERANT=ja.
 //
 // Pure: no I/O. The caller supplies the headers, the TCP peer and the clock.
 
@@ -26,7 +28,8 @@ export const KONTO_HEADER = 'clawco-konto';
 export const VINDUE_FORTID = 60;
 export const VINDUE_FREMTID = 10;
 
-export type KontoIndstilling = { tenant: string; gateway: string; noegler: ReadonlyMap<string, KeyObject> };
+/** `tolerant` (KC-0272): also accept a header without m and p, for one deploy while the gateway catches up. */
+export type KontoIndstilling = { tenant: string; gateway: string; noegler: ReadonlyMap<string, KeyObject>; tolerant?: boolean };
 /** `stoette` (KC-0188): the gateway's support claims (sa: grant id, su: its end in unix seconds, sn: the session), present
  *  only on a support session; the caller accepts them only beside the tenant's own record (identitet/stoette.ts). */
 export type KontoUdfald = { ok: true; email: string; stoette?: StoetteKlaim } | { ok: false; grund: string };
@@ -60,7 +63,7 @@ export function kontoFraMiljoe(e: Record<string, string | undefined>): KontoInds
   if (!isIP(gateway)) throw new Error('KC_KONTO_GATEWAY mangler eller er ikke en IP-adresse');
   const noegler = new Map([offentligNoegle('KC_KONTO_PUBKEY', v('KC_KONTO_PUBKEY'))]);
   if (v('KC_KONTO_PUBKEY_NY')) noegler.set(...offentligNoegle('KC_KONTO_PUBKEY_NY', v('KC_KONTO_PUBKEY_NY')));
-  return { tenant, gateway: ip(gateway), noegler };
+  return { tenant, gateway: ip(gateway), noegler, tolerant: v('KC_KONTO_TOLERANT') === 'ja' };
 }
 
 const tekst = (x: unknown, max: number): x is string => typeof x === 'string' && x.trim().length > 0 && x.length <= max;
@@ -80,9 +83,15 @@ export function verificerKonto(a: Anmodning, k: KontoIndstilling, nuSek: number)
   try { p = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8')); } catch { return { ok: false, grund: 'payload er ikke JSON' }; }
   if (typeof p !== 'object' || p === null || Array.isArray(p)) return { ok: false, grund: 'payload er ikke et objekt' };
   const o = p as Record<string, unknown>;
-  const noegler = Object.keys(o).sort().join();
-  const stoette = noegler === 'e,iat,k,sa,sn,su,t';
-  if ((noegler !== 'e,iat,k,t' && !stoette) || !tekst(o['t'], 40) || !tekst(o['k'], 100) || !tekst(o['e'], 200) || !Number.isSafeInteger(o['iat'])) return { ok: false, grund: 'payload har forkert form' };
+  const felter = new Set(Object.keys(o));
+  const anmodning = felter.has('m') || felter.has('p');
+  const stoette = felter.has('sa') || felter.has('su') || felter.has('sn');
+  const forventet = ['e', 'iat', 'k', 't', ...(anmodning ? ['m', 'p'] : []), ...(stoette ? ['sa', 'sn', 'su'] : [])].sort().join();
+  if ([...felter].sort().join() !== forventet || !tekst(o['t'], 40) || !tekst(o['k'], 100) || !tekst(o['e'], 200) || !Number.isSafeInteger(o['iat'])) return { ok: false, grund: 'payload har forkert form' };
+  if (anmodning) {
+    if (!tekst(o['m'], 10) || !tekst(o['p'], 2048)) return { ok: false, grund: 'payload har forkert form' };
+    if (o['m'] !== a.metode || o['p'] !== a.sti) return { ok: false, grund: 'en anden anmodning' };
+  } else if (!k.tolerant) return { ok: false, grund: 'uden metode og sti' };
   if (stoette && (typeof o['sa'] !== 'string' || !/^\d{1,18}$/.test(o['sa']) || !Number.isSafeInteger(o['su']) || typeof o['sn'] !== 'string' || !/^[a-f0-9]{16}$/.test(o['sn']))) return { ok: false, grund: 'støttepåstanden har forkert form' };
   if (o['t'] !== k.tenant) return { ok: false, grund: 'en anden tenant' };
   const alder = nuSek - (o['iat'] as number);

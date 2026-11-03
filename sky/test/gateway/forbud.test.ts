@@ -20,7 +20,7 @@ test('rensInd strips identity, forwarding, Cloudflare and hop-by-hop headers and
     'clawco-konto': 'x', 'tailscale-user-login': 'x', 'x-forwarded-for': 'x', 'x-forwarded-proto': 'x', forwarded: 'x', 'x-real-ip': 'x',
     'true-client-ip': 'x', 'cf-connecting-ip': 'x', 'cf-ray': 'x', 'cdn-loop': 'x', connection: 'keep-alive, x-hemmelig', 'x-hemmelig': 'x',
     'keep-alive': 'x', 'proxy-authorization': 'x', te: 'x', trailer: 'x', 'transfer-encoding': 'chunked', upgrade: 'x',
-    cookie: '__Host-clawco=t; a=1',
+    cookie: '__Host-clawco=t; __Host-a=1',
   });
   assert.deepEqual(ud, { host: 'h', accept: 'text/html', 'content-type': 'a/b', 'content-length': '3', 'last-event-id': '7', cookie: 'a=1' });
 });
@@ -30,7 +30,29 @@ test('rensUd drops hop-by-hop headers and any Set-Cookie of our cookie, keeps co
     'content-type': 'text/event-stream', 'cache-control': 'no-cache', etag: '"x"', connection: 'close', 'transfer-encoding': 'chunked', 'keep-alive': 'x',
     'set-cookie': ['__Host-clawco=x; Path=/', 'a=1'],
   });
-  assert.deepEqual(ud, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', etag: '"x"', 'set-cookie': ['a=1'] });
+  assert.deepEqual(ud, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', etag: '"x"', 'set-cookie': ['__Host-a=1; Path=/; Secure'] });
+});
+
+// KC-0272 (D2): every tenant, konto. and the apex are one site, so a cookie another *.clawco.work host set with
+// Domain= arrives here too (kc_test=1, say). The server cannot see a cookie's Domain, so the gateway keeps a
+// tenant's cookies host-only itself: what a tenant sets goes out as __Host-<name> (no Domain, Path=/, Secure),
+// and only __Host- cookies come back in, unprefixed. A sibling host cannot set a __Host- cookie here.
+test('KC-0272: a tenant only ever receives its own host-only cookies; nothing set by a sibling host', () => {
+  const ind = rensInd({ cookie: 'kc_test=1; __Host-kc_test=1; __Host-clawco=t; __Host-sky-faa=b; x=2; __Host-=3; __Host-y=4' });
+  assert.deepEqual(ind, { cookie: 'kc_test=1; y=4' });
+  assert.deepEqual(rensInd({ cookie: 'kc_test=1; andet=2' }), {}, 'only sibling-reachable cookies: no Cookie header at all');
+});
+
+test('KC-0272: a tenant\'s Set-Cookie goes out host-only (__Host-, Path=/, Secure, no Domain); never as one of the gateway\'s cookies', () => {
+  const ud = rensUd({ 'set-cookie': [
+    'kc_test=1; Domain=eksempel.test; Path=/rum; SameSite=Lax; HttpOnly; Max-Age=5',
+    'kc_test=; Path=/; SameSite=Lax; HttpOnly; Max-Age=0; Secure',
+    'clawco=x; Path=/', 'sky-faa=y', '__Host-clawco=z; Path=/; Secure', '=tom',
+  ] });
+  assert.deepEqual(ud, { 'set-cookie': [
+    '__Host-kc_test=1; SameSite=Lax; HttpOnly; Max-Age=5; Path=/; Secure',
+    '__Host-kc_test=; SameSite=Lax; HttpOnly; Max-Age=0; Path=/; Secure',
+  ] });
 });
 
 test('logLinje has method, slug, status, duration and konto id only', () => {
@@ -48,7 +70,7 @@ test('real requests leave log lines with no path, query string, cookie, header o
   try {
     const token = udstedToken(noegle.cookie, { t: o.slug, k: o.ejer.id, s: o.ejer.sessionId, e: o.ejer.email }, o.ur.nu());
     const host = `${o.slug}.eksempel.test`;
-    await anmod(gw.port, { host, sti: '/rum/hemmelig-sti?q=hemmelig-query', metode: 'POST', krop: 'hemmelig-krop', headers: { cookie: `__Host-clawco=${token}; andet=hemmelig-cookie`, 'x-hemmelig': 'hemmelig-header' } });
+    await anmod(gw.port, { host, sti: '/rum/hemmelig-sti?q=hemmelig-query', metode: 'POST', krop: 'hemmelig-krop', headers: { cookie: `__Host-clawco=${token}; andet=hemmelig-cookie`, 'x-hemmelig': 'hemmelig-header', origin: `https://${host}` } });
     await anmod(gw.port, { host, sti: '/rum/hemmelig-sti?q=hemmelig-query' });
     await anmod(gw.port, { host, sti: '/_sky/faa?kode=hemmelig-kode' });
     assert.equal(log.length, 3);

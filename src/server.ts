@@ -100,7 +100,7 @@ import { laptopFraMiljoe } from './identitet/laptop.ts';
 import { delPaaTailnet, laesTailscale, lavTsKoerer, type TsKoerer, type TsSyn } from './shell/tailscale.ts';
 import { HusstandFejl, laesHusstand, skrivHusstand } from './identitet/husstand.ts';
 import { renderIngenAdgang } from './shell/adgang.ts';
-import { lavPause, NodstopNaegtet, PauseFejl, pauseTekst, startIgen, stopAlt } from './graenser/nodstop.ts';
+import { lavPause, KoeFuld, NodstopNaegtet, PauseFejl, pauseTekst, startIgen, stopAlt } from './graenser/nodstop.ts';
 import { erNej, lavRevisionslog, type Revisionslinje } from './graenser/revisionslog.ts';
 import { renderRevision } from './shell/revision.ts';
 import { renderKilder } from './shell/kilder.ts';
@@ -145,7 +145,7 @@ import { readNyhederSource } from './rooms/nyheder/source.ts';
 import { parseAll } from './rooms/mail/source.ts';
 import { falskKildeData } from './testtilstand/indhold/kilder.ts';
 import { PRODUKT } from './shell/navn.ts';
-import { hjaelpFraMiljoe } from './shell/hjaelp.ts';
+import { erSkyHostet, hjaelpFraMiljoe } from './shell/hjaelp.ts';
 import type { BetaIndstilling } from './beta/miljoe.ts';
 import { betaFraMiljoe } from './beta/miljoe.ts';
 import { BetaFejl, kortDue, lavBetaLager, utcDato, type FeedbackDag } from './beta/tilstand.ts';
@@ -810,7 +810,7 @@ export function createApp(deps: AppDeps) {
         stoetteNu = 'ulaeselig';
       }
     }
-    const hvem = kigger({ headers: req.headers, peer: peerAf(env) }, husstand, stoetteNu);
+    const hvem = kigger({ headers: req.headers, peer: peerAf(env), metode: req.method, sti: new URL(req.url).pathname }, husstand, stoetteNu);
     if (erAfvist(hvem)) {
       if (hvem.log) console.warn('identitet:', hvem.log);
       return { ok: false, status: hvem.afvist, hvorfor: hvem.hvorfor };
@@ -914,7 +914,7 @@ export function createApp(deps: AppDeps) {
   async function chatFor(c: Context<Env>, rum: string): Promise<ChatEntry[]> {
     const person = c.get('person');
     const zone: DataZone = rum === 'husstand' ? 'husstand' : 'privat';
-    return (await deps.store.readChat(rum)).filter((e) => (e.ejer ? e.ejer === person.id || (zone === 'husstand' && kan(person.rolle, 'se-husstand')) : synligFor(person, { zone })));
+    return (await deps.store.readChat(rum)).filter((e) => (zone === 'husstand' ? kan(person.rolle, 'se-husstand') : synligFor(person, { zone, ...(e.ejer ? { ejer: e.ejer } : {}) })));
   }
 
   // KC-0018: no-cache = always revalidate, so a deploy reaches the browser and the home-screen app.
@@ -1138,6 +1138,7 @@ export function createApp(deps: AppDeps) {
     if (err instanceof HTTPException) return err.getResponse();
     // KC-0124: a run asked for while paused (the last line of defence, src/runs.ts), and a role that may not stop/resume.
     if (err instanceof PauseFejl) return c.json({ error: err.message }, 503);
+    if (err instanceof KoeFuld) return c.json({ error: err.message }, 429);
     if (err instanceof NodstopNaegtet) return c.json({ error: err.message }, 403);
     // KC-0132: a connector refusal carries its status (fail closed); a kilder.json that cannot be read is 503, never "none".
     if (err instanceof KildeFejl) return c.json({ error: err.message }, err.status);
@@ -1435,7 +1436,9 @@ export function createApp(deps: AppDeps) {
       return erForm(c) ? videnSide(c, renderSletAlt(await videnNu(), { fejl }), tekst().srv.sletAlt, 400) : c.json({ error: fejl }, 400);
     }
     const person = c.get('person');
-    // Nothing may run or start while the folder is emptied: stop every run (the pause goes with the folder).
+    // Nothing may run or start while the folder is emptied: stop every run. That pause is the wipe's own and ends with it;
+    // a pause the owner had set before stays (KC-0275: Slet alt keeps pause.json).
+    const varPauset = runs.paaPause();
     await runs.stopAlle(person.id);
     try {
       await sletAlt(brugermappe(), { person: person.id, kanal: 'knap', ...(revision ? { revision } : {}) });
@@ -1443,6 +1446,7 @@ export function createApp(deps: AppDeps) {
       await runs.genoptag(person.id);
       throw err;
     }
+    if (!varPauset) await runs.genoptag(person.id);
     // An empty store again: the data dir is there, nothing cached from the old settings, no pause.
     if (deps.dataDir) await mkdir(deps.dataDir, { recursive: true });
     await runs.genlaesPause();
@@ -2626,6 +2630,7 @@ export async function main(): Promise<void> {
   const hostname = env('KC_HOST', '127.0.0.1');
   const adresse = egenAdresse(process.env, hostname, port);
   const hjaelp = hjaelpFraMiljoe(process.env);
+  const hostet = erSkyHostet(process.env); // KC-0274: under Sky the connectors never probe the host's own network
   const beta = betaFraMiljoe(process.env);
   const stemmeMode = env('KC_STEMME_MODE', mode === 'fake' ? 'fake' : 'elevenlabs');
   const stemme = stemmeMode === 'fake' ? createFakeStemme() : env('KC_ELEVENLABS_API_KEY') ? createElevenLabs({ apiKey: env('KC_ELEVENLABS_API_KEY') }) : undefined;
@@ -2658,7 +2663,7 @@ export async function main(): Promise<void> {
       falsk: () => { const t = parseFalskTilstand(env('KC_KILDER_FALSK')); return falskeKilder({ data: falskKildeData(), tilstand: (s) => t[s] ?? 'ok' }); },
       legacy: () => legacyKilder(process.env, { run: defaultRunner(), laesNyheder: readNyhederSource, parseMail: parseAll, kalenderScript }),
       agent: mode,
-    }))), () => nyhederRss({ dataDir: env('KC_DATA_DIR', './data') })), () => googleKalender(adresse ? { adresse } : {})), () => mailGmail(adresse ? { adresse } : {}))),
+    })), () => mailImapKilde({ hostet })), () => nyhederRss({ dataDir: env('KC_DATA_DIR', './data'), hostet })), () => googleKalender(adresse ? { adresse } : {})), () => mailGmail(adresse ? { adresse } : {}))),
     // KC-0138: messages that reach Hermes, through its gateway hook's log in the data dir; KC_BESKEDER_DAGE = how long read messages are kept.
     beskeder: (o) => beskederKilde({ dataDir: env('KC_DATA_DIR', './data'), dage: Number(env('KC_BESKEDER_DAGE', '14')) || 14, ...o }),
     // KC-0212: the operator's ledger (absent in a tenant image: no card). No paid customers are read yet, so MRR is 0.

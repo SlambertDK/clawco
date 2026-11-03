@@ -42,6 +42,9 @@ function afkod(t: string): string {
 // eslint-disable-next-line no-control-regex
 const STYREKODER = new RegExp('[\\u0000-\\u0008\\u000b-\\u001f\\u007f-\\u009f\\u2028\\u2029]', 'g');
 
+/** A tag is at most this long (KC-0274, C1): `[^>]*` on "<a<a<a…" without a ">" is quadratic, the bound makes each start cost a constant. */
+const MAKS_TAG = 2000;
+
 /** Tags with their content (script, style, comments, CDATA wrappers) and then every other tag. */
 function fjernMarkup(t: string): string {
   return t
@@ -49,15 +52,19 @@ function fjernMarkup(t: string): string {
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
     .replace(/<(script|style|iframe|object|template)\b[\s\S]*?<\/\1\s*>/gi, ' ')
     .replace(/<(script|style|iframe|object|template)\b[\s\S]*$/gi, ' ')
-    .replace(/<\/?[a-z!?][^>]*>/gi, ' ');
+    .replace(/<\/?[a-z!?][^>]{0,2000}>/gi, ' ');
 }
+
+/** How much of a raw text is examined for `max` kept characters: 20 × max, never more than 64 KiB. */
+const hovedGraense = (max: number): number => Math.min(Math.max(max, 1) * 20, 64 * 1024);
 
 /**
  * Plain text, at most `max` characters: markup, scripts and styles removed, entities decoded, markup removed
  * once more (double-escaped HTML decodes into tags), control characters dropped, whitespace collapsed.
  */
 export function renTekst(tekst: string, max: number): string {
-  let t = fjernMarkup(tekst);
+  // KC-0274 (C1): the cleaning below is quadratic on hostile input, so it only ever sees a small multiple of what is kept.
+  let t = fjernMarkup(tekst.length > hovedGraense(max) ? tekst.slice(0, hovedGraense(max)) : tekst);
   t = fjernMarkup(afkod(t));
   t = t.replace(STYREKODER, '').replace(/\s+/g, ' ').trim();
   return t.slice(0, max).trim();
@@ -76,6 +83,9 @@ export function renUrl(v: unknown): string | undefined {
 
 // ---------- XML ----------
 
+// KC-0274 (C4): the parser counts the five built-in escapes (&amp; …) as expansions, so a cap on expansions refused honest
+// feeds with more than 1 000 of them. A DECLARED entity is what a bomb needs, and laesXml refuses those before the parser
+// sees them; `maxExpandedLength` stays as the size bound.
 const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
@@ -83,7 +93,7 @@ const parser = new XMLParser({
   parseTagValue: false,
   parseAttributeValue: false,
   trimValues: true,
-  processEntities: { enabled: true, maxEntityCount: 0, maxEntitySize: 0, maxTotalExpansions: 1000, maxExpandedLength: 200_000 },
+  processEntities: { enabled: true, maxEntityCount: 0, maxEntitySize: 0, maxTotalExpansions: Infinity, maxExpandedLength: 200_000 },
   isArray: (navn) => navn === 'item' || navn === 'entry' || navn === 'link' || navn === 'outline',
 });
 
@@ -209,14 +219,25 @@ export function erHtml(tekst: string): boolean {
   return hoved.startsWith('<!doctype html') || /<html[\s>]/.test(hoved);
 }
 
+/** How much of a page is searched for feed links. */
+const MAKS_SIDE = 256 * 1024;
 const MIME_FEED = /^application\/(rss|atom)\+xml$/i;
 
 /** The feed addresses a page advertises with <link rel="alternate" type="application/rss+xml">, resolved against `base`. */
 export function findFeedLinks(html: string, base: string): string[] {
   const ud: string[] = [];
-  for (const m of html.matchAll(/<link\b([^>]*)>/gi)) {
+  // KC-0274 (C1): only the head of the page is read (a feed link lives there), and the tags are found by a forward scan whose
+  // next ">" is remembered, so "<link<link<link…" without any ">" costs one pass, not one pass per "<link".
+  const side = html.length > MAKS_SIDE ? html.slice(0, MAKS_SIDE) : html;
+  const start = /<link\b/gi;
+  let gt = -1;
+  for (let m = start.exec(side); m; m = start.exec(side)) {
+    const fra = m.index + 5;
+    if (gt < fra) { gt = side.indexOf('>', fra); if (gt < 0) break; }
+    if (gt - fra > MAKS_TAG) continue;
     const attr = new Map<string, string>();
-    for (const a of (m[1] ?? '').matchAll(/([a-z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi)) attr.set((a[1] ?? '').toLowerCase(), afkod(a[2] ?? a[3] ?? a[4] ?? ''));
+    for (const a of side.slice(fra, gt).matchAll(/([a-z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/gi)) attr.set((a[1] ?? '').toLowerCase(), afkod(a[2] ?? a[3] ?? a[4] ?? ''));
+    start.lastIndex = gt + 1;
     const rel = (attr.get('rel') ?? '').toLowerCase().split(/\s+/);
     if (!rel.includes('alternate') || !MIME_FEED.test((attr.get('type') ?? '').trim())) continue;
     let adr: string | undefined;

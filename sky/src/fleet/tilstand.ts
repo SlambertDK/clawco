@@ -110,6 +110,34 @@ export async function bestil(db: Database, a: { kontoId: number; driver: Tenant[
   throw new Error('kunne ikke finde en ledig slug');
 }
 
+/** KC-0273: the tenant's own /24 index in the pool (fleet/netfilter.ts undernetFor), assigned once and kept: the lowest
+ *  index 1..`maks` no live tenant holds. Concurrent askers race on the unique index (tenant_undernet_levende) and the
+ *  loser tries the next free one, the same way bestil takes a slug. A full pool throws. */
+export async function tildelUndernet(db: Database, slug: string, maks = 255): Promise<number> {
+  for (let i = 0; i < 16; i++) {
+    const [r] = await db.query<{ undernet: unknown }>('SELECT undernet FROM flaade.tenant WHERE slug = $1', [slug]);
+    if (!r) throw new Error(`ukendt tenant ${slug}`);
+    if (r.undernet !== null && r.undernet !== undefined) return Number(r.undernet);
+    try {
+      const [u] = await db.query<{ undernet: unknown }>(
+        `UPDATE flaade.tenant SET undernet = (
+           SELECT n FROM generate_series(1, $2::integer) AS n
+            WHERE n NOT IN (SELECT undernet FROM flaade.tenant WHERE undernet IS NOT NULL AND tilstand <> 'slettet')
+            ORDER BY n LIMIT 1)
+          WHERE slug = $1 AND undernet IS NULL RETURNING undernet`,
+        [slug, maks],
+      );
+      // No free index: the subquery is NULL, so the row stays without one.
+      if (u && (u.undernet === null || u.undernet === undefined)) {
+        throw new Error(`ingen ledige undernet i puljen (alle ${maks} /24 er i brug): ingen ny kunde kan få et net`);
+      }
+    } catch (e) {
+      if ((e as { code?: string }).code !== '23505') throw e; // someone took that index first: try the next free one
+    }
+  }
+  throw new Error(`kunne ikke tildele ${slug} et undernet`);
+}
+
 /** Moves the tenant from one of `fra` to `til`, stamping `til`'s timestamp and clearing the last error.
  *  Returns the new row, or null when the tenant was no longer in `fra` (someone else moved it). */
 export async function skift(

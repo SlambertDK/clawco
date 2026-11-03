@@ -3,7 +3,7 @@
 
 import { AFBRUDT, AgentError } from './types.ts';
 import type { AgentClient, AgentEvent, AgentRunRequest, AgentRunResult, AgentStatus, NoegleSvar } from './types.ts';
-import { parseSseChunks } from './sse.ts';
+import { parseSseChunks, SseForStor } from './sse.ts';
 import { agentTekst } from './tekster.ts';
 
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
@@ -191,16 +191,23 @@ export function createHermesHttp(opts: {
       const reader = events.body.getReader();
       const decoder = new TextDecoder();
       const parser = parseSseChunks();
+      // KC-0275 (B7): a stream that grows past the buffer maximum without finishing an event is a failed run.
+      const push = (tekst: string): string[] => {
+        try { return parser.push(tekst); } catch (err) {
+          if (err instanceof SseForStor) throw new AgentError(agentTekst().eventStreamForStor, id);
+          throw err;
+        }
+      };
       try {
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
-          for (const payload of parser.push(decoder.decode(value, { stream: true }))) {
+          for (const payload of push(decoder.decode(value, { stream: true }))) {
             const result = handle(payload);
             if (result) return result;
           }
         }
-        for (const payload of parser.push(decoder.decode() + '\n\n')) {
+        for (const payload of push(decoder.decode() + '\n\n')) {
           const result = handle(payload);
           if (result) return result;
         }

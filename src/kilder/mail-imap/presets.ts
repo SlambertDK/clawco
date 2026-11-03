@@ -9,6 +9,7 @@ import { X509Certificate } from 'node:crypto';
 import { isIP } from 'node:net';
 import type { ConnectionOptions, PeerCertificate } from 'node:tls';
 import { KildeFejl } from '../types.ts';
+import { AdresseFejl, tjekAdresse } from '../nyheder-rss/adresse.ts';
 import { imapTekst } from './tekster.ts';
 
 export const TJENESTER = ['proton-bridge', 'fastmail', 'icloud', 'gmail', 'anden'] as const;
@@ -33,8 +34,13 @@ export type Pin = { fingeraftryk: string; pem: string };
 const erTjeneste = (v: unknown): v is TjenesteId => typeof v === 'string' && (TJENESTER as readonly string[]).includes(v);
 const VAERT = /^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$/;
 
-/** The connection the card's options describe. Only `anden` takes server and security; `port` overrides any preset. */
-export function forbindelse(valg: Readonly<Record<string, string>>): Forbindelse {
+/**
+ * The connection the card's options describe. Only `anden` takes server and security; `port` overrides any preset. KC-0274
+ * (C2): `hostet` (the install runs on Clawco Sky's server) lets `anden` name only a server on the public internet — a loopback,
+ * LAN, link-local or metadata address would be a probe of the host's own network, and the answer ("refused", "TLS error",
+ * "timeout") a port oracle. The same judge as the feed fetcher's; a NAME is resolved and judged again by `tjekVaertHostet`.
+ */
+export function forbindelse(valg: Readonly<Record<string, string>>, o: { hostet?: boolean } = {}): Forbindelse {
   const tjeneste = valg['tjeneste'];
   if (!erTjeneste(tjeneste)) throw new KildeFejl(400, imapTekst().vaelgTjeneste);
   const bruger = (valg['adresse'] ?? '').trim();
@@ -46,6 +52,12 @@ export function forbindelse(valg: Readonly<Record<string, string>>): Forbindelse
     vaert = (valg['server'] ?? '').trim();
     if (!vaert) throw new KildeFejl(400, imapTekst().skrivServer);
     if (!VAERT.test(vaert) && !isIP(vaert)) throw new KildeFejl(400, imapTekst().serverUgyldig);
+    if (o.hostet) {
+      try { tjekAdresse(vaert.includes(':') ? `https://[${vaert}]/` : `https://${vaert}/`, { oprindelse: 'hostet' }); } catch (err) {
+        if (err instanceof AdresseFejl) throw new KildeFejl(400, imapTekst().serverIkkeHostet);
+        throw err;
+      }
+    }
     sikkerhed = valg['sikkerhed'] === 'starttls' ? 'starttls' : 'tls';
     port = sikkerhed === 'starttls' ? 143 : 993;
   }

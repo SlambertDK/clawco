@@ -19,3 +19,8 @@ export function hjaelpFraMiljoe(env: Record<string, string | undefined>): { href
   const origin = skyOrigin(env['KC_SKY_URL'] ?? '');
   return origin ? { href: `${origin}/konto/hjaelp` } : null;
 }
+
+/** KC-0274 (C2): whether this install runs on Clawco Sky's server (KC_SKY=ja, set by the fleet). The connectors then never reach the host's own network. */
+export function erSkyHostet(env: Record<string, string | undefined>): boolean {
+  return (env['KC_SKY'] ?? '').trim() === 'ja';
+}

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nyDb, ur, alleRaekker } from './hjaelp.ts';
-import { opretSession, hentSession, tilbagekald, sessioner, afslutSession, erFrisk, tjekOrigin, tjekCsrf, enhedNavn, SESSION_DAGE, FRISK_MS } from '../../src/konto/session.ts';
+import { opretSession, hentSession, tilbagekald, sessioner, afslutSession, erFrisk, tjekOrigin, tjekCsrf, enhedNavn, SESSION_DAGE, SESSION_MAKS_DAGE, FRISK_MS } from '../../src/konto/session.ts';
 import { hashToken, nytToken } from '../../src/konto/token.ts';
 import type { Database } from '../../src/db/pool.ts';
 
@@ -37,6 +37,30 @@ test('a session expires after 30 days without use, and each use slides the expir
   assert.ok(await hentSession(db, token, u.nu()), 'brugen skubbede udløbet');
   u.frem(SESSION_DAGE * DAG + 1);
   assert.equal(await hentSession(db, token, u.nu()), null);
+});
+
+// KC-0272 (D6): sliding alone let a session live for ever while it was used; a stolen one never ran out.
+test('KC-0272: a session lives at most 90 days from login, however often it is used', async () => {
+  const db = await nyDb();
+  const u = ur();
+  assert.equal(SESSION_MAKS_DAGE, 90);
+  const start = u.nu().getTime();
+  const dag = (d: number, ms = 0) => new Date(start + d * DAG + ms);
+  const { token } = await opretSession(db, { kontoId: await konto(db), metode: 'link', enhed: '', nu: dag(0) });
+  for (const d of [29, 58, 87]) assert.ok(await hentSession(db, token, dag(d)), `day ${d}`);
+  const s = await hentSession(db, token, dag(89));
+  assert.ok(s, 'day 89');
+  assert.ok(s.udloeber.getTime() <= dag(90).getTime(), 'the slide stops at login + 90 days');
+  assert.equal(await hentSession(db, token, dag(90, 1)), null, 'day 90 and a moment');
+});
+
+test('KC-0272: a session row from before the cap is refused once it is 90 days old, whatever its expiry says', async () => {
+  const db = await nyDb();
+  const u = ur();
+  const { token, session } = await opretSession(db, { kontoId: await konto(db), metode: 'link', enhed: '', nu: u.nu() });
+  await db.query('UPDATE session SET udloeber = $2 WHERE id = $1', [session.id, new Date(u.nu().getTime() + 400 * DAG).toISOString()]);
+  assert.ok(await hentSession(db, token, new Date(u.nu().getTime() + 89 * DAG)));
+  assert.equal(await hentSession(db, token, new Date(u.nu().getTime() + 90 * DAG + 1)), null);
 });
 
 test('a session can be revoked one by one, only by its own account', async () => {

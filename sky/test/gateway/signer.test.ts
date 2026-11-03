@@ -23,18 +23,19 @@ test('a key from its seed has the public key and key id of the vectors', () => {
 });
 
 test('every signed vector is reproduced exactly (Ed25519 is deterministic)', () => {
-  const signerede = V.vektorer.filter((v) => v.kilde);
-  assert.ok(signerede.length >= 8);
+  // KC-0272: the gateway only ever signs with method and path; the vector without them is the tenant's refusal case.
+  const signerede = V.vektorer.filter((v) => v.kilde && 'm' in v.kilde.paastand);
+  assert.ok(signerede.length >= 10);
   for (const v of signerede) assert.equal(signerKonto(noegle(v.kilde!.noegle).privat, v.kilde!.paastand), v.header, v.navn);
 });
 
 test('the signature covers the exact bytes v1.<keyid>.<payload>', () => {
   const a = noegle('a');
-  const h = signerKonto(a.privat, { t: 'x', k: 'k', e: 'e@example.com', iat: 1 });
+  const h = signerKonto(a.privat, { t: 'x', k: 'k', e: 'e@example.com', iat: 1, m: 'POST', p: '/api/x' });
   const [v, id, payload, sig] = h.split('.');
   assert.equal(v, 'v1');
   assert.equal(id, a.id);
-  assert.deepEqual(Object.keys(JSON.parse(Buffer.from(payload!, 'base64url').toString('utf8'))), ['t', 'k', 'e', 'iat']);
+  assert.deepEqual(Object.keys(JSON.parse(Buffer.from(payload!, 'base64url').toString('utf8'))), ['t', 'k', 'e', 'iat', 'm', 'p']);
   const pub = createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: a.offentlig }, format: 'jwk' });
   assert.ok(verify(null, Buffer.from(`v1.${id}.${payload}`), pub, Buffer.from(sig!, 'base64url')));
   assert.equal(KONTO_HEADER, 'Clawco-Konto');
@@ -42,7 +43,12 @@ test('the signature covers the exact bytes v1.<keyid>.<payload>', () => {
 
 test('the signer refuses a claim the verifier would never accept', () => {
   const a = noegle('a');
-  assert.throws(() => signerKonto(a.privat, { t: '', k: 'k', e: 'e@example.com', iat: 1 }));
-  assert.throws(() => signerKonto(a.privat, { t: 't', k: 'k', e: 'e@example.com', iat: 1.5 }));
+  const ok = { t: 't', k: 'k', e: 'e@example.com', iat: 1, m: 'GET', p: '/' };
+  assert.throws(() => signerKonto(a.privat, { ...ok, t: '' }));
+  assert.throws(() => signerKonto(a.privat, { ...ok, iat: 1.5 }));
+  // KC-0272 (D2): the header names the request it was made for, so it cannot be replayed onto another method or path.
+  for (const forkert of [{ m: '' }, { m: 'get' }, { m: 'G E T' }, { p: '' }, { p: 'rum' }, { p: '/a?b' }, { p: `/${'a'.repeat(512)}` }]) {
+    assert.throws(() => signerKonto(a.privat, { ...ok, ...forkert }), JSON.stringify(forkert));
+  }
   assert.throws(() => noegleFraFroe(Buffer.alloc(31)));
 });

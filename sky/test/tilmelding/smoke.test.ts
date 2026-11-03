@@ -17,7 +17,8 @@ import { hentProfil } from '../../src/konto/profil.ts';
 import { falskFlaade, falskNoegler } from '../fleet/hjaelp.ts';
 import { FROE } from '../gateway/hjaelp.ts';
 
-const PUBLIC = 'https://konto.example.test';
+// KC-0272: dev mode (the outbox, the fake Checkout) runs only on a localhost address.
+const PUBLIC = 'https://konto.localhost';
 
 class Browser {
   jar = new Map<string, string>();
@@ -115,7 +116,9 @@ test('smoke: a stranger signs up, starts a trial and lands in the Start room of 
   const ind2 = await b.hent(`${u.pathname}${u.search}`);
   assert.equal(ind2.status, 303);
   const t = await tenantForEjer(db, (await db.query<{ id: unknown }>('SELECT id FROM konto'))[0]!.id as number);
-  assert.ok(ind2.headers.get('location')!.startsWith(`https://${t!.slug}.${config.basedomain}/_sky/faa?kode=`), ind2.headers.get('location')!);
+  // KC-0272: the account page's link carries no browser binding, so it issues no code: it lands on the tenant, whose
+  // gateway binds this browser and sends it back through /aabn for the code (gateway/proxy.test.ts covers that hop).
+  assert.equal(ind2.headers.get('location'), `https://${t!.slug}.${config.basedomain}/rum/start`);
 
   // Timing: account created → tenant klar, recorded once; budget 120 s p95 (loosely, with the fake fleet).
   const p = await hentProfil(db, t!.ejerKontoId);
@@ -136,7 +139,7 @@ test('smoke: a stranger signs up, starts a trial and lands in the Start room of 
   assert.equal(nyt.status, 303);
   assert.equal((await hentProfil(db, t!.ejerKontoId))?.vilkaar, f.tilmelding.samtykke.vilkaar.version);
   const aabnet = await b.hent(`${u.pathname}${u.search}`);
-  assert.ok(aabnet.headers.get('location')!.startsWith(`https://${t!.slug}.${config.basedomain}/_sky/faa?kode=`), 'accepted: the way in is open again');
+  assert.equal(aabnet.headers.get('location'), `https://${t!.slug}.${config.basedomain}/rum/start`, 'accepted: the way in is open again');
   await db.close();
 });
 

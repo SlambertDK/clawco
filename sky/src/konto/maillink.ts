@@ -9,7 +9,7 @@
 import type { Database } from '../db/pool.ts';
 import type { Post } from '../delt/post.ts';
 import { findEllerOpretKonto, kontoForEmail, normaliserEmail } from './konto.ts';
-import { emailNoegle, erSpaerret, fejlNoegle, ipNoegle, taelOp, FEJL_PR_IP, KODER_PR_EMAIL, KODER_PR_IP } from './graenser.ts';
+import { emailIpNoegle, emailNoegle, erSpaerret, fejlNoegle, ipNoegle, taelOp, FEJL_PR_IP, KODER_PR_EMAIL, KODER_PR_EMAIL_I_ALT, KODER_PR_IP } from './graenser.ts';
 import { createHash } from 'node:crypto';
 import { ensTokens, hashToken, nytToken } from './token.ts';
 
@@ -42,6 +42,11 @@ const hashKode = (kode: string, raekkeHash: string): string => createHash('sha25
 
 export type LinkDeps = { db: Database; post: Post; publicUrl: string };
 
+/** KC-0272 (D6): how long sending a login mail takes through this Post (a moving average, ms). A staff address gets no
+ *  mail but waits this long, so the answer's timing does not tell staff from anyone else. */
+const sendeTid = new WeakMap<Post, number>();
+const vent = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 /** Sends a login link when allowed. Always resolves the same way, whatever happened. */
 export async function anmodLink(d: LinkDeps, a: { email: unknown; binding: string; ip: string; nu: Date }): Promise<void> {
   const email = normaliserEmail(a.email);
@@ -50,12 +55,14 @@ export async function anmodLink(d: LinkDeps, a: { email: unknown; binding: strin
   await d.db.query('DELETE FROM loginkode WHERE udloeber < $1', [new Date(a.nu.getTime() - 24 * 3_600_000).toISOString()]);
   // Count the IP first: a sprayer at many emails is stopped even when each email is fresh.
   if (!(await taelOp(d.db, ipNoegle(a.ip), KODER_PR_IP, a.nu))) return;
-  if (!(await taelOp(d.db, emailNoegle(email), KODER_PR_EMAIL, a.nu))) return;
-  if ((await kontoForEmail(d.db, email))?.personale) return;
+  if (!(await taelOp(d.db, emailIpNoegle(email, a.ip), KODER_PR_EMAIL, a.nu))) return;
+  if (!(await taelOp(d.db, emailNoegle(email), KODER_PR_EMAIL_I_ALT, a.nu))) return;
+  if ((await kontoForEmail(d.db, email))?.personale) { await vent(sendeTid.get(d.post) ?? 0); return; }
 
   const token = nytToken();
   const link = new URL('/log-ind/link', d.publicUrl);
   link.searchParams.set('t', token);
+  const start = performance.now();
   try {
     await d.db.transaction(async (tx) => {
       await tx.query(
@@ -69,6 +76,9 @@ export async function anmodLink(d: LinkDeps, a: { email: unknown; binding: strin
     // Deliberately without the error text: a provider error could echo the message, link included.
     console.error('sky konto: et login-link kunne ikke sendes (intet gemt)');
   }
+  const ms = performance.now() - start;
+  const foer = sendeTid.get(d.post);
+  sendeTid.set(d.post, foer === undefined ? ms : foer * 0.8 + ms * 0.2);
 }
 
 /** True while the link is unused and unexpired. Reading never consumes (the GET page uses this). */

@@ -12,6 +12,7 @@
 // calendar.readonly, no verbs, no act(). Missing client keys, an unknown
 // return address or a failed exchange fail closed with an explanation in the language of the request (tekster.ts).
 
+import { registrerHemmelighed } from '../../graenser/redaktion.ts';
 import { KildeFejl, type Helbred, type Kilde, type KildeKontekst, type KildeKort } from '../types.ts';
 import { googleOpsaetTrin } from '../google/opsaet.ts';
 import { googleTekst } from '../google/tekster.ts';
@@ -60,6 +61,7 @@ export function googleKalender(o: { env?: Record<string, string | undefined>; ad
     try {
       const t = await forny({ hent, klient: k, refresh });
       cache = { refresh, adgang: t.adgang, udloeber: nu + t.udloeberMs };
+      registrerHemmelighed(t.adgang); // KC-0274: the access token is a bearer secret too (the refresh token is registered by the secret store)
       return t.adgang;
     } catch (err) {
       if (err instanceof GoogleFejl && err.art === 'afvist') { afvist = refresh; cache = null; }

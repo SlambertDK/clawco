@@ -7,7 +7,7 @@ import { createPublicKey, verify } from 'node:crypto';
 import { udstedToken, TOKEN_MS } from '../../src/gateway/cookie.ts';
 import { laesGatewayNoegle } from '../../src/gateway/noegle.ts';
 import { ruteTabel } from '../../src/gateway/rute.ts';
-import { opretKode } from '../../src/gateway/login-vej.ts';
+import { bindingHash, nyBinding, opretKode } from '../../src/gateway/login-vej.ts';
 import { tilbagekald } from '../../src/konto/session.ts';
 import type { GatewayDeps } from '../../src/gateway/proxy.ts';
 import { FROE, OFFENTLIG, opsaet, type Opsat } from './hjaelp.ts';
@@ -15,6 +15,9 @@ import { anmod, falskTenant, foersteBid, startGateway, type FalskTenant, type Gw
 
 const PUBLIC = 'https://konto.eksempel.test';
 const NOEGLE = laesGatewayNoegle({ SKY_GATEWAY_SIGNERINGSNOEGLE: FROE }, OFFENTLIG).noegle!;
+/** KC-0272: the browser that asked for a code carries this binding on the tenant host (set by the gateway's redirect to /aabn). */
+const BINDING = nyBinding();
+const BUNDET = { cookie: `__Host-sky-faa=${BINDING}` };
 
 type Stativ = { o: Opsat; t: FalskTenant; gw: Gw; host: string; log: string[]; cookie: (hvem?: 'ejer' | 'fremmed', slug?: string) => string; luk: () => Promise<void> };
 
@@ -30,14 +33,16 @@ async function stativ(over: Partial<GatewayDeps> = {}, tenantAdresse?: string): 
   return { o, t, gw, host: `${o.slug}.eksempel.test`, log, cookie, luk: async () => { await gw.luk(); await t.luk(); await o.db.close(); } };
 }
 
-function tjekSignatur(header: string, slug: string, kontoId: number, email: string): void {
+function tjekSignatur(header: string, slug: string, kontoId: number, email: string, metode = 'GET', sti = '/rum/mail'): void {
   const m = /^v1\.([A-Za-z0-9_-]{11})\.([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]{86})$/.exec(header);
   assert.ok(m, 'Clawco-Konto has the KC-0179 form');
   assert.equal(m[1], NOEGLE.id);
   const pub = createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: OFFENTLIG }, format: 'jwk' });
   assert.ok(verify(null, Buffer.from(`v1.${m[1]}.${m[2]}`), pub, Buffer.from(m[3]!, 'base64url')), 'signed with the gateway key');
   const p = JSON.parse(Buffer.from(m[2]!, 'base64url').toString()) as Record<string, unknown>;
-  assert.deepEqual(Object.keys(p), ['t', 'k', 'e', 'iat']);
+  assert.deepEqual(Object.keys(p), ['t', 'k', 'e', 'iat', 'm', 'p']);
+  assert.equal(p['m'], metode, 'KC-0272: bound to the method');
+  assert.equal(p['p'], sti, 'KC-0272: bound to the path (without the query)');
   assert.equal(p['t'], slug);
   assert.equal(p['k'], String(kontoId));
   assert.equal(p['e'], email);
@@ -49,7 +54,7 @@ test('forged identity headers are stripped and replaced by a gateway signature; 
     const r = await anmod(s.gw.port, {
       host: s.host, sti: '/rum/mail?x=1',
       headers: {
-        cookie: `andet=1; ${s.cookie()}; tredje=3`,
+        cookie: `__Host-andet=1; ${s.cookie()}; __Host-tredje=3; fra-soesterhost=1`,
         'clawco-konto': 'v1.forfalsket.x.y', 'tailscale-user-login': 'ond@example.test', 'tailscale-user-name': 'Ond',
         'x-forwarded-for': '6.6.6.6', 'x-forwarded-host': 'evil.test', forwarded: 'for=6.6.6.6', 'x-real-ip': '6.6.6.6', 'cf-connecting-ip': '6.6.6.6',
       },
@@ -91,10 +96,11 @@ test('Server-Sent Events stream through unbuffered', async () => {
 test('a request body passes through', async () => {
   const s = await stativ();
   try {
-    const r = await anmod(s.gw.port, { host: s.host, sti: '/api/x', metode: 'POST', krop: '{"a":1}', headers: { cookie: s.cookie(), 'content-type': 'application/json' } });
+    const r = await anmod(s.gw.port, { host: s.host, sti: '/api/x', metode: 'POST', krop: '{"a":1}', headers: { cookie: s.cookie(), 'content-type': 'application/json', origin: `https://${s.host}` } });
     assert.equal(r.status, 200);
     assert.equal(s.t.modtaget[0]?.krop, '{"a":1}');
     assert.equal(s.t.modtaget[0]?.metode, 'POST');
+    tjekSignatur(String(s.t.modtaget[0]?.headers['clawco-konto']), s.o.slug, s.o.ejer.id, s.o.ejer.email, 'POST', '/api/x');
   } finally { await s.luk(); }
 });
 
@@ -157,6 +163,17 @@ test('no cookie: a GET is sent to Sky’s login with a signed next; anything els
     assert.equal(til.searchParams.get('t'), s.o.slug);
     assert.equal(til.searchParams.get('n'), '/rum/mail?x=1');
     assert.ok(til.searchParams.get('s'));
+    // KC-0272 (D1): the redirect binds this browser: a host-only state cookie here, only its hash in the link.
+    const c = [r.headers['set-cookie'] ?? []].flat().find((x) => x.startsWith('__Host-sky-faa='));
+    assert.ok(c, 'the binding cookie is set on the tenant host');
+    assert.match(c, /Path=\/;.*HttpOnly; Secure; SameSite=Lax/);
+    assert.doesNotMatch(c, /Domain=/i);
+    const v = c.split(';')[0]!.slice('__Host-sky-faa='.length);
+    assert.equal(til.searchParams.get('b'), bindingHash(v));
+    assert.ok(!String(r.headers.location).includes(v), 'the binding itself never leaves the tenant host');
+    // A second tab keeps the same binding, so the first tab's code still works.
+    const igen = await anmod(s.gw.port, { host: s.host, sti: '/', headers: { cookie: `__Host-sky-faa=${v}` } });
+    assert.equal(new URL(String(igen.headers.location)).searchParams.get('b'), bindingHash(v));
     assert.equal((await anmod(s.gw.port, { host: s.host, sti: '/api/x', metode: 'POST', krop: 'x' })).status, 401);
     assert.equal(s.t.modtaget.length, 0);
   } finally { await s.luk(); }
@@ -195,8 +212,8 @@ test('an expired token is refreshed while the Sky session lives, and ends with i
 test('the exchange route spends the code, sets the host-only cookie and lands on next; a reused code is refused', async () => {
   const s = await stativ();
   try {
-    const kode = await opretKode(s.o.db, { kontoId: s.o.ejer.id, sessionId: s.o.ejer.sessionId, slug: s.o.slug, naeste: '/rum/mail', nu: s.o.ur.nu() });
-    const r = await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}` });
+    const kode = await opretKode(s.o.db, { kontoId: s.o.ejer.id, sessionId: s.o.ejer.sessionId, slug: s.o.slug, naeste: '/rum/mail', nu: s.o.ur.nu(), binding: bindingHash(BINDING) });
+    const r = await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}`, headers: BUNDET });
     assert.equal(r.status, 303);
     assert.equal(r.headers.location, '/rum/mail');
     const c = [r.headers['set-cookie'] ?? []].flat().find((x) => x.startsWith('__Host-clawco='))!;
@@ -205,15 +222,36 @@ test('the exchange route spends the code, sets the host-only cookie and lands on
     assert.match(c, /SameSite=Lax/);
     assert.doesNotMatch(c, /Domain=/i);
     assert.equal((await anmod(s.gw.port, { host: s.host, sti: '/', headers: { cookie: c.split(';')[0]! } })).status, 200);
-    assert.equal((await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}` })).status, 400);
+    assert.equal((await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}`, headers: BUNDET })).status, 400);
+  } finally { await s.luk(); }
+});
+
+test('KC-0272 (D1): a code minted in one browser cannot log another browser in (login CSRF into someone else\'s Clawco)', async () => {
+  const s = await stativ();
+  try {
+    // The attacker's own browser minted the code (bound to the attacker's binding); the victim's browser presents it.
+    const kode = await opretKode(s.o.db, { kontoId: s.o.ejer.id, sessionId: s.o.ejer.sessionId, slug: s.o.slug, naeste: '/rum/mail', nu: s.o.ur.nu(), binding: bindingHash(BINDING) });
+    for (const headers of [{}, { cookie: `__Host-sky-faa=${nyBinding()}` }, { cookie: 'sky-faa=' + BINDING }]) {
+      const r = await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}`, headers });
+      assert.equal(r.status, 400, JSON.stringify(headers));
+      assert.ok(![r.headers['set-cookie'] ?? []].flat().some((x) => x.startsWith('__Host-clawco=v1')), 'no tenant cookie');
+    }
+    // The browser that asked still gets in, once; its binding cookie is then cleared.
+    const ok = await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}`, headers: BUNDET });
+    assert.equal(ok.status, 303);
+    const saet = [ok.headers['set-cookie'] ?? []].flat();
+    assert.ok(saet.some((x) => x.startsWith('__Host-clawco=v1')));
+    assert.ok(saet.some((x) => /^__Host-sky-faa=;.*Max-Age=0/.test(x)), 'the binding is spent with the code');
+    assert.equal((await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}`, headers: BUNDET })).status, 400, 'still single use');
+    assert.equal(s.t.modtaget.length, 0);
   } finally { await s.luk(); }
 });
 
 test('a code made for a stranger who is no member sets no cookie', async () => {
   const s = await stativ();
   try {
-    const kode = await opretKode(s.o.db, { kontoId: s.o.fremmed.id, sessionId: s.o.fremmed.sessionId, slug: s.o.slug, naeste: '/', nu: s.o.ur.nu() });
-    const r = await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}` });
+    const kode = await opretKode(s.o.db, { kontoId: s.o.fremmed.id, sessionId: s.o.fremmed.sessionId, slug: s.o.slug, naeste: '/', nu: s.o.ur.nu(), binding: bindingHash(BINDING) });
+    const r = await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}`, headers: BUNDET });
     assert.equal(r.status, 403);
     assert.equal(r.headers['set-cookie'], undefined);
   } finally { await s.luk(); }
@@ -224,16 +262,16 @@ test('KC-0204: an account whose accepted version is no longer current gets no co
   const gyldig = { ok: false };
   const s = await stativ({ samtykkeOk: async () => gyldig.ok });
   try {
-    const kode = await opretKode(s.o.db, { kontoId: s.o.ejer.id, sessionId: s.o.ejer.sessionId, slug: s.o.slug, naeste: '/rum/mail', nu: s.o.ur.nu() });
-    const r = await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}` });
+    const kode = await opretKode(s.o.db, { kontoId: s.o.ejer.id, sessionId: s.o.ejer.sessionId, slug: s.o.slug, naeste: '/rum/mail', nu: s.o.ur.nu(), binding: bindingHash(BINDING) });
+    const r = await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode}`, headers: BUNDET });
     assert.equal(r.status, 403);
     assert.equal(r.headers['set-cookie'], undefined);
     assert.match(r.krop, /Vilkårene er ændret/);
     assert.equal(s.t.modtaget.length, 0);
     // Once accepted, a fresh entry works.
     gyldig.ok = true;
-    const kode2 = await opretKode(s.o.db, { kontoId: s.o.ejer.id, sessionId: s.o.ejer.sessionId, slug: s.o.slug, naeste: '/rum/mail', nu: s.o.ur.nu() });
-    assert.equal((await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode2}` })).status, 303);
+    const kode2 = await opretKode(s.o.db, { kontoId: s.o.ejer.id, sessionId: s.o.ejer.sessionId, slug: s.o.slug, naeste: '/rum/mail', nu: s.o.ur.nu(), binding: bindingHash(BINDING) });
+    assert.equal((await anmod(s.gw.port, { host: s.host, sti: `/_sky/faa?kode=${kode2}`, headers: BUNDET })).status, 303);
   } finally { await s.luk(); }
 });
 
@@ -289,7 +327,26 @@ test('a tenant cannot overwrite the gateway cookie; its own cookies pass', async
   const s = await stativ();
   try {
     const r = await anmod(s.gw.port, { host: s.host, sti: '/saet-cookie', headers: { cookie: s.cookie() } });
-    assert.deepEqual([r.headers['set-cookie'] ?? []].flat(), ['tenant=1; Path=/']);
+    assert.deepEqual([r.headers['set-cookie'] ?? []].flat(), ['__Host-tenant=1; Path=/; Secure']);
+  } finally { await s.luk(); }
+});
+
+// KC-0272 (D2): SameSite=Lax does not separate tenants (one site), so a page on another tenant or on konto. could post
+// to this one with the member's cookie. The gateway lets a state-changing request through only from the tenant's own page.
+test('KC-0272: a non-GET request reaches the tenant only from its own origin (Origin, or Sec-Fetch-Site same-origin/none)', async () => {
+  const s = await stativ();
+  try {
+    const post = (headers: Record<string, string>, metode = 'POST') => anmod(s.gw.port, { host: s.host, sti: '/api/x', metode, krop: 'x', headers: { cookie: s.cookie(), ...headers } });
+    for (const h of [{}, { origin: 'https://hus-bbbbbbbb.eksempel.test' }, { origin: 'https://konto.eksempel.test' }, { origin: 'null' }, { origin: `http://${s.host}` },
+      { 'sec-fetch-site': 'same-site' }, { 'sec-fetch-site': 'cross-site' }, { origin: 'https://hus-bbbbbbbb.eksempel.test', 'sec-fetch-site': 'same-origin' }]) {
+      const r = await post(h);
+      assert.equal(r.status, 403, JSON.stringify(h));
+    }
+    assert.equal((await post({}, 'PUT')).status, 403);
+    assert.equal(s.t.modtaget.length, 0, 'nothing reached the tenant');
+    for (const h of [{ origin: `https://${s.host}` }, { 'sec-fetch-site': 'same-origin' }, { 'sec-fetch-site': 'none' }]) assert.equal((await post(h)).status, 200, JSON.stringify(h));
+    assert.equal((await anmod(s.gw.port, { host: s.host, sti: '/', headers: { cookie: s.cookie(), origin: 'https://hus-bbbbbbbb.eksempel.test' } })).status, 200, 'a GET is never refused for its Origin');
+    assert.equal(s.t.modtaget.length, 4);
   } finally { await s.luk(); }
 });
 

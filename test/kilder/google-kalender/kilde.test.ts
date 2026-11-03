@@ -13,6 +13,7 @@ import { lavRegister } from '../../../src/kilder/register.ts';
 import { KildeFejl, type KildeKontekst } from '../../../src/kilder/types.ts';
 import type { Person } from '../../../src/identitet/husstand.ts';
 import { medData, NU } from '../hjaelp.ts';
+import { nulstilRegistrerede, redigeres } from '../../../src/graenser/redaktion.ts';
 
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
 const KLIENT = { id: 'klient-1.apps.googleusercontent.com', hemmelighed: 'GOCSPX-klient' };
@@ -132,4 +133,16 @@ test('disconnect revokes the grant at Google and removes the refresh token', asy
     assert.equal(g.tilbagekaldte().length, 1);
     await assert.rejects(r.laes(GOOGLE_KALENDER_ID), (e) => e instanceof KildeFejl && e.status === 409);
   });
+});
+
+// KC-0274 (C4): the access token Google issues is a secret like the refresh token: masked wherever text leaves the process.
+test('the access token is registered for masking as soon as it is issued', async () => {
+  nulstilRegistrerede();
+  const g = falskGoogle({ klient: KLIENT, kalendere: story, kendteRefresh: ['1//k'] });
+  const k = googleKalender({ env: { ...ENV }, adresse: ADR, hent: g.hent });
+  await k.read(ctx({ refresh_token: '1//k' }));
+  const [token] = g.udstedteAdgange();
+  assert.ok(token && token.length >= 8, 'the fake issued an access token');
+  assert.equal(redigeres(`Authorization: Bearer ${token}`).includes(token), false);
+  nulstilRegistrerede();
 });

@@ -333,3 +333,16 @@ test('cancel(runId) is on the seam: http posts the stop, and a Hermes without it
   assert.deepEqual(calls, ['http://h/v1/runs/run_x/stop', 'http://h/v1/runs/run_y/stop']);
   assert.equal(advarsler.filter((a) => /cancel ikke understøttet af Hermes/.test(a)).length, 1);
 });
+
+test('KC-0275 (B7): an event stream that never ends a line past the buffer maximum fails the run', async () => {
+  const enc = new TextEncoder();
+  let afbrudt = false;
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) { controller.enqueue(enc.encode('d'.repeat(1024 * 1024))); },
+    cancel() { afbrudt = true; },
+  });
+  const { fetchImpl } = fakeFetch({ health: () => json({ status: 'ok' }), events: () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } }) });
+  const h = createHermesHttp({ baseUrl: 'http://h', apiKey: 'k', fetchImpl });
+  await assert.rejects(h.run(REQ), (err: unknown) => err instanceof AgentError && /for stor|too large/.test(err.message));
+  assert.equal(afbrudt, true, 'the stream was cancelled');
+});

@@ -65,6 +65,9 @@ export function laesConfig(env: Record<string, string | undefined>): SkyConfig {
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw ugyldig('SKY_PORT', 'skal være et heltal fra 1 til 65535');
 
   const dev = (env['SKY_DEV'] ?? '').trim() === '1';
+  // KC-0272 (D3): dev mode shows every login link at /dev/udbakke and mounts the fake Checkout that signs its own
+  // webhook. On a public address that is every account and a free plan for whoever finds it: never there.
+  if (dev && vaert !== 'localhost' && !vaert.endsWith('.localhost')) throw ugyldig('SKY_DEV', 'må kun bruges, når SKY_PUBLIC_URL er localhost eller *.localhost');
   const basedomain = (env['SKY_BASEDOMAIN'] ?? '').trim() || STANDARD_BASEDOMAIN;
   // KC-0183: in local development tenants may live on <slug>.localhost (browsers resolve it to loopback and
   // treat it as secure, so the gateway's __Host- cookie works over plain http). Never in production.

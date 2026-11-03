@@ -3,7 +3,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { access, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import path from 'node:path';
 import { sletAlt } from '../../src/tillid/slet.ts';
@@ -69,7 +69,7 @@ test('beskyt keeps an inbox that lives in the data dir', async () => {
   } finally { await f.ryd(); }
 });
 
-test('one audit line is written first; the audit files go last', async () => {
+test('one audit line is written first, then everything goes, then a tombstone starts a fresh log', async () => {
   const f = await fixture();
   try {
     const raekkefoelge: string[] = [];
@@ -84,8 +84,28 @@ test('one audit line is written first; the audit files go last', async () => {
       },
     };
     await sletAlt({ dataDir: f.data, vaultDir: f.vault }, { person: 'ejer', kanal: 'knap', revision });
-    assert.deepEqual(raekkefoelge, ['skriv:true'], 'written while the data was still there');
-    assert.ok(!(await readdir(f.data)).some((n) => n.startsWith('revision-')), 'and removed with the rest');
+    assert.deepEqual(raekkefoelge, ['skriv:true', 'skriv:false'], 'the first line while the data was still there, the tombstone after the wipe');
+    const rester = (await readdir(f.data)).filter((n) => n !== 'vault');
+    assert.equal(rester.length, 2, 'only the fresh log and its anchor');
+    assert.ok(rester.includes('revision.anker') && rester.some((n) => /^revision-\d{4}-\d{2}\.jsonl$/.test(n)));
+    const seneste = await log.seneste();
+    assert.equal(seneste.length, 1, 'a fresh log: the old lines went with the rest');
+    assert.equal(seneste[0]!.verb, 'slet');
+    assert.equal(seneste[0]!.person, 'ejer');
+    assert.equal(seneste[0]!.forrige, '0'.repeat(64), 'the tombstone is the first line of a new chain');
+    assert.deepEqual(await log.tjekKaede(), { ok: true });
+  } finally { await f.ryd(); }
+});
+
+test('KC-0275: pause.json (a stopped app stays stopped) and husstand.json (no tailnet login becomes the owner) survive the wipe', async () => {
+  const f = await fixture();
+  try {
+    await skriv(path.join(f.data, 'pause.json'), '{"pauset":true}');
+    await skriv(path.join(f.data, 'husstand.json'), '{"personer":[{"id":"ejer"}]}');
+    await sletAlt({ dataDir: f.data, vaultDir: f.vault }, { person: 'ejer', kanal: 'knap' });
+    assert.deepEqual((await readdir(f.data)).sort(), ['husstand.json', 'pause.json', 'vault']);
+    assert.equal(await readFile(path.join(f.data, 'pause.json'), 'utf8'), '{"pauset":true}');
+    assert.equal(await readFile(path.join(f.data, 'husstand.json'), 'utf8'), '{"personer":[{"id":"ejer"}]}');
   } finally { await f.ryd(); }
 });
 

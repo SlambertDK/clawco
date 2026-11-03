@@ -141,7 +141,10 @@ test('"Slet alt" in English: the page, the typed word, and the audit line', asyn
     await mkdir(path.join(dir, 'data'), { recursive: true });
     await writeFile(path.join(dir, 'data', 'y.json'), '{}');
     await sletAlt({ dataDir: path.join(dir, 'data') } as never, { person: 'ella', kanal: 'knap', revision });
-    assert.deepEqual(skrevet, ['Delete everything: the owner confirmed with DELETE', 'Slet alt: ejeren bekræftede med SLET']);
+    assert.deepEqual(skrevet, [
+      'Delete everything: the owner confirmed with DELETE', 'Delete everything is done: the pause and the household are kept, everything else is deleted',
+      'Slet alt: ejeren bekræftede med SLET', 'Slet alt er udført: pausen og husstanden er bevaret, alt andet er slettet',
+    ]);
     await assert.rejects(en(() => sletAlt({ dataDir: '' } as never, { person: 'ella', kanal: 'knap' })), /Delete everything only deletes in a data folder, not \(no folder\)/);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });

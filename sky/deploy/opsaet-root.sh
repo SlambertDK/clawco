@@ -50,8 +50,10 @@ sudoers_tekst() {
 $HENRIK ALL=($SKY_USER) NOPASSWD: /usr/bin/bash $CHECKOUT/sky/deploy/deploy.sh "", /usr/bin/bash $CHECKOUT/sky/deploy/saet-env.sh SKY_*, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh ny, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh --roter, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh --afslut
 # ... and restarts exactly Sky's two units. Nothing that opens a pager (status, journalctl) runs as root.
 $HENRIK ALL=(root) NOPASSWD: /usr/bin/systemctl restart sky, /usr/bin/systemctl restart clawco-sky-tunnel, /usr/bin/systemctl is-active sky, /usr/bin/systemctl is-active clawco-sky-tunnel
-# deploy.sh, run as $SKY_USER, restarts the control plane after a pull.
-$SKY_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart sky
+# deploy.sh, run as $SKY_USER, restarts the control plane after a pull, then (KC-0273) puts the tenant pool's
+# host-side filter in place (netfilter.sh, by path; one argument, the pool, which it checks itself). The Sky process
+# never runs sudo (its unit has NoNewPrivileges).
+$SKY_USER ALL=(root) NOPASSWD: /usr/bin/systemctl restart sky, /usr/bin/bash $CHECKOUT/sky/deploy/netfilter.sh *
 EOF
 }
 

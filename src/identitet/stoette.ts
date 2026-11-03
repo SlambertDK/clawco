@@ -148,7 +148,10 @@ export function stoettePerson(klaim: StoetteKlaim, lokal: StoetteAdgang | null |
   if (lokal.id !== klaim.adgang || klaim.udloeber <= nuSek || !aktiv(lokal, new Date(nuSek * 1000))) return null;
   const ejer = personer.find((p) => p.rolle === 'ejer');
   if (!ejer) return null;
-  return { id: ejer.id, login: null, navn: 'Support', rolle: 'stoette', stoette: { adgang: klaim.adgang, personale: klaim.personale, session: klaim.session } };
+  // KC-0277 (review A14): support has its own id, never the owner's, so a check of the form `x.ejer === person.id`
+  // without a role check treats support as itself; what support may see goes through synligFor (zoner.ts), which
+  // maps the role to the owner's eyes explicitly.
+  return { id: stoettePersonId(klaim.personale), login: null, navn: 'Support', rolle: 'stoette', stoette: { adgang: klaim.adgang, personale: klaim.personale, session: klaim.session, ejer: ejer.id } };
 }
 
 /** The audit log's person for a staff account: never a household id (a colon is not allowed there). */

@@ -129,6 +129,8 @@ export function kontoRuter(d: KontoDeps): Hono {
   app.use('*', bodyLimit({ maxSize: 64 * 1024, onError: (c) => c.text('For stor', 413) }));
 
   const forbudt = (c: Context) => c.text('Forbudt', 403);
+  /** A route's `:id` as a whole number, or -1 (KC-0272: never NaN or 1e3 into a query). */
+  const id = (c: Context): number => (/^\d{1,18}$/.test(c.req.param('id') ?? '') ? Number(c.req.param('id')) : -1);
 
   /** A fresh session for this browser; the browser's previous one (any account) ends. */
   async function logIndSom(c: Context, kontoId: number, metode: Metode): Promise<void> {
@@ -265,7 +267,6 @@ export function kontoRuter(d: KontoDeps): Hono {
     }
     const statusFor = (g: string): Status => (g === 'ikke-ejer' ? 403 : g === 'fuld' || g === 'ventende' || g === 'allerede-med' || g === 'ukendt' ? 409 : g === 'for-mange' ? 429 : g === 'post-fejl' ? 502 : g === 'tenant-nede' ? 503 : 400);
     const preview = (c: Context, l: Login, u: Udkast) => c.html(invitationPreviewSide({ csrf: l.session.csrf, id: u.id, token: u.token, til: u.til, emne: u.mail.emne, tekst: u.mail.tekst }));
-    const id = (c: Context): number => (/^\d{1,18}$/.test(c.req.param('id') ?? '') ? Number(c.req.param('id')) : -1);
     const maks = async (kontoId: number): Promise<number> => {
       const t = await ejersTenant(d.db, kontoId);
       return t ? (await pladser(inv, t.slug, nu())).max : 1;
@@ -411,7 +412,8 @@ export function kontoRuter(d: KontoDeps): Hono {
   app.post('/konto/sessioner/:id/afslut', async (c) => {
     const l = await beskyttet(c, (await formular(c))['csrf']);
     if (!l) return forbudt(c);
-    await tilbagekald(d.db, l.konto.id, Number(c.req.param('id')));
+    if (id(c) < 0) return c.text('Ikke fundet', 404);
+    await tilbagekald(d.db, l.konto.id, id(c));
     return c.redirect('/konto', 303);
   });
 
@@ -443,8 +445,9 @@ export function kontoRuter(d: KontoDeps): Hono {
   app.post('/konto/passkeys/:id/fjern', async (c) => {
     const l = await beskyttet(c, (await formular(c))['csrf']);
     if (!l) return forbudt(c);
+    if (id(c) < 0) return c.text('Ikke fundet', 404);
     if (!erFrisk(l.session, nu())) return c.redirect('/konto/passkeys', 303);
-    const r = await fjernPasskey(d.db, l.konto.id, Number(c.req.param('id')));
+    const r = await fjernPasskey(d.db, l.konto.id, id(c));
     return c.redirect(r === 'ok' ? '/konto/passkeys?ok=fjernet' : r === 'sidste-personale' ? '/konto/passkeys?ok=sidste' : '/konto/passkeys', 303);
   });
 

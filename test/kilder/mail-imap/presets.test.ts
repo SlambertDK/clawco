@@ -76,3 +76,16 @@ test('tlsValg: a loopback host trusts only the pinned certificate', () => {
   assert.notEqual(uden.rejectUnauthorized, false);
   assert.equal(uden.ca, undefined);
 });
+
+// KC-0274 (C2): a hosted install may only name a mail server on the public internet.
+test('forbindelse (hosted): "anden" refuses loopback, LAN, link-local and metadata servers with a fixed sentence; presets and public servers are untouched', () => {
+  const hostet = { hostet: true } as const;
+  for (const server of ['127.0.0.1', 'localhost', '192.168.1.5', '10.0.0.7', '172.16.0.1', '169.254.169.254', '::1', 'fd12::1', '2002:7f00:1::', 'metadata.google.internal', 'x.localhost']) {
+    assert.throws(() => forbindelse({ tjeneste: 'anden', adresse: 'a@b.example', server }, hostet), (e: unknown) => e instanceof KildeFejl && e.status === 400 && !e.message.includes(server), server);
+    // Not hosted: unchanged (a self-hoster's own server on the LAN is the point of "anden").
+    assert.doesNotThrow(() => forbindelse({ tjeneste: 'anden', adresse: 'a@b.example', server }), server);
+  }
+  assert.equal(forbindelse({ tjeneste: 'anden', adresse: 'a@b.example', server: 'mail.b.dk' }, hostet).vaert, 'mail.b.dk');
+  assert.equal(forbindelse({ tjeneste: 'anden', adresse: 'a@b.example', server: '93.184.216.34' }, hostet).vaert, '93.184.216.34');
+  assert.equal(forbindelse({ tjeneste: 'fastmail', adresse: 'a@b.example' }, hostet).vaert, 'imap.fastmail.com');
+});

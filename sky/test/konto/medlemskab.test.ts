@@ -12,7 +12,7 @@ import { husStativ, sidsteToken, type HusStativ } from './husstand-stativ.ts';
 import { forbered, send, findInvitation, ventendeInvitationer } from '../../src/konto/invitation.ts';
 import { accepter, fjernMedlem, forlad, medlemmer, medlemskabFor, medlemskabHusstand, skiftRolle } from '../../src/konto/medlemskab.ts';
 import { ruteTabel } from '../../src/gateway/rute.ts';
-import { opretKode } from '../../src/gateway/login-vej.ts';
+import { bindingHash, nyBinding, opretKode } from '../../src/gateway/login-vej.ts';
 
 async function inviteret(s: HusStativ, email = 'nora@example.test', rolle = 'barn'): Promise<string> {
   const f = await forbered(s.inv, { ejerKontoId: s.ejer.id, email, navn: 'Nora', rolle, inviterer: 'Ida', nu: s.u.nu() });
@@ -79,7 +79,7 @@ test('remove (owner only): the row, her unspent codes and the gateway cache go; 
   await medlem(s);
   const ruter = ruteTabel({ db: s.db });
   assert.equal(await ruter.medlem(s.slug, s.nora.id), true, 'cached as a member');
-  await opretKode(s.db, { kontoId: s.nora.id, sessionId: s.nora.sessionId, slug: s.slug, naeste: '/', nu: s.u.nu() });
+  await opretKode(s.db, { kontoId: s.nora.id, sessionId: s.nora.sessionId, slug: s.slug, naeste: '/', nu: s.u.nu(), binding: bindingHash(nyBinding()) });
   const med = { ...s.med, glem: (slug: string) => { s.glemt.push(slug); ruter.glem(slug); } };
   assert.equal(await fjernMedlem(med, { ejerKontoId: s.fremmed.id, medlemKontoId: s.nora.id }), 'ikke-ejer');
   assert.equal(await fjernMedlem(med, { ejerKontoId: s.nora.id, medlemKontoId: s.nora.id }), 'ikke-ejer', 'a member cannot remove (she leaves instead)');

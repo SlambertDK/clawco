@@ -115,3 +115,17 @@ test('KC-0217: health says noegleskift: forberedt while SKY_KONTO_PUBKEY_NY is s
   assert.equal('noegleskift' in ((await (await createSkyApp({ db, sha: 'x', startet: Date.now() }).request('/health')).json()) as object), false);
   await db.close();
 });
+
+test('KC-0273: health says netfilter: ok | mangler | forældet with the lokal fleet (one word, read from the marker at request time); not ok is visible but not a 503', async () => {
+  const db = await pgliteDatabase();
+  await migrer(db);
+  assert.equal((await helbred({ db, sha: 'abc1234', startet: 1_000, flaade: 'lokal', noegler: 'ok', gateway: 'ok', netfilter: 'forældet' })).netfilter, 'forældet');
+  assert.equal('netfilter' in (await helbred({ db, sha: 'abc1234', startet: 1_000 })), false);
+  let t: 'ok' | 'mangler' | 'forældet' = 'ok';
+  const app = createSkyApp({ db, sha: 'x', startet: Date.now(), flaade: 'lokal', noegler: 'ok', gateway: 'ok', netfilter: async () => t });
+  t = 'mangler';
+  const r = await app.request('/health');
+  assert.equal(r.status, 200);
+  assert.equal(((await r.json()) as { netfilter?: string }).netfilter, 'mangler', 'read at request time');
+  await db.close();
+});

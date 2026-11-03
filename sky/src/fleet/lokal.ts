@@ -1,12 +1,15 @@
 // The lokal fleet driver (KC-0212, spec D18; hardened in KC-0182): Docker on the host Sky runs on, through
 // the Docker CLI and an injected runner (tests use a fake; nothing here talks to a real daemon in tests).
-// One container per tenant from the tenant image and one named volume per tenant, on one user-defined
-// bridge network with inter-container traffic switched off: tenants cannot reach each other, while the
-// host (Sky and the edge, KC-0183, both run on the host) reaches each tenant on its own address on that
-// network. No port is ever published on the host, and no argument is ever given to a shell.
+// One container per tenant from the tenant image and one named volume per tenant, each on its OWN user-defined
+// bridge network (KC-0273: clawco-t-<id>-net, the tenant's /24 from the fixed pool, fleet/netfilter.ts), with
+// inter-container traffic switched off as well: tenants cannot reach each other, while the host (Sky and the edge,
+// KC-0183, both run on the host) reaches each tenant on its own address. Every network is in the pool the host-side
+// filter covers, and no tenant container is started unless that filter is in place (kraevFilter). No port is ever
+// published on the host, and no argument is ever given to a shell.
 import { spawn } from 'node:child_process';
 import { BILLED_ID, tjekTenantId, type Flaade, type Klargjort, type TenantStatus } from './flaade.ts';
 import type { VolumenKryptering } from './kryptering.ts';
+import { kraevFilter, undernetFor, type Undernet, type Vaern } from './netfilter.ts';
 
 export type Koersel = (argv: string[]) => Promise<{ kode: number; ud: string; fejl: string }>;
 
@@ -72,19 +75,28 @@ export function dockerKommando(koer: Koersel): Docker {
   };
 }
 
-/** The tenant network, created with inter-container traffic off; an existing one must have it off too.
- *  Returns the network's gateway address: the host's side of the bridge, where Sky's edge connects from. */
-export async function sikrNetvaerk(docker: Docker, netvaerk: string): Promise<string> {
+/** A tenant's own network (KC-0273). */
+export const tenantNetvaerk = (id: string): string => `clawco-t-${tjekTenantId(id)}-net`;
+/** KC-0273: the shared network of restore copies and release checks: pool index 0, named after SKY_TENANT_NETVAERK
+ *  (which, before KC-0273, named the one network every tenant shared, outside the pool). */
+export const deltNetvaerk = (netvaerk: string): string => `${netvaerk}-delt`;
+
+/** A network created with inter-container traffic off on the given /24 of the pool; an existing one must have ICC
+ *  off, no IPv6 (the host-side filter is IPv4 only) and exactly that subnet and gateway (else it is outside what the
+ *  filter covers). Returns the gateway address: the host's side of the bridge, where Sky's edge connects from. */
+export async function sikrNetvaerk(docker: Docker, netvaerk: string, u: Undernet): Promise<string> {
   let ud = await docker(['network', 'inspect', netvaerk], true);
   if (ud === null) {
-    await docker(['network', 'create', '--driver', 'bridge', '--label', 'clawco.sky=1', '--opt', `${ICC}=false`, netvaerk]);
+    await docker(['network', 'create', '--driver', 'bridge', '--label', 'clawco.sky=1', '--opt', `${ICC}=false`, '--subnet', u.subnet, '--gateway', u.gateway, netvaerk]);
     ud = await docker(['network', 'inspect', netvaerk]);
   }
-  const [n] = JSON.parse(ud ?? '[]') as { Options?: Record<string, string>; IPAM?: { Config?: { Gateway?: string }[] } }[];
+  const [n] = JSON.parse(ud ?? '[]') as { EnableIPv6?: boolean; Options?: Record<string, string>; IPAM?: { Config?: { Subnet?: string; Gateway?: string }[] } }[];
   if (n?.Options?.[ICC] !== 'false') throw new Error(`Docker-netværket ${netvaerk} tillader trafik mellem beholdere (${ICC} er ikke false): lejerne kunne se hinanden — slet netværket eller vælg et andet i SKY_TENANT_NETVAERK`);
-  const gateway = n.IPAM?.Config?.find((c) => c.Gateway && IPV4.test(c.Gateway))?.Gateway;
-  if (!gateway) throw new Error(`Docker-netværket ${netvaerk} har ingen IPv4-gateway`);
-  return gateway;
+  if (n.EnableIPv6 === true) throw new Error(`Docker-netværket ${netvaerk} har IPv6 slået til: værtsfiltret (netfilter.sh) dækker kun IPv4 — slet netværket eller vælg et andet i SKY_TENANT_NETVAERK`);
+  const v4 = n.IPAM?.Config?.find((c) => c.Gateway && IPV4.test(c.Gateway));
+  if (!v4?.Gateway) throw new Error(`Docker-netværket ${netvaerk} har ingen IPv4-gateway`);
+  if (v4.Subnet !== u.subnet || v4.Gateway !== u.gateway) throw new Error(`Docker-netværket ${netvaerk} har subnettet ${String(v4.Subnet).slice(0, 20)}, ikke ${u.subnet} fra SKY_TENANT_POOL: værtsfiltret dækker det ikke — fjern netværket (docker network rm ${netvaerk}), så oprettes det i puljen`);
+  return v4.Gateway;
 }
 
 export async function beholderAdresse(docker: Docker, netvaerk: string, container: string): Promise<string> {
@@ -165,10 +177,18 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
   beta?: (tenantId: string) => Promise<{ samtykke: boolean } | null>;
   /** KC-0246: the env a tenant is told about itself (tenantMiljoe), asked for on every create and recreate, so a recreate (rollout,
    *  genstart-flaade) gives an existing tenant the current values. Absent = nothing extra. */
-  miljoe?: (tenantId: string) => Promise<Record<string, string>> }): Flaade {
+  miljoe?: (tenantId: string) => Promise<Record<string, string>>;
+  /** KC-0273: the pool and whether the host-side filter covers it (no tenant container starts unless it does). */
+  vaern: Vaern;
+  /** KC-0273: the tenant's /24 index in the pool, assigned once and recorded (fleet/tilstand.ts tildelUndernet). */
+  undernet: (tenantId: string) => Promise<number> }): Flaade {
   const navne = (id: string) => ({ container: `clawco-t-${tjekTenantId(id)}`, volumen: `clawco-t-${id}-data` });
   const docker = dockerKommando(o.koer);
-  const adresse = (container: string) => beholderAdresse(docker, o.netvaerk, container);
+  /** The tenant's address on its own network; a tenant created before KC-0273 is still on the old shared network
+   *  (o.netvaerk) until its next upgrade moves it, so that is asked second. */
+  const adresse = (id: string, container: string) => beholderAdresse(docker, tenantNetvaerk(id), container)
+    .catch(() => beholderAdresse(docker, o.netvaerk, container));
+  const egetNet = async (id: string) => sikrNetvaerk(docker, tenantNetvaerk(id), undernetFor(o.vaern.pool, await o.undernet(id)));
 
   /** The tenant container's `docker run`: the same for a first start and for an upgrade or rollback (KC-0186). */
   async function koerArgs(id: string, gateway: string, billede: string): Promise<string[]> {
@@ -177,7 +197,7 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
     const miljoe = o.miljoe ? await o.miljoe(id) : {};
     return [
       'run', '--detach', '--name', container, '--label', `${ETIKET}=${id}`,
-      '--network', o.netvaerk, '--restart', 'unless-stopped',
+      '--network', tenantNetvaerk(id), '--restart', 'unless-stopped',
       '--volume', `${volumen}:/data`,
       ...tenantKoersel({ tenantId: id, gateway, kontoPubkey: o.kontoPubkey, kontoPubkeyNy: o.kontoPubkeyNy, skyUrl: o.skyUrl, noegleFlag: o.noegleFlag, beta: betaMiljoe({ erBeta: b !== null, samtykke: b?.samtykke ?? false }), miljoe }),
       billede,
@@ -197,9 +217,10 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
     async klargoer(t) {
       const { container, volumen } = navne(t.id);
       const husstand = husstandFor(t.ejer);
+      await kraevFilter(o.vaern);
       const s = await status(t.id);
       if (s === 'findes-ikke') {
-        const gateway = await sikrNetvaerk(docker, o.netvaerk);
+        const gateway = await egetNet(t.id);
         await docker(['volume', 'create', '--label', `${ETIKET}=${t.id}`, ...(await o.kryptering.volumenFlag(t.id)), volumen]);
         // The household before the first start, so identity (KC-0179) never sees a tenant without one.
         await docker([
@@ -210,7 +231,7 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
       } else if (s === 'stoppet') {
         await docker(['start', container]);
       }
-      const ud: Klargjort = { tenantId: t.id, container, volumen, adresse: await adresse(container), krypteret: o.kryptering.krypteret };
+      const ud: Klargjort = { tenantId: t.id, container, volumen, adresse: await adresse(t.id, container), krypteret: o.kryptering.krypteret };
       return ud;
     },
     async stop(id) {
@@ -221,9 +242,11 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
       const { container, volumen } = navne(id);
       await docker(['rm', '--force', container], true);
       await docker(['volume', 'rm', volumen], true);
+      await docker(['network', 'rm', tenantNetvaerk(id)], true);
       // Seen gone, not assumed gone.
       if ((await status(id)) !== 'findes-ikke') throw new Error(`beholderen ${container} findes stadig efter sletning`);
       if ((await docker(['volume', 'inspect', volumen], true)) !== null) throw new Error(`disken ${volumen} findes stadig efter sletning`);
+      if ((await docker(['network', 'inspect', tenantNetvaerk(id)], true)) !== null) throw new Error(`netværket ${tenantNetvaerk(id)} findes stadig efter sletning`);
     },
     async beholder(id) {
       const { container } = navne(id);
@@ -233,7 +256,7 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
       if (koerer !== 'true') return null;
       if (!billede || !BILLED_ID.test(billede)) throw new Error(`beholderen ${container} har intet gyldigt billed-id`);
       // Running without an address is a crash loop between two restarts (seen live, 2026-11-01): not serving.
-      const a = await adresse(container).catch(() => null);
+      const a = await adresse(id, container).catch(() => null);
       return a ? { billede, adresse: a, container } : null;
     },
     async opgrader(t) {
@@ -241,10 +264,11 @@ export function lokalFlaade(o: { koer: Koersel; billede: string; netvaerk: strin
       if (!BILLED_ID.test(t.billede)) throw new Error('en kunde kører altid et billed-id (sha256:…), aldrig et tag');
       // Seen before anything goes: `docker run -v` would otherwise make an empty volume under the tenant's name.
       if ((await docker(['volume', 'inspect', volumen], true)) === null) throw new Error(`disken ${volumen} findes ikke`);
-      const gateway = await sikrNetvaerk(docker, o.netvaerk);
+      await kraevFilter(o.vaern);
+      const gateway = await egetNet(t.id);
       await docker(['rm', '--force', container], true);
       await docker(await koerArgs(t.id, gateway, t.billede));
-      return { tenantId: t.id, container, volumen, adresse: await adresse(container), krypteret: o.kryptering.krypteret };
+      return { tenantId: t.id, container, volumen, adresse: await adresse(t.id, container), krypteret: o.kryptering.krypteret };
     },
     async maerkede() {
       const ider = new Set<string>();

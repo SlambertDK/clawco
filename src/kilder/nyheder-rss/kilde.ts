@@ -19,7 +19,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { KildeFejl, type Felt, type Helbred, type Kilde, type KildeKontekst, type KildeKort, type Nyhed } from '../types.ts';
 import { laesKonfig } from '../register.ts';
-import { AdresseFejl, normaliserAdresse, tjekAdresse } from './adresse.ts';
+import { AdresseFejl, normaliserAdresse, tjekAdresse, type Oprindelse } from './adresse.ts';
+import { isIP } from 'node:net';
 import { HentFejl, lavHenter, type Henter } from './hent.ts';
 import { erHtml, findFeedLinks, ParseFejl, parseFeed, parseOpml } from './parse.ts';
 import { rssTekst } from './tekster.ts';
@@ -35,7 +36,8 @@ const MAKS_OPML = 1_000_000;
 const NEDE_LEVETID_MS = 10 * 60_000;
 const MAPPE = 'nyheder-rss';
 
-type Feed = { url: string; navn?: string; tilfoejet: string; lokal?: true };
+/** `adresser` (KC-0274): for a `lokal` feed, the addresses its name was judged at when the user added it; a later fetch must meet them. */
+type Feed = { url: string; navn?: string; tilfoejet: string; lokal?: true; adresser?: string[] };
 /** KC-0222: a feed on the list as the Kø panel shows it. */
 export type FeedVisning = { id: string; navn: string };
 /** The connector with the functions that change its list after the connection (KC-0222); the registry writes what they answer (aendreValg). */
@@ -91,7 +93,8 @@ function laesFeeds(valg: Readonly<Record<string, string>>): Feed[] {
   const ud: Feed[] = [];
   for (const p of raa) {
     if (!erObj(p) || typeof p['url'] !== 'string' || typeof p['tilfoejet'] !== 'string') continue;
-    ud.push({ url: p['url'], ...(typeof p['navn'] === 'string' && p['navn'] ? { navn: p['navn'] } : {}), tilfoejet: p['tilfoejet'], ...(p['lokal'] === true ? { lokal: true as const } : {}) });
+    const adresser = Array.isArray(p['adresser']) ? p['adresser'].filter((a): a is string => typeof a === 'string' && isIP(a) !== 0).slice(0, 4) : [];
+    ud.push({ url: p['url'], ...(typeof p['navn'] === 'string' && p['navn'] ? { navn: p['navn'] } : {}), tilfoejet: p['tilfoejet'], ...(p['lokal'] === true ? { lokal: true as const, ...(adresser.length ? { adresser } : {}) } : {}) });
   }
   return ud.slice(0, MAKS_FEEDS);
 }
@@ -105,7 +108,16 @@ function adresserFra(tekst: string): string[] {
   return tekst.split(/(?<=\w)(?=https?:\/\/)|[\s,;]+/i).map((x) => x.trim()).filter(Boolean);
 }
 
-export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: string } = {}): NyhederRssKilde {
+/**
+ * `hostet` (KC-0274, C2): the install runs on Clawco Sky's server, so the user's own-address exception is off — a feed on the host's
+ * network would be a probe of that network; every address is judged as public-only and a stored `lokal` feed reads as hosted.
+ */
+export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: string; hostet?: boolean } = {}): NyhederRssKilde {
+  const hostet = o.hostet === true;
+  const brugerOprindelse: Oprindelse = hostet ? 'hostet' : 'bruger';
+  const udefraOprindelse: Oprindelse = hostet ? 'hostet' : 'ekstern';
+  /** A local feed stored before the set of addresses existed: pinned to what it first answered from in this process. */
+  const fastholdt = new Map<string, string[]>();
   const hent = o.hent ?? lavHenter({ agent: `Clawco/${o.version ?? version()}` });
   const tilstand = new Map<string, Tilstand>();
   const hukommelse = new Map<string, Gemt>();
@@ -141,6 +153,7 @@ export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: strin
   async function glemFeed(url: string): Promise<void> {
     hukommelse.delete(url);
     tilstand.delete(url);
+    fastholdt.delete(url);
     const fil = cacheFil(url);
     if (fil) await rm(fil, { force: true });
   }
@@ -149,7 +162,9 @@ export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: strin
   async function hentFeed(f: Feed, nu: number): Promise<Nyhed[] | null> {
     try {
       const c = await laesCache(f.url);
-      const svar = await hent(f.url, { oprindelse: f.lokal ? 'bruger' : 'ekstern', ...(c?.etag ? { etag: c.etag } : {}), ...(c?.sidstRettet ? { sidstRettet: c.sidstRettet } : {}) });
+      const kun = !hostet && f.lokal ? (f.adresser ?? fastholdt.get(f.url)) : undefined;
+      const svar = await hent(f.url, { oprindelse: f.lokal && !hostet ? 'bruger' : udefraOprindelse, ...(kun ? { kunAdresser: kun } : {}), ...(c?.etag ? { etag: c.etag } : {}), ...(c?.sidstRettet ? { sidstRettet: c.sidstRettet } : {}) });
+      if (!hostet && f.lokal && !f.adresser && !fastholdt.has(f.url) && svar.adresser?.length) fastholdt.set(f.url, svar.adresser);
       let nyheder: Nyhed[];
       if (svar.status === 'uaendret') {
         if (!c) throw new HentFejl('net', rssTekst().kildenIkkeLaest);
@@ -176,7 +191,7 @@ export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: strin
   /** A pasted address: fetched to prove it is a feed (or to find one), named by its title. */
   async function tilfoej(raa: string, nu: Date): Promise<Feed> {
     let u: URL;
-    try { u = tjekAdresse(raa, { oprindelse: 'bruger' }); } catch (err) {
+    try { u = tjekAdresse(raa, { oprindelse: brugerOprindelse }); } catch (err) {
       throw new KildeFejl(400, rssTekst().adresseFejl(vis(raa.slice(0, 80)), err instanceof AdresseFejl ? err.message : rssTekst().adresseIkkeBrugbar));
     }
     if (u.href.length > MAKS_URL) throw new KildeFejl(400, rssTekst().adresseForLang(vis(raa.slice(0, 80))));
@@ -184,24 +199,25 @@ export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: strin
     // Tried as a public address first; only an address the guard refuses as local is retried (and marked) as the user's own.
     let lokal = false;
     let svar;
-    try { svar = await hent(u.href, { oprindelse: 'ekstern' }); } catch (err) {
-      if (!(err instanceof HentFejl && err.kode === 'afvist')) throw fejl(err);
+    try { svar = await hent(u.href, { oprindelse: udefraOprindelse }); } catch (err) {
+      if (hostet || !(err instanceof HentFejl && err.kode === 'afvist')) throw fejl(err);
       try { svar = await hent(u.href, { oprindelse: 'bruger' }); lokal = true; } catch (err2) { throw fejl(err2); }
     }
+    const dommeAdresser = lokal && svar.adresser?.length ? svar.adresser : undefined;
     if (svar.status !== 'ny') throw fejl(new HentFejl('net', rssTekst().kildenUdenIndhold));
-    const gem = async (url: string, tekst: string, adresse: string, v: { etag?: string; sidstRettet?: string }, erLokal: boolean): Promise<Feed> => {
+    const gem = async (url: string, tekst: string, adresse: string, v: { etag?: string; sidstRettet?: string }, erLokal: boolean, adresser?: string[]): Promise<Feed> => {
       const f = parseFeed(tekst, { adresse });
       await gemCache(url, { titel: f.titel, nyheder: f.nyheder, ...(v.etag ? { etag: v.etag } : {}), ...(v.sidstRettet ? { sidstRettet: v.sidstRettet } : {}) });
-      return { url, navn: f.titel, tilfoejet: nu.toISOString(), ...(erLokal ? { lokal: true as const } : {}) };
+      return { url, navn: f.titel, tilfoejet: nu.toISOString(), ...(erLokal ? { lokal: true as const, ...(adresser ? { adresser } : {}) } : {}) };
     };
     if (!erHtml(svar.tekst)) {
-      try { return await gem(u.href, svar.tekst, svar.endeligAdresse, svar, lokal); } catch (err) { throw fejl(err); }
+      try { return await gem(u.href, svar.tekst, svar.endeligAdresse, svar, lokal, dommeAdresser); } catch (err) { throw fejl(err); }
     }
     // A web page: its advertised feeds are content, so they are fetched as public addresses.
     for (const l of findFeedLinks(svar.tekst, svar.endeligAdresse).slice(0, 3)) {
       if (l.length > MAKS_URL) continue;
       try {
-        const s = await hent(l, { oprindelse: 'ekstern' });
+        const s = await hent(l, { oprindelse: udefraOprindelse });
         if (s.status === 'ny') return await gem(l, s.tekst, s.endeligAdresse, s, false);
       } catch { /* the next link */ }
     }
@@ -313,7 +329,7 @@ export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: strin
       const fandtes = (url: string): Feed | undefined => gamle.find((f) => feedNoegle(f.url) === feedNoegle(url));
       const dublet = (f: Feed): KildeFejl => new KildeFejl(409, rssTekst().harDuAllerede(vis(navnFor(f))));
       // The address as typed is compared before anything is fetched, so a repeat costs no request.
-      try { const u = tjekAdresse(adresser[0] ?? '', { oprindelse: 'bruger' }); const f = fandtes(u.href); if (f) throw dublet(f); } catch (err) { if (err instanceof KildeFejl) throw err; /* tilfoej() says why the address is refused */ }
+      try { const u = tjekAdresse(adresser[0] ?? '', { oprindelse: brugerOprindelse }); const f = fandtes(u.href); if (f) throw dublet(f); } catch (err) { if (err instanceof KildeFejl) throw err; /* tilfoej() says why the address is refused */ }
       const ny = await tilfoej(adresser[0] ?? '', ctx.nu);
       const f = fandtes(ny.url);
       if (f) throw dublet(f);
@@ -334,6 +350,7 @@ export function nyhederRss(o: { dataDir?: string; hent?: Henter; version?: strin
     async frakobl(): Promise<void> {
       tilstand.clear();
       hukommelse.clear();
+      fastholdt.clear();
       if (cacheMappe) await rm(cacheMappe, { recursive: true, force: true });
     },
   };

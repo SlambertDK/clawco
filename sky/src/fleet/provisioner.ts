@@ -4,6 +4,7 @@
 // (afstem.ts does, at start and on every pass) resumes exactly there. A tenant being deleted is never
 // moved forward.
 import type { Database } from '../db/pool.ts';
+import { LEJERSVAR_MAKS, laesBegraenset } from '../delt/begraenset.ts';
 import type { Flaade } from './flaade.ts';
 import type { FlaadeNoegler } from './noegler.ts';
 import { hentTenant, noterFejl, skift, type Laas, type Tenant } from './tilstand.ts';
@@ -28,12 +29,14 @@ export type ProvisionerDeps = {
   sundFrist?: { forsoeg: number; ms: number };
 };
 
-/** The tenant's /health, read by Sky. ok only on a 200 whose body says ok:true; never follows a redirect. */
+/** The tenant's /health, read by Sky. ok only on a 200 whose body says ok:true; never follows a redirect; the body is
+ *  read bounded (KC-0273: an answer over LEJERSVAR_MAKS is not ok). */
 export async function hentSundhed(adresse: string, f: typeof fetch = fetch): Promise<Sundhed> {
   try {
     const r = await f(`${adresse}/health`, { signal: AbortSignal.timeout(2_000), redirect: 'error' });
     if (r.status !== 200) return { ok: false, sha: null };
-    const j = (await r.json()) as { ok?: unknown; sha?: unknown };
+    const j = JSON.parse(await laesBegraenset(r, LEJERSVAR_MAKS)) as { ok?: unknown; sha?: unknown } | null;
+    if (!j || typeof j !== 'object') return { ok: false, sha: null };
     if (j.ok !== true) return { ok: false, sha: null };
     return { ok: true, sha: typeof j.sha === 'string' ? j.sha.slice(0, 64) : null };
   } catch {

@@ -7,7 +7,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { hjaelpFraMiljoe } from '../../src/shell/hjaelp.ts';
+import { erSkyHostet, hjaelpFraMiljoe } from '../../src/shell/hjaelp.ts';
 import { shell } from '../../src/shell/layout.ts';
 import { html } from '../../src/shell/html.ts';
 import { createApp } from '../../src/server.ts';
@@ -63,4 +63,10 @@ test('end to end: every page of an app told it runs under Sky carries the link; 
   const selv = lav('selv');
   const h = await (await selv.request('/rum/hjem')).text();
   assert.doesNotMatch(h, /Få hjælp|konto\/hjaelp/, 'self-hosters never see Sky links');
+});
+
+test('KC-0274: erSkyHostet is true only for KC_SKY=ja (the connectors then never probe the host\'s network)', () => {
+  assert.equal(erSkyHostet({}), false);
+  assert.equal(erSkyHostet({ KC_SKY: 'nej' }), false);
+  assert.equal(erSkyHostet({ KC_SKY: ' ja ' }), true);
 });

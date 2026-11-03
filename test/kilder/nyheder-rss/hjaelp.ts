@@ -14,17 +14,17 @@ export function rss(titel: string, poster: Post[]): string {
   return `<?xml version="1.0"?><rss version="2.0"><channel><title>${titel}</title>${items}</channel></rss>`;
 }
 
-export type Kald = { adresse: string; oprindelse: string; etag?: string };
-export type Svar = { tekst: string; etag?: string } | HentFejl;
+export type Kald = { adresse: string; oprindelse: string; etag?: string; kunAdresser?: readonly string[] };
+export type Svar = { tekst: string; etag?: string; adresser?: string[] } | HentFejl;
 
 /** A fetcher that answers from a table by address (a missing address is a network failure); records every call. */
 export function falskHenter(tabel: Record<string, Svar>, kald: Kald[] = []): Henter {
   return async (adresse, o) => {
-    kald.push({ adresse, oprindelse: o.oprindelse, ...(o.etag ? { etag: o.etag } : {}) });
+    kald.push({ adresse, oprindelse: o.oprindelse, ...(o.etag ? { etag: o.etag } : {}), ...(o.kunAdresser ? { kunAdresser: o.kunAdresser } : {}) });
     const s = tabel[adresse];
     if (s === undefined) throw new HentFejl('net', 'Kilden kunne ikke nås.');
     if (s instanceof HentFejl) throw s;
-    if (s.etag && o.etag === s.etag) return { status: 'uaendret' };
-    return { status: 'ny', tekst: s.tekst, ...(s.etag ? { etag: s.etag } : {}), endeligAdresse: adresse };
+    if (s.etag && o.etag === s.etag) return { status: 'uaendret', ...(s.adresser ? { adresser: s.adresser } : {}) };
+    return { status: 'ny', tekst: s.tekst, ...(s.etag ? { etag: s.etag } : {}), ...(s.adresser ? { adresser: s.adresser } : {}), endeligAdresse: adresse };
   };
 }
