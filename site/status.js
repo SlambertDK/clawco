@@ -183,7 +183,7 @@
   const tik = () => { if (document.visibilityState === 'hidden') vis(); else hent(); };
 
   function start() {
-    for (const b of document.querySelectorAll('[data-lang-toggle]')) b.addEventListener('click', vis);
+    for (const b of document.querySelectorAll('[data-set-lang]')) b.addEventListener('click', vis);
     document.addEventListener('visibilitychange', () => { if (document.visibilityState !== 'hidden') hent(); });
     setInterval(tik, POLL_MS);
     hent();

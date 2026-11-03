@@ -41,10 +41,14 @@ pre code { background: none; border: 0; padding: 0; font-size: 14px; }
 .brand:hover { text-decoration: none; color: var(--ink); }
 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ordnet); display: inline-block; }
 .top nav { display: flex; gap: 2px; }
-.top nav a, .lang { min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 8px; color: var(--ink-2); font: inherit; font-size: 15px; font-weight: 500; }
+.top nav a, .langs > * { min-height: 44px; display: inline-flex; align-items: center; padding: 0 10px; border-radius: 8px; color: var(--ink-2); font: inherit; font-size: 15px; font-weight: 500; }
 .top nav a:hover { background: var(--raised); color: var(--ink); text-decoration: none; }
-.lang { background: transparent; border: 1px solid var(--line); cursor: pointer; }
-.lang:hover { background: var(--raised); color: var(--ink); }
+/* The language choice (KC-0261) sits in the footer: two items, each in its own language; the current one is filled. */
+.langs { display: flex; gap: 8px; margin: 0; }
+.langs[hidden] { display: none; }
+.langs > * { background: transparent; border: 1px solid var(--line); cursor: pointer; }
+.langs > :hover { background: var(--raised); color: var(--ink); text-decoration: none; }
+.langs [aria-pressed="true"], .langs [aria-current] { background: var(--raised); color: var(--ink); border-color: var(--ink-2); cursor: default; }
 .foot { border-top: 1px solid var(--line); background: var(--nav); padding: 28px 0 40px; }
 .foot .wrap { display: flex; flex-direction: column; gap: 14px; }
 .foot nav { display: flex; gap: 6px 18px; flex-wrap: wrap; }
@@ -79,9 +83,10 @@ pre code { background: none; border: 0; padding: 0; font-size: 14px; }
 .card p { color: var(--ink-2); font-size: 16px; }
 .limit { border-top: 3px solid var(--graense); }
 .shot { display: flex; flex-direction: column; gap: 10px; align-items: center; }
-.shot img { display: block; width: 100%; height: auto; border: 1px solid var(--line); background: var(--surface); }
-.phone img { max-width: 340px; border-radius: 26px; }
-.card-shot img { max-width: 420px; border-radius: 14px; }
+/* The images are single cards that already carry their own border and radius (KC-0261): no second frame here. */
+.shot img { display: block; width: 100%; height: auto; }
+.phone img { max-width: 440px; }
+.card-shot img { max-width: 420px; }
 .shot figcaption { text-align: center; max-width: 42ch; }
 
 /* The journey */
@@ -137,7 +142,6 @@ details p { color: var(--ink-2); padding: 0 0 14px 0; }
 .tabel th, .tabel td { text-align: left; vertical-align: top; padding: 8px 10px; border: 1px solid var(--line); }
 .tabel th { background: var(--surface); }
 .tidligere ul { list-style: none; padding-left: 0 !important; }
-a.lang:hover { text-decoration: none; }
 
 /* Pricing page (KC-0199): the amounts are written at build time; without a script every currency and interval shows. */
 [hidden] { display: none !important; }

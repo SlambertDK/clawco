@@ -23,7 +23,7 @@ ctx.globalThis = ctx;
 vm.runInNewContext(readFileSync(path.join(SITE, 'strings.js'), 'utf8'), ctx);
 const T = ctx.CLAWCO_TEXT!;
 const liste = JSON.parse(readFileSync(path.join(SITE, 'billeder/liste.json'), 'utf8')) as {
-  images: { file: string; lang: 'en' | 'da'; moment: string; route: string; crop?: unknown }[];
+  images: { file: string; lang: 'en' | 'da'; moment: string; route: string; scale?: number; crop?: { element?: { selector: string }; from?: unknown; to?: unknown } }[];
   viewport: { width: number; height: number; scale: number };
   og: { template: string; file: string; width: number; height: number };
 };
@@ -50,6 +50,24 @@ test('every front-page image has an English and a Danish file, each in the list 
     assert.ok(i.route.startsWith('/rum/'), `${i.file}: route ${i.route}`);
   }
   assert.equal(liste.images.length, NOEGLER.length * 2, 'no image in the list that the page does not use');
+});
+
+test('KC-0261: every image is exactly one card: an element crop, never a span from a section header or a room heading down to a card', () => {
+  for (const i of liste.images) {
+    assert.ok(i.crop?.element, `${i.file}: a single element`);
+    assert.equal(i.crop.from, undefined, `${i.file}: no from/to span (it would carry a header or heading)`);
+    assert.equal(i.crop.to, undefined, `${i.file}`);
+    assert.match(i.crop.element.selector, /^(#room article\.kort-stor|#room article\.trin-kort|article\[data-(id|foresp|sammenfald)="[^"]+"\])$/, `${i.file}: the selector names a card (${i.crop.element.selector})`);
+  }
+  assert.equal(liste.images.find((i) => i.file === 'hero-nu.webp')!.crop!.element!.selector, '#room article.kort-stor', 'the hero is the one big card of the Now screen, without its "Right now" band header');
+  assert.equal(liste.images.find((i) => i.file === 'start-kold.da.webp')!.crop!.element!.selector, '#room article.trin-kort', 'the Start image is the first step card, without the room heading');
+});
+
+test('KC-0261: the page puts no frame of its own around an image: the card already has its border (a second one read as a double frame)', () => {
+  const css = readFileSync(path.join(SITE, 'site.css'), 'utf8');
+  for (const m of css.matchAll(/(^|\n)([^{}\n]*\.(?:shot|phone|card-shot)[^{}\n]*\bimg[^{}\n]*)\{([^}]*)\}/g)) {
+    assert.ok(!/border\s*:|border-radius|background\s*:/.test(m[3]!), `${m[2]!.trim()} must not add a border, radius or background: ${m[3]!.trim()}`);
+  }
 });
 
 test('width and height in the table are the pixel size of the files (so regenerating them cannot leave the page reserving the wrong space)', () => {

@@ -83,7 +83,7 @@ test('every page of the site links the help index from its footer (like the lega
 test('no form, no input, no script but the site\'s own, no third-party reference, no cookie on any help page', () => {
   for (const p of HJAELPESIDER) {
     const d = dok(p);
-    assert.equal(d.querySelectorAll('form,input,textarea,select,iframe,object,embed,button:not([data-lang-toggle])').length, 0, `${p}: form or control`);
+    assert.equal(d.querySelectorAll('form,input,textarea,select,iframe,object,embed,button:not([data-set-lang])').length, 0, `${p}: form or control`);
     for (const s of Array.from(d.querySelectorAll('script'))) assert.match(s.getAttribute('src') ?? '', /^\/(strings|site)\.js$/, `${p}: script`);
     for (const el of Array.from(d.querySelectorAll('[src],[href]'))) {
       const v = el.getAttribute('src') ?? el.getAttribute('href')!;

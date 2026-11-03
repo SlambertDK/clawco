@@ -215,7 +215,7 @@ const T = {
     udkast: 'UDKAST — ikke endeligt', udkastTekst: 'Teksten er et udkast, er endnu ikke udgivet og er ikke juridisk rådgivning.',
     laest: 'Udkast — læst af ejeren, ikke endeligt', laestTekst: 'Ejeren har læst teksten, men den er endnu ikke udgivet og er ikke juridisk rådgivning.',
     version: 'Version', status: { udkast: 'Udkast', laest: 'Læst af ejeren', udgivet: 'Udgivet' }, tidligere: 'Tidligere versioner', ingen: 'Ingen tidligere versioner endnu.',
-    erstattet: (v: string) => `Denne version er erstattet af version ${v}.`, gaelder: 'Se den gældende version', andetSprog: 'English', andetSprogLabel: 'Switch language to English',
+    erstattet: (v: string) => `Denne version er erstattet af version ${v}.`, gaelder: 'Se den gældende version', sprogGruppe: 'Sprog',
     indexH1: 'Juridiske dokumenter', indexIntro: 'Vilkår, privatliv, databehandleraftale, cookies, underdatabehandlere og sletning og eksport for Clawco Sky. Hver tekst har et versionsnummer og en dato.',
     indexDesc: 'De juridiske tekster for Clawco Sky, hver med versionsnummer, dato og status: vilkår, privatliv, databehandleraftale, cookies, underdatabehandlere, sletning og eksport.',
     beskrivelse: { udkast: 'Udkast, endnu ikke udgivet.', laest: 'Udkast, læst af ejeren, endnu ikke udgivet.', udgivet: 'Gældende tekst for Clawco Sky.' },
@@ -225,7 +225,7 @@ const T = {
     udkast: 'DRAFT — not final', udkastTekst: 'This text is a draft, has not been published yet and is not legal advice.',
     laest: 'Draft — read by the owner, not final', laestTekst: 'The owner has read this text, but it has not been published yet and is not legal advice.',
     version: 'Version', status: { udkast: 'Draft', laest: 'Read by the owner', udgivet: 'Published' }, tidligere: 'Earlier versions', ingen: 'No earlier versions yet.',
-    erstattet: (v: string) => `This version has been replaced by version ${v}.`, gaelder: 'See the current version', andetSprog: 'Dansk', andetSprogLabel: 'Skift sprog til dansk',
+    erstattet: (v: string) => `This version has been replaced by version ${v}.`, gaelder: 'See the current version', sprogGruppe: 'Language',
     indexH1: 'Legal documents', indexIntro: 'Terms, privacy, data processing agreement, cookies, subprocessors, and deletion and export for Clawco Sky. Every text has a version number and a date.',
     indexDesc: 'The legal texts for Clawco Sky, each with version number, date and status: terms, privacy, data processing agreement, cookies, subprocessors, deletion and export.',
     beskrivelse: { udkast: 'Draft, not yet published.', laest: 'Draft, read by the owner, not yet published.', udgivet: 'The current text for Clawco Sky.' },
@@ -257,6 +257,11 @@ function sideHtml(c: Record<Sprog, Chrome>, s: Side): string {
   const q = t.q;
   const andet: Sprog = s.sprog === 'da' ? 'en' : 'da';
   const kanon = `${HOST}${s.sti}`;
+  // KC-0261: the language choice in the footer: each language in its own words; the current one is marked, the other is the same page in that language.
+  const valg = (l: Sprog): string => {
+    const navn = l === 'en' ? 'English' : 'Dansk';
+    return l === s.sprog ? `<span lang="${l}" aria-current="true">${navn}</span>` : `<a lang="${l}" hreflang="${l}" href="${esc(s.alt)}">${navn}</a>`;
+  };
   return `<!doctype html>
 <html lang="${s.sprog}">
 <head>
@@ -282,7 +287,6 @@ ${s.noindex ? '<meta name="robots" content="noindex">\n' : ''}${s.kilde ? `<meta
 <a href="/docs/${q}">${esc(ch.docs)}</a>
 <a class="hide-sm" href="/docs/security${q}">${esc(ch.security)}</a>
 </nav>
-<a class="lang" href="${esc(s.alt)}" hreflang="${andet}" lang="${andet}" aria-label="${t.andetSprogLabel}">${t.andetSprog}</a>
 </div>
 </header>
 <main id="main">
@@ -303,6 +307,10 @@ ${s.krop}
 <a href="${t.legalHref}">${t.legalNav}</a>
 </nav>
 <p class="muted">${esc(ch.promise)}</p>
+<p class="langs" role="group" aria-label="${t.sprogGruppe}">
+${valg('en')}
+${valg('da')}
+</p>
 </div>
 </footer>
 </body>

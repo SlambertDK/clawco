@@ -129,8 +129,19 @@ try {
   browser = await chromium.launch();
   const ctx = await browser.newContext({ viewport: { width: BREDDE, height: HOEJDE }, deviceScaleFactor: SKALA, colorScheme: 'dark' });
   await ctx.addCookies([{ name: 'kc_test', value: '1', url: BASE }]);
-  for (const billede of liste.images) if (!kun || kun === billede.file) await tag(ctx, billede);
-  await ctx.close();
+  // One context per device scale (an image may ask for its own, KC-0261); they share the test-world cookie and the request filter.
+  const kontekster = new Map([[SKALA, ctx]]);
+  for (const billede of liste.images) {
+    if (kun && kun !== billede.file) continue;
+    const skala = billede.scale ?? SKALA;
+    if (!kontekster.has(skala)) {
+      const k = await browser.newContext({ viewport: { width: BREDDE, height: HOEJDE }, deviceScaleFactor: skala, colorScheme: 'dark' });
+      await k.addCookies([{ name: 'kc_test', value: '1', url: BASE }]);
+      kontekster.set(skala, k);
+    }
+    await tag(kontekster.get(skala), billede);
+  }
+  for (const k of kontekster.values()) await k.close();
   await lavOg();
 } catch (e) {
   fejl(e instanceof Error ? e.message : String(e));

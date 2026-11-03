@@ -111,8 +111,9 @@ test('golden: changing one amount in the config changes that amount and its savi
 test('without JavaScript the page is complete: every amount is in the static HTML and nothing is hidden', () => {
   const html = side(config());
   const d = dok(html);
-  assert.equal(d.querySelectorAll('[hidden]').length, 1, 'only the toggle group is hidden until a script shows it');
+  assert.equal(d.querySelectorAll('[hidden]').length, 2, 'only the toggle group and the footer language buttons (which need the script) are hidden until it shows them');
   assert.ok(d.querySelector('[data-toggles][hidden]'));
+  assert.ok(d.querySelector('footer .langs[hidden]'));
   const alle = Array.from(d.querySelectorAll('.amt')).map((e) => e.getAttribute('data-minor'));
   for (const v of [7900, 79000, 1060, 10600, 12900, 129000, 1730, 17300, 4900, 660]) assert.ok(alle.includes(String(v)), `amount ${v} is in the HTML`);
   assert.equal(d.querySelectorAll('script:not([src])').length, 0);
@@ -352,11 +353,17 @@ test('site.js: the currency and interval toggles show the matching amounts and a
   assert.deepEqual(synlige(tredje.document, '.price').map((e) => e.getAttribute('data-cur')).filter((v, i, a) => a.indexOf(v) === i), ['eur'], 'the address wins over the language guess');
 });
 
+test('KC-0261: the price page has the language choice in the footer and no button in the header', () => {
+  const d = parseHTML(HTML).document;
+  assert.equal(d.querySelectorAll('[data-lang-toggle], header .lang').length, 0);
+  assert.equal(d.querySelectorAll('footer .langs [data-set-lang]').length, 2);
+});
+
 test('site.js: the language toggle re-formats the amounts (Danish separators) and keeps the choice of currency', async () => {
   const s = koer(HTML, '');
   const eur = () => flad(synlige(s.document, '[data-plan="sky-solo"] .intv:not([hidden]) .price:not([hidden]) .amt')[0]!.textContent ?? '');
   assert.equal(eur(), formatBeloeb(1060, 'eur', 'en'));
-  await s.click('[data-lang-toggle]');
+  await s.click('[data-set-lang="da"]');
   assert.equal(s.document.documentElement.getAttribute('lang'), 'da');
   assert.equal(eur(), formatBeloeb(1060, 'eur', 'da'));
   assert.equal(eur(), '€10,60');
@@ -366,14 +373,14 @@ test('site.js: the language toggle re-formats the amounts (Danish separators) an
   const husstand = flad(synlige(s.document, '[data-plan="sky-husstand"] .intv:not([hidden]) .price:not([hidden]) .amt')[0]!.textContent ?? '');
   assert.equal(husstand, formatBeloeb(129000, 'dkk', 'da'));
   assert.equal(husstand, '1.290 kr');
-  await s.click('[data-lang-toggle]');
+  await s.click('[data-set-lang="en"]');
   assert.equal(flad(synlige(s.document, '[data-plan="sky-husstand"] .intv:not([hidden]) .price:not([hidden]) .amt')[0]!.textContent ?? ''), '1,290 kr');
 });
 
 test('site.js: the client formatter agrees with formatBeloeb for every amount of the config, in both languages', async () => {
   const s = koer(HTML, '');
   for (const l of ['en', 'da'] as const) {
-    if (s.document.documentElement.getAttribute('lang') !== l) await s.click('[data-lang-toggle]');
+    if (s.document.documentElement.getAttribute('lang') !== l) await s.click(`[data-set-lang="${l}"]`);
     for (const el of Array.from(s.document.querySelectorAll('.amt'))) {
       const cur = el.closest('[data-cur]')!.getAttribute('data-cur') as 'dkk' | 'eur';
       assert.equal(flad(el.textContent ?? ''), formatBeloeb(Number(el.getAttribute('data-minor')), cur, l));
@@ -389,7 +396,7 @@ test('site.js: a blocked localStorage does not break the toggles', async () => {
 
 test('the draft banner is shown in Danish after the language toggle', async () => {
   const s = koer(side(config((r) => { r.status = 'udkast'; })), '');
-  await s.click('[data-lang-toggle]');
+  await s.click('[data-set-lang="da"]');
   assert.match(flad(s.document.querySelector('[data-i="pr.draft"]')!.textContent ?? ''), /^UDKAST: priserne er ikke afgjort/);
 });
 

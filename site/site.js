@@ -1,4 +1,4 @@
-// clawco.work (KC-0164): the language toggle and the copy button, and on the pricing page (KC-0199) the currency and
+// clawco.work (KC-0164): the language (the browser's, with a choice in the footer, KC-0261) and the copy button, and on the pricing page (KC-0199) the currency and
 // billing-interval toggles. Nothing else. No cookies, no requests, no analytics. What is stored is the language,
 // currency and interval choice, in localStorage, and every access is wrapped because browsers may block it.
 (() => {
@@ -14,7 +14,15 @@
     set(v, k = KEY) { try { localStorage.setItem(k, v); } catch { /* blocked: the choice lasts for this page view */ } },
   };
   const valid = (l) => (l === 'en' || l === 'da' ? l : null);
-  let lang = valid(params.get('lang')) || valid(store.get()) || 'en';
+  // The browser's PRIMARY language, lower-case ('' when there is no navigator, as for a crawler, or it names none).
+  const browserLang = () => {
+    if (typeof navigator === 'undefined' || !navigator) return '';
+    const first = navigator.languages && navigator.languages.length ? navigator.languages[0] : navigator.language;
+    return String(first || '').toLowerCase();
+  };
+  // KC-0261: ?lang (a shared link), else the choice the visitor made in the footer, else Danish for a browser whose primary
+  // language is Danish, else English (also for a crawler: the canonical page stays English, ?lang=da is the Danish alternate).
+  let lang = valid(params.get('lang')) || valid(store.get()) || (/^da(-|_|$)/.test(browserLang()) ? 'da' : 'en');
   const tagline = params.get('tagline') === '2' ? 2 : TAGLINE_DEFAULT;
 
   const text = (key) => {
@@ -32,7 +40,6 @@
     if (minor % 100) n += (l === 'da' ? ',' : '.') + String(minor % 100).padStart(2, '0');
     return valuta === 'eur' ? '\u20AC' + n : n + ' kr';
   };
-  const browserLang = () => String((typeof navigator !== 'undefined' && navigator.language) || '').toLowerCase();
   const chosen = (name, key, list) => {
     const fromAddress = params.get(name);
     if (list.includes(fromAddress)) return fromAddress;
@@ -54,6 +61,7 @@
 
   function apply() {
     document.documentElement.setAttribute('lang', lang);
+    for (const b of document.querySelectorAll('[data-set-lang]')) b.setAttribute('aria-pressed', String(b.getAttribute('data-set-lang') === lang));
     for (const el of document.querySelectorAll('[data-i]')) el.textContent = text(el.getAttribute('data-i'));
     for (const el of document.querySelectorAll('.amt[data-minor]')) el.textContent = money(Number(el.getAttribute('data-minor')), el.getAttribute('data-valuta'), lang);
     for (const el of document.querySelectorAll('[data-i-attr]')) {
@@ -81,9 +89,11 @@
     try { history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + (location.hash || '')); } catch { /* not essential */ }
   }
 
-  for (const b of document.querySelectorAll('[data-lang-toggle]')) {
+  // The footer choice: two buttons, each written in its own language. Without this script they stay hidden.
+  for (const el of document.querySelectorAll('.langs')) el.removeAttribute('hidden');
+  for (const b of document.querySelectorAll('[data-set-lang]')) {
     b.addEventListener('click', () => {
-      lang = lang === 'da' ? 'en' : 'da';
+      lang = valid(b.getAttribute('data-set-lang')) || lang;
       store.set(lang);
       apply();
       addressBar();

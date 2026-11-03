@@ -364,7 +364,7 @@ test('DOM: the language toggle re-renders the fetched state (labels, uptime, sum
   const s = koer({ fetch: ok(feed({ opdateret: new Date(nu - 1_000).toISOString(), status: { mail: 'nede' }, samlet: 'nedsat' })), nu });
   await s.vent();
   assert.equal(tekst(s.document, 'li[data-k="mail"] .st-status'), 'Down');
-  await s.klik('[data-lang-toggle]');
+  await s.klik('[data-set-lang="da"]');
   assert.equal(s.document.documentElement.getAttribute('lang'), 'da');
   assert.equal(tekst(s.document, 'li[data-k="mail"] .st-status'), 'Nede');
   assert.equal(tekst(s.document, 'p.st-banner'), 'Noget er nedsat.');

@@ -159,6 +159,14 @@ test('byggJuridisk: a page per document and language, with title, one h1, lang, 
       assert.ok(desc.length >= 60 && desc.length <= 200, `${rel}: description length ${desc.length}`);
       assert.ok((d.querySelector('link[rel="canonical"]')?.getAttribute('href') ?? '').startsWith('https://clawco.work/'), rel);
       assert.equal(d.querySelectorAll('script').length, 0, `${rel}: no script (the page is static, in one language)`);
+      // KC-0261: no language button in the header; the footer holds the choice, as links to the same page in the other language.
+      assert.equal(d.querySelectorAll('header .lang').length, 0, `${rel}: no language link in the header`);
+      const val = Array.from(d.querySelectorAll('footer .langs > *'));
+      assert.deepEqual(val.map((e) => [e.getAttribute('lang'), e.textContent, e.tagName]), sprog === 'da' ? [['en', 'English', 'A'], ['da', 'Dansk', 'SPAN']] : [['en', 'English', 'SPAN'], ['da', 'Dansk', 'A']], `${rel}: both languages, each in its own, the current one is not a link`);
+      const nuvaerende = val.find((e) => e.tagName === 'SPAN')!;
+      assert.equal(nuvaerende.getAttribute('aria-current'), 'true', `${rel}: the current language is marked`);
+      const anden = val.find((e) => e.tagName === 'A')!;
+      assert.equal(anden.getAttribute('href'), d.querySelector(`link[rel="alternate"][hreflang="${sprog === 'da' ? 'en' : 'da'}"]`)!.getAttribute('href')!.replace('https://clawco.work', ''), `${rel}: the other language's page`);
     }
   } finally { rmSync(ud, { recursive: true, force: true }); }
 });

@@ -9,9 +9,13 @@ content-security policy that forbids everything else, so a stray third-party ref
 - `index.html`, `install.html`, `docs/*.html`: the pages. English text is written in the HTML; every visible
   string also lives in `strings.js` (English and Danish, keyed by id). `test/site.test.ts` fails when a key is
   missing in a language, a page uses an unknown key, or the English HTML differs from the table.
-- `site.js`: the language toggle (`?lang=da`, remembered in `localStorage` only) and the copy button.
+- `site.js`: the language and the copy button. The language is `?lang=da|en`, else the choice remembered in `localStorage` (only that),
+  else Danish when the browser's primary language (`navigator.languages[0]`) is Danish, else English (also for a crawler). There is no
+  button in the header (KC-0261): every page has a two-item choice in the footer, `English` and `Dansk`, each in its own language
+  (hidden until the script runs). On the legal pages, which are static and have no script, the same two items are links to the page in the other language.
   `TAGLINE_DEFAULT` picks the hero headline (1 or 2); `?tagline=2` shows the other one on a preview.
-- `billeder/`: real screenshots from the app's test world (fictional data, dark, phone width, WebP), under 1.5 MB in total.
+- `billeder/`: real screenshots from the app's test world (fictional data, dark, phone width, WebP), under 1.5 MB in total. Every front-page
+  image is exactly one card (no section header, no room heading, no page chrome) and the page adds no frame of its own: the card's border is the frame.
 - `install.sh` is not kept here: the build copies `deploy/install.sh` byte-identically.
 - `egen-sky/hetzner.sh` is not kept here either (KC-0171): the build copies `deploy/egen-sky/hetzner.sh` byte-identically; the install page's "Run it in your own cloud" section links it.
 - Source links point at the public mirror https://github.com/SlambertDK/clawco (KC-0228), the repository install.sh clones.
@@ -116,7 +120,7 @@ English screens and the Danish page Danish ones (`site.js` swaps `src`, `width` 
 node scripts/site-billeder.mjs            # all of them; --only hero-nu.da.webp for one; --port 8791 --tmp <dir> to choose
 ```
 
-What is captured is `site/billeder/liste.json` (language, test-world moment, room, crop). The script starts its own Clawco on
+What is captured is `site/billeder/liste.json` (language, test-world moment, room, one `element` crop, optionally its own device `scale`; the hero uses 3). The script starts its own Clawco on
 127.0.0.1 with fake sources and an empty temp data folder, turns the test world on, jumps to each moment, captures at 375 px
 wide, dark, device scale 2 (test band, chat button and nav hidden), converts with `cwebp -q 84`, renders `og.png` from
 `scripts/site-billeder/og.html`, and stops the server; it refuses any request to another address. English files keep their names,

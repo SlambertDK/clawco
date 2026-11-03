@@ -257,17 +257,22 @@ test('the screenshots: every image exists, the whole set stays under 1.5 MB', ()
 // --- site.js, run against a linkedom page with stubs for what a browser provides -------------------------------
 
 type Los = { document: Document; click: (sel: string) => Promise<void>; kopieret: string[]; lager: Map<string, string> };
-function koer(side: string, search: string, opt: { lagerKaster?: boolean; clipboard?: boolean } = {}): Los {
+function koer(side: string, search: string, opt: { lagerKaster?: boolean; clipboard?: boolean; sprog?: string[]; udenNavigator?: boolean; lager?: Record<string, string> } = {}): Los {
   const { document, window } = parseHTML(readFileSync(path.join(SITE, side), 'utf8'));
-  const lager = new Map<string, string>();
+  const lager = new Map<string, string>(Object.entries(opt.lager ?? {}));
   const kopieret: string[] = [];
   const localStorage = opt.lagerKaster
     ? { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } }
     : { getItem: (k: string) => lager.get(k) ?? null, setItem: (k: string, v: string) => void lager.set(k, v) };
-  const navigator = opt.clipboard === false ? {} : { clipboard: { writeText: async (t: string) => { kopieret.push(t); } } };
+  // KC-0261: the browser's languages, in order of preference (navigator.languages), the way a browser reports them.
+  const navigator = opt.udenNavigator ? undefined : {
+    ...(opt.clipboard === false ? {} : { clipboard: { writeText: async (t: string) => { kopieret.push(t); } } }),
+    ...(opt.sprog ? { languages: opt.sprog, language: opt.sprog[0] } : {}),
+  };
   (document as unknown as { execCommand: (c: string) => boolean }).execCommand = (c) => { if (c === 'copy') kopieret.push('fallback'); return true; };
   const ctx: Record<string, unknown> = {
-    document, window, localStorage, navigator, setTimeout, clearTimeout,
+    document, window, localStorage, setTimeout, clearTimeout,
+    ...(navigator ? { navigator } : {}),
     location: { search, pathname: '/' + side.replace(/index\.html$/, '').replace(/\.html$/, ''), hash: '' },
     history: { replaceState() {} },
     URLSearchParams,
@@ -315,23 +320,73 @@ test('KC-0244: the hero has a second button, "Join the beta", to the sign-up in 
   assert.equal(koer('index.html', '?lang=da').document.querySelector('[data-i="home.hero.cta.beta"]')!.getAttribute('href'), t.da['home.hero.cta.beta.href'], 'the sign-up opens in Danish on the Danish page');
 });
 
-test('site.js: the toggle switches language and remembers it in localStorage only', async () => {
-  const s = koer('index.html', '');
-  await s.click('[data-lang-toggle]');
-  assert.equal(s.document.documentElement.getAttribute('lang'), 'da');
+const sprogNu = (s: Los) => s.document.documentElement.getAttribute('lang');
+
+test('KC-0261: with no stored choice the page follows the browser\'s primary language: Danish for da, otherwise English', () => {
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['da-DK', 'en'] })), 'da');
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['da'] })), 'da');
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['en-US', 'da'] })), 'en', 'only the primary language counts, not a later Danish');
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['de-DE', 'da'] })), 'en');
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['sv-SE'] })), 'en');
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['dag'] })), 'en', 'a code that merely starts with the letters da is not Danish');
+  assert.equal(sprogNu(koer('install.html', '', { sprog: ['da-DK'] })), 'da', 'every page, not only the front page');
+  const da = koer('index.html', '', { sprog: ['da-DK'] });
+  assert.equal(flad(da.document.querySelector('h1')!.textContent ?? ''), laesTabel().da['home.hero.h1']);
+  assert.equal(da.lager.size, 0, 'following the browser stores nothing');
+});
+
+test('KC-0261: a crawler or a browser with no navigator gets English; so does one that reports no language', () => {
+  assert.equal(sprogNu(koer('index.html', '', { udenNavigator: true })), 'en');
+  assert.equal(sprogNu(koer('index.html', '', { sprog: [] })), 'en');
+  assert.equal(sprogNu(koer('index.html', '')), 'en');
+});
+
+test('KC-0261: a remembered choice beats the browser, and ?lang beats a remembered choice', () => {
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['da-DK'], lager: { 'clawco-lang': 'en' } })), 'en');
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['en-US'], lager: { 'clawco-lang': 'da' } })), 'da');
+  assert.equal(sprogNu(koer('index.html', '?lang=da', { sprog: ['en-US'], lager: { 'clawco-lang': 'en' } })), 'da');
+  assert.equal(sprogNu(koer('index.html', '?lang=en', { sprog: ['da-DK'], lager: { 'clawco-lang': 'da' } })), 'en');
+  assert.equal(sprogNu(koer('index.html', '', { sprog: ['da-DK'], lager: { 'clawco-lang': 'xx' } })), 'da', 'a garbled stored value is ignored');
+});
+
+test('KC-0261: no page has the language button in the header; every page has the two-item choice in the footer', () => {
+  for (const side of SIDER) {
+    const d = dok(side);
+    assert.equal(d.querySelectorAll('header .lang, [data-lang-toggle]').length, 0, `${side}: no toggle in the header`);
+    const val = d.querySelector('footer .langs');
+    assert.ok(val, `${side}: language choice in the footer`);
+    const items = Array.from(val.querySelectorAll('[data-set-lang]'));
+    assert.deepEqual(items.map((e) => [e.getAttribute('data-set-lang'), e.getAttribute('lang'), flad(e.textContent ?? '')]), [['en', 'en', 'English'], ['da', 'da', 'Dansk']], `${side}: each item is written in its own language`);
+    assert.deepEqual(items.map((e) => e.getAttribute('aria-pressed')), ['true', 'false'], `${side}: English is the page as written`);
+  }
+  const priser = readFileSync(path.join(SITE, 'priser.template.html'), 'utf8');
+  assert.ok(!priser.includes('data-lang-toggle') && priser.includes('data-set-lang="da"'), 'the price template too');
+});
+
+test('KC-0261: the footer choice shows the current language, switches it, remembers it in localStorage only and keeps the address bar in step', async () => {
+  const s = koer('index.html', '', { sprog: ['en-GB'] });
+  const knap = (l: string) => s.document.querySelector(`footer [data-set-lang="${l}"]`)!;
+  assert.equal(s.document.querySelector('footer .langs')!.hasAttribute('hidden'), false, 'shown when the script runs');
+  assert.equal(knap('en').getAttribute('aria-pressed'), 'true');
+  await s.click('footer [data-set-lang="da"]');
+  assert.equal(sprogNu(s), 'da');
   assert.equal(s.lager.get('clawco-lang'), 'da');
-  await s.click('[data-lang-toggle]');
-  assert.equal(s.document.documentElement.getAttribute('lang'), 'en');
+  assert.equal(knap('da').getAttribute('aria-pressed'), 'true');
+  assert.equal(knap('en').getAttribute('aria-pressed'), 'false');
+  assert.equal(flad(knap('en').textContent ?? ''), 'English', 'the labels are not translated');
+  assert.equal(flad(knap('da').textContent ?? ''), 'Dansk');
+  await s.click('footer [data-set-lang="en"]');
+  assert.equal(sprogNu(s), 'en');
   assert.equal(s.lager.get('clawco-lang'), 'en');
-  const igen = koer('install.html', '');
-  assert.equal(igen.document.documentElement.getAttribute('lang'), 'en', 'a fresh page without memory is English');
+  const igen = koer('install.html', '', { sprog: ['da-DK'], lager: Object.fromEntries(s.lager) });
+  assert.equal(sprogNu(igen), 'en', 'the remembered English beats the Danish browser on the next page');
 });
 
 test('site.js: a blocked localStorage does not break the page', async () => {
   const s = koer('index.html', '', { lagerKaster: true });
   assert.equal(s.document.documentElement.getAttribute('lang'), 'en');
-  await s.click('[data-lang-toggle]');
-  assert.equal(s.document.documentElement.getAttribute('lang'), 'da', 'the toggle still works for this page view');
+  await s.click('footer [data-set-lang="da"]');
+  assert.equal(s.document.documentElement.getAttribute('lang'), 'da', 'the choice still works for this page view');
 });
 
 test('KC-0204: every page footer links to the legal index; in Danish the link goes to the Danish index (data-href-da)', () => {
