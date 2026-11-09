@@ -32,6 +32,8 @@ export type KuratorInput = {
   regler?: ReglerLaest;
   /** KC-0214: the mail came from the mail connector (envelopes only, no agent tools); absent = Hermes reads it with himalaya. */
   mailKilde?: 'forbindelse';
+  /** KC-0259: whether the agent has tools (Hermes); false = the built-in agent: no web search, no card with a button that runs a tool. Absent = true. */
+  vaerktoejer?: boolean;
   /** KC-0138: new messages from the conversations the user chose; absent or empty = none. */
   beskeder?: KuratorBesked[];
   /**
@@ -54,12 +56,16 @@ function regler(i: KuratorInput): string {
     laes: i.mailKilde === 'forbindelse' ? T.laesForbindelse : T.laesHimalaya,
     projekter: v('30-Projekter', '_oversigt'), cloudflare: v('50-System', 'Cloudflare'), oekonomi: v('10-Privat', 'Økonomi'),
     personer: i.stier.personer ? T.personerLinje(i.stier.personer) : '',
-    net: T.net(i.dyb, v('50-System')),
+    net: i.vaerktoejer === false ? T.ingenNet : T.net(i.dyb, v('50-System')),
+    handling: i.vaerktoejer === false ? T.handlingUdenVaerktoejer : T.handlingMedVaerktoejer,
     udvikling: PROJEKTER.map((p) => `${p.navn} = "${p.id}"`).join(', '),
     maxKort: MAX_KORT,
     beskedLinje: i.beskeder?.length ? `- ${T.beskedRegel}\n` : '',
   });
 }
+
+/** KC-0259: without tools the card schema has no "handling" line (the field names are the same in both languages). */
+const skemaTilAgent = (skema: string, vaerktoejer: boolean): string => (vaerktoejer ? skema : skema.split('\n').filter((l) => !/^\s*"handling":/.test(l)).join('\n'));
 
 /** Sender name only: Kuratoren must never see or echo an address (KC-0023). */
 function navn(fra: string): string {
@@ -99,7 +105,7 @@ export function buildKuratorRun(inp: KuratorInput): RunSpec {
   const beskedSegment = beskeder.length
     ? [{ kilde: 'beskeder', zone: KORSEL, tillid: 'utroet' as const, tekst: T.nyeBeskeder(beskeder.length, JSON.stringify(beskeder, null, 1)) }]
     : [];
-  const opgave = T.opgave(T.rolle, T.henriksOrd, T.typer, T.skema(PROJEKTER.map((p) => p.id).join(' | '), visuelSkema()), regler(i));
+  const opgave = T.opgave(T.rolle, T.henriksOrd, T.typer, skemaTilAgent(T.skema(PROJEKTER.map((p) => p.id).join(' | '), visuelSkema()), i.vaerktoejer !== false), regler(i));
   const tekst = `${tidslinje}\n\n${mailDel}\n\n${nyhedDel}\n\n${kortDel}${lukDel}`;
   return byggPrompt({ rum: 'kurator', zone: KORSEL, opgave, katalog: true, regler: reglerTilPrompt(i.regler), data: [{ kilde: 'mail', zone: KORSEL, tillid: 'utroet', tekst }, ...beskedSegment] });
 }

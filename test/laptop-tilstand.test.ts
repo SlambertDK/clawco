@@ -102,20 +102,25 @@ test('KC_LAPTOP: off unless ja; binds loopback only; refuses a LAN address, Sky,
 });
 
 test('Start in laptop mode asks no household question and shows no household wording; household mode still does', async () => {
-  const baerbar = await lav({ laptop: true }).sut.app.request('/rum/start', {}, LOOPBACK);
+  const l = lav({ laptop: true });
+  await forbiTil(l.dataDir, 'situation'); // KC-0248: step 0 (the pick) is behind us, so step 1 is the open step
+  const baerbar = await l.sut.app.request('/rum/start', {}, LOOPBACK);
   const h = await baerbar.text();
   assert.equal(baerbar.status, 200);
   assert.doesNotMatch(tekstAf(body(h)), /husstand/i, 'no household wording on screen');
   assert.doesNotMatch(h, /<select name="husstand"/);
   assert.match(h, /<input type="hidden" name="husstand" value="alene">/, 'the profile still gets its answer: alone');
-  const husstand = await lav().sut.app.request('/rum/start', {}, LOOPBACK);
+  const hh = lav();
+  await forbiTil(hh.dataDir, 'situation');
+  const husstand = await hh.sut.app.request('/rum/start', {}, LOOPBACK);
   const k = await husstand.text();
   assert.match(k, /<select name="husstand"/);
   assert.match(tekstAf(body(k)), /husstand/i);
 });
 
 test('Start in laptop mode: the profile saves as alone and the step is Klaret without a household sentence', async () => {
-  const { sut } = lav({ laptop: true });
+  const { sut, dataDir } = lav({ laptop: true });
+  await forbiTil(dataDir, 'situation');
   const r = await sut.app.request('/api/rum/start/aktion/velkommen-gem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ navn: 'Alma', sprog: 'da', husstand: 'alene' }) }, LOOPBACK);
   assert.equal(r.status, 202, await r.clone().text());
   await sut.runs.get(((await r.json()) as { runId: string }).runId)!.finished;

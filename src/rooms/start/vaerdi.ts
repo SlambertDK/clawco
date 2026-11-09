@@ -89,7 +89,7 @@ export async function kildeVisning(deps: RoomDeps, s: StartState | null, ctx: Tr
   if (!deps.rejse?.kort) return undefined;
   let kort: KildeKortSyn[];
   try { kort = await deps.rejse.kort(); } catch { return undefined; }
-  return { kort, forhaandsvisninger: await forhaandsvisningerNu(deps), flere: flereKilderKoe(s, ctx).map((k) => k.id), kanForbinde: kan(deps.person.rolle, 'aendre-indstillinger'), ...(deps.laptop?.() ? { laptop: true } : {}) };
+  return { kort, forhaandsvisninger: await forhaandsvisningerNu(deps), flere: flereKilderKoe(s, ctx).map((k) => k.id), kanForbinde: kan(deps.person.rolle, 'aendre-indstillinger'), ...(deps.laptop?.() ? { laptop: true } : {}), ...(s?.situation ? { situation: s.situation.valg } : {}) };
 }
 
 /** Step 4's Spring over: the source leaves the pile (and the screen); when nothing is left and nothing was added, the step is sprunget-over. */

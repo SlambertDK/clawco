@@ -54,7 +54,7 @@ test('a run that finishes after the stop does not turn back into done', async ()
   await medMappe(async (dir) => {
     let slip!: () => void;
     const vent = new Promise<void>((r) => { slip = r; });
-    const runs = createRunRegistry({ mode: 'fake', health: async () => true, status: async () => 'klar', saetModelNoegle: async () => ({ slags: 'kommando', kommando: '' }), run: async () => { await vent; return { runId: 'x', output: 'svar' }; } }, { pause: lavPause(dir) });
+    const runs = createRunRegistry({ mode: 'fake', harVaerktoejer: true, health: async () => true, status: async () => 'klar', saetModelNoegle: async () => ({ slags: 'kommando', kommando: '' }), run: async () => { await vent; return { runId: 'x', output: 'svar' }; } }, { pause: lavPause(dir) });
     const a = startEn(runs);
     await new Promise((r) => setTimeout(r, 5));
     await runs.stopAlle(EJER.id);

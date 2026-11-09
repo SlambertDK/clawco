@@ -20,7 +20,7 @@ import type { Person } from '../src/identitet/husstand.ts';
 import type { RumLager } from '../src/store/types.ts';
 import { lavForslag } from '../src/tillid/forslag.ts';
 import type { StartState } from '../src/rooms/start/schema.ts';
-import { forbiTil, FORBI_KILDER } from './helpers/start-forbi.ts';
+import { forbiTil, FORBI_KILDER, modelVirker } from './helpers/start-forbi.ts';
 
 const NOW = new Date('2026-10-31T10:00:00Z');
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
@@ -45,7 +45,7 @@ const legacy = (id: string, slags: 'kalender' | 'mail'): Kilde => ({
 });
 
 type Sut = ReturnType<typeof createApp> & { dir: string; store: RumLager; hermes: ReturnType<typeof createFakeAgent> };
-async function medApp(o: { person?: Person; kilder?: Kilde[] }, fn: (s: Sut) => Promise<void>): Promise<void> {
+async function medApp(o: { person?: Person; kilder?: Kilde[]; udenSituation?: boolean }, fn: (s: Sut) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-server-start-'));
   try {
     const store = createFileStore(dir);
@@ -55,6 +55,7 @@ async function medApp(o: { person?: Person; kilder?: Kilde[] }, fn: (s: Sut) => 
       mailRunner: async () => ({ code: 1, stdout: '', stderr: 'x' }), mailStateDir: '/nonexistent', identitet: { fast: o.person ?? EJER },
       kilder: o.kilder ?? [],
     });
+    if (!o.udenSituation) await forbiTil(dir, 'situation'); // KC-0248: step 0 (the pick) is behind us, so step 1 is the open step
     await fn({ ...app, dir, store, hermes });
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
@@ -74,17 +75,33 @@ async function brugtNu(store: RumLager): Promise<void> {
   await store.appendLog('hjem', { kilde: 'henrik', tekst: 'Lukkede "Nyhedsbrev": ikke relevant for mig' });
 }
 
-test('first run: GET / lands in Start once; Start is in the nav with step 1 open', async () => {
-  await medApp({}, async (s) => {
+test('first run: GET / lands in Start once; Start is in the nav with step 0 (the pick) open', async () => {
+  await medApp({ udenSituation: true }, async (s) => {
     const r = await s.app.request('/');
     assert.equal(r.status, 302);
     assert.equal(r.headers.get('location'), '/rum/start');
     const h = await side(s, '/rum/start');
     assert.match(h, /<body data-room="start"/);
-    assert.match(h, /data-trin="velkommen" data-trin-status="ikke-startet"/);
+    assert.match(h, /data-trin="situation" data-trin-status="ikke-startet"/);
     assert.ok(iNav(h), 'Start in the nav');
     assert.equal((await s.app.request('/')).headers.get('location'), '/rum/hjem', 'second time: Nu');
     assert.ok(iNav(await side(s, '/rum/hjem')), 'still in the nav while the journey is not Done');
+  });
+});
+
+// KC-0249: through the real route — before a model works the chat answers the journey's own questions itself.
+test('chat before a model works: a journey question is answered from the list through the route; Hermes is not asked; a model working hands the chat back', async () => {
+  await medApp({}, async (s) => {
+    const run = await vent(s, await post(s, '/api/rum/start/chat', { besked: 'Hvorfor Tailscale?' }));
+    assert.equal(run.status, 'done', run.error);
+    assert.match(run.result?.text ?? '', /^Tailscale er et privat net/);
+    assert.equal(s.hermes.calls.length, 0, 'no run to Hermes');
+    const linjer = await s.store.readChat('start', 10);
+    assert.deepEqual(linjer.map((l) => l.fra), ['henrik', 'hermes']);
+    assert.match(linjer[1]!.tekst, /^Tailscale er et privat net/);
+    await modelVirker(s.dir);
+    await vent(s, await post(s, '/api/rum/start/chat', { besked: 'Hvorfor Tailscale?' }));
+    assert.equal(s.hermes.calls.length, 1, 'once a model works the chat is the model\'s');
   });
 });
 
@@ -120,7 +137,8 @@ test('velkommen-gem saves the profile atomically, the step turns Klaret, Hermes 
     assert.equal(linje?.handlingId, 'velkommen-gem');
     assert.ok(linje?.fortryd?.startsWith('lokal:'));
 
-    // The profile reaches every run: the name and the language Hermes answers in.
+    // The profile reaches every run: the name and the language Hermes answers in (once a model works the chat is the model's, KC-0249).
+    await modelVirker(s.dir);
     await vent(s, await post(s, '/api/rum/start/chat', { besked: 'Hvad nu?' }));
     const instr = s.hermes.calls.at(-1)?.instructions ?? '';
     assert.match(instr, /Alma/);

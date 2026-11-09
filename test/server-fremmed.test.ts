@@ -182,3 +182,26 @@ test('the test cookie is Secure when the app is reached over https; the test pan
   const http = await disp.request(new Request('http://localhost:8750/test/taend', { method: 'POST' }), undefined, LOOPBACK);
   assert.doesNotMatch(http.headers.get('set-cookie') ?? '', /; Secure/);
 });
+
+test('KC-0280: the test world answers on the real app\'s own https address; a foreign host, a cross-site write and an unknown login still get nothing', async () => {
+  const ADR = 'https://kontrol.example.ts.net';
+  const { sut, dataDir } = lav('adresse', { adresse: ADR });
+  await skrivHusstand(dataDir, { personer: [{ id: 'henrik', login: 'henrik@example.com', navn: 'Henrik', rolle: 'ejer' }] });
+  const { lavTestverden } = await import('../src/testtilstand/verden.ts');
+  const verden = await lavTestverden({ dataDir: path.join(rod, 'adresse-test'), publicDir, rigtigDataDir: dataDir });
+  const disp = medTesttilstand(sut.app, async () => verden, sut.adgang);
+  const taend = await disp.request(new Request(`${ADR}/test/taend`, { method: 'POST' }), undefined, LOOPBACK);
+  assert.equal(taend.status, 200);
+  const side = await disp.request(new Request(`${ADR}/rum/hjem`, { headers: { cookie: 'kc_test=1' } }), undefined, LOOPBACK);
+  assert.equal(side.status, 200, 'the world is served under the host the real app was reached on (its own fictional address is not the host rule)');
+  assert.match(await side.text(), /window\.KC_TEST=/);
+  const fremmedVaert = await disp.request(new Request('https://evil.example/rum/hjem', { headers: { cookie: 'kc_test=1' } }), undefined, LOOPBACK);
+  assert.equal(fremmedVaert.status, 403, 'a foreign host never reaches the world (the real app judges the host first)');
+  const kryds = await disp.request(new Request(`${ADR}/test/taend`, { method: 'POST', headers: { 'sec-fetch-site': 'cross-site' } }), undefined, LOOPBACK);
+  assert.equal(kryds.status, 403);
+  const nogen = { 'Tailscale-User-Login': 'nogen@example.com', 'Tailscale-User-Name': 'X' };
+  const ukendtTaend = await disp.request(new Request(`${ADR}/test/taend`, { method: 'POST', headers: nogen }), undefined, LOOPBACK);
+  assert.equal(ukendtTaend.status, 403, 'a stranger on the tailnet cannot start the world on the right host either');
+  const ukendtSide = await disp.request(new Request(`${ADR}/rum/hjem`, { headers: { cookie: 'kc_test=1', ...nogen } }), undefined, LOOPBACK);
+  assert.equal(ukendtSide.status, 403, 'nor read it with the cookie');
+});

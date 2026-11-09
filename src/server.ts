@@ -38,7 +38,7 @@ import { koerMoedeTik, startMoedeTik } from './rooms/univers/moedetik.ts';
 import { getRoomModule, ROOM_MODULES } from './rooms/modules.ts';
 import { ActionError, type RoomDeps } from './rooms/module.ts';
 import { hjemEgne, kraeverIder, renderHjem, renderPlaceholder, type CcRaekke, type HjemData } from './rooms/hjem/render.ts';
-import { udloebet, type Kort } from './rooms/hjem/kort.ts';
+import { kortUdenVaerktoej, udloebet, type Kort } from './rooms/hjem/kort.ts';
 import { defaultRunner, type Runner } from './rooms/mail/source.ts';
 import { devMailRunner, devMailStateDir } from './rooms/mail/devSource.ts';
 import { RUM as DAGEN } from './rooms/dagen/room.ts';
@@ -211,6 +211,8 @@ export type AppDeps = {
   stemme?: StemmeClient;
   /** KC-0017: the canonical address (KC_ADRESSE). Short host names redirect here. */
   adresse?: string;
+  /** KC-0280: the host rule (KC-0268) is already judged by a wrapper that saw the request under the real address (the test world's dispatcher): skip it here. Cross-site and origin rules stay. Invariant: only set by the test world, whose every request passed the dispatcher's full judgement first (medTesttilstand requires `adgang`). */
+  vaertJudgetUdefra?: boolean;
   /** KC-0023: the vault's people register (KC_PEOPLE_DIR) Hermes looks people up in. KC-0136: absent = the chosen vault's. */
   personer?: string;
   /** KC-0136: the inbox when neither KC_VAULT_INBOX nor a vault chosen on the notes card says where (npm run dev). */
@@ -711,7 +713,7 @@ export function createApp(deps: AppDeps) {
   // the tailnet (Serve stamps it on every request), so this is the one cross-site guard, on every write, before the
   // identity middleware; the test-world dispatcher asks the same rule (src/testtilstand/kontakt.ts). Every response
   // then says it may not be framed (the human tap on a red button cannot be clickjacked), sniffed or referred.
-  const fremmedValg = { laptop: deps.laptop === true && !deps.identitet, ...(deps.adresse ? { adresse: deps.adresse } : {}) };
+  const fremmedValg = { laptop: deps.laptop === true && !deps.identitet, ...(deps.adresse ? { adresse: deps.adresse } : {}), ...(deps.vaertJudgetUdefra ? { udenVaert: true } : {}) };
   app.use('/*', async (c, next) => {
     const grund = fremmedGrund(c.req.raw, fremmedValg);
     if (grund) {
@@ -1785,7 +1787,7 @@ export function createApp(deps: AppDeps) {
     const gjort = egne.filter((e) => e.handlingId && !e.handlingId.startsWith('regnskab:') && !e.fortrudt).map((e) => e.handlingId as string);
     const kurator = synligKurator(await laesKurator(deps.store), d.person);
     // An expired card goes at once, not at the next run, and a card put away (Senere, KC-0096) until its time.
-    const kort = synligeKort(kurator.kort, now());
+    const kort = kortUdenVaerktoej(synligeKort(kurator.kort, now()), deps.hermes.harVaerktoejer);
     // KC-0043: what Claude Code has from Henrik, with its status.
     const claudeCode = synlige(await laesOpgaver(deps.store), now()).map((o) => ({ id: o.id, status: o.status, projekt: findProjekt(o.projekt)?.navn ?? o.projekt, saetning: o.saetning, oprettet: o.oprettet,
       ...(o.ticket ? { ticket: o.ticket } : {}), ...(o.bevis ? { bevis: o.bevis } : {}), ...(o.pr ? { pr: o.pr } : {}), ...(o.grund ? { grund: o.grund } : {}),
@@ -2085,6 +2087,8 @@ export function createApp(deps: AppDeps) {
   app.post('/api/rum/:id/handlinger/:hid', async (c) => {
     const mod = getRoomModule(c.req.param('id'));
     if (!mod) return c.json({ error: 'Rummet er ikke bygget' }, 404);
+    // KC-0259: a handling is an instruction the agent runs with its tools; without tools it is gone, not refused politely.
+    if (!deps.hermes.harVaerktoejer) return c.json({ error: 'Handlingen findes ikke i rummet' }, 404);
     const hid = c.req.param('hid');
     const ja = await jaFra(c);
     const run = await enGang(`${mod.id}|handling|${hid}`, () => mod.handling(d, hid, { kanal: 'knap', ...ja }));
@@ -2229,6 +2233,7 @@ export function createApp(deps: AppDeps) {
   });
 
   app.post('/api/rum/hjem/kort/:id/handling', async (c) => {
+    if (!deps.hermes.harVaerktoejer) return c.json({ error: 'Handlingen findes ikke i rummet' }, 404); // KC-0259: as for the rooms' handlinger
     // A card's handling is Hermes' free-form instruction: the app's floor from its text (KC-0270 verber.ts), never what the model claims.
     const h = (await laesKurator(deps.store)).kort.find((x) => x.id === c.req.param('id'))?.handling;
     const u = await kortGennem(c, c.req.param('id'), agentGulv(h ?? {}), () => startKortHandling(d, c.req.param('id')), h ? handlingIndhold(h) : undefined);
@@ -2438,6 +2443,13 @@ export function gitSha(rod: string, git: () => string = () => execSync('git rev-
   try { return git().trim() || 'unknown'; } catch { return 'unknown'; }
 }
 
+/** KC-0263: which GitHub OAuth App signs Copilot users in: KC_GITHUB_CLIENT_ID, else Clawco's own; 'off' = none (the choice is hidden). */
+export function githubKlientId(v: string | undefined): string {
+  const x = (v ?? '').trim();
+  if (x === 'off') return '';
+  return x || GITHUB_KLIENT_ID;
+}
+
 /**
  * KC-0118: which AgentClient runs. KC_AGENT (hermes-http | direkte | fake); without it the older KC_HERMES_MODE
  * (http | fake). KC-0180: direkte = the model provider called directly, no Hermes (a Sky container).
@@ -2558,7 +2570,7 @@ export function lavAgentMedLogin(e: Record<string, string | undefined>, o: {
     const copilot = createCopilot({ fejl: MODEL_FEJL, ...(o.copilotKlient ? { lavKlient: o.copilotKlient } : {}) });
     const base = githubBase(e['KC_GITHUB_BASE_URL']);
     const github = createGithubLogin({
-      klientId: (e['KC_GITHUB_CLIENT_ID'] ?? '').trim() || GITHUB_KLIENT_ID,
+      klientId: githubKlientId(e['KC_GITHUB_CLIENT_ID']),
       adresser: githubAdresser(base),
       lager,
       paaNyToken: () => copilot.stop(),

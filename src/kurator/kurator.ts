@@ -9,7 +9,7 @@ import type { KuratorBesked, RoomDeps } from '../rooms/module.ts';
 import type { RunRecord } from '../runs.ts';
 import type { RumLager } from '../store/types.ts';
 import { kortTypeFra, type Kort, type KortType, type KuratorState } from '../rooms/hjem/kort.ts';
-import { KORSEL, kunSynlige, mergeKort, parseKuratorSvar, zoneFelter } from '../rooms/hjem/kort.ts';
+import { KORSEL, kortUdenVaerktoej, kunSynlige, mergeKort, parseKuratorSvar, zoneFelter } from '../rooms/hjem/kort.ts';
 import { synligFor, zoneAf, type DataZone } from '../identitet/zoner.ts';
 import type { Person } from '../identitet/husstand.ts';
 import { extractJson } from '../rooms/dagen/schema.ts';
@@ -209,6 +209,7 @@ function startPrivat(
     stier: { vault: d.vaultRod, ...(o.personer ? { personer: o.personer } : {}) },
     ...(regler ? { regler } : {}),
     ...(v ? { mailKilde: 'forbindelse' as const } : {}),
+    vaerktoejer: d.hermes.harVaerktoejer,
     ...(beskeder.length ? { beskeder } : {}),
   });
 
@@ -221,12 +222,14 @@ function startPrivat(
     onDone: async (output) => {
       let skjulte: Skjult[] = [];
       const raa = parseKuratorSvar(extractJson(output)); // throws SvarFejl: one correction by Hermes (KC-0050), else the run fails; nothing is written
+      // KC-0259: a button the agent proposed anyway is dropped (below); the room log says so, one line per card.
+      const fjernede = d.hermes.harVaerktoejer ? [] : [...raa.nye, ...raa.opdater].filter((k) => k.handling);
       // Inside the chain: Henrik may have dismissed a card or undone a row while Hermes thought, and
       // no button can write between our merge and our write.
       const ny = await endreKurator(d.store, async (nu) => {
         // KC-0138: a card on a message gets the app's sender line; a beskedId this run did not send (nor a stored card of this zone) is dropped.
         const foer = nu.kort.filter((k) => zoneAf(k) === KORSEL);
-        const svar = { ...raa, nye: knytBeskeder(raa.nye, beskeder, foer), opdater: knytBeskeder(raa.opdater, beskeder, foer), intet: medGyldigRegel(raa.intet, regler) };
+        const svar = { ...raa, nye: kortUdenVaerktoej(knytBeskeder(raa.nye, beskeder, foer), d.hermes.harVaerktoejer), opdater: kortUdenVaerktoej(knytBeskeder(raa.opdater, beskeder, foer), d.hermes.harVaerktoejer), intet: medGyldigRegel(raa.intet, regler) };
         // Merge first: only a card that stays on screen gets a ledger row (and so an undo button).
         const merged = await skrivRegninger(d, mergeKort(nu, svar, d.now(), KORSEL), new Set([...svar.nye, ...svar.opdater].map((k) => k.id)));
         const stamp = d.now().toISOString();
@@ -238,6 +241,7 @@ function startPrivat(
         if (o.nyheder !== null && o.nyhederStempel) s.nyhederSet = o.nyhederStempel;
         return s;
       });
+      for (const k of fjernede) await d.store.appendLog(HJEM, { kilde: 'system', tekst: kuratorTekst().logHandlingFjernet(k.titel.slice(0, 80)) });
       // KC-0145: what this run kept off the screen, as the app's own record (the Sunday sample counts these).
       if (d.skjulte && skjulte.length) await d.skjulte.noter(skjulte).catch((err: unknown) => console.error('skjulte:', err instanceof Error ? err.message : err));
       d.live.notify(HJEM);

@@ -31,8 +31,8 @@ function falskGithub(svar: (k: Kald, n: number) => { status?: number; json: unkn
 }
 const KODE = { device_code: ENHED, user_code: 'WDJB-MJHT', verification_uri: 'https://github.com/login/device', expires_in: 900, interval: 5 };
 
-test('the default client id is empty (no OAuth App registered yet) and the scope is read:user', () => {
-  assert.equal(GITHUB_KLIENT_ID, '');
+test('the default client id is Clawco\'s own OAuth App and the scope is read:user', () => {
+  assert.equal(GITHUB_KLIENT_ID, 'Ov23liF4asHVqjBdQahW', "Clawco's own OAuth App (owner SlambertDK, device flow on, tokens do not expire); a public id, no secret");
   assert.equal(GITHUB_SCOPE, 'read:user');
   assert.deepEqual(A, { kode: 'https://github.com/login/device/code', token: 'https://github.com/login/oauth/access_token', bruger: 'https://api.github.com/user', side: 'https://github.com' });
 });
@@ -83,7 +83,11 @@ test('spoergEfterToken: each of GitHub\'s answers maps to one kind; the grant ty
     [{ error: 'slow_down' }, { slags: 'langsommere' }],
     [{ error: 'expired_token' }, { slags: 'udloebet' }],
     [{ error: 'access_denied' }, { slags: 'afvist' }],
-    [{ error: 'incorrect_device_code' }, { slags: 'fejl' }],
+    [{ error: 'incorrect_device_code' }, { slags: 'afbrudt' }],
+    [{ error: 'device_flow_disabled' }, { slags: 'afbrudt' }],
+    [{ error: 'incorrect_client_credentials' }, { slags: 'afbrudt' }],
+    [{ error: 'unsupported_grant_type' }, { slags: 'afbrudt' }],
+    [{ error: 'noget_nyt' }, { slags: 'fejl' }],
     [{ access_token: 'ikke et token med mellemrum' }, { slags: 'fejl' }],
   ];
   for (const [json, forventet] of cases) {
@@ -196,4 +200,49 @@ test('a failing follow-up after the token is saved does not turn the sign-in int
   await login.start(async () => { throw new Error('settings could not be written'); });
   await login.faerdig();
   assert.equal((await login.status()).tilstand, 'inde');
+});
+
+test('the login: one failed poll (a blip) is retried; the sign-in still completes', async () => {
+  const lager = envNoegleLager({ udbydere: ['copilot'], env: {} });
+  const u = ur();
+  const g = falskGithub((k, n) => {
+    if (k.url === A.kode) return { json: KODE };
+    if (k.url === A.token) return n === 1 ? { status: 502, json: {} } : { json: { access_token: TOKEN, token_type: 'bearer' } };
+    return { json: { login: 'henrik-l' } };
+  });
+  const login = createGithubLogin({ klientId: 'Iv1.test', adresser: A, fetchImpl: g.fetchImpl, nu: u.nu, vent: u.vent, lager });
+  await login.start();
+  await login.faerdig();
+  assert.equal((await login.status()).tilstand, 'inde');
+  assert.equal(await lager.hent('copilot'), TOKEN);
+});
+
+test('the login: only five failed polls in a row end it as fejl', async () => {
+  for (const [antalFejl, forventet] of [[4, 'inde'], [5, 'fejl'], [6, 'fejl']] as const) {
+    const lager = envNoegleLager({ udbydere: ['copilot'], env: {} });
+    const u = ur();
+    const g = falskGithub((k, n) => {
+      if (k.url === A.kode) return { json: KODE };
+      if (k.url === A.token) return n <= antalFejl ? { status: 502, json: {} } : { json: { access_token: TOKEN, token_type: 'bearer' } };
+      return { json: { login: 'henrik-l' } };
+    });
+    const login = createGithubLogin({ klientId: 'Iv1.test', adresser: A, fetchImpl: g.fetchImpl, nu: u.nu, vent: u.vent, lager });
+    await login.start();
+    await login.faerdig();
+    assert.equal((await login.status()).tilstand, forventet, `${antalFejl} failures`);
+    assert.equal(await lager.findes('copilot'), forventet === 'inde');
+  }
+});
+
+test('the login: GitHub\'s permanent error codes end the wait at once with fejl, after one poll', async () => {
+  for (const error of ['incorrect_device_code', 'device_flow_disabled', 'incorrect_client_credentials', 'unsupported_grant_type']) {
+    const lager = envNoegleLager({ udbydere: ['copilot'], env: {} });
+    const u = ur();
+    const g = falskGithub((k) => (k.url === A.kode ? { json: KODE } : { json: { error } }));
+    const login = createGithubLogin({ klientId: 'Iv1.test', adresser: A, fetchImpl: g.fetchImpl, nu: u.nu, vent: u.vent, lager });
+    await login.start();
+    await login.faerdig();
+    assert.equal((await login.status()).tilstand, 'fejl', error);
+    assert.equal(g.kald.filter((k) => k.url === A.token).length, 1, `${error}: one poll only`);
+  }
 });

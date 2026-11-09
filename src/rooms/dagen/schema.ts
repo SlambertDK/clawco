@@ -225,6 +225,13 @@ export function synligDagen(state: DagenState, person: Person): DagenState {
   return { ...state, kalender: state.kalender.filter((k) => synligFor(person, k)), morgenavis: state.morgenavis.filter((n) => synligFor(person, n)) };
 }
 
+/** KC-0259: a handling is a button that runs one of the agent's tools; without tools none is on screen (a stored one stays in the file). */
+export const udenVaerktoejshandlinger = (state: DagenState, harVaerktoejer: boolean): DagenState => {
+  if (harVaerktoejer) return state;
+  const { handling: _h, ...anbefaling } = state.anbefaling;
+  return { ...state, anbefaling, kalender: state.kalender.map(({ handling: _k, ...k }) => k) };
+};
+
 /** Every handling in the state, keyed by id — the only source a click may name. */
 export function handlingerI(state: DagenState): Map<string, Handling> {
   // KC-0270 (B4): first wins, as the parser keeps it; never a later handling in place of the one shown first.

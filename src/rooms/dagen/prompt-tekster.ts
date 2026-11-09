@@ -58,6 +58,8 @@ const da = {
 - Sæt "tilAndre": true på en handling, når det, den laver, er til andre mennesker (fx et udkast til en dagsorden, et svar eller en invitation). Du laver kun udkastet; Henrik sender selv. Knappen bliver rød. Ellers udelad feltet.
 - "visuel" er billedet af dagen (KC-0060): en "dagslinje" med regn og sol fra vejret som zoner og dagens vigtigste aftaler som punkter (højst 6, ét ord hver); klokken nu tegner appen selv. Giv anbefalingen og hver aftale et "ikon".
 - Svar KUN med ét JSON-objekt i en \`\`\`json-blok. Ingen tekst udenom.`,
+  /** KC-0259: the agent has no tools, so no "handling" (a button that runs one of them) is asked for. */
+  ingenHandlinger: '- Du har ingen værktøjer: giv aldrig en "handling" (hverken på anbefalingen eller i kalenderen); udelad feltet.',
   handlingRegler: `Regler for handlinger:
 - Udfør handlingen med dine værktøjer, inden for det knappen må. Spørg ikke; hvis noget mangler, gør det bedste og sig hvad du antog.
 - Du må aldrig betale, sende mail til andre mennesker eller slette data. Hvis handlingen kræver det, gør du det ikke og siger hvorfor.
@@ -134,6 +136,7 @@ const en: DagenPromptTekster = {
 - Set "tilAndre": true on an action when what it does is for other people (e.g. a draft agenda, a reply or an invitation). You only make the draft; the user sends it themselves. The button turns red. Otherwise omit the field.
 - "visuel" is the picture of the day (KC-0060): a "dagslinje" with rain and sun from the weather as zones and the day's most important appointments as points (at most 6, one word each); the app draws the current time itself. Give the recommendation and every appointment an "ikon".
 - Answer ONLY with one JSON object in a \`\`\`json block. No text around it.`,
+  ingenHandlinger: '- You have no tools: never give a "handling" (neither on the anbefaling nor in the calendar); leave the field out.',
   handlingRegler: `Rules for actions:
 - Carry out the action with your tools, within what the button may do. Do not ask; if something is missing, do the best you can and say what you assumed.
 - You must never pay, send mail to other people or delete data. If the action requires it, you do not do it and say why.

@@ -68,11 +68,13 @@ const da = {
   femLinjerI: 'Rummets fem linjer i dag:',
 
   /** `peger`: the shared sentence about a pointed-at element (agent/prompt.ts). */
-  chatOpgave: (peger: string): string => `Rummets indhold står som afledt data i beskeden. ${peger} Læs artiklen med dine værktøjer, hvis det giver et bedre svar.
+  chatOpgave: (peger: string, vaerktoejer: boolean): string => `Rummets indhold står som afledt data i beskeden. ${peger}${vaerktoejer ? ' Læs artiklen med dine værktøjer, hvis det giver et bedre svar.' : ' Du kan ikke åbne artiklerne: svar ud fra det, der står her.'}
 
 Regler for chatten:
 - Svar kort på dansk, som i en samtale.
 - Du må aldrig sende mail, afmelde nyhedsbreve, købe noget eller slette noget.`,
+  /** KC-0259: the refresh rule that replaces "forslag" when the agent has no tools (a suggestion is a button that runs a tool). */
+  ingenForslag: '- Du har ingen værktøjer: giv ingen "forslag", og udelad feltet.',
   rummetsIndhold: 'Rummets indhold:',
   ingenData: 'Rummet har ingen data endnu.',
 };
@@ -131,11 +133,12 @@ const en: Tabel = {
   knappen: (label) => `The button: "${label}"`,
   femLinjerI: "The room's five lines today:",
 
-  chatOpgave: (peger) => `The room's content is in the message as derived data. ${peger} Read the article with your tools if that gives a better answer.
+  chatOpgave: (peger, vaerktoejer) => `The room's content is in the message as derived data. ${peger}${vaerktoejer ? ' Read the article with your tools if that gives a better answer.' : ' You cannot open the articles: answer from what is written here.'}
 
 Rules for the chat:
 - Answer briefly in English, as in a conversation.
 - You must never send mail, unsubscribe from newsletters, buy anything or delete anything.`,
+  ingenForslag: '- You have no tools: give no "forslag", and leave the field out.',
   rummetsIndhold: "The room's content:",
   ingenData: 'The room has no data yet.',
 };

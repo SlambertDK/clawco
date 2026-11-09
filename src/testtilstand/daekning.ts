@@ -124,7 +124,13 @@ const HAAND: [string, string][] = [
   ['stoette-aktiv', 'data-stoette="baand"'],                    // the red band while support looks along (KC-0188; the moment "Mailen svarer ikke")
   ['revision-liste', 'data-revision="liste"'],                 // "Hvad Clawco har gjort" in the Kø panel (KC-0124)
   ['regler-ulaeselig', 'data-regler="ulaeselig"'],             // Nu: the rules file cannot be read, Hermes is on trin 0 (KC-0142; the moment "Næste morgen")
-  ['start-trin-aabent', 'data-trin="velkommen" data-trin-status="ikke-startet"'], // Start: step 1 open (KC-0126; the moment "Kold start")
+  ['start-trin-aabent', 'data-trin="velkommen" data-trin-status="ikke-startet"'], // Start: step 1 open (KC-0126; the moment "Kold start: valget klaret")
+  ['start-situation-aabent', 'data-trin="situation" data-trin-status="ikke-startet"'], // Start: step 0 open, nothing picked (KC-0248; the moment "Kold start")
+  ['start-situation-valg', 'data-situation="mail"'],                          // KC-0248: the three picks of step 0, each a button (the moment "Kold start")
+  ['start-situation-valgt', 'aria-pressed="true"'],                           // KC-0248: a pick made, pressed, with Gå videre (the moment "Kold start: valgt, ikke gået videre")
+  ['start-situation-eksempel', 'data-eksempel-kort'],                         // KC-0248: the example Nu under the picks, every card marked as an example
+  ['start-situation-aldrig', 'data-aldrig'],                                  // KC-0248: the three things Clawco never does, one line each
+  ['start-situation-klaret', 'data-situation-valgt="familie"'],               // KC-0248: step 0 gone on with: the pick as one folded line (the moment "Kold start: valget klaret")
   ['start-trin-klaret', 'data-trin-status="klaret"'],                        // Start: a step Klaret (the moment "Kold start: velkommen klaret")
   ['start-foreslaaet-tilfoejelse', 'data-forslag-kilde="'],                   // Start: a source worth adding (the calendar, three invites in mail)
   ['start-model-aaben', 'id="model-form"'],                                   // Start: step 2's provider form (KC-0127; the moment "Kold start: velkommen klaret")

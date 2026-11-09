@@ -13,6 +13,7 @@ import { createFakeAgent } from '../src/agent/fake.ts';
 import { skrivHusstand } from '../src/identitet/husstand.ts';
 import { medTesttilstand } from '../src/testtilstand/kontakt.ts';
 import type { Testverden } from '../src/testtilstand/verden.ts';
+import { tilladAlle } from './helpers/tillad.ts';
 
 const rod = await mkdtemp(path.join(tmpdir(), 'kc-srv-id-'));
 after(() => rm(rod, { recursive: true, force: true }));
@@ -104,7 +105,7 @@ test('the testtilstand dispatcher passes the Node bindings through to the real a
   const { sut, dataDir } = lav('to-kontakt');
   await skrivHusstand(dataDir, TO);
   const ingenVerden = (): Promise<Testverden> => Promise.reject(new Error('ikke brugt'));
-  const disp = medTesttilstand(sut.app, ingenVerden);
+  const disp = medTesttilstand(sut.app, ingenVerden, tilladAlle);
   const res = await disp.request('/rum/hjem', som('maja@example.com'), LOOPBACK);
   assert.equal(res.status, 200);
   assert.match(await res.text(), /data-person="maja"/);

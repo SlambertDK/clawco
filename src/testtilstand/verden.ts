@@ -26,9 +26,9 @@ import type { Froe, Moment } from './typer.ts';
 import { idagKbh, lavUr, type Ur } from './ur.ts';
 import { skrivFroe, testMailRunner } from './skriv.ts';
 import { ALLE_MOMENTER, froe as lavFroe, MOMENTER, svar } from './indhold.ts';
-import { erGithubMoment, erInkluderetMoment, erKold, KOLD_GOOGLE, KOLD_GOOGLE_AFVIST, modelTestUdfald, testGithub, testInkluderet } from './indhold/start.ts';
+import { erGithubMoment, erInkluderetMoment, erKold, erNyEngelsk, KOLD_GOOGLE, KOLD_GOOGLE_AFVIST, modelTestUdfald, testGithub, testInkluderet } from './indhold/start.ts';
 import { falskTailscale, tailscaleLaptop } from './indhold/tailscale.ts'; // KC-0161
-import { fakta, KOE, momentNr, momentPlus, plusDag } from './indhold/fakta.ts';
+import { fakta, KOE, momentNr, momentPlus, plusDag, UDEN_VAERKTOEJ } from './indhold/fakta.ts';
 import { familiekalender, TEST_EJER, testKanal } from './indhold/husstand.ts';
 import { lavReglerLager } from '../tillid/lager.ts';
 import { falskeKilder } from '../kilder/falsk/falsk.ts';
@@ -191,6 +191,8 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
   const hermes: AgentClient = {
     // KC-0263: the GitHub moments run as the built-in agent, so Start offers Copilot with its sign-in; KC-0265: so do the Sky-plan moments, with Clawco's AI included.
     get mode() { return erGithubMoment(nu.id) || erInkluderetMoment(nu.id) ? 'direkte' as const : 'fake' as const; },
+    // KC-0259: the built-in agent has no tools: the GitHub and Sky-plan moments, and the morning that shows what is then left out.
+    get harVaerktoejer() { return fake.harVaerktoejer && !(erGithubMoment(nu.id) || erInkluderetMoment(nu.id) || nu.id === UDEN_VAERKTOEJ); },
     async run(req) {
       if (req.input === HOLD_INPUT) return holdFake.run(req);
       const g = gen;
@@ -248,8 +250,12 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
     store, hermes, now: ur.now, sha: 'test', dataDir: dir,
     // KC-0135: the world's own address, which its fake Google sends the browser back to (the stand-in page turns it into a path).
     adresse: 'https://testverden.example',
+    // KC-0280: requests reach the world under the real app's host (its dispatcher already judged that); the fictional address is no host rule.
+    vaertJudgetUdefra: true,
     // KC-0116: the test world always runs as its one fictional owner; no cookie or header can pick another person.
     identitet: { fast: TEST_EJER },
+    // KC-0248: a fresh English installation has no profile yet, so its language is the installation's (KC-0170); read at every request.
+    get standardSprog() { return erNyEngelsk(nu.id) ? 'en' as const : 'da' as const; },
     // KC-0161: the Tailscale card reads a scripted CLI per moment; the real one is never run from the test world.
     tailscale: { koerer: falskTailscale(() => ({ id: nu.id, kold: erKold(nu.id) }), tailscaleDelt), port: 8750, laptop: () => tailscaleLaptop(nu.id) },
     // KC-0188: the support switch (not under Sky: on is refused by the app; the band's Slå fra is the app's own route).

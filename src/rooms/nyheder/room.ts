@@ -35,12 +35,15 @@ export function synligNyheder(state: NyhederState, person: Person): NyhederState
   return { ...state, baner, gemt: state.gemt.filter((id) => synlige.has(id)), ...(skjult ? { femLinjer: [], forslag: [] } : {}) };
 }
 
+/** KC-0259: a suggestion is a button that runs one of the agent's tools; without tools none is on screen (a stored one stays in the file). */
+export const udenVaerktoejsforslag = (state: NyhederState, harVaerktoejer: boolean): NyhederState => (harVaerktoejer ? state : { ...state, forslag: [] });
+
 export const synligNyhederLog = (log: LogEntry[], person: Person): LogEntry[] => log.filter((e) => synligFor(person, e));
 
 /** The state and log as `deps.person` may see them; the stored files stay whole. */
 async function current(deps: RoomDeps): Promise<{ state: NyhederState | null; log: LogEntry[] }> {
   const [state, log] = await Promise.all([deps.store.readState<NyhederState>(RUM), deps.store.readLog(RUM)]);
-  return { state: state ? synligNyheder(state, deps.person) : null, log: synligNyhederLog(log, deps.person) };
+  return { state: state ? udenVaerktoejsforslag(synligNyheder(state, deps.person), deps.hermes.harVaerktoejer) : null, log: synligNyhederLog(log, deps.person) };
 }
 
 /** The whole stored state, for writes: a write must never persist the person-filtered copy. */
@@ -57,14 +60,14 @@ function venterNyheder(state: NyhederState | null, log: LogEntry[]): number {
 async function rendered(deps: RoomDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {
   deps.live.notify(RUM);
   const { state, log } = await current(deps);
-  const html = state ? String(renderNyheder(state, log, deps.now(), deps.runs.igang(RUM))) : String(renderNyhederEmpty(nyhederTekst().ingenAvis));
+  const html = state ? String(renderNyheder(state, log, deps.now(), deps.runs.igang(RUM))) : String(renderNyhederEmpty(nyhederTekst().ingenAvis, deps.hermes.harVaerktoejer));
   const n = venterNyheder(state, log);
   return { html, venter: n ? { [RUM]: n } : {}, hermesStatus: state ? nyhederStatus(state.hermesStatus) : tekst().klar, ...extra };
 }
 
 async function view(deps: RoomDeps): Promise<RoomView> {
   const { state, log } = await current(deps);
-  return { main: state ? renderNyheder(state, log, deps.now(), deps.runs.igang(RUM)) : renderNyhederEmpty(nyhederTekst().ingenAvis), hermesStatus: state ? nyhederStatus(state.hermesStatus) : tekst().klar };
+  return { main: state ? renderNyheder(state, log, deps.now(), deps.runs.igang(RUM)) : renderNyhederEmpty(nyhederTekst().ingenAvis, deps.hermes.harVaerktoejer), hermesStatus: state ? nyhederStatus(state.hermesStatus) : tekst().klar };
 }
 
 /** The morning paper and the user's own feeds (KC-0137) as one TrimmedNyheder; null = neither is there. */
@@ -81,7 +84,9 @@ async function startOpdater(deps: RoomDeps, mode: string): Promise<RunRecord | n
   const data = mode === 'hent' ? null : flettNyheder(papir, rss, now);
   // KC-0137: only the user's own feeds, and none of them gave anything: nothing to build from, and not the paper's fetch either.
   if (data && !papir && data.nyheder.length === 0) return null;
-  const spec = data ? buildNyhederRefreshRun(data, now) : buildNyhederHentRun(now);
+  // KC-0259: "hent" and a paper that is not there ask the agent to run the fetch script with its terminal: not without tools (the feeds' refresh stays).
+  if (!data && !deps.hermes.harVaerktoejer) return null;
+  const spec = data ? buildNyhederRefreshRun(data, now, { vaerktoejer: deps.hermes.harVaerktoejer }) : buildNyhederHentRun(now);
   return deps.runs.start({
     kind: 'opdater',
     spec,
@@ -180,7 +185,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
   await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
   return deps.runs.start({
     kind: 'chat',
-    spec: buildNyhederChatRun(besked, kontekst, state),
+    spec: buildNyhederChatRun(besked, kontekst, state, { vaerktoejer: deps.hermes.harVaerktoejer }),
     onDone: async (output) => {
       const text = output.replace(/```(?:json)?\s*[\s\S]*?```/i, '').trim() || nyhederTekst().intetSvar;
       await deps.store.appendChat(RUM, { fra: 'hermes', tekst: text, ejer: deps.person.id });

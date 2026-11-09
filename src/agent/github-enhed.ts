@@ -11,8 +11,9 @@
 
 import type { NoegleLager } from './noeglelager.ts';
 
-/** Clawco's own OAuth App (device flow enabled). Empty until it is registered; KC_GITHUB_CLIENT_ID overrides it. */
-export const GITHUB_KLIENT_ID = '';
+/** Clawco's own OAuth App (registered 2026-11-03 under SlambertDK: device flow on, user tokens do not expire). A client id
+ *  is public: the device flow uses no secret. KC_GITHUB_CLIENT_ID overrides it; 'off' switches GitHub sign-in off (server.ts githubKlientId). */
+export const GITHUB_KLIENT_ID = 'Ov23liF4asHVqjBdQahW';
 /**
  * The scope asked for. GitHub's Copilot SDK docs name none for an OAuth App user token (gho_); read:user is read-only
  * and covers GET /user for the login name. ASSUMED sufficient for Copilot until the first real sign-in (KC-0263).
@@ -50,7 +51,9 @@ export type PollSvar =
   | { slags: 'langsommere'; intervalS?: number }
   | { slags: 'udloebet' }
   | { slags: 'afvist' }
-  | { slags: 'fejl' };
+  | { slags: 'fejl' }
+  /** GitHub's permanent error codes: retrying cannot help. */
+  | { slags: 'afbrudt' };
 
 type Wire = Record<string, unknown>;
 const isRecord = (v: unknown): v is Wire => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -99,6 +102,7 @@ export async function spoergEfterToken(o: { klientId: string; adresser: GithubAd
     case 'slow_down': return typeof d['interval'] === 'number' && d['interval'] >= 1 && d['interval'] <= 120 ? { slags: 'langsommere', intervalS: d['interval'] } : { slags: 'langsommere' };
     case 'expired_token': return { slags: 'udloebet' };
     case 'access_denied': return { slags: 'afvist' };
+    case 'incorrect_device_code': case 'device_flow_disabled': case 'incorrect_client_credentials': case 'unsupported_grant_type': return { slags: 'afbrudt' };
     default: return { slags: 'fejl' };
   }
 }
@@ -136,6 +140,9 @@ export interface GithubLogin {
   faerdig(): Promise<void>;
 }
 
+/** Consecutive failed polls (network blip, timeout, non-JSON answer) that end a sign-in as 'fejl'; one blip never does. */
+export const MAKS_FEJL_I_RAEKKE = 5;
+
 export function createGithubLogin(o: {
   klientId: string;
   scope?: string;
@@ -169,6 +176,7 @@ export function createGithubLogin(o: {
 
   async function vente(kode: Enhedskode, signal: AbortSignal, naarInde?: (r: GithubInde) => Promise<void>): Promise<void> {
     let intervalS = kode.intervalS;
+    let traekFejl = 0;
     const afsluttet = (t: GithubTilstand): void => { if (!signal.aborted) { venter = undefined; slut = t; } };
     for (;;) {
       try { await vent(intervalS * 1000, signal); } catch { return; }
@@ -176,6 +184,9 @@ export function createGithubLogin(o: {
       if (nu() >= kode.udloeberMs) return afsluttet({ tilstand: 'udloebet' });
       const svar = await spoergEfterToken({ klientId: o.klientId, adresser: o.adresser, ...(o.fetchImpl ? { fetchImpl: o.fetchImpl } : {}) }, kode.deviceCode);
       if (signal.aborted) return;
+      if (svar.slags === 'fejl') { if (++traekFejl >= MAKS_FEJL_I_RAEKKE) return afsluttet({ tilstand: 'fejl' }); continue; } // a blip is retried; only GitHub's verdict or the expiry ends the wait
+      if (svar.slags === 'afbrudt') return afsluttet({ tilstand: 'fejl' });
+      traekFejl = 0;
       if (svar.slags === 'venter') continue;
       if (svar.slags === 'langsommere') { intervalS = svar.intervalS ?? intervalS + 5; continue; }
       if (svar.slags !== 'token') return afsluttet({ tilstand: svar.slags });

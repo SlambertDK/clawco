@@ -16,7 +16,7 @@ import { AFBRUDT, AgentError, type AgentEvent } from '../../src/agent/types.ts';
 
 const TOKEN = 'gho_HEMMELIGtoken0263abcdefghijklmnop';
 const FEJL: Record<CopilotFejlArt, string> = {
-  github: 'F-GITHUB', kredit: 'F-KREDIT', model: 'F-MODEL', vaerktoej: 'F-VAERKTOEJ', 'copilot-start': 'F-START', ukendt: 'F-UKENDT',
+  github: 'F-GITHUB', kredit: 'F-KREDIT', model: 'F-MODEL', vaerktoej: 'F-VAERKTOEJ', 'copilot-start': 'F-START', ukendt: 'F-UKENDT', 'ukendt-haendelse': 'F-HAENDELSE',
 };
 
 type Script = (s: FalskSession) => Promise<void> | void;
@@ -120,6 +120,7 @@ test('invariant: the session gets no tools, no MCP servers, no custom agents, no
   assert.deepEqual(c.excludedTools, ['builtin:*', 'mcp:*', 'custom:*'], 'and everything is excluded (exclusion always wins)');
   assert.deepEqual(c.tools, []);
   assert.deepEqual(c.mcpServers, {});
+  assert.deepEqual(c.disabledMcpServers, ['github-mcp-server'], "the runtime's built-in GitHub server is not started");
   assert.deepEqual(c.customAgents, []);
   assert.deepEqual(c.skillDirectories, []);
   assert.deepEqual(c.includedBuiltinSkills, []);
@@ -257,4 +258,83 @@ test('invariant: an unknown event name fails the run closed; the known answering
   });
   assert.equal((await ok.koer()).output, 'Hele svaret');
   await ok.copilot.stop();
+});
+
+// The bundled runtime emits passive events the old enumerated list did not know (every run ended as 'ukendt'). Passive
+// families now pass by prefix; anything that is a handling is checked first and still fails closed.
+const PASSIVE_FRA_RUNTIME: [string, unknown][] = [
+  ['session.mcp_server_status_changed', { serverName: 'x', status: 'disabled' }],
+  ['session.mcp_servers_loaded', { servers: [{ name: 'github-mcp-server', status: 'disabled', source: 'builtin' }] }],
+  ['session.mcp_servers_loaded', { servers: [] }],
+  ['session.mcp_server_tools_loaded', { serverName: 'x', toolCount: 0 }],
+  ['model.turn_started', {}], ['model.turn_ended', {}], ['model.call_start', {}], ['model.model_call_started', {}],
+  ['model.model_call_success', {}], ['model.call_final_result', {}], ['model.captured_assignment_context', {}],
+  ['model.message', {}], ['model.response', {}], ['model.messages_snapshot', {}],
+];
+test('the passive events the real runtime emits do not fail a run', async () => {
+  const s = sut((ses) => {
+    for (const [t, d] of PASSIVE_FRA_RUNTIME) ses.emit(t, d);
+    ses.emit('assistant.message_delta', { deltaContent: 'Blå' }); ses.emit('assistant.message', { content: 'Blå' }); ses.emit('session.idle');
+  });
+  assert.equal((await s.koer()).output, 'Blå');
+  await s.copilot.stop();
+});
+
+test('invariant: an MCP server that is up, has loaded tools (or any other server event) still fails the run closed', async () => {
+  const farlige: [string, unknown][] = [
+    ['session.mcp_server_status_changed', {}],
+    ['session.mcp_server_tools_loaded', { serverName: 'x', toolCount: 3 }],
+    ['session.mcp_server_status_changed', { serverName: 'x', status: 'connected' }],
+    ['session.mcp_servers_loaded', { servers: [{ name: 'github-mcp-server', status: 'connected', source: 'builtin' }] }],
+    ['session.mcp_servers_loaded', {}],
+    ['session.mcp_server_tools_loaded', {}], ['session.mcp_server_removed', { serverName: 'x' }],
+    ['assistant.tool_call_delta', {}], ['assistant.server_tool_progress', {}], ['session.handoff', {}],
+  ];
+  for (const [type, data] of farlige) {
+    const s = sut((ses) => { ses.emit(type, data); ses.emit('session.idle'); });
+    const err = await s.koer().catch((e: unknown) => e);
+    assert.ok(err instanceof AgentError, type);
+    assert.equal((err as Error).message, 'F-VAERKTOEJ', type);
+    assert.equal(s.klienter[0]!.sessioner[0]!.afbrudt, true, `${type}: the session is aborted`);
+    await s.copilot.stop();
+  }
+});
+
+test('an event that is neither passive nor a handling gets its own error kind and a log line with the name only', async () => {
+  const linjer: string[] = [];
+  const klienter: FalskKlient[] = [];
+  const copilot = createCopilot({
+    fejl: FEJL, log: (l) => linjer.push(l),
+    lavKlient: (v) => { const k = new FalskKlient(v, (ses) => { ses.emit('noget.helt.nyt', { token: TOKEN }); }); klienter.push(k); return k; },
+    env: { PATH: '/usr/bin' },
+  });
+  const err = await copilot.koer({ system: 's', input: 'i', model: 'm' }, TOKEN).catch((e: unknown) => e);
+  assert.ok(err instanceof AgentError);
+  assert.equal(err.message, 'F-HAENDELSE');
+  assert.equal(linjer.length, 1);
+  assert.ok(linjer[0]!.includes('noget.helt.nyt'));
+  assert.ok(!linjer[0]!.includes(TOKEN), 'the payload never reaches the log');
+  await copilot.stop();
+});
+
+// Not every session.* event is passive: these act (a file write, a background task, a schedule, canvas, autopilot, ...).
+// Only the exact known answering events and model.* pass; the rest fails closed with its own kind and one log line.
+test('invariant: session and assistant events that are not plainly passive fail closed as ukendt-haendelse', async () => {
+  const navne = [
+    'session.workspace_file_changed', 'session.background_tasks_changed', 'session.schedule_created', 'session.schedule_rearmed',
+    'session.canvas.opened', 'session.indexed_search', 'session.autopilot_started', 'session.autopilot_stopped', 'session.auto_mode_resolved',
+    'session.fusion_started', 'assistant.fusion_phase_started', 'session.extensions.attachments_pushed', 'session.permission_recovery',
+    'session.snapshot_rewind', 'session.todos_changed', 'session.plan_changed',
+  ];
+  for (const type of navne) {
+    const linjer: string[] = [];
+    const k: FalskKlient[] = [];
+    const c = createCopilot({ fejl: FEJL, log: (l) => linjer.push(l), lavKlient: (v) => { const x = new FalskKlient(v, (ses) => { ses.emit(type, {}); ses.emit('session.idle'); }); k.push(x); return x; }, env: { PATH: '/usr/bin' } });
+    const err = await c.koer({ system: 's', input: 'i', model: 'm' }, TOKEN).catch((e: unknown) => e);
+    assert.ok(err instanceof AgentError, type);
+    assert.equal(err.message, 'F-HAENDELSE', type);
+    assert.ok(linjer.length === 1 && linjer[0]!.includes(type), `${type}: one log line with the name`);
+    assert.equal(k[0]!.sessioner[0]!.afbrudt, true, `${type}: the session is aborted`);
+    await c.stop();
+  }
 });

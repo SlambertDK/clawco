@@ -15,6 +15,7 @@ import { createFileStore } from '../src/store/fileStore.ts';
 import { createSettings } from '../src/settings.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import { anthropicStream, startFalskUdbyder, type FalskSvar, type Modtaget } from './helpers/falsk-udbyder.ts';
+import { forbiTil } from './helpers/start-forbi.ts';
 
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
 const MEDLEM: Person = { id: 'clara', login: null, navn: 'Clara', rolle: 'medlem' };
@@ -71,6 +72,7 @@ async function alleFiler(dir: string): Promise<string> {
 }
 /** A fresh tenant: step 1 is done (the profile), nothing else touched. */
 async function klarFoerste(t: T): Promise<void> {
+  await forbiTil(t.dir, 'situation'); // KC-0248: step 0 (the pick) is behind us, so steps 1–2 are the ones that show
   await t.s.app.request('/api/rum/start/aktion/velkommen-gem', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ navn: 'Alma', sprog: 'da', husstand: 'alene' }) });
 }
 async function klaretPaaEgenHaand(t: T): Promise<string> {

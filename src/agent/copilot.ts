@@ -28,7 +28,7 @@ import { AFBRUDT, AgentError } from './types.ts';
 import type { AgentEvent, AgentRunResult } from './types.ts';
 import { agentTekst } from './tekster.ts';
 
-export type CopilotFejlArt = 'github' | 'kredit' | 'model' | 'vaerktoej' | 'copilot-start' | 'ukendt';
+export type CopilotFejlArt = 'github' | 'kredit' | 'model' | 'vaerktoej' | 'copilot-start' | 'ukendt' | 'ukendt-haendelse';
 
 /** One runtime event as the transport reads it. */
 export type CopilotHaendelse = { type: string; data?: unknown };
@@ -104,6 +104,7 @@ export function sessionValg(o: { model: string; system: string; arbejdsmappe: st
     excludedTools: ['builtin:*', 'mcp:*', 'custom:*'],
     tools: [],
     mcpServers: {},
+    disabledMcpServers: ['github-mcp-server'], // the runtime's own built-in server: not started at all (verified against the real runtime)
     customAgents: [],
     skillDirectories: [],
     includedBuiltinSkills: [],
@@ -131,10 +132,12 @@ export function sessionValg(o: { model: string; system: string; arbejdsmappe: st
 export type CopilotSessionValg = ReturnType<typeof sessionValg>;
 
 /** Events that mean the runtime is about to act, not answer: the run fails closed. */
-const HANDLING = /^(?:tool\.|external_tool\.|permission\.requested|subagent\.|skill\.invoked|hook\.start|command\.execute|elicitation\.requested|sampling\.requested|exit_plan_mode\.requested|mcp\.)/;
+const HANDLING = /^(?:tool\.|external_tool\.|permission\.requested|subagent\.|skill\.invoked|hook\.start|command\.execute|elicitation\.requested|sampling\.requested|exit_plan_mode\.requested|mcp\.|session\.handoff$|assistant\.[a-z_]*tool)/;
 /**
- * KC-0270 (B7): the events a plain answer is made of (the SDK's session-events). Any other name — one the SDK adds
- * later, or an acting one HANDLING does not know — fails the run closed instead of passing unseen.
+ * KC-0270 (B7): the exact events a plain answer is made of (the SDK's session-events); the runtime's own model accounting
+ * (`model.*`) passes by prefix. Every other name fails the run closed (`ukendt-haendelse`, one logged line per new name): a
+ * new passive event is added here on purpose, never passed silently — several `session.*` events are not passive at all
+ * (a file write, a background task, a schedule, canvas, autopilot).
  */
 const SVAR_HAENDELSER: ReadonlySet<string> = new Set([
   'assistant.message', 'assistant.message_delta', 'assistant.message_start', 'assistant.streaming_delta', 'assistant.reasoning',
@@ -147,6 +150,29 @@ const SVAR_HAENDELSER: ReadonlySet<string> = new Set([
   'pending_messages.modified', 'user.message', 'system.message', 'system.notification', 'model.call_finished', 'model.call_failure',
   'abort',
 ]);
+const MODEL_REGNSKAB = /^model\./;
+
+/**
+ * 'handling' = the model used or asked for a tool, permission, sub-agent, skill, hook or MCP server (fails closed, checked FIRST);
+ * 'passiv' = status or the answer itself; 'ukendt' = neither (fails closed with its own kind, KC-0270: never passes unseen).
+ * The runtime's own built-in `github-mcp-server` is switched off per session (`disabledMcpServers`); an MCP event is passive
+ * only while no server is up and no tool is loaded: the roster only when every server is `disabled`, a status change only
+ * when it is not `connected`, tools-loaded only with a count of 0. Anything else (incl. `session.mcp_server_added`/`_removed`)
+ * fails closed. (`^mcp\.` does not match these names.)
+ */
+export function haendelsesArt(e: CopilotHaendelse): 'handling' | 'passiv' | 'ukendt' {
+  if (HANDLING.test(e.type)) return 'handling';
+  const d = isRecord(e.data) ? e.data : {};
+  if (e.type === 'session.mcp_server_status_changed') return typeof d['serverName'] === 'string' && typeof d['status'] === 'string' && d['status'] !== 'connected' ? 'passiv' : 'handling';
+  if (e.type === 'session.mcp_server_tools_loaded') return d['toolCount'] === 0 ? 'passiv' : 'handling';
+  if (e.type === 'session.mcp_servers_loaded') {
+    const liste = d['servers'];
+    return Array.isArray(liste) && liste.every((x) => isRecord(x) && x['status'] === 'disabled') ? 'passiv' : 'handling';
+  }
+  if (/^session\.mcp_server/.test(e.type)) return 'handling'; // added, removed, ...: a server is in play
+  if (SVAR_HAENDELSER.has(e.type) || MODEL_REGNSKAB.test(e.type)) return 'passiv';
+  return 'ukendt';
+}
 const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 
 type Wire = Record<string, unknown>;
@@ -185,7 +211,10 @@ export function createCopilot(o: {
   env?: Record<string, string | undefined>;
   /** The tmp root (default the OS tmp). */
   tmp?: string;
+  /** One line per fail-closed unknown event: its NAME only (default console.warn). */
+  log?: (linje: string) => void;
 }): CopilotTransport {
+  const log = o.log ?? ((l: string): void => console.warn(l));
   const lavKlient = o.lavKlient ?? sdkKlient;
   const timeoutMs = o.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   type Aktiv = { klient: CopilotKlient; token: string; rod: string; arbejde: string };
@@ -258,8 +287,9 @@ export function createCopilot(o: {
         const stopFejl = (err: AgentError): void => faerdig(() => { void session.abort().catch(() => undefined); reject(err); });
         af = session.on((e) => {
           if (afsluttet) return;
-          if (HANDLING.test(e.type)) return stopFejl(fejl('vaerktoej'));
-          if (!SVAR_HAENDELSER.has(e.type)) return stopFejl(fejl('ukendt')); // KC-0270: an event we do not know fails closed
+          const art = haendelsesArt(e);
+          if (art === 'handling') return stopFejl(fejl('vaerktoej'));
+          if (art === 'ukendt') { log(`copilot: unknown runtime event "${e.type.replace(/[^\w.:-]/g, '?').slice(0, 80)}" (run failed closed)`); return stopFejl(fejl('ukendt-haendelse')); } // KC-0270
           const d = isRecord(e.data) ? e.data : {};
           if (e.type === 'assistant.message_delta' && typeof d['deltaContent'] === 'string' && d['deltaContent'] !== '') {
             tekst += d['deltaContent'];

@@ -46,3 +46,9 @@ test('KC-0181: lavAgent builds direkte; KC_HEMMELIGHEDER_FIL selects the encrypt
     assert.ok((await readdir(path.join(dir, 'data'))).includes('hemmeligheder.enc'), 'saved into the encrypted file');
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test('KC-0259: every agent says whether it has tools — Hermes and the default fake do, the built-in agent does not', () => {
+  assert.equal(lavAgent({ KC_HERMES_MODE: 'http' }, { env: {} }).harVaerktoejer, true);
+  assert.equal(lavAgent({ KC_AGENT: 'fake' }).harVaerktoejer, true);
+  assert.equal(lavAgent({ KC_AGENT: 'direkte', KC_DATA_DIR: '/nonexistent' }).harVaerktoejer, false);
+});

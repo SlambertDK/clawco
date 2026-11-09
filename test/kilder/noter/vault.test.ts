@@ -88,5 +88,6 @@ test('findVaults finds .obsidian/ at depth ≤ 3 and nothing deeper, skips hidde
 
 test('the candidate roots are the fixed list, nothing else', () => {
   assert.deepEqual(kandidatRoedder('/Users/a', 'darwin'), ['/Users/a', '/Users/a/Documents', '/Users/a/Obsidian', '/Users/a/Library/Mobile Documents/iCloud~md~obsidian/Documents']);
-  assert.deepEqual(kandidatRoedder('/home/a', 'linux'), ['/home/a', '/home/a/Documents', '/home/a/Dokumenter', '/home/a/Obsidian']);
+  assert.deepEqual(kandidatRoedder('/home/a', 'linux'), ['/home/a', '/home/a/Documents', '/home/a/Dokumenter', '/home/a/Obsidian', '/noter']);
+  // KC-0284: /noter is where compose.noter.yaml mounts a host's vault folder; a missing /noter is skipped by findVaults (unreadable root).
 });

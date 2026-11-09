@@ -36,6 +36,12 @@ export type NoegleSvar = { slags: 'gemt'; noegle: string; laengde: number } | { 
 
 export interface AgentClient {
   readonly mode: 'hermes-http' | 'fake' | 'direkte';
+  /**
+   * KC-0259: whether the agent runs tools of its own (web search, reading a mail or an article, running a command).
+   * Hermes does; the built-in agent (direkte, and Copilot/Clawco's AI under it) does not. The rooms ask it to leave out
+   * what only works with tools: a button, a suggestion or an ask that would end in "I have no tools".
+   */
+  readonly harVaerktoejer: boolean;
   /** Resolves with Hermes' final text; rejects with AgentError on run.failed. */
   run(req: AgentRunRequest): Promise<AgentRunResult>;
   /** True when Hermes answers its health endpoint. Never throws. */

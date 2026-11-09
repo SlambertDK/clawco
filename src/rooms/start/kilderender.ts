@@ -12,7 +12,8 @@ import type { KildeKortSyn } from '../module.ts';
 import { DATAZONER } from '../../identitet/zoner.ts';
 import { renderForhaandsvisning, type Forhaandsvisning } from './forhaandsvisning.ts';
 import { FOERSTE_SLAGS, erPakkeKilde } from './trin.ts';
-import type { TrinStatus } from './schema.ts';
+import { efterSlags } from './situation.ts';
+import type { Situation, TrinStatus } from './schema.ts';
 import { startTekst } from './tekster.ts';
 
 export type KildeVisning = {
@@ -25,6 +26,8 @@ export type KildeVisning = {
   kanForbinde: boolean;
   /** KC-0160: laptop mode — one person: the zone choice leaves out the household's. */
   laptop?: boolean;
+  /** KC-0248: the pick of step 0 — the order the cards are offered in. */
+  situation?: Situation;
 };
 
 function felt(f: KildeKortSyn['kort']['felter'][number], formId: string): Markup {
@@ -110,7 +113,7 @@ export function kildeIndhold(trinId: string, status: TrinStatus, v: KildeVisning
   const T = startTekst();
   if (trinId === 'foerste-kilde') {
     // KC-0236: a source of the Danmark-pakke has its own place (the pack's group) and is not a first source.
-    const kort = v.kort.filter((k) => FOERSTE_SLAGS.includes(k.slags) && !erPakkeKilde(k.id));
+    const kort = efterSlags(v.kort.filter((k) => FOERSTE_SLAGS.includes(k.slags) && !erPakkeKilde(k.id)), (k) => k.slags, v.situation);
     if (status === 'klaret') {
       return html`${kort.filter((k) => k.forbundet).map((k) => forbundetKort(k, v, now, false))}<p class="row-note"><a href="/rum/hjem">${T.seINu}</a></p>`;
     }

@@ -12,7 +12,7 @@ import { MODEL_FEJL, type ModelFejlArt } from './modelfejl.ts';
 import type { Udbyder } from './udbydere.ts';
 import type { DataZone } from '../../identitet/zoner.ts';
 import type { TsTilstand } from '../../shell/tailscale.ts';
-import type { Profil, TrinStatus } from './schema.ts';
+import type { Profil, Situation, TrinStatus } from './schema.ts';
 import type { Niveau } from './trin.ts';
 
 const da = {
@@ -30,6 +30,7 @@ const da = {
   status: { 'ikke-startet': 'Næste', 'i-gang': 'I gang', klaret: 'Klaret', 'sprunget-over': 'Sprunget over' } as Record<TrinStatus, string>,
   valgfrit: 'Valgfrit',
   trin: {
+    situation: { titel: 'Hvad skal Clawco tage fra dig?', tekst: 'Vælg det, der ligner dig mest. Så kan du se, hvordan Nu kommer til at se ud, og du kan altid ændre valget senere.' },
     velkommen: { titel: 'Velkommen', tekst: 'Fortæl Clawco, hvad du hedder, hvilket sprog Hermes skal svare på, og om du er alene eller en husstand.' },
     model: { titel: 'Vælg din model', tekst: 'Indsæt en nøgle fra din udbyder, eller brug en model på din egen maskine. Clawco prøver den straks, så du kan se, at den virker.' },
     'foerste-kilde': { titel: 'Første kilde', tekst: 'Vælg, om du vil starte med kalenderen eller mailen. Lige efter står der noget at se på i Nu.' },
@@ -301,6 +302,12 @@ const da = {
 
   // The room's actions: refusals, answers, the log lines and the label each run carries (room.ts, ret.ts, vaerdi.ts, import/)
   akt: {
+    kunEjerenSituation: 'Kun ejeren kan vælge, hvad Clawco skal tage fra dig.',
+    ukendtValg: 'Det valg findes ikke.',
+    vaelgFoerst: 'Vælg først det, der ligner dig mest.',
+    valgteSituation: (navn: string): string => `Valgte: ${navn}.`,
+    gikVidereMedSituation: (navn: string): string => `Gik videre med: ${navn}.`,
+    gemtSituation: 'Valget er gemt.',
     kunEjerenGemmerProfil: 'Kun ejeren kan gemme profilen.',
     ingenDatamappeProfil: 'Clawco har ingen datamappe, så profilen kan ikke gemmes.',
     gemteProfil: (navn: string, sprog: Profil['sprog'], husstand: Profil['husstand'] | null): string => `Gemte profilen: ${navn}, Hermes svarer på ${{ da: 'dansk', en: 'engelsk' }[sprog]}${husstand ? `, ${{ alene: 'alene', husstand: 'en husstand' }[husstand]}` : ''}.`,
@@ -413,6 +420,8 @@ const da = {
 
   // The label each run of the room carries in the queue (the "I gang" group)
   label: {
+    situation: 'Start: gemmer valget',
+    chat: 'Start: svarer på et spørgsmål om rejsen',
     profil: 'Start: gemmer profilen',
     fortryd: 'Start: fortryder',
     forslag: 'Start: lægger forslaget væk',
@@ -435,6 +444,66 @@ const da = {
     importMappe: 'Start: laver notemappen',
     importFortryd: 'Start: fortryder importen',
   },
+  // KC-0248: step 0 — the pick, the example Nu under it, and the three things Clawco never does
+  situation: {
+    spoergsmaal: 'Hvad skal Clawco tage fra dig?',
+    valg: {
+      mail: { navn: 'Mail og deadlines', tekst: 'Jeg drukner i mails og frister og vil have det, der haster, øverst.' },
+      familie: { navn: 'Familiens logistik', tekst: 'Hvem skal hvorhen og hvornår, for hele familien.' },
+      alt: { navn: 'Alt, jeg kører selv', tekst: 'Jeg vil have det hele samlet og selv bestemme, hvad der sker.' },
+    },
+    eksempelOverskrift: 'Sådan kan Nu se ud',
+    eksempelMaerke: 'Eksempel',
+    eksempelNote: 'Det her er eksempler med opdigtede navne. Dine egne kort kommer, når du har koblet en kilde.',
+    eksempler: {
+      mail: [
+        { titel: 'Aflevering i Statistik 2: torsdag kl. 12', linje: 'Du mangler to opgaver. Jeg har lagt tid af i morgen formiddag.' },
+        { titel: 'Svar til Professor Holm inden fredag', linje: 'Hun spørger, om du kan flytte vejledningen. Et udkast venter på dit ja.' },
+        { titel: 'Regning fra Fjernvarmen: 412 kr.', linje: 'Forfalder mandag. Du betaler selv; jeg minder dig om den.' },
+      ],
+      familie: [
+        { titel: 'Lørdag: to ting kl. 10', linje: 'Mia skal til fodbold, og Noah har tandlæge kl. 10.15. Hvem kører hvem?' },
+        { titel: 'Forældremøde i 3.B: torsdag kl. 17', linje: 'Står i begge jeres kalendere. Der skal bruges en babysitter.' },
+        { titel: 'Husk gymnastiktøj i morgen', linje: 'Skolen skrev i går aftes. Mia har idræt som første time.' },
+      ],
+      alt: [
+        { titel: 'Din dag: tre møder, det første kl. 9', linje: 'Der er luft kl. 12 til frokost og en gåtur.' },
+        { titel: 'Udkast til svar til Clara venter på dig', linje: 'Om dagsordenen til mødet. Intet sendes herfra.' },
+        { titel: 'Tre nye artikler fra dine kilder', linje: 'Den vigtigste handler om elpriser. Resten kan vente.' },
+      ],
+    } as Record<Situation, { titel: string; linje: string }[]>,
+    aldrigOverskrift: 'Det gør Clawco aldrig',
+    aldrig: [
+      'Clawco betaler aldrig noget for dig.',
+      'Clawco sender aldrig mail til andre.',
+      'Clawco sletter aldrig noget af sig selv.',
+    ],
+    vaelg: 'viser eksemplet',
+    gaaVidere: 'Det passer, videre',
+    gemmer: 'gemmer',
+    duValgte: (navn: string): string => `Du valgte: ${navn}`,
+    retValget: 'Ret valget',
+    kunEjeren: 'Ejeren vælger, hvad Clawco skal tage fra jer.',
+  },
+
+  // KC-0249: the Start chat answers the journey's own questions from this list until a model works
+  rejsesvar: {
+    /** One answer per topic; the questions that match a topic are in rejsesvar.ts (code, shared by both languages). */
+    emner: {
+      modelnoegle: 'En modelnøgle er en lang adgangskode fra den udbyder, hvis AI du bruger (fx Anthropic eller OpenAI). Med den kan Clawco bede AI-en om hjælp på din regning. Nøglen bliver i din egen installation, og Clawco viser den aldrig igen. Har du ikke en, kan du bruge en model på din egen maskine eller logge ind med GitHub Copilot.',
+      tailscale: 'Tailscale er et privat net mellem dine egne enheder. Det gør, at du kan nå Clawco fra din telefon uden at lægge den åbent på internettet: kun dine egne enheder kan se adressen. Det er valgfrit, og du kan vente.',
+      hvadEr: 'Clawco er din personlige kontrolcentral: en rolig skærm med det, der kalder på dig nu, og en agent (Hermes), der gør det kedelige arbejde bagved. Intet sker, før du siger ja til det.',
+      sikkerhed: 'Dine data ligger i din egen installation, ikke hos os. Clawco læser kun det, du kobler til, og viser dig, hvad det har læst. Du kan slette alt fra Indstillinger.',
+      aldrig: 'Tre ting gør Clawco aldrig: det betaler ikke noget for dig, det sender ikke mail til andre, og det sletter ikke noget af sig selv.',
+      tid: 'Rejsen tager omkring ti minutter. Du behøver kun det øverste trin; resten er valgfrit, og du kan stoppe når som helst.',
+      kilde: 'En kilde er noget, Clawco må læse for dig: din kalender, din mail, dine noter eller nogle nyhedsfeeds. Clawco læser kun, og du bestemmer, hvilken zone hver kilde hører til.',
+    },
+    /** The "what does this step give me" answer: the open step's own sentence. */
+    trinSvar: (titel: string, tekst: string): string => `Trinnet »${titel}«: ${tekst}`,
+    ingenTrin: 'Du er ikke i gang med noget trin lige nu. Alt det obligatoriske er gjort.',
+    /** No fixed answer fits and no model works yet. */
+    ikkeEndnu: 'Det kan jeg først svare frit på, når en model virker. Indtil da kan jeg svare på: hvad en modelnøgle er, hvorfor Tailscale, hvad det her trin giver dig, hvad Clawco er, hvor dine data ligger, hvad Clawco aldrig gør, og hvor lang tid det tager.',
+  },
 };
 
 export type StartTekster = typeof da;
@@ -456,6 +525,7 @@ const en: StartTekster = {
   status: { 'ikke-startet': 'Next', 'i-gang': 'In progress', klaret: 'Done', 'sprunget-over': 'Skipped' },
   valgfrit: 'Optional',
   trin: {
+    situation: { titel: 'What should Clawco take off your plate?', tekst: 'Pick the one that sounds most like you. You will see what Now will look like, and you can change the pick later.' },
     velkommen: { titel: 'Welcome', tekst: 'Tell Clawco your name, which language to use, and whether you are alone or a household.' },
     model: { titel: 'Choose your model', tekst: 'Paste a key from your provider, or use a model on your own machine. Clawco tests it right away, so you can see that it works.' },
     'foerste-kilde': { titel: 'First source', tekst: 'Choose whether to start with your calendar or your mail. Right after, there is something to look at in Now.' },
@@ -561,6 +631,7 @@ const en: StartTekster = {
     'inkluderet-utilgaengelig': "Clawco's AI is not available right now. Try again in a little while.",
     tom: 'The model answered, but without text.',
     ukendt: 'The model did not answer as expected. Try again in a little while.',
+    'ukendt-haendelse': 'GitHub Copilot sent something Clawco does not recognise, so the run was stopped to be safe. Try again in a little while.',
   },
 
   takRet: 'Thank you. It helps Hermes get to know you. Here is how it earns more freedom.',
@@ -725,6 +796,12 @@ const en: StartTekster = {
   },
 
   akt: {
+    kunEjerenSituation: 'Only the owner can choose what Clawco takes off your plate.',
+    ukendtValg: 'That pick does not exist.',
+    vaelgFoerst: 'Pick the one that sounds most like you first.',
+    valgteSituation: (navn) => `Picked: ${navn}.`,
+    gikVidereMedSituation: (navn) => `Went on with: ${navn}.`,
+    gemtSituation: 'The pick is saved.',
     kunEjerenGemmerProfil: 'Only the owner can save the profile.',
     ingenDatamappeProfil: 'Clawco has no data folder, so the profile cannot be saved.',
     gemteProfil: (navn, sprog, husstand) => `Saved the profile: ${navn}, Hermes answers in ${{ da: 'Danish', en: 'English' }[sprog]}${husstand ? `, ${{ alene: 'alone', husstand: 'a household' }[husstand]}` : ''}.`,
@@ -832,6 +909,8 @@ const en: StartTekster = {
   },
 
   label: {
+    situation: 'Start: saving the pick',
+    chat: 'Start: answering a question about the journey',
     profil: 'Start: saving the profile',
     fortryd: 'Start: undoing',
     forslag: 'Start: putting the suggestion away',
@@ -853,6 +932,61 @@ const en: StartTekster = {
     importAnnuller: 'Start: throwing the suggestions away',
     importMappe: 'Start: making the notes folder',
     importFortryd: 'Start: undoing the import',
+  },
+  situation: {
+    spoergsmaal: 'What should Clawco take off your plate?',
+    valg: {
+      mail: { navn: 'Mail and deadlines', tekst: 'I am drowning in mail and due dates and want what is urgent on top.' },
+      familie: { navn: "The family's logistics", tekst: 'Who needs to be where, and when, for the whole family.' },
+      alt: { navn: 'Everything, I run things myself', tekst: 'I want it all in one place and I decide what happens.' },
+    },
+    eksempelOverskrift: 'What Now can look like',
+    eksempelMaerke: 'Example',
+    eksempelNote: 'These are examples with invented names. Your own cards come once you have connected a source.',
+    eksempler: {
+      mail: [
+        { titel: 'Statistics 2 hand-in: Thursday at 12', linje: 'You are two exercises short. I have set aside time tomorrow morning.' },
+        { titel: 'Reply to Professor Holm before Friday', linje: 'She asks whether you can move the supervision. A draft is waiting for your yes.' },
+        { titel: 'District heating bill: 412 kr.', linje: 'Due Monday. You pay it yourself; I will remind you.' },
+      ],
+      familie: [
+        { titel: 'Saturday: two things at 10', linje: 'Mia has football, and Noah has the dentist at 10.15. Who drives whom?' },
+        { titel: 'Parents evening in 3.B: Thursday at 17', linje: 'It is in both your calendars. You will need a babysitter.' },
+        { titel: 'Remember gym clothes tomorrow', linje: 'The school wrote last night. Mia has PE first thing.' },
+      ],
+      alt: [
+        { titel: 'Your day: three meetings, the first at 9', linje: 'There is a gap at 12 for lunch and a walk.' },
+        { titel: 'A draft reply to Clara is waiting for you', linje: 'About the agenda for the meeting. Nothing is sent from here.' },
+        { titel: 'Three new articles from your sources', linje: 'The important one is about electricity prices. The rest can wait.' },
+      ],
+    },
+    aldrigOverskrift: 'What Clawco never does',
+    aldrig: [
+      'Clawco never pays for anything on your behalf.',
+      'Clawco never sends mail to others.',
+      'Clawco never deletes anything on its own.',
+    ],
+    vaelg: 'showing the example',
+    gaaVidere: 'That fits, next',
+    gemmer: 'saving',
+    duValgte: (navn) => `You picked: ${navn}`,
+    retValget: 'Change the pick',
+    kunEjeren: 'The owner picks what Clawco takes off your plate.',
+  },
+
+  rejsesvar: {
+    emner: {
+      modelnoegle: 'A model key is a long password from the provider whose AI you use (for example Anthropic or OpenAI). With it Clawco can ask that AI for help on your account. The key stays in your own installation, and Clawco never shows it again. If you have none, you can use a model on your own machine or sign in with GitHub Copilot.',
+      tailscale: 'Tailscale is a private network between your own devices. It lets you reach Clawco from your phone without putting it openly on the internet: only your own devices can see the address. It is optional, and you can wait.',
+      hvadEr: 'Clawco is your personal control centre: a calm screen with what calls on you now, and an agent (Hermes) that does the boring work behind it. Nothing happens until you say yes to it.',
+      sikkerhed: 'Your data lives in your own installation, not with us. Clawco only reads what you connect and shows you what it has read. You can delete everything from Settings.',
+      aldrig: 'Clawco never does three things: it does not pay for anything on your behalf, it does not send mail to others, and it does not delete anything on its own.',
+      tid: 'The journey takes about ten minutes. You only need the top step; the rest is optional, and you can stop at any time.',
+      kilde: 'A source is something Clawco may read for you: your calendar, your mail, your notes or some news feeds. Clawco only reads, and you decide which zone each source belongs to.',
+    },
+    trinSvar: (titel, tekst) => `The step "${titel}": ${tekst}`,
+    ingenTrin: 'You are not in the middle of a step right now. Everything mandatory is done.',
+    ikkeEndnu: 'I can only answer that freely once a model works. Until then I can answer: what a model key is, why Tailscale, what this step gives you, what Clawco is, where your data lives, what Clawco never does, and how long it takes.',
   },
 };
 

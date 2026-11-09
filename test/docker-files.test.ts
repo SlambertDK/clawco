@@ -243,3 +243,14 @@ test('.dockerignore lets in only what the app runs on', () => {
   }
   for (const f of ['src/server.ts', 'public/app.js', 'test/fixtures/himalaya_handling_sample.json']) assert.ok(existsSync(path.join(ROD, f)), f);
 });
+
+// ---- KC-0284: an existing vault from the host, optional ----
+
+test('an existing vault folder is an opt-in override that mounts at /noter, where the notes connector looks; the base file is unchanged without it', () => {
+  const o = laes('compose.noter.yaml');
+  assert.match(o, /^\s*-\s*\$\{CLAWCO_NOTER:\?[^}]+\}:\/noter\s*$/m);
+  assert.deepEqual(offentligePorte(o), []);
+  assert.doesNotMatch(o, /KC_VAULT_DIR/, 'the user chooses the vault in the notes setup; the host-connected env mode is not used');
+  assert.doesNotMatch(laes('compose.yaml').replace(/^\s*#.*$/gm, ''), /\/noter/, 'compose.yaml itself mounts nothing at /noter');
+  assert.match(laes('deploy/docker/README.md'), /compose\.noter\.yaml/);
+});

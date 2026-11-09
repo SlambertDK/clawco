@@ -82,7 +82,7 @@ const state: MailState = {
 const deps = (s: MailState | null): RoomDeps => ({
   store: { readState: async () => s, readLog: async () => [] },
   person: { id: 'o', login: null, navn: 'Owner', rolle: 'ejer' },
-  now: () => MAIL_NU, runs: { igang: () => [] },
+  now: () => MAIL_NU, runs: { igang: () => [] }, hermes: { harVaerktoejer: true },
 }) as unknown as RoomDeps;
 
 test('Nu: Mail\'s line says "Mail: …" and is Danish with no language chosen, English when en', async () => {

@@ -21,7 +21,8 @@ function med(status: Record<string, TrinStatus>): StartVisning['trin'] {
   return alleTrin().map((t: Trin) => ({ trin: t, status: status[t.id] ?? 'ikke-startet' }));
 }
 const render = (o: Partial<StartVisning>): string => String(renderStart({ trin: med({}), profil: null, standardNavn: '', forslag: [], kanGemme: true, now: NU, ...o }));
-const klaret = (...ider: string[]): Record<string, TrinStatus> => Object.fromEntries(ider.map((i) => [i, 'klaret' as const]));
+// KC-0248: step 0 (the pick) is the first step; the cases below start after it unless they say otherwise.
+const klaret = (...ider: string[]): Record<string, TrinStatus> => Object.fromEntries(['situation', ...ider].map((i) => [i, 'klaret' as const]));
 
 /** The expanded step cards (data-trin-aaben marks the one open card). */
 const aabne = (h: string): string[] => [...h.matchAll(/<article[^>]*data-trin="([a-z-]+)"[^>]*data-trin-aaben/g)].map((m) => m[1]!);
@@ -31,12 +32,25 @@ test('every step carries a time estimate in whole minutes', () => {
   for (const t of alleTrin()) assert.ok(Number.isInteger(t.minutter) && t.minutter >= 1 && t.minutter <= 10, `${t.id}: ${t.minutter}`);
 });
 
-test('a fresh journey shows one open card — the first step — and the rest as title lines with an estimate', () => {
+test('a fresh journey shows one open card — step 0, the pick — and the rest as title lines with an estimate', () => {
   const h = render({});
+  assert.deepEqual(aabne(h), ['situation']);
+  assert.match(linje(h, 'situation'), /data-situation="mail"/);
+  assert.doesNotMatch(h, /id="velkommen-form"/, 'nothing of a step not reached is on screen');
+  for (const t of alleTrin().filter((x) => x.id !== 'situation')) {
+    const l = linje(h, t.id);
+    assert.match(l, /data-trin-naeste/, `${t.id} is a next line`);
+    assert.ok(l.includes(t.titel), `${t.id} shows its title`);
+    assert.ok(l.includes(`≈ ${t.minutter} min`), `${t.id} shows ≈ ${t.minutter} min`);
+  }
+});
+
+test('after step 0 the next card is step 1, with its form', () => {
+  const h = render({ trin: med(klaret()) });
   assert.deepEqual(aabne(h), ['velkommen']);
   assert.match(linje(h, 'velkommen'), /id="velkommen-form"/);
   assert.doesNotMatch(h, /id="model-form"/, 'nothing of a step not reached is on screen');
-  for (const t of alleTrin().filter((x) => x.id !== 'velkommen')) {
+  for (const t of alleTrin().filter((x) => x.id !== 'velkommen' && x.id !== 'situation')) {
     const l = linje(h, t.id);
     assert.match(l, /data-trin-naeste/, `${t.id} is a next line`);
     assert.ok(l.includes(t.titel), `${t.id} shows its title`);
@@ -47,8 +61,8 @@ test('a fresh journey shows one open card — the first step — and the rest as
 test('the open card says which step it is of how many', () => {
   const h = render({ trin: med(klaret('velkommen')), profil: PROFIL });
   assert.deepEqual(aabne(h), ['model']);
-  assert.match(linje(h, 'model'), new RegExp(`trin-taeller">2 af ${alleTrin().length}<`));
-  assert.match(medSprog('en', () => render({ trin: med(klaret('velkommen')), profil: PROFIL })), new RegExp(`trin-taeller">2 of ${alleTrin().length}<`));
+  assert.match(linje(h, 'model'), new RegExp(`trin-taeller">3 af ${alleTrin().length}<`));
+  assert.match(medSprog('en', () => render({ trin: med(klaret('velkommen')), profil: PROFIL })), new RegExp(`trin-taeller">3 of ${alleTrin().length}<`));
 });
 
 test('a done step folds to one line with a tick, its content kept behind the fold', () => {

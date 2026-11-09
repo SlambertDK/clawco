@@ -71,7 +71,7 @@ function logRaekke(e: LogEntry, now: Date): Markup {
   </div>`;
 }
 
-export function renderDagen(state: DagenState, log: LogEntry[], now: Date, igang: IgangRaekke[] = [], kilde?: KildeFriskhed | null): Markup {
+export function renderDagen(state: DagenState, log: LogEntry[], now: Date, igang: IgangRaekke[] = [], kilde?: KildeFriskhed | null, vaerktoejer = true): Markup {
   const t = dagenTekst();
   const a = state.anbefaling;
   const resultater = senesteResultater(log);
@@ -124,7 +124,7 @@ export function renderDagen(state: DagenState, log: LogEntry[], now: Date, igang
     // KC-0093: the calendar's handlinger wait on Henrik too (the nav counts them) though they stay in the plan below.
     venter: venterDagen(state, log, now),
     kraever: [
-      { titel: t.dagenErIkkeBygget, form: 'kort', elementer: gammel === 'byg' ? [{ id: 'dagen:byg', html: bygKort() }] : [] },
+      { titel: t.dagenErIkkeBygget, form: 'kort', elementer: gammel === 'byg' && vaerktoejer ? [{ id: 'dagen:byg', html: bygKort() }] : [] },
       { titel: t.anbefaling, form: 'kort', elementer: staerkt ? [{ id: 'dagen:anbefaling', html: overblik }] : [] },
     ],
     indhold,
@@ -143,14 +143,15 @@ function bygKort(): Markup {
   </section>`;
 }
 
-export function renderDagenEmpty(grund: string): Markup {
+/** KC-0259: `vaerktoejer` false (the built-in agent): no "ask Hermes to fetch" paragraph or button. */
+export function renderDagenEmpty(grund: string, vaerktoejer = true): Markup {
   const t = dagenTekst();
   return html`
   <header class="room-head"><div><h1>${t.rum}</h1><p class="muted">${t.ingenData}</p></div></header>
   <section class="card">
     <h2>${t.rummetErTomt}</h2>
     <p class="muted">${grund}</p>
-    <p class="muted">${t.tomForklaring}</p>
-    <div class="actions"><button type="button" class="btn btn-primary" data-opdater="hent">${t.bedHermesHente}</button></div>
+    ${vaerktoejer ? html`<p class="muted">${t.tomForklaring}</p>
+    <div class="actions"><button type="button" class="btn btn-primary" data-opdater="hent">${t.bedHermesHente}</button></div>` : ''}
   </section>`;
 }

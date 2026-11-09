@@ -12,7 +12,7 @@ import type { DoneResult, RunRecord } from '../../runs.ts';
 import { synligFor } from '../../identitet/zoner.ts';
 import { kan } from '../../identitet/roller.ts';
 import { ENEBRUGER } from '../../identitet/identitet.ts';
-import { parseStartState, ProfilFejl, validerProfil, type Forslag, type Profil, type StartModel, type StartState } from './schema.ts';
+import { erSituation, parseStartState, ProfilFejl, validerProfil, type Forslag, type Profil, type StartModel, type StartState } from './schema.ts';
 import { alleTrin, modelKlaret, NIVEAUER, PAKKE_KILDER, trinStatus, utenPakke, type ModelSyn, type Niveau, type TrinKontekst } from './trin.ts';
 import { erRejsenFaerdig } from './rejsen.ts';
 import { foreslaaTilfoejelse } from './forslag.ts';
@@ -32,6 +32,8 @@ import { visTailscaleKort } from './tailscalekort.ts';
 import { TsFejl } from '../../shell/tailscale.ts';
 import { STANDARD_SPROG, tekst } from '../../shell/tekster.ts';
 import { enAdGangen, endreStart } from './laas.ts';
+import { efterTrinOrden } from './situation.ts';
+import { ikkeEndnuSvar, rejseSvar } from './rejsesvar.ts';
 import { startTekst } from './tekster.ts';
 
 const RUM = 'start';
@@ -217,7 +219,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
   // offer and step 5 without a notes writer are gone rather than an empty card.
   const tom = (x: (typeof alle)[number]): boolean => x.status !== 'klaret'
     && ((x.trin.id === 'flere-kilder' && flereKilderKoe(s, ctx).length === 0) || (x.trin.id === 'import' && !deps.importSkriver));
-  const trin = alle.filter((x) => ((x.trin.id !== 'flere-kilder' && x.trin.id !== 'import') || foersteKlaret || (x.trin.id === 'import' && x.status === 'klaret')) && !tom(x));
+  const trin = efterTrinOrden(alle, (x) => x.trin.id, s.situation?.valg).filter((x) => ((x.trin.id !== 'flere-kilder' && x.trin.id !== 'import') || foersteKlaret || (x.trin.id === 'import' && x.status === 'klaret')) && !tom(x));
   const kilder = await kildeVisning(deps, s, ctx);
   // One count for the nav and the room (KC-0093): open mandatory steps until the journey is Done.
   const venter = faerdig ? 0 : trin.filter((x) => x.trin.krav === 'obligatorisk' && x.status !== 'klaret').length;
@@ -232,6 +234,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
   return {
     main: renderStart({
       foersteRet: await foersteRetSyn(deps, s),
+      ...(s.situation ? { situation: s.situation } : {}), // KC-0248
       ...(await importSyn(deps, s, ctx.model)),
       ...(await tailscaleSyn(deps, faerdig)),
       ...(await digitalPostSyn(deps)),
@@ -256,6 +259,43 @@ const str = (v: unknown, maks: number): string => (typeof v === 'string' ? v.tri
 
 /** KC-0129: what the import's handlings need of this file (they import nothing from it). */
 const importHjaelp: ImportHjaelp = { laesState, ny, enAdGangen, faerdigt, korsel: KORSEL };
+
+/**
+ * KC-0248: step 0. `situation-vaelg` stores the pick (and keeps an earlier confirmation, so changing the pick from the folded
+ * line does not reopen the step); `situation-bekraeft` is the person going on with it — what makes the step Klaret.
+ */
+async function situationAktion(deps: RoomDeps, name: string, body: Record<string, unknown>): Promise<RunRecord> {
+  const T = startTekst();
+  const A = T.akt;
+  const p = deps.person;
+  if (!kan(p.rolle, 'aendre-indstillinger')) throw new ActionError(A.kunEjerenSituation);
+  if (name === 'situation-vaelg') {
+    const valg = body['valg'];
+    if (!erSituation(valg)) throw new ActionError(A.ukendtValg);
+    return deps.runs.local('gem', async () => {
+      const tid = deps.now().toISOString();
+      await endreStart(deps, (n) => {
+        const s = n ?? ny(deps.now());
+        const bekraeftet = s.situation?.bekraeftet;
+        return { ...s, situation: { valg, tid, ...(bekraeftet ? { bekraeftet } : {}) }, trin: { ...s.trin, situation: { status: bekraeftet ? 'klaret' : 'i-gang', tid } } };
+      });
+      await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.valgteSituation(T.situation.valg[valg].navn) });
+      return faerdigt(deps, A.gemtSituation);
+    }, { room: RUM, label: T.label.situation });
+  }
+  const gemt = await laesState(deps);
+  if (!gemt?.situation) throw new ActionError(A.vaelgFoerst);
+  return deps.runs.local('gem', async () => {
+    const tid = deps.now().toISOString();
+    const efter = await endreStart(deps, (n) => {
+      const s = n ?? ny(deps.now());
+      if (!s.situation) return null;
+      return { ...s, situation: { ...s.situation, bekraeftet: s.situation.bekraeftet ?? tid }, trin: { ...s.trin, situation: { status: 'klaret', tid } } };
+    });
+    if (efter?.situation) await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.gikVidereMedSituation(T.situation.valg[efter.situation.valg].navn) });
+    return faerdigt(deps, A.gemtSituation);
+  }, { room: RUM, label: T.label.situation });
+}
 
 async function startAction(deps: RoomDeps, name: string, body: Record<string, unknown>): Promise<RunRecord | null> {
   const p = deps.person;
@@ -284,6 +324,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
       return profil.sprog === (forrige?.sprog ?? deps.standardSprog?.() ?? STANDARD_SPROG) ? svar : { ...svar, genindlaes: true };
     }, { room: RUM, label: T.label.profil });
   }
+  if (name === 'situation-vaelg' || name === 'situation-bekraeft') return situationAktion(deps, name, body);
   if (name === 'forslag-afvis') {
     const kildeId = str(body['kildeId'], 40);
     const f = (await rejsen(deps)).forslag.find((x) => x.kildeId === kildeId);
@@ -582,8 +623,18 @@ async function startFortryd(deps: RoomDeps, logId: string): Promise<RunRecord | 
 
 async function startChat(deps: RoomDeps, besked: string, kontekst: string | undefined): Promise<RunRecord> {
   const ingenSvar = startTekst().akt.ingenSvar; // read now: the answer may arrive in another request's context
-  const { trin } = await trinNu(deps, await laesState(deps));
+  const { ctx, trin } = await trinNu(deps, await laesState(deps));
   await deps.store.appendChat(RUM, kontekst ? { fra: 'henrik', tekst: besked, kontekst, ejer: deps.person.id } : { fra: 'henrik', tekst: besked, ejer: deps.person.id });
+  // KC-0249: until a model works the journey's own questions are answered from the fixed list (no model, no run to Hermes);
+  // once one works the chat is the model's, as before. A question outside the list says what can be asked.
+  if (ctx.model && !modelKlaret(ctx.model)) {
+    const aabent = trin.find((x) => x.trin.krav === 'obligatorisk' && x.status !== 'klaret') ?? trin.find((x) => x.status !== 'klaret' && x.status !== 'sprunget-over');
+    const svar = rejseSvar(besked, aabent ? { titel: aabent.trin.titel, tekst: aabent.trin.tekst } : undefined) ?? ikkeEndnuSvar();
+    return deps.runs.local('chat', async () => {
+      await deps.store.appendChat(RUM, { fra: 'hermes', tekst: svar, ejer: deps.person.id });
+      return { text: svar };
+    }, { room: RUM, label: startTekst().label.chat });
+  }
   return deps.runs.start({
     kind: 'chat',
     spec: buildStartChatRun(besked, kontekst, trin.map((x) => ({ titel: x.trin.titel, status: x.status }))),
@@ -598,7 +649,7 @@ async function startChat(deps: RoomDeps, besked: string, kontekst: string | unde
 export const startRoom: RoomModule = {
   id: RUM,
   korsel: KORSEL,
-  aktionVerber: { 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'github-start': 'bogfoer', 'github-ud': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-opdater': 'udfoer-med-fortryd', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd', 'post-afsender-gem': 'bogfoer', 'post-ikke-nu': 'sorter', 'aula-ikke-nu': 'sorter' },
+  aktionVerber: { 'situation-vaelg': 'sorter', 'situation-bekraeft': 'sorter', 'velkommen-gem': 'bogfoer', 'forslag-afvis': 'sorter', 'model-gem': 'bogfoer', 'model-test': 'laes', 'model-agent-noegle': 'bogfoer', 'github-start': 'bogfoer', 'github-ud': 'bogfoer', 'kilde-spring-over': 'sorter', 'ret-spring-over': 'sorter', 'import-laes': 'laes', 'import-gem': 'bogfoer', 'import-gem-alle': 'bogfoer', 'import-opdater': 'udfoer-med-fortryd', 'import-spring': 'sorter', 'import-annuller': 'sorter', 'import-spring-over': 'sorter', 'import-lav-mappe': 'bogfoer', 'tailscale-del': 'udfoer-med-fortryd', 'post-afsender-gem': 'bogfoer', 'post-ikke-nu': 'sorter', 'aula-ikke-nu': 'sorter' },
   aktionTap: ['tailscale-del'],
   view,
   startOpdater: async () => null,

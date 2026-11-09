@@ -19,7 +19,7 @@ import { universRum } from '../../rooms/univers/lager.ts';
 import { husstandState, TEST_EJER, TEST_HUSSTAND, TEST_INVITEREDE } from './husstand.ts';
 import { pauseFroe } from './nodstop.ts';
 import { reglerTekst } from './tillid.ts';
-import { erKold, KOLD_ENGELSK, koldFroe, startFaerdig } from './start.ts';
+import { erKold, erNyEngelsk, KOLD_ENGELSK, koldFroe, startFaerdig } from './start.ts';
 import { medSprog, type Sprog } from '../../store/sprog.ts';
 import { mandagFor } from '../../tillid/dagstal.ts';
 import { skjulteFroe, soendagForslag, stikbogFroe } from './stikproeve.ts';
@@ -46,7 +46,7 @@ function gmailMail(n: number, f: Fakta): RumFroe {
 }
 
 /** KC-0244: the language the content of a moment is written in: English at the moments whose profile chose English (KC-0170), else Danish. */
-export const momentSprog = (momentId: string): Sprog => (erEngelskVariant(momentId) || momentId === KOLD_ENGELSK ? 'en' : 'da');
+export const momentSprog = (momentId: string): Sprog => (erEngelskVariant(momentId) || momentId === KOLD_ENGELSK || erNyEngelsk(momentId) ? 'en' : 'da');
 
 /** Everything the app needs on disk at `momentId` on `dag` (YYYY-MM-DD, Copenhagen), the cards written in the moment's language. Throws on an unknown moment. */
 export const froe = (momentId: string, dag: string): Froe => medSprog(momentSprog(momentId), () => froeIndhold(momentId, dag));

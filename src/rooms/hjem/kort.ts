@@ -285,6 +285,13 @@ function medUdsat(ny: Kort, gammel: Kort, now: Date): Kort {
  * KC-0117: `korsel` is the one zone the run read. A stored card of another zone is outside what the run saw: it is
  * kept as it is (never rewritten, relabelled or retired by this run).
  */
+/**
+ * KC-0259: a card's "handling" is a button that runs one of the agent's tools. Without tools no card carries one, so it is
+ * neither asked for, stored from an answer, nor drawn from a card an earlier Hermes left behind.
+ */
+export const udenHandling = <T extends { handling?: unknown }>(k: T): T => { if (!k.handling) return k; const { handling: _h, ...rest } = k; return rest as T; };
+export const kortUdenVaerktoej = <T extends { handling?: unknown }>(kort: readonly T[], harVaerktoejer: boolean): T[] => (harVaerktoejer ? [...kort] : kort.map(udenHandling));
+
 export function mergeKort(state: KuratorState, svar: KuratorSvar, now: Date, korsel: DataZone): KuratorState {
   const fjernet = new Set(svar.fjern.map((f) => f.id));
   const afvist = new Set(state.afvist);

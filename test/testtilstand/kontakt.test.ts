@@ -5,6 +5,7 @@ import path from 'node:path';
 import { erTestBesked, medTesttilstand, testDataDir } from '../../src/testtilstand/kontakt.ts';
 import type { Testverden } from '../../src/testtilstand/verden.ts';
 import { ALLE_MOMENTER, MOMENTER } from '../../src/testtilstand/indhold.ts';
+import { tilladAlle } from '../helpers/tillad.ts';
 
 const KEKS = 'kc_test=1';
 const COOKIE_SAT = 'kc_test=1; Path=/; SameSite=Lax; HttpOnly; Max-Age=2592000';
@@ -50,7 +51,7 @@ function opsaet() {
   const real = spionApp();
   const verden = stubVerden();
   let lavet = 0;
-  const disp = medTesttilstand(real, async () => { lavet++; return verden; });
+  const disp = medTesttilstand(real, async () => { lavet++; return verden; }, tilladAlle);
   const send = (sti: string, o: { metode?: string; keks?: boolean; body?: unknown } = {}): Promise<Response> =>
     Promise.resolve(disp.request(sti, {
       method: o.metode ?? 'GET',
@@ -141,7 +142,7 @@ test('creation failure: 503 Danish text with the cookie cleared; the next taend 
   const real = spionApp();
   const verden = stubVerden();
   let forsoeg = 0;
-  const disp = medTesttilstand(real, async () => { forsoeg++; if (forsoeg === 1) throw new Error('disk fuld'); return verden; });
+  const disp = medTesttilstand(real, async () => { forsoeg++; if (forsoeg === 1) throw new Error('disk fuld'); return verden; }, tilladAlle);
   const r = await disp.request('/rum/hjem', { headers: { cookie: KEKS } });
   assert.equal(r.status, 503);
   assert.equal(await r.text(), 'Testtilstand kunne ikke starte');
@@ -152,7 +153,7 @@ test('creation failure: 503 Danish text with the cookie cleared; the next taend 
 });
 
 test('creation failure on taend: 503, no cookie set', async () => {
-  const disp = medTesttilstand(spionApp(), async () => { throw new Error('nej'); });
+  const disp = medTesttilstand(spionApp(), async () => { throw new Error('nej'); }, tilladAlle);
   const r = await disp.request('/test/taend', { method: 'POST' });
   assert.equal(r.status, 503);
   assert.equal(r.headers.get('set-cookie'), COOKIE_RYDDET, 'cookie is cleared, never set');
@@ -162,7 +163,7 @@ test('concurrent requests share one world creation', async () => {
   const real = spionApp();
   const verden = stubVerden();
   let lavet = 0;
-  const disp = medTesttilstand(real, async () => { lavet++; await new Promise((r) => setTimeout(r, 20)); return verden; });
+  const disp = medTesttilstand(real, async () => { lavet++; await new Promise((r) => setTimeout(r, 20)); return verden; }, tilladAlle);
   const rs = await Promise.all([1, 2, 3].map(() => disp.request('/rum/hjem', { headers: { cookie: KEKS } })));
   assert.deepEqual(rs.map((r) => r.status), [200, 200, 200]);
   assert.equal(lavet, 1);
@@ -195,7 +196,7 @@ test('injection JSON-encodes the object and cannot close the script tag', async 
   const verden = stubVerden();
   const m = { ...MOMENTER[0]!, id: 'x</script><b>', navn: 'Vågner </script>' };
   (verden as unknown as { moment: () => typeof m }).moment = () => m;
-  const disp = medTesttilstand(real, async () => verden);
+  const disp = medTesttilstand(real, async () => verden, tilladAlle);
   const html = await (await disp.request('/rum/hjem', { headers: { cookie: KEKS } })).text();
   const script = html.slice(html.indexOf('<script>') + 8, html.indexOf('</script>'));
   assert.ok(script.startsWith('window.KC_TEST='));
@@ -258,7 +259,7 @@ test('after the world is built, a hop/status/forward error is a plain 500 that k
   (verden as unknown as { hop: () => never }).hop = bryd;
   (verden as unknown as { moment: () => never }).moment = bryd;
   (verden as unknown as { app: { fetch: () => never } }).app = { fetch: bryd };
-  const disp = medTesttilstand(real, async () => verden);
+  const disp = medTesttilstand(real, async () => verden, tilladAlle);
   const orig = console.error;
   console.error = () => {};
   try {
@@ -272,7 +273,7 @@ test('after the world is built, a hop/status/forward error is a plain 500 that k
 });
 
 test('a failed creation is logged with its cause', async () => {
-  const disp = medTesttilstand(spionApp(), async () => { throw new Error('disk fuld'); });
+  const disp = medTesttilstand(spionApp(), async () => { throw new Error('disk fuld'); }, tilladAlle);
   const logget: unknown[][] = [];
   const orig = console.error;
   console.error = (...a: unknown[]) => { logget.push(a); };
@@ -285,7 +286,7 @@ test('a failed creation is logged with its cause', async () => {
 test('cookie parsing: only an exact kc_test=1 pair counts', async () => {
   for (const [keks, test] of [['kc_test=10', false], ['xkc_test=1', false], ['a=kc_test=1', false], ['foo=1; kc_test=1', true], ['kc_test=1; foo=2', true], [' kc_test=1 ', true]] as const) {
     const o = opsaet();
-    const rr = await Promise.resolve(medTesttilstand(o.real, async () => o.verden).request('/rum/hjem', { headers: { cookie: keks } }));
+    const rr = await Promise.resolve(medTesttilstand(o.real, async () => o.verden, tilladAlle).request('/rum/hjem', { headers: { cookie: keks } }));
     assert.equal((await rr.text()).includes('<title>test</title>'), test, keks);
   }
 });
@@ -305,7 +306,7 @@ test('testDataDir: a sibling ending in -test, never inside the real dir; an expl
 // disagrees with the device's cookie is refused (409) and routed nowhere, so the page reloads.
 const SKIFTET = 'Testtilstand er skiftet — genindlæs siden.';
 function medTilstand(o: ReturnType<typeof opsaet>['real'], v: ReturnType<typeof stubVerden>) {
-  const disp = medTesttilstand(o, async () => v);
+  const disp = medTesttilstand(o, async () => v, tilladAlle);
   return (sti: string, metode: string, tilstand: 'test' | 'real' | null, keks: boolean, body?: unknown): Promise<Response> =>
     Promise.resolve(disp.request(sti, {
       method: metode,

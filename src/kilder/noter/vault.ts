@@ -69,12 +69,15 @@ export async function adopterVault(rod: string): Promise<string[]> {
   return tilfoej(rod);
 }
 
+/** KC-0284: where compose.noter.yaml mounts a vault folder from the host into the container (absent anywhere else, then skipped). */
+const DOCKER_NOTER = '/noter';
+
 /** The fixed roots detection may look under, per platform (Linux equivalents include a Danish Dokumenter). */
 export function kandidatRoedder(hjem: string, platform: NodeJS.Platform | string): string[] {
   const i = (...d: string[]): string => path.join(hjem, ...d);
   return platform === 'darwin'
     ? [hjem, i('Documents'), i('Obsidian'), i('Library', 'Mobile Documents', 'iCloud~md~obsidian', 'Documents')]
-    : [hjem, i('Documents'), i('Dokumenter'), i('Obsidian')];
+    : [hjem, i('Documents'), i('Dokumenter'), i('Obsidian'), DOCKER_NOTER];
 }
 
 type LaesMappe = (p: string, o: { withFileTypes: true }) => Promise<Dirent[]>;

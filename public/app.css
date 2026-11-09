@@ -414,6 +414,13 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 .kort { gap: 10px; }
 .kort-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .kort-head .row-title { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+/* KC-0248: Start step 0 — the three picks, the example Nu under them, the three things Clawco never does. */
+.situation-valg { display: flex; flex-direction: column; gap: 8px; }
+.situation-valg .btn { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; height: auto; min-height: 44px; padding: 10px 12px; white-space: normal; text-align: left; border: 1px solid var(--line); }
+.situation-valg .btn-primary .row-note { color: inherit; opacity: .85; }
+.eksempel { display: flex; flex-direction: column; gap: 8px; }
+.eksempel-kort { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--raised); }
+.aldrig ul { margin: 6px 0 0; padding-left: 18px; }
 /* KC-0247: Start, one step at a time — the open step's count, then one line per later or done step. */
 .trin-taeller { font-size: 12px; white-space: nowrap; }
 .trin-linje { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--raised); }

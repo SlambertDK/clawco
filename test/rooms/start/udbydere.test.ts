@@ -68,3 +68,9 @@ test('KC-0180: how the direct agent calls each provider (one list knows provider
   assert.deepEqual(udbyderAf('ollama')?.direkte, { api: 'openai-chat' });
   assert.deepEqual(udbyderAf('copilot')?.direkte, { api: 'copilot-sdk' }, 'KC-0263: the Copilot SDK with the GitHub sign-in');
 });
+
+test('KC-0260: no default model is older than a newer one the repo already knows (Anthropic and OpenRouter name 5.5)', () => {
+  assert.deepEqual(udbyderAf('anthropic')!.standardModeller, { lille: 'claude-haiku-5-5', taenker: 'claude-sonnet-5-5' });
+  assert.deepEqual(udbyderAf('openrouter')!.standardModeller, { lille: 'anthropic/claude-haiku-5.5', taenker: 'anthropic/claude-sonnet-5.5' });
+  for (const u of UDBYDERE) for (const m of Object.values(u.standardModeller)) assert.doesNotMatch(m, /claude-(haiku|sonnet|opus)-4/, u.id);
+});

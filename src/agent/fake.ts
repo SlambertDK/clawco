@@ -9,7 +9,7 @@ type FakeAnswer = string | { output: string; events?: AgentEvent[] };
 export type ModelTestUdfald = 'klar' | '401' | 'timeout';
 
 export function createFakeAgent(
-  opts: { answer?: (req: AgentRunRequest) => FakeAnswer; delayMs?: number; modelTest?: (req: AgentRunRequest) => ModelTestUdfald; status?: () => AgentStatus } = {},
+  opts: { answer?: (req: AgentRunRequest) => FakeAnswer; delayMs?: number; modelTest?: (req: AgentRunRequest) => ModelTestUdfald; status?: () => AgentStatus; /** KC-0259: false = a fake that stands in for the built-in agent (no tools); default true, as Hermes. */ vaerktoejer?: boolean } = {},
 ): AgentClient & { calls: AgentRunRequest[]; noegler: { envNavn: string; laengde: number }[]; cancellerede: string[] } {
   const calls: AgentRunRequest[] = [];
   /** KC-0270: the runs a cancel was sent for (the abort path calls it). */
@@ -25,6 +25,7 @@ export function createFakeAgent(
 
   return {
     mode: 'fake',
+    harVaerktoejer: opts.vaerktoejer ?? true,
     calls,
     noegler,
     cancellerede,

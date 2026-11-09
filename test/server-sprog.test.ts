@@ -12,6 +12,7 @@ import { createFileStore } from '../src/store/fileStore.ts';
 import { createFakeAgent } from '../src/agent/fake.ts';
 import { FAMILIE } from '../src/testtilstand/familie.ts';
 import type { Person } from '../src/identitet/husstand.ts';
+import { forbiTil } from './helpers/start-forbi.ts';
 
 const NOW = new Date('2026-10-31T10:00:00Z');
 const EJER: Person = { id: FAMILIE.medlem.id, login: null, navn: FAMILIE.medlem.navn, rolle: 'ejer' };
@@ -25,6 +26,7 @@ async function medApp(fn: (s: Sut) => Promise<void>, ekstra: { standardSprog?: '
       store: createFileStore(dir), hermes, sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW,
       mailRunner: async () => ({ code: 1, stdout: '', stderr: 'x' }), mailStateDir: '/nonexistent', identitet: { fast: EJER }, kilder: [], ...ekstra,
     });
+    await forbiTil(dir, 'situation'); // KC-0248: step 0 (the pick) is behind us, so step 1 is the open step
     await fn({ ...app, hermes });
   } finally { await rm(dir, { recursive: true, force: true }); }
 }
@@ -161,6 +163,7 @@ test('KC-0246: a new Sky tenant folder with KC_SPROG starts in that language and
         const hermes = createFakeAgent({ answer: () => 'Hej.' });
         const app = createApp({ store: createFileStore(dir), hermes, sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW, standardSprog,
           mailRunner: async () => ({ code: 1, stdout: '', stderr: 'x' }), mailStateDir: '/nonexistent', identitet: { fast: EJER }, kilder: [] });
+        await forbiTil(dir, 'situation');
         const h = await side({ ...app, hermes }, '/rum/start');
         assert.match(h, new RegExp(`<html lang="${htmlLang}">`));
         assert.ok(h.includes(valgt), `${sprog}: the select starts on the account's language`);

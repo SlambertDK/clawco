@@ -58,9 +58,10 @@ KC_AGENT=hermes-http KC_HERMES_URL=http://host.docker.internal:8642 docker compo
 
 ## Your notes folder (optional)
 
-Uncomment the two notes lines in `compose.yaml` (`KC_VAULT_DIR: /noter` and the
-`${CLAWCO_NOTER}:/noter` volume), then `CLAWCO_NOTER=/path/to/vault docker compose up -d`. The
-folder must be writable by uid 1000 if Clawco is to save notes in it.
+To use a vault you already have (on this machine or a NAS mount), start with the extra file:
+`CLAWCO_NOTER=/path/to/vault docker compose -f compose.yaml -f compose.noter.yaml up -d`. It appears at `/noter`; choose
+"I already have an Obsidian vault" in the notes setup and "Gem i Obsidian" saves into its inbox. The folder must be
+writable by uid 1000. Without the extra file nothing changes.
 
 ## Tailscale (optional profile)
 

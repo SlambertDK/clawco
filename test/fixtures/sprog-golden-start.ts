@@ -138,9 +138,13 @@ const FORHAAND_CASER: Record<string, () => string> = Object.fromEntries(Object.k
 
 // ---- The cases ---------------------------------------------------------------------------------------------------------
 
-const trin = alleTrin().map((t, i) => ({ trin: t, status: (i === 0 ? 'klaret' : 'ikke-startet') as 'klaret' | 'ikke-startet' }));
+// KC-0248: the goldens predate step 0 (the situation pick); they keep the journey from step 1 on (step 0 has its own cases below).
+const journey = alleTrin().filter((t) => t.id !== 'situation');
+const trin = journey.map((t, i) => ({ trin: t, status: (i === 0 ? 'klaret' : 'ikke-startet') as 'klaret' | 'ikke-startet' }));
 const start = (o: Partial<Parameters<typeof renderStart>[0]>): string => String(renderStart({ trin, profil: { navn: 'Alma', sprog: 'da', husstand: 'alene' }, standardNavn: '', forslag: [], kanGemme: true, now: START_NU, ...o }));
-const trinFoerst = (id: string, status: 'klaret' | 'ikke-startet' | 'sprunget-over' | 'i-gang') => alleTrin().map((t) => ({ trin: t, status: t.id === id ? status : ('klaret' as const) }));
+/** The whole journey, step 0 included, with step 0 in `status` and the rest not started. */
+const hele = (status: 'ikke-startet' | 'i-gang'): { trin: ReturnType<typeof alleTrin>[number]; status: 'klaret' | 'ikke-startet' | 'i-gang' }[] => alleTrin().map((t) => ({ trin: t, status: t.id === 'situation' ? status : 'ikke-startet' }));
+const trinFoerst = (id: string, status: 'klaret' | 'ikke-startet' | 'sprunget-over' | 'i-gang') => journey.map((t) => ({ trin: t, status: t.id === id ? status : ('klaret' as const) }));
 
 export const START_DELE: Record<string, () => string> = {
   'kilde-forbind': () => String(forbindKort(KAL, { spring: false })),
@@ -167,14 +171,19 @@ export const START_DELE: Record<string, () => string> = {
   'pakke-postKanIkkeSe': () => String(renderDigitalPostStart({ ...POST, kandidater: [], laeser: 'kan-ikke-se' })),
   ...IMPORT_CASER,
   ...FORHAAND_CASER,
+  // KC-0248: step 0 — nothing picked (the first pick's example under the picks), a pick not yet gone on with, gone on with, and read-only.
+  'situation-aaben': () => start({ trin: hele('ikke-startet'), profil: null }),
+  'situation-valgt': () => start({ trin: hele('i-gang'), profil: null, situation: { valg: 'familie', tid: HENTET } }),
+  'situation-klaret': () => start({ trin: alleTrin().map((t) => ({ trin: t, status: (t.id === 'situation' ? 'klaret' : 'ikke-startet') as 'klaret' | 'ikke-startet' })), situation: { valg: 'mail', tid: HENTET, bekraeftet: HENTET } }),
+  'situation-ikkeEjer': () => start({ trin: hele('ikke-startet'), profil: null, kanGemme: false }),
   // Whole room: the steps 3–6 inside the pile, with the cards under them.
   'rum-kilder': () => start({ trin: trinFoerst('foerste-kilde', 'i-gang'), kilder: kilder({ kort: [KAL, MAIL] }) }),
   'rum-importOgRet': () => start({
-    trin: alleTrin().map((t) => ({ trin: t, status: (t.id === 'import' || t.id === 'foerste-ret' ? 'ikke-startet' : 'klaret') as 'klaret' | 'ikke-startet' })),
+    trin: journey.map((t) => ({ trin: t, status: (t.id === 'import' || t.id === 'foerste-ret' ? 'ikke-startet' : 'klaret') as 'klaret' | 'ikke-startet' })),
     import: imp({ bunke: BUNKE }), foersteRet: { punkt: { titel: 'The electricity bill' }, kanSpringeOver: true },
   }),
   'rum-efterRet': () => start({
-    trin: alleTrin().map((t) => ({ trin: t, status: 'klaret' as const })),
+    trin: journey.map((t) => ({ trin: t, status: 'klaret' as const })),
     foersteRet: { punkt: null, ret: { art: 'ret', tid: HENTET, titel: 'The electricity bill' }, kanSpringeOver: false },
     tailscale: { syn: ts('klar'), kanDele: true }, digitalPost: POST, aula: { kort: AULA },
   }),
@@ -231,9 +240,9 @@ const profilLager = (start: Profil | null = null): NonNullable<Sut['d']['profil'
 const tsVindue = (laes: TsSyn, del: () => Promise<TsSyn>): NonNullable<Sut['d']['tailscale']> => ({ port: 8750, laptop: () => false, laes: async () => laes, del });
 const danmark = (): NonNullable<Sut['d']['danmark']> => ({ start: async () => null, gem: async () => undefined, ikkeNu: async () => undefined, aulaUdsat: async () => false, aulaIkkeNu: async () => undefined });
 
-const REV = { lille: 'anthropic:claude-haiku-4-5', taenker: 'anthropic:claude-sonnet-4-5' };
+const REV = { lille: 'anthropic:claude-haiku-5-5', taenker: 'anthropic:claude-sonnet-5-5' };
 const modelVindue = (o: { tom?: boolean } = {}): NonNullable<Sut['d']['model']> => {
-  let syn: ModelSyn = o.tom ? { modeller: {}, test: {}, rev: REV } : { udbyder: 'anthropic', modeller: { lille: 'claude-haiku-4-5', taenker: 'claude-sonnet-4-5' }, test: {}, rev: REV };
+  let syn: ModelSyn = o.tom ? { modeller: {}, test: {}, rev: REV } : { udbyder: 'anthropic', modeller: { lille: 'claude-haiku-5-5', taenker: 'claude-sonnet-5-5' }, test: {}, rev: REV };
   return {
     laes: async () => syn,
     vaelg: async (v) => { syn = { ...syn, udbyder: v.udbyder, modeller: { lille: v.lille, taenker: v.taenker }, rev: { lille: `${v.udbyder}:${v.lille}`, taenker: `${v.udbyder}:${v.taenker}` } }; },
@@ -332,7 +341,7 @@ export const SCENARIER: Record<string, Scenarie> = {
   'model-ukendtUdbyder': { opsaet: { model: modelVindue() }, kor: A('model-gem', { udbyder: 'nope' }) },
   'model-forkertAdresse': { opsaet: { model: modelVindue() }, kor: A('model-gem', { udbyder: 'ollama', url: 'ftp://x.example.com' }) },
   'model-noegleForLang': { opsaet: { model: modelVindue() }, kor: A('model-gem', { udbyder: 'anthropic', noegle: 'k'.repeat(2001) }) },
-  'model-gemOk': { opsaet: { model: modelVindue({ tom: true }) }, kor: A('model-gem', { udbyder: 'anthropic', noegle: 'sk-test-123', lille: 'claude-haiku-4-5', taenker: 'claude-sonnet-4-5' }) },
+  'model-gemOk': { opsaet: { model: modelVindue({ tom: true }) }, kor: A('model-gem', { udbyder: 'anthropic', noegle: 'sk-test-123', lille: 'claude-haiku-5-5', taenker: 'claude-sonnet-5-5' }) },
   'model-gemLokal': { opsaet: { model: modelVindue({ tom: true }) }, kor: A('model-gem', { udbyder: 'ollama', url: 'http://127.0.0.1:11434' }) },
   'model-gemKommando': { opsaet: { model: modelVindue({ tom: true }) }, kor: async (s) => { s.d.hermes.saetModelNoegle = async () => ({ slags: 'kommando', kommando: 'hermes config set ANTHROPIC_API_KEY' }); return aktion(s, 'model-gem', { udbyder: 'anthropic', noegle: 'sk-test-123' }); } },
   'model-gemFejl': { opsaet: { model: modelVindue({ tom: true }) }, kor: async (s) => { s.d.hermes.run = async () => { throw new Error('ECONNREFUSED'); }; return aktion(s, 'model-gem', { udbyder: 'anthropic', noegle: 'sk-test-123' }); } },

@@ -87,14 +87,15 @@ export function renderNyheder(state: NyhederState, log: LogEntry[], now: Date, i
   })}`;
 }
 
-export function renderNyhederEmpty(grund: string): Markup {
+/** KC-0259: `vaerktoejer` false (the built-in agent): no "fetch the paper" paragraph or button. */
+export function renderNyhederEmpty(grund: string, vaerktoejer = true): Markup {
   const T = nyhederTekst();
   return html`
   <header class="room-head"><div><h1>${tekst().rum['nyheder']}</h1><p class="muted">${T.ingenAvisEndnu}</p></div></header>
   <section class="card">
     <h2>${T.rummetErTomt}</h2>
     <p class="muted">${grund}</p>
-    <p class="muted">${T.henterNormalt}</p>
-    <div class="actions"><button type="button" class="btn btn-primary" data-opdater="hent">${T.hentAvisen}</button></div>
+    ${vaerktoejer ? html`<p class="muted">${T.henterNormalt}</p>
+    <div class="actions"><button type="button" class="btn btn-primary" data-opdater="hent">${T.hentAvisen}</button></div>` : ''}
   </section>`;
 }

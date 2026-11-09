@@ -58,8 +58,18 @@ const KOLD_KILDER: readonly Moment[] = [
   { id: 'kold-faerdig', tid: '09:30', navn: 'Kold start: rejsen gennemført', url: '/rum/hjem', replik: 'Hvad står der nu?' },
 ];
 
+/** KC-0248: step 0 — a pick made but not gone on with (Danish: the family's logistics), the same on a fresh English install (mail and deadlines), and the pick gone on with (step 1 is the open step). */
+export const KOLD_SITUATION = 'kold-situation';
+export const KOLD_SITUATION_ENGELSK = 'kold-situation-engelsk';
+export const KOLD_SITUATION_KLARET = 'kold-situation-klaret';
+/** The moments that are a fresh English installation (no profile yet; the installation's own language is English, KC-0170). */
+export const erNyEngelsk = (momentId: string): boolean => momentId === KOLD_SITUATION_ENGELSK;
+
 export const KOLD_START: readonly Moment[] = [
   { id: 'kold', tid: '09:00', navn: 'Kold start', url: '/rum/start', replik: 'Hvor begynder jeg?' },
+  { id: KOLD_SITUATION, tid: '09:01', navn: 'Kold start: valgt, ikke gået videre', url: '/rum/start', replik: 'Hvad står der i eksemplet?' },
+  { id: KOLD_SITUATION_ENGELSK, tid: '09:01', navn: 'Kold start: ny installation på engelsk', url: '/rum/start', replik: 'What does Clawco never do?' },
+  { id: KOLD_SITUATION_KLARET, tid: '09:02', navn: 'Kold start: valget klaret', url: '/rum/start', replik: 'Hvad skal jeg nu?' },
   { id: 'kold-velkommen', tid: '09:06', navn: 'Kold start: velkommen klaret', url: '/rum/start', replik: 'Hvad skal jeg nu?' },
   // KC-0170: the same few minutes in, with English chosen in step 1: the whole screen is English.
   { id: KOLD_ENGELSK, tid: '09:07', navn: 'Kold start: på engelsk', url: '/rum/start', replik: 'What do I do next?' },
@@ -155,13 +165,27 @@ function koldMailState(f: Fakta): MailState {
 export function koldFroe(momentId: string, f: Fakta): Froe {
   const tom: Froe = { rum: {}, mappe: {}, avis: null, mailPlan: null, husstand: TEST_HUSSTAND };
   if (momentId === 'kold') return tom;
+  // KC-0248: step 0. The first two have only a pick that has not been gone on with (a tap that previews it); the third has gone on.
+  const sitTid = f.iso('09:01');
+  const sitLog = (id: string, tekst: string) => ({ id, tid: sitTid, kilde: 'henrik' as const, zone: 'privat' as const, ejer: TEST_EJER.id, tekst });
+  if (momentId === KOLD_SITUATION || momentId === KOLD_SITUATION_ENGELSK) {
+    const valg = momentId === KOLD_SITUATION ? 'familie' : 'mail';
+    const state: StartState = { startet: f.iso('09:00'), trin: { situation: { status: 'i-gang', tid: sitTid } }, afvist: {}, situation: { valg, tid: sitTid } };
+    return { ...tom, rum: { start: { state, log: [sitLog('start-situation', valg === 'familie' ? 'Valgte: Familiens logistik.' : 'Valgte: Mail og deadlines.')] } } };
+  }
+  if (momentId === KOLD_SITUATION_KLARET) {
+    const state: StartState = { startet: f.iso('09:00'), trin: { situation: { status: 'klaret', tid: f.iso('09:02') } }, afvist: {}, situation: { valg: 'familie', tid: sitTid, bekraeftet: f.iso('09:02') } };
+    return { ...tom, rum: { start: { state, log: [sitLog('start-situation', 'Valgte: Familiens logistik.'), { ...sitLog('start-situation-videre', 'Gik videre med: Familiens logistik.'), tid: f.iso('09:02') }] } } };
+  }
   // KC-0161: the cold start with its sources working (KC-0247: the phone card waits until then), Done not latched yet; the moment sets the Tailscale state.
   if (erTailscaleMoment(momentId)) return koldFroe('kold-ret-aaben', f);
   if (KOLD_KILDER.some((m) => m.id === momentId)) return kildeFroe(momentId, f);
   const gemt = f.iso('09:03');
   const kilder: KilderKonfig = { kilder: [{ id: 'falsk-mail', status: 'forbundet', zone: 'privat', valg: { brugernavn: 'henrik' }, tid: f.iso('09:05'), af: TEST_EJER.id }] };
   const velkommen = { id: 'start-velkommen', tid: gemt, kilde: 'henrik' as const, zone: 'privat' as const, ejer: TEST_EJER.id, handlingId: 'velkommen-gem', fortryd: `lokal:${JSON.stringify({ forrige: null })}`, tekst: `Gemte profilen: ${TEST_EJER.navn}, Hermes svarer på dansk, en husstand.` };
-  const state: StartState = { startet: f.iso('09:00'), trin: { velkommen: { status: 'klaret', tid: gemt } }, afvist: {} };
+  // KC-0248: every moment from step 1 on has gone on with its pick (the family's logistics, as the world's household is).
+  const situation = { valg: 'familie' as const, tid: f.iso('09:01'), bekraeftet: f.iso('09:02') };
+  const state: StartState = { startet: f.iso('09:00'), trin: { situation: { status: 'klaret', tid: situation.bekraeftet }, velkommen: { status: 'klaret', tid: gemt } }, afvist: {}, situation };
   const base: Froe = { ...tom, profil: { navn: TEST_EJER.navn, sprog: 'da', husstand: 'husstand' }, kilder, rum: { start: { state, log: [velkommen] }, mail: { state: koldMailState(f) } } };
   if (momentId === 'kold-velkommen' || momentId === 'kold-github') return base;
   if (momentId === 'kold-github-inde') {

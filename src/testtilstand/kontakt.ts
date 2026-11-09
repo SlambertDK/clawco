@@ -64,7 +64,7 @@ function injicer(html: string, v: Testverden): string {
   return html.replace(/<head(?:\s[^>]*)?>/i, (head) => head + tags);
 }
 
-export function medTesttilstand(real: Rigtig, lav: () => Promise<Testverden>, adgang?: Adgang): Hono {
+export function medTesttilstand(real: Rigtig, lav: () => Promise<Testverden>, adgang: Adgang): Hono {
   const app = new Hono();
   let verden: Promise<Testverden> | null = null;
   /** The world, created at most once; a failed creation is forgotten so the next taend retries. */
@@ -120,7 +120,7 @@ export function medTesttilstand(real: Rigtig, lav: () => Promise<Testverden>, ad
   app.use('*', async (c, next) => {
     const req = c.req.raw;
     const sti = new URL(req.url).pathname;
-    if (!adgang || sti === '/health' || (!harCookie(req) && !sti.startsWith('/test/') && !(sti === '/api/rum/hjem/chat' && req.method === 'POST'))) return next();
+    if (sti === '/health' || (!harCookie(req) && !sti.startsWith('/test/') && !(sti === '/api/rum/hjem/chat' && req.method === 'POST'))) return next();
     const nej = await adgang(req, c.env);
     if (nej) return nej;
     await next();

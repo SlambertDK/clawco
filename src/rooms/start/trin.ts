@@ -6,6 +6,7 @@
 // step reopens when that thing breaks.
 
 import type { Profil, StartState, TrinStatus } from './schema.ts';
+import { slagsRaekkefoelge } from './situation.ts';
 import { startTekst } from './tekster.ts';
 
 export const NIVEAUER = ['lille', 'taenker'] as const;
@@ -55,6 +56,19 @@ export function trinStatus(t: Trin, state: StartState | null, ctx: TrinKontekst)
   const gemt = state?.trin[t.id]?.status;
   return gemt === 'klaret' ? 'i-gang' : gemt ?? 'ikke-startet';
 }
+
+// KC-0248: step 0, before everything (the journey's order is the order of registration). Klaret when the person went on
+// with their pick — the pick is what the step configures; tapping a pick only previews it (state.situation.bekraeftet).
+registrerTrin({
+  id: 'situation',
+  get titel() { return startTekst().trin['situation'].titel; },
+  get tekst() { return startTekst().trin['situation'].tekst; },
+  minutter: 1,
+  krav: 'obligatorisk',
+  // An installation from before step 0 (it has a profile and never made a pick) gets no new mandatory step: it reads as
+  // done with the pick "everything" (the journey's own order), and nothing is written.
+  erKlaret: (s, ctx) => Boolean(s?.situation?.bekraeftet) || (ctx.profil !== null && !s?.situation),
+});
 
 registrerTrin({
   id: 'velkommen',
@@ -112,7 +126,9 @@ export function flereKilderKoe(s: StartState | null, ctx: TrinKontekst): KildeTr
   if (!harFoersteKilde(s, ctx)) return [];
   const kilder = ctx.kilder ?? [];
   const forbundneSlags = new Set(kilder.filter((k) => k.forbundet).map((k) => k.slags));
-  return [...FOERSTE_SLAGS, ...FLERE_SLAGS].flatMap((slags) => (forbundneSlags.has(slags) ? [] : kilder.filter((k) => k.slags === slags && !s?.sprunget?.[k.id])));
+  // KC-0248: in the order the pick gives (kinds the pick does not name keep the journey's own order after it).
+  const orden = [...new Set([...slagsRaekkefoelge(s?.situation?.valg), ...FOERSTE_SLAGS, ...FLERE_SLAGS])].filter((x) => FOERSTE_SLAGS.includes(x) || FLERE_SLAGS.includes(x));
+  return orden.flatMap((slags) => (forbundneSlags.has(slags) ? [] : kilder.filter((k) => k.slags === slags && !s?.sprunget?.[k.id])));
 }
 
 registrerTrin({

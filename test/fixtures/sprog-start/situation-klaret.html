@@ -1,0 +1,27 @@
+
+  <header class="room-head">
+    <div><h1>Start</h1><p class="muted">Rejsen fra kold start: ét kort per trin. Svar på det øverste, så står det næste klar.</p></div>
+  </header>
+
+  <p class="taellelinje"><span class="tilstand-kraever">4 venter på dig</span></p><div class="baand-indhold" data-baand="indhold"><div class="stack" data-trin-bunke><article class="card kort trin-kort" data-blok="kort" data-trin="velkommen" data-trin-status="ikke-startet" data-trin-aaben data-element="Trin: Velkommen">
+    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Velkommen</span><span class="muted mono trin-taeller">2 af 7</span></div>
+    <p>Fortæl Clawco, hvad du hedder, hvilket sprog Hermes skal svare på, og om du er alene eller en husstand.</p>
+    <form id="velkommen-form" class="nyt-form" onsubmit="return false" autocomplete="off">
+    <label class="field"><span class="row-note">Hvad hedder du?</span><input name="navn" type="text" maxlength="60" required value="Alma" placeholder="Fx Alma"></label>
+    <label class="field"><span class="row-note">Hvilket sprog skal Hermes svare på?</span><select name="sprog"><option value="da" selected>Dansk</option><option value="en">Engelsk</option></select></label>
+    <label class="field"><span class="row-note">Er du alene, eller er I en husstand?</span><select name="husstand"><option value="alene" selected>Alene</option><option value="husstand">En husstand</option></select></label>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="velkommen-gem" data-form="velkommen-form" data-status="gemmer">Gem</button></div>
+  </form>
+  </article><div class="card card-list trin-linjer" data-trin-linjer><article class="trin-linje" data-trin="model" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Vælg din model</span><span class="muted mono">≈ 2 min</span>
+  </article><article class="trin-linje" data-trin="foerste-kilde" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Første kilde</span><span class="muted mono">≈ 2 min</span>
+  </article><article class="trin-linje" data-trin="foerste-ret" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Ret én ting</span><span class="muted mono">≈ 1 min</span>
+  </article><article class="trin-linje" data-trin="flere-kilder" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Flere kilder</span><span class="muted mono">Valgfrit · ≈ 2 min</span>
+  </article><article class="trin-linje" data-trin="import" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Tag det med</span><span class="muted mono">Valgfrit · ≈ 3 min</span>
+  </article><article class="trin-linje" data-trin="situation" data-trin-status="klaret" data-trin-foldet data-element="Trin: Hvad skal Clawco tage fra dig?">
+    <details><summary class="trin-linje-head"><span class="chip tilstand-ordnet"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>Klaret</span><span class="row-title">Hvad skal Clawco tage fra dig?</span></summary><div class="trin-linje-indhold"><p class="row-note" data-situation-valgt="mail">Du valgte: Mail og deadlines</p><details class="vis-mere"><summary><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 16v-4" /><path d="M12 8h.01" /></svg><span>Ret valget</span></summary><div class="vis-mere-indhold"><div class="situation-valg" role="group" aria-label="Hvad skal Clawco tage fra dig?"><button type="button" class="btn btn-primary" data-situation="mail" aria-pressed="true" data-aktion="situation-vaelg" data-arg="{&quot;valg&quot;:&quot;mail&quot;}" data-status="viser eksemplet"><span class="row-title">Mail og deadlines</span><span class="row-note">Jeg drukner i mails og frister og vil have det, der haster, øverst.</span></button><button type="button" class="btn btn-ghost" data-situation="familie" aria-pressed="false" data-aktion="situation-vaelg" data-arg="{&quot;valg&quot;:&quot;familie&quot;}" data-status="viser eksemplet"><span class="row-title">Familiens logistik</span><span class="row-note">Hvem skal hvorhen og hvornår, for hele familien.</span></button><button type="button" class="btn btn-ghost" data-situation="alt" aria-pressed="false" data-aktion="situation-vaelg" data-arg="{&quot;valg&quot;:&quot;alt&quot;}" data-status="viser eksemplet"><span class="row-title">Alt, jeg kører selv</span><span class="row-note">Jeg vil have det hele samlet og selv bestemme, hvad der sker.</span></button></div></div></details></div></details>
+  </article></div></div></div><!--/baand-->

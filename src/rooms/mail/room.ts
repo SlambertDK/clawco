@@ -32,10 +32,17 @@ async function current(deps: RoomDeps): Promise<{ state: MailState | null; log: 
   return { state, log };
 }
 
+/**
+ * KC-0259: a mulighed (Afmeld, look something up) and a row of Ordnet (its Fortryd moves the mail back with the agent's
+ * himalaya) are buttons that run one of the agent's tools; without tools none is on screen (stored ones stay in the file).
+ */
+export const udenVaerktoejsmuligheder = (state: MailState, harVaerktoejer: boolean): MailState =>
+  (harVaerktoejer ? state : { ...state, ordnet: [], beslutninger: state.beslutninger.map((b) => (b.muligheder.length ? { ...b, muligheder: [] } : b)) });
+
 /** KC-0117: what the person looking may see — the only thing shown, counted or spoken (writes go on the full `current`). */
 async function synlig(deps: RoomDeps): Promise<{ state: MailState | null; log: LogEntry[] }> {
   const { state, log } = await current(deps);
-  return { state: state ? synligMail(state, deps.person) : null, log: log.filter((e) => synligFor(deps.person, e)) };
+  return { state: state ? udenVaerktoejsmuligheder(synligMail(state, deps.person), deps.hermes.harVaerktoejer) : null, log: log.filter((e) => synligFor(deps.person, e)) };
 }
 
 async function rendered(deps: RoomDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {
@@ -80,7 +87,7 @@ async function startOpdater(deps: RoomDeps, mode: string): Promise<RunRecord | n
   const emner = new Map(data.handling.map((e) => [e.id, e]));
   return deps.runs.start({
     kind: 'opdater',
-    spec: buildMailRefreshRun(data, now),
+    spec: buildMailRefreshRun(data, now, { vaerktoejer: deps.hermes.harVaerktoejer }),
     onDone: async (output) => {
       const raw = kraevJson(output);
       const { state: previous } = await current(deps);

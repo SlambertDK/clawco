@@ -16,7 +16,7 @@ const syn = (o: Partial<ModelSyn> = {}): ModelSyn => ({
 });
 
 test('model is the second step, mandatory', () => {
-  assert.deepEqual(alleTrin().slice(0, 2).map((t) => t.id), ['velkommen', 'model']);
+  assert.deepEqual(alleTrin().slice(0, 3).map((t) => t.id), ['situation', 'velkommen', 'model']); // KC-0248: step 0 first
   assert.equal(model().krav, 'obligatorisk');
   assert.equal(model().titel, 'Vælg din model');
 });

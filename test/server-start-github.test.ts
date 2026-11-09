@@ -9,7 +9,8 @@ import { randomBytes } from 'node:crypto';
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createApp, lavAgentMedLogin } from '../src/server.ts';
+import { createApp, githubKlientId, lavAgentMedLogin } from '../src/server.ts';
+import { GITHUB_KLIENT_ID } from '../src/agent/github-enhed.ts';
 import { createFileStore } from '../src/store/fileStore.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import { FALSK_ENHED, FALSK_KODE, FALSK_TOKEN, falskCopilotKlient, falskGithubFetch } from './helpers/falsk-copilot.ts';
@@ -132,8 +133,8 @@ test('direkte: sign out removes the token and stops the client; the card offers 
   } finally { await t.ryd(); }
 });
 
-test('direkte: without a client id GitHub Copilot is not offered at all (KC-0052), and nothing calls GitHub', async () => {
-  const t = await opsaet({ klientId: '' });
+test('direkte: with GitHub switched off (KC_GITHUB_CLIENT_ID=off) Copilot is not offered at all (KC-0052), and nothing calls GitHub', async () => {
+  const t = await opsaet({ klientId: 'off' });
   try {
     const kort = modelKort(await side(t.s));
     assert.doesNotMatch(kort, /<option value="copilot"/, 'no dead choice in the provider list');
@@ -180,4 +181,11 @@ test('direkte: model-gem for Copilot needs the sign-in; a pasted token is never 
     const igen = await koer(t.s, 'model-gem', { udbyder: 'copilot', lille: 'claude-haiku-5.5', taenker: 'claude-opus-5.5' });
     assert.match(igen.faerdig?.result?.text ?? '', /^Virker/, igen.tekst);
   } finally { await t.ryd(); }
+});
+
+test('githubKlientId: Clawco\'s own app by default, an override wins, off switches it off', () => {
+  assert.equal(githubKlientId(undefined), GITHUB_KLIENT_ID);
+  assert.equal(githubKlientId('  '), GITHUB_KLIENT_ID);
+  assert.equal(githubKlientId('Ov23other'), 'Ov23other');
+  assert.equal(githubKlientId('off'), '');
 });

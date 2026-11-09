@@ -42,12 +42,13 @@ export type Sut = {
 
 export async function medStart(o: { state?: StartState | null; nu?: Partial<Nu>; regelforslag?: RegelSeam; person?: RoomDeps['person']; svar?: (req: AgentRunRequest) => string; importSkriver?: ImportSkriver; importTmp?: string; model?: RoomDeps['model'];
   /** KC-0247: the steps before the first Ret are done (a profile, a tested model, one calendar with its first value), so the step under test is the open one. */
-  forbi?: boolean }, fn: (s: Sut) => Promise<void>): Promise<void> {
+  forbi?: boolean; /** KC-0248: with `forbi`, do not add the pick (an installation from before step 0). */ udenSituation?: boolean }, fn: (s: Sut) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-sut-'));
   try {
     const store = createFileStore(dir);
     const tomStart = o.state === undefined ? { startet: STARTET, trin: {}, afvist: {} } satisfies StartState : o.state;
-    const start = o.forbi && tomStart ? { ...tomStart, kilder: { ...FORBI_KILDE, ...tomStart.kilder } } : tomStart;
+    // KC-0248: the pick (step 0) is part of what `forbi` has done.
+    const start = o.forbi && tomStart ? { ...tomStart, ...(o.udenSituation ? {} : { situation: tomStart.situation ?? { valg: 'alt' as const, tid: STARTET, bekraeftet: STARTET } }), kilder: { ...FORBI_KILDE, ...tomStart.kilder } } : tomStart;
     if (start) await store.writeState('start', start);
     const hermes = createFakeAgent({ answer: o.svar ?? (() => 'Hej.') });
     const nu: Nu = { elementer: 1, rettet: false, foersteKort: 'Elregningen', ...o.nu };

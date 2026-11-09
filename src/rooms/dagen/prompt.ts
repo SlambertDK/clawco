@@ -16,16 +16,33 @@ function tidslinje(now: Date): string {
   return dagenPromptTekst().tidslinje(copenhagenDate(now), copenhagenTime(now.toISOString()));
 }
 
-/** Build the room from the data Kira's pipeline already fetched. */
-export function buildRefreshRun(data: TrimmedAvis, now: Date, uge?: TrimmedUge | null): RunSpec {
+/**
+ * KC-0259: the schema and rules for an agent without tools. A "handling" is a button that runs one of the agent's tools,
+ * so the field is cut from the schema (anbefaling and kalender), its rules go, and one line says so. The field names are
+ * the same in both languages.
+ */
+function skemaOgRegler(vaerktoejer: boolean): { skema: string; regler: string } {
   const T = dagenPromptTekst();
+  if (vaerktoejer) return { skema: T.skema, regler: T.regler };
+  const skema = T.skema.replace(/,\n\s*"handling": \{[^\n]*\}(?=\n)/, '').replace(/, "handling": \{[^}]*\}/, '');
+  const linjer = T.regler.split('\n')
+    .filter((l) => !/^- (Sæt|Set) "tilAndre"/.test(l))
+    .map((l) => l.replace(/ (Giv den en|Give it a) "handling".*$/, ''));
+  linjer.splice(linjer.length - 1, 0, T.ingenHandlinger); // before the closing "answer only with one JSON object" rule
+  return { skema, regler: linjer.join('\n') };
+}
+
+/** Build the room from the data Kira's pipeline already fetched. */
+export function buildRefreshRun(data: TrimmedAvis, now: Date, uge?: TrimmedUge | null, o: { vaerktoejer?: boolean } = {}): RunSpec {
+  const T = dagenPromptTekst();
+  const { skema, regler } = skemaOgRegler(o.vaerktoejer !== false);
   const ugeTekst = uge ? `\n\n${T.uge(JSON.stringify(uge.dage, null, 1))}${uge.fejl.length ? `\n${T.ugeFejl(uge.fejl.join('; '))}` : ''}` : `\n\n${T.ugeMangler}`;
   return {
     ...byggPrompt({
       rum: 'dagen',
       zone: KORSEL,
       katalog: true,
-      opgave: `${T.rolle}\n\n${T.refreshOpgave}\n\n${T.skema}\n\n${T.regler}`,
+      opgave: `${T.rolle}\n\n${T.refreshOpgave}\n\n${skema}\n\n${regler}`,
       data: [{ kilde: 'kalender', zone: KORSEL, tillid: 'utroet', tekst: `${tidslinje(now)}\n\n${T.raadata(JSON.stringify(data, null, 1))}${ugeTekst}` }],
     }),
   };

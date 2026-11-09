@@ -57,15 +57,16 @@ export const BAAND = (): string => String(baand({
   ordnet: [{ titel: 'Gjort', form: 'raekker', elementer: [{ id: 'o:1', html: html`<div>To</div>` }] }],
 })) + String(baand({ kraever: [], igang: [], ordnet: [] })) + String(afvistLinje('Betal regningen', 'Clawco betaler aldrig.'));
 
-const rev = { lille: 'anthropic:claude-haiku-4-5', taenker: 'anthropic:claude-sonnet-4-5' };
+const rev = { lille: 'anthropic:claude-haiku-5-5', taenker: 'anthropic:claude-sonnet-5-5' };
 const syn = (ok: boolean): ModelSyn => ({
   udbyder: 'anthropic',
-  modeller: { lille: 'claude-haiku-4-5', taenker: 'claude-sonnet-4-5' },
+  modeller: { lille: 'claude-haiku-5-5', taenker: 'claude-sonnet-5-5' },
   test: { lille: { ok, tid: NU.toISOString(), ms: 812, rev: rev.lille, ...(ok ? {} : { fejl: 'model-noegle' }) }, taenker: { ok: true, tid: NU.toISOString(), ms: 1460, rev: rev.taenker } },
   rev,
 });
 
-const trin = (status: 'ikke-startet' | 'klaret') => alleTrin().map((t, i) => ({ trin: t, status: i === 0 ? status : 'ikke-startet' as const }));
+// KC-0248: the goldens predate step 0 (the situation pick); they keep the journey from step 1 on, so every old golden stays byte for byte.
+const trin = (status: 'ikke-startet' | 'klaret') => alleTrin().filter((t) => t.id !== 'situation').map((t, i) => ({ trin: t, status: i === 0 ? status : 'ikke-startet' as const }));
 
 const basis = (o: Partial<StartVisning>): string => String(renderStart({
   trin: trin('ikke-startet'), profil: null, standardNavn: '', forslag: [], kanGemme: true, now: NU, ...o,

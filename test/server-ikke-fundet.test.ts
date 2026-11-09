@@ -4,6 +4,7 @@ import { createApp } from '../src/server.ts';
 import { createFileStore } from '../src/store/fileStore.ts';
 import { createFakeAgent } from '../src/agent/fake.ts';
 import { medTesttilstand } from '../src/testtilstand/kontakt.ts';
+import { tilladAlle } from './helpers/tillad.ts';
 
 // KC-0089: an unknown HTML address answers a calm Danish page in the normal skeleton; /api stays JSON.
 const { app } = createApp({ store: createFileStore('/nonexistent'), hermes: createFakeAgent({ answer: () => '' }), sourceGlob: '/nonexistent/{date}.json', publicDir: 'public' });
@@ -69,7 +70,7 @@ test('static files keep working and unknown files under public are the page, not
 });
 
 test('the testtilstand wrapper passes an unknown address through to the same page', async () => {
-  const wrapped = medTesttilstand(app, async () => { throw new Error('not needed without the cookie'); });
+  const wrapped = medTesttilstand(app, async () => { throw new Error('not needed without the cookie'); }, tilladAlle);
   const res = await wrapped.request('/rum/findesikke');
   assert.equal(res.status, 404);
   assert.match(await res.text(), /<h1>Det rum findes ikke<\/h1>/);

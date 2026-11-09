@@ -125,7 +125,7 @@ test('English: spot checks of the wording', async () => {
   assert.ok(en['imp-fortrydBeholdt']!.log.includes('Undid the import: removed 0 files; kept People/Alma.md, because you have edited it.'));
   assert.ok(en['imp-fortrydOpdater']!.log.includes('Undid the import: put 1 file back.'));
   assert.deepEqual(en['rejse-gennemfoert']!.log, ['The journey is complete.']);
-  assert.deepEqual(en['nu-linjer']!.tekst, JSON.stringify([{ roomId: 'start', tekst: 'Start: Welcome' }, { roomId: 'start', tekst: 'Start: Choose your model' }, { roomId: 'start', tekst: 'Start: First source' }, { roomId: 'start', tekst: 'Start: Correct one thing' }]));
+  assert.deepEqual(en['nu-linjer']!.tekst, JSON.stringify([{ roomId: 'start', tekst: 'Start: What should Clawco take off your plate?' }, { roomId: 'start', tekst: 'Start: Welcome' }, { roomId: 'start', tekst: 'Start: Choose your model' }, { roomId: 'start', tekst: 'Start: First source' }, { roomId: 'start', tekst: 'Start: Correct one thing' }]));
   assert.equal(en['chat-tomtSvar']!.tekst, 'hi | (no answer)');
   assert.equal(en['forslag-grund']!.tekst, 'You have received 3 invitations in your mail in the last 14 days. With the calendar, Hermes can see when you are busy.');
   assert.equal(en['kilde-foersteLaesning']!.log[0], 'First look at Calendar after N ms: 1 appointment today.');

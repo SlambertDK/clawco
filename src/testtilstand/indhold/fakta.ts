@@ -26,6 +26,14 @@ export const erEngelskVariant = (id: string): boolean => id in ENGELSKE_VARIANTE
 export const KOE = 'koe';
 export const KOE_MOMENT: Moment = { id: KOE, tid: '07:12', navn: 'Kørsler i kø', url: '/rum/hjem', replik: 'Hvad arbejder du på?' };
 
+/**
+ * KC-0259: the morning with the built-in agent behind it (no tools): Hermes' forslag in Nyheder, the muligheder in Mail
+ * and the button on Nu's cards are gone, not greyed. The same story as `morgen`; the world's agent is the one without tools
+ * (verden.ts). Not part of the day's order.
+ */
+export const UDEN_VAERKTOEJ = 'uden-vaerktoej';
+export const UDEN_VAERKTOEJ_MOMENT: Moment = { id: UDEN_VAERKTOEJ, tid: '07:11', navn: 'Morgen, uden Hermes-værktøjer', url: '/rum/hjem', replik: 'Hvad venter på mig?' };
+
 /** The day, in order. `replik` is a line Henrik might say to the voice at that moment. */
 export const MOMENT_TABEL: readonly Moment[] = [
   { id: 'morgen', tid: '07:10', navn: 'Morgen', url: '/rum/hjem', replik: 'Godmorgen, hvad skal jeg i dag?' },
@@ -79,7 +87,7 @@ export const rumNr = (n: number): number => Math.min(n, MOMENT_TABEL.findIndex((
 
 /** The moment's position in the day (throws on an unknown id). */
 export function momentNr(id: string): number {
-  const i = MOMENT_TABEL.findIndex((m) => m.id === (ENGELSKE_VARIANTER[id] ?? (id === KOE ? 'morgen' : id))); // KC-0170, KC-0244: an English variant repeats its moment of the day; KC-0069: the queue moment is the morning
+  const i = MOMENT_TABEL.findIndex((m) => m.id === (ENGELSKE_VARIANTER[id] ?? (id === KOE ? 'morgen' : id === UDEN_VAERKTOEJ ? 'morgen' : id))); // KC-0170, KC-0244: an English variant repeats its moment of the day; KC-0069: the queue moment is the morning; KC-0259: the no-tools moment is the morning
   if (i < 0) throw new Error(`ukendt moment: ${id}`);
   return i;
 }

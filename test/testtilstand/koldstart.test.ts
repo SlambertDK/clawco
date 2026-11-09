@@ -31,6 +31,7 @@ import { alleTrin } from '../../src/rooms/start/trin.ts';
 import { KOLD_IMPORT_TEKST } from '../../src/testtilstand/indhold/start.ts';
 import { erRejsenFaerdig } from '../../src/rooms/start/rejsen.ts';
 import type { StartState } from '../../src/rooms/start/schema.ts';
+import { tilladAlle } from '../helpers/tillad.ts';
 
 /** The spec's promise: the whole journey in under five minutes. */
 const LOFT_MS = 300_000;
@@ -52,7 +53,7 @@ const app = medTesttilstand({ fetch: () => new Response('den rigtige app må ikk
   // A small delay per scripted answer, so the first value can be seen standing before Hermes has answered.
   verden = await lavTestverden({ dataDir: dir, delayMs: 300, trinMs: 60_000 });
   return verden;
-});
+}, tilladAlle);
 
 const HOVED = { cookie: 'kc_test=1', 'x-kc-tilstand': 'test' };
 async function kald(sti: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {
@@ -119,11 +120,30 @@ test('kold start: a fresh install walks the whole journey to Done in under five 
       assert.equal((await kald('/')).headers.get('location'), '/rum/start', 'a fresh install lands in Start');
       const h = await start();
       assert.ok(iNav(h), 'Start is in the nav');
+      assert.equal(status(h, 'situation'), 'ikke-startet', 'KC-0248: the journey begins with the pick');
+      assert.match(trinKort(h, 'situation'), /data-situation="mail"/);
       assert.equal(status(h, 'velkommen'), 'ikke-startet');
-      assert.match(h, /id="velkommen-form"/);
+      assert.doesNotMatch(h, /id="velkommen-form"/, 'step 1 waits for step 0');
       // A stale tab (it thinks it shows the real app) gets 409, as before.
       const gammel = await app.request('/api/rum/start/aktion/velkommen-gem', { method: 'POST', headers: { cookie: 'kc_test=1', 'x-kc-tilstand': 'real', 'content-type': 'application/json' }, body: '{}' });
       assert.equal(gammel.status, 409);
+    });
+
+    await t.test('0b situation: a pick previews its example; going on with it makes the step Klaret and step 1 the open step', async () => {
+      const valg = await post('/api/rum/start/aktion/situation-vaelg', { valg: 'alt' });
+      assert.equal(valg.status, 202, await valg.clone().text());
+      await rolig();
+      let h = await start();
+      assert.notEqual(status(h, 'situation'), 'klaret', 'a tap only previews');
+      assert.match(trinKort(h, 'situation'), /data-eksempel="alt"/);
+      assert.equal((await post('/api/rum/start/aktion/situation-vaelg', { valg: 'findes-ikke' })).status, 400);
+      const videre = await post('/api/rum/start/aktion/situation-bekraeft');
+      assert.equal(videre.status, 202, await videre.clone().text());
+      await rolig();
+      h = await start();
+      assert.equal(status(h, 'situation'), 'klaret');
+      assert.equal((await startState()).situation?.valg, 'alt');
+      assert.match(trinKort(h, 'velkommen'), /id="velkommen-form"/, 'step 1 is next');
     });
 
     await t.test('1 velkommen: the profile is saved and the step is Klaret', async () => {

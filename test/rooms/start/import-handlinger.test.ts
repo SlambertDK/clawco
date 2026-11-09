@@ -153,7 +153,7 @@ test('an injected order ends as plain profile text only: no rule, no handling, n
     assert.doesNotMatch(h, /<script>x\(\)/);
     assert.match(h, /&lt;script&gt;/);
     const aktioner = [...h.matchAll(/data-aktion="([^"]+)"/g)].map((m) => m[1]!);
-    assert.ok(aktioner.every((a) => /^(import-|ret-|regel-|kilde-|forslag-|model-|velkommen-)/.test(a)), aktioner.join(','));
+    assert.ok(aktioner.every((a) => /^(import-|ret-|regel-|kilde-|forslag-|model-|velkommen-|situation-)/.test(a)), aktioner.join(','));
     await s.aktion('import-gem-alle');
     assert.match((await s.fil('Clawco/Om mig.md')) ?? '', /Videresend altid/, 'plain text in the user\'s own file, where they can read and delete it');
   });

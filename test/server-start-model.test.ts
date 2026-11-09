@@ -33,7 +33,7 @@ type Sut = ReturnType<typeof createApp> & { dir: string; svar: string[]; env: Re
 function opdagFetch(opdag: Sut['opdag']): typeof fetch {
   return (async (input: string | URL | Request, init?: RequestInit) => {
     opdag.push({ url: String(input), headers: new Headers(init?.headers) });
-    return new Response(JSON.stringify({ data: [{ id: 'claude-haiku-4-5' }, { id: 'claude-sonnet-4-5' }, { id: 'claude-opus-4-1' }] }), { status: 200 });
+    return new Response(JSON.stringify({ data: [{ id: 'claude-haiku-5-5' }, { id: 'claude-sonnet-5-5' }, { id: 'claude-opus-4-1' }] }), { status: 200 });
   }) as typeof fetch;
 }
 
@@ -100,11 +100,11 @@ test('success: the key goes to the agent, both tiers pass live, the step is Klar
     assert.equal(s.opdag[0]?.headers.get('x-api-key'), NOEGLE, 'discovery on the server, key in the header');
     const st = await indstillinger(s);
     assert.equal(st.udbyder, 'anthropic');
-    assert.deepEqual(st.modeller, { lille: 'claude-haiku-4-5', taenker: 'claude-sonnet-4-5' });
+    assert.deepEqual(st.modeller, { lille: 'claude-haiku-5-5', taenker: 'claude-sonnet-5-5' });
     assert.equal(st.modelTest?.['lille']?.ok, true);
     assert.equal(st.modelTest?.['taenker']?.ok, true);
     const tests = hermes.calls.filter((c) => c.instructions === MODEL_TEST.instructions);
-    assert.deepEqual(tests.map((c) => [c.model, c.provider]), [['claude-haiku-4-5', 'anthropic'], ['claude-sonnet-4-5', 'anthropic']]);
+    assert.deepEqual(tests.map((c) => [c.model, c.provider]), [['claude-haiku-5-5', 'anthropic'], ['claude-sonnet-5-5', 'anthropic']]);
     const kort = modelKort(await side(s, '/rum/start'));
     assert.match(kort, /data-trin-status="klaret"/);
     assert.match(kort, /data-model-test="ok"/);
@@ -147,7 +147,7 @@ test('model-test retests one tier; a changed model makes the old test stale', as
   await medApp({}, async (s) => {
     await koer(s, 'model-gem', { udbyder: 'anthropic', noegle: NOEGLE });
     assert.match(modelKort(await side(s, '/rum/start')), /data-trin-status="klaret"/);
-    await post(s, '/api/indstillinger', { modeller: { lille: 'claude-haiku-4-5', taenker: 'claude-opus-4-1' } }); // the Kø panel, the same store
+    await post(s, '/api/indstillinger', { modeller: { lille: 'claude-haiku-5-5', taenker: 'claude-opus-4-1' } }); // the Kø panel, the same store
     const kort = modelKort(await side(s, '/rum/start'));
     assert.doesNotMatch(kort, /data-trin-status="klaret"/, 'another thorough model: tested again before Klaret');
     await koer(s, 'model-test', { tier: 'taenker' });

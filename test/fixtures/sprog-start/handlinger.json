@@ -263,7 +263,7 @@
     "label": "Start: gemmer og prøver modellen",
     "tekst": "Virker: den hurtige svarede på N s, den grundige på N s.",
     "log": [
-      "Valgte Anthropic, nøglen er givet til Hermes (11 tegn): claude-haiku-4-5 og claude-sonnet-4-5."
+      "Valgte Anthropic, nøglen er givet til Hermes (11 tegn): claude-haiku-5-5 og claude-sonnet-5-5."
     ]
   },
   "model-gemLokal": {
@@ -277,14 +277,14 @@
     "label": "Start: gemmer og prøver modellen",
     "tekst": "Kør kommandoen på Hermes’ maskine, og tryk så Test.",
     "log": [
-      "Valgte Anthropic: claude-haiku-4-5 og claude-sonnet-4-5."
+      "Valgte Anthropic: claude-haiku-5-5 og claude-sonnet-5-5."
     ]
   },
   "model-gemFejl": {
     "label": "Start: gemmer og prøver modellen",
     "tekst": "Serveren svarer ikke. Tjek, at den kører, og at adressen er rigtig.",
     "log": [
-      "Valgte Anthropic, nøglen er givet til Hermes (11 tegn): claude-haiku-4-5 og claude-sonnet-4-5."
+      "Valgte Anthropic, nøglen er givet til Hermes (11 tegn): claude-haiku-5-5 og claude-sonnet-5-5."
     ]
   },
   "imp-ikkeEjer": {
@@ -523,7 +523,7 @@
     ]
   },
   "nu-linjer": {
-    "tekst": "[{\"roomId\":\"start\",\"tekst\":\"Start: Velkommen\"},{\"roomId\":\"start\",\"tekst\":\"Start: Vælg din model\"},{\"roomId\":\"start\",\"tekst\":\"Start: Første kilde\"},{\"roomId\":\"start\",\"tekst\":\"Start: Ret én ting\"}]",
+    "tekst": "[{\"roomId\":\"start\",\"tekst\":\"Start: Hvad skal Clawco tage fra dig?\"},{\"roomId\":\"start\",\"tekst\":\"Start: Velkommen\"},{\"roomId\":\"start\",\"tekst\":\"Start: Vælg din model\"},{\"roomId\":\"start\",\"tekst\":\"Start: Første kilde\"},{\"roomId\":\"start\",\"tekst\":\"Start: Ret én ting\"}]",
     "log": []
   },
   "chat-tomtSvar": {

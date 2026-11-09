@@ -23,7 +23,7 @@ const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' 
 test('direkte end to end: no key → a Danish failure; key in Start → live test green, a room run answers; the key is nowhere', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-direkte-'));
   const f = await startFalskUdbyder((m) => {
-    if (m.metode === 'GET') return { status: 200, body: JSON.stringify({ data: [{ id: 'claude-haiku-4-5' }, { id: 'claude-sonnet-4-5' }] }) };
+    if (m.metode === 'GET') return { status: 200, body: JSON.stringify({ data: [{ id: 'claude-haiku-5-5' }, { id: 'claude-sonnet-5-5' }] }) };
     const system = String(m.body['system'] ?? '');
     return { stream: anthropicStream(system.startsWith(MODEL_TEST.instructions) ? ['klar'] : ['Hej ', 'Henrik.']) };
   });
@@ -77,7 +77,7 @@ test('direkte end to end: no key → a Danish failure; key in Start → live tes
     assert.match(kort, /data-trin-status="klaret"/);
     assert.ok(kort.includes(`Gemt (${NOEGLE.length} tegn)`));
     const tests = f.modtaget.filter((m) => String(m.body['system'] ?? '').startsWith(MODEL_TEST.instructions));
-    assert.deepEqual(tests.map((m) => m.body['model']), ['claude-haiku-4-5', 'claude-sonnet-4-5']);
+    assert.deepEqual(tests.map((m) => m.body['model']), ['claude-haiku-5-5', 'claude-sonnet-5-5']);
     assert.equal(tests[0]!.headers['x-api-key'], NOEGLE, 'the key went to the provider, in its header');
     assert.deepEqual(await health(), { mode: 'direkte', reachable: true, status: 'klar' });
 

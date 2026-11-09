@@ -80,7 +80,7 @@ test('English weather words pick the weather pictogram too, as the Danish ones d
 const deps = (): RoomDeps => ({
   store: { readState: async () => dagenFuld, readLog: async () => [] },
   person: { id: 'o', login: null, navn: 'Owner', rolle: 'ejer' },
-  now: () => DAGEN_NU, runs: { igang: () => [] },
+  now: () => DAGEN_NU, runs: { igang: () => [] }, hermes: { harVaerktoejer: true },
 }) as unknown as RoomDeps;
 
 test('Nu: Dagen\'s lines are Danish with no language chosen (ventendeDagen\'s own) and English when en', async () => {

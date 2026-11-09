@@ -10,7 +10,7 @@ import { baand, igangGruppe, spoerg, tilstandChip, type IgangRaekke } from '../.
 import { dagensLog } from '../../shell/log.ts';
 import type { LogEntry } from '../../store/types.ts';
 import { NIVEAUER, type ModelSyn, type Niveau, type Trin } from './trin.ts';
-import { NAVN_MAKS, type Forslag, type Profil, type StartModel, type StartRet, type TrinStatus } from './schema.ts';
+import { NAVN_MAKS, SITUATIONER, type Forslag, type Profil, type Situation, type StartModel, type StartRet, type StartSituation, type TrinStatus } from './schema.ts';
 import { INKLUDERET, UDBYDERE, udbyderAf, type Udbyder } from './udbydere.ts';
 import { erModelFejlArt, type ModelFejlArt } from './modelfejl.ts';
 import type { AgentStatus } from '../../agent/types.ts';
@@ -70,6 +70,8 @@ export type StartVisning = {
   digitalPost?: PostStartVisning;
   /** KC-0236: Aula's card in the Danmark-pakke group (absent = none: Aula connected, put away, not the owner, or not offered). */
   aula?: AulaStartVisning;
+  /** KC-0248: step 0 — the pick as stored (absent = none made yet). */
+  situation?: StartSituation;
   foersteRet?: { punkt: { titel: string | null } | null; ret?: StartRet; forslag?: Regelforslag[]; kanSpringeOver: boolean };
 };
 
@@ -220,6 +222,39 @@ function valg<T extends string>(navn: string, etiket: string, tekster: Record<T,
   return html`<label class="field"><span class="row-note">${etiket}</span><select name="${navn}">${(Object.keys(tekster) as T[]).map((v) => html`<option value="${v}"${v === valgt ? html` selected` : ''}>${tekster[v]}</option>`)}</select></label>`;
 }
 
+/**
+ * KC-0248: the example Nu under step 0's picks (spec P2): three cards for the pick, each marked as an example, and the
+ * three things Clawco never does. Static text in the language being rendered — no source is read and nothing is stored.
+ */
+export function renderEksempel(valg: Situation): Markup {
+  const S = startTekst().situation;
+  return html`<div class="eksempel" data-eksempel="${valg}">
+    <h3 class="eyebrow">${S.eksempelOverskrift}</h3>
+    ${S.eksempler[valg].map((k) => html`<div class="eksempel-kort" data-eksempel-kort>${tilstandChip('rolig', S.eksempelMaerke)}<p class="row-title">${k.titel}</p><p class="row-note">${k.linje}</p></div>`)}
+    <p class="row-note">${S.eksempelNote}</p>
+  </div>
+  <div class="aldrig" data-aldrig><h3 class="eyebrow">${S.aldrigOverskrift}</h3><ul>${S.aldrig.map((l) => html`<li>${l}</li>`)}</ul></div>`;
+}
+
+/** KC-0248: the three picks as buttons (a tap previews the pick and stores it, unconfirmed); the stored one is pressed. */
+function situationValg(valgt: Situation | undefined): Markup {
+  const S = startTekst().situation;
+  return html`<div class="situation-valg" role="group" aria-label="${S.spoergsmaal}">${SITUATIONER.map((v) => html`<button type="button" class="btn ${v === valgt ? 'btn-primary' : 'btn-ghost'}" data-situation="${v}" aria-pressed="${v === valgt ? 'true' : 'false'}" data-aktion="situation-vaelg" data-arg="${JSON.stringify({ valg: v })}" data-status="${S.vaelg}"><span class="row-title">${S.valg[v].navn}</span><span class="row-note">${S.valg[v].tekst}</span></button>`)}</div>`;
+}
+
+/** Step 0: the picks and the example under them while open (Gå videre once one is picked); the pick and a way to change it once Klaret. */
+function situationIndhold(status: TrinStatus, v: StartVisning): Markup {
+  const S = startTekst().situation;
+  const valgt = v.situation?.valg;
+  if (!v.kanGemme) return html`<p class="row-note">${S.kunEjeren}</p>${renderEksempel(valgt ?? SITUATIONER[0])}`;
+  if (status === 'klaret' && valgt) {
+    return html`<p class="row-note" data-situation-valgt="${valgt}">${S.duValgte(S.valg[valgt].navn)}</p>${mere(situationValg(valgt), S.retValget)}`;
+  }
+  const videre = valgt ? html`<div class="actions"><button type="button" class="btn btn-primary" data-aktion="situation-bekraeft" data-status="${S.gemmer}">${S.gaaVidere}</button></div>` : '';
+  // The way on sits right under the picks (on a phone the example below is a long scroll away).
+  return html`${situationValg(valgt)}${videre}${renderEksempel(valgt ?? SITUATIONER[0])}`;
+}
+
 /** Step 1's form: name, language, alone or household. */
 function velkommenForm(p: Profil | null, standardNavn: string, knaptekst: string, laptop = false): Markup {
   const T = startTekst();
@@ -254,6 +289,7 @@ function efterRet(v: StartVisning): Markup {
 
 function indholdAf(t: Trin, status: TrinStatus, v: StartVisning): Markup {
   if (t.id === 'foerste-ret') return foersteRetIndhold(status, v);
+  if (t.id === 'situation') return situationIndhold(status, v);
   if (t.id === 'import') return v.import ? importIndhold(status, v.import) : html``;
   if (t.id === 'model') return modelIndhold(status, v);
   if (v.kilder && (t.id === 'foerste-kilde' || t.id === 'flere-kilder')) return kildeIndhold(t.id, status, v.kilder, v.now ?? new Date());

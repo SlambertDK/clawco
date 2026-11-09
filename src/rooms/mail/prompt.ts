@@ -20,12 +20,14 @@ function tidslinje(now: Date): string {
 const skema = (): string => mailPromptTekst().skema(visuelSkema());
 
 /** The rules of the acting refresh (a Clawco with Hermes' tools): one entry per line, so the variants below can list their own. */
-function regler(): string {
+function regler(vaerktoejer: boolean): string {
   const T = mailPromptTekst();
-  return [T.reglerOverskrift, T.regelLaes, T.regelSkriv, T.regelType, T.regelMuligheder, T.regelAldrig, T.regelVisuel, T.regelMedtag].join('\n');
+  // KC-0259: "muligheder" (Afmeld, look something up) are buttons that run the agent's tools: without tools the rule is left out.
+  return [T.reglerOverskrift, T.regelLaes, T.regelSkriv, T.regelType, ...(vaerktoejer ? [T.regelMuligheder] : []), T.regelAldrig, T.regelVisuel, T.regelMedtag].join('\n');
 }
 
-export function buildMailRefreshRun(data: TrimmedMail, now: Date): RunSpec {
+export function buildMailRefreshRun(data: TrimmedMail, now: Date, o: { vaerktoejer?: boolean } = {}): RunSpec {
+  const vaerktoejer = o.vaerktoejer !== false;
   const T = mailPromptTekst();
   const list = data.handling.map((e) => ({ id: e.id, emne: e.emne, fra: e.fra, modtaget: e.modtaget, laest: e.laest, flag: e.flag, vedhaeftning: e.vedhaeftning }));
   return {
@@ -33,7 +35,7 @@ export function buildMailRefreshRun(data: TrimmedMail, now: Date): RunSpec {
       rum: 'mail',
       zone: KORSEL,
       katalog: true,
-      opgave: `${T.rolle}\n\n${T.refreshOpgave}\n\n${skema()}\n\n${regler()}`,
+      opgave: `${T.rolle}\n\n${T.refreshOpgave}\n\n${vaerktoejer ? skema() : skemaFraLinjer(/^\s*"muligheder"/)}\n\n${regler(vaerktoejer)}`,
       data: [{ kilde: 'mail', zone: KORSEL, tillid: 'utroet', tekst: `${tidslinje(now)}\n\n${T.refreshListe(JSON.stringify(data.tal), list.length, JSON.stringify(list, null, 1))}` }],
     }),
   };

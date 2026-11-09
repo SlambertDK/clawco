@@ -5,7 +5,7 @@
 // KC-0180: the direct-model agent (src/agent/direkte.ts) fails with these sentences themselves (injected by the
 // composition root); a fixed sentence maps back to its own kind before any rule is tried.
 
-export type ModelFejlArt = 'noegle' | 'kredit' | 'model' | 'forbindelse' | 'tid' | 'agent-noegle' | 'agent-afvist' | 'model-noegle' | 'kun-hermes' | 'github' | 'vaerktoej' | 'copilot-start' | 'kvote' | 'inkluderet-ikke-klar' | 'inkluderet-utilgaengelig' | 'tom' | 'ukendt';
+export type ModelFejlArt = 'noegle' | 'kredit' | 'model' | 'forbindelse' | 'tid' | 'agent-noegle' | 'agent-afvist' | 'model-noegle' | 'kun-hermes' | 'github' | 'vaerktoej' | 'copilot-start' | 'kvote' | 'inkluderet-ikke-klar' | 'inkluderet-utilgaengelig' | 'tom' | 'ukendt' | 'ukendt-haendelse';
 
 export const MODEL_FEJL: Record<ModelFejlArt, string> = {
   noegle: 'Nøglen er afvist. Tjek, at du har kopieret hele nøglen, og at den stadig findes hos udbyderen.',
@@ -27,6 +27,7 @@ export const MODEL_FEJL: Record<ModelFejlArt, string> = {
   'inkluderet-utilgaengelig': 'Clawcos AI er ikke tilgængelig lige nu. Prøv igen om lidt.',
   tom: 'Modellen svarede, men uden tekst.',
   ukendt: 'Modellen svarede ikke som ventet. Prøv igen om lidt.',
+  'ukendt-haendelse': 'GitHub Copilot sendte noget, Clawco ikke kender, og kørslen blev stoppet for en sikkerheds skyld. Prøv igen om lidt.',
 };
 
 export const erModelFejlArt = (v: unknown): v is ModelFejlArt => typeof v === 'string' && Object.hasOwn(MODEL_FEJL, v);

@@ -41,6 +41,8 @@ const da = {
   // The log lines the buttons write
   logSenere: (til: 'aften' | 'morgen', titel: string): string => `Udsat til ${til === 'aften' ? 'i aften kl. 18' : 'i morgen kl. 07'}: ${titel}`,
   logLukkede: (titel: string, grund: string): string => `Lukkede "${titel}"${grund ? `: ${grund}` : ''}`,
+  /** KC-0259: a proposed button was dropped because the agent has no tools to run it. */
+  logHandlingFjernet: (titel: string): string => `Fjernede knappen på kortet "${titel}": agenten har ingen værktøjer til at køre den`,
   logSkrev: (leverandoer: string, beloeb: string, valuta: string, hvor: Hvor): string => `Skrev ${leverandoer} ${beloeb} ${valuta} ind i ${da.hvor[hvor]}`,
   logFlyttede: (leverandoer: string, beloeb: string, valuta: string, hvor: Hvor): string => `Flyttede ${leverandoer} ${beloeb} ${valuta} til ${da.hvor[hvor]}`,
   logZoneKort: (zone: string, n: number): string => `Kuratoren (${zone}): ${n === 1 ? 'et kort' : `${n} kort`} fra beskeder er lagt øverst.`,
@@ -85,6 +87,7 @@ const en: KuratorTekster = {
 
   logSenere: (til, titel) => `Snoozed until ${til === 'aften' ? 'tonight at 18:00' : 'tomorrow at 07:00'}: ${titel}`,
   logLukkede: (titel, grund) => `Closed "${titel}"${grund ? `: ${grund}` : ''}`,
+  logHandlingFjernet: (titel) => `Removed the button on the card "${titel}": the agent has no tools to run it`,
   logSkrev: (leverandoer, beloeb, valuta, hvor) => `Wrote ${leverandoer} ${beloeb} ${valuta} into ${en.hvor[hvor]}`,
   logFlyttede: (leverandoer, beloeb, valuta, hvor) => `Moved ${leverandoer} ${beloeb} ${valuta} to ${en.hvor[hvor]}`,
   logZoneKort: (zone, n) => `The curator (${zone}): ${n === 1 ? 'a card' : `${n} cards`} from messages put at the top.`,

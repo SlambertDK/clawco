@@ -16,16 +16,56 @@ const verden = lavTestverden({ dataDir: path.join(rod, 'data-test'), delayMs: 0 
 const side = async (sti: string): Promise<string> => (await (await verden).app.request(sti)).text();
 const iNav = (h: string): boolean => /<li><a href="\/rum\/start"/.test(h);
 
-test('Kold start: / lands in Start, Start is in the nav, step 1 open, nothing connected', async () => {
+test('Kold start: / lands in Start, Start is in the nav, step 0 (the pick) open, nothing connected', async () => {
   const v = await verden;
   assert.deepEqual(await v.hop('kold'), { url: '/rum/start' });
   assert.equal((await v.app.request('/')).headers.get('location'), '/rum/start');
   const h = await side('/rum/start');
   assert.ok(iNav(h));
-  assert.match(h, /data-trin="velkommen" data-trin-status="ikke-startet"/);
-  assert.match(h, /id="velkommen-form"/);
+  assert.match(h, /data-trin="situation" data-trin-status="ikke-startet"/);
+  assert.match(h, /data-situation="mail"[\s\S]*data-situation="familie"[\s\S]*data-situation="alt"/, 'the three picks');
+  assert.doesNotMatch(h, /id="velkommen-form"/, 'step 1 waits');
   const k = (await (await v.app.request('/api/kilder')).json()) as { kilder: { forbundet: boolean }[] };
   assert.ok(k.kilder.length > 0 && k.kilder.every((x) => !x.forbundet), 'nothing connected');
+});
+
+// KC-0248: step 0 in the world — a pick not yet gone on with, the same on a fresh English installation, and the pick gone on with.
+test('Kold start: valgt, ikke gået videre — the pick is pressed, its example stands under the picks, Gå videre is offered', async () => {
+  const v = await verden;
+  assert.deepEqual(await v.hop('kold-situation'), { url: '/rum/start' });
+  const h = await side('/rum/start');
+  assert.match(h, /data-trin="situation" data-trin-status="i-gang"/);
+  assert.match(h, /data-situation="familie" aria-pressed="true"/);
+  assert.match(h, /data-eksempel="familie"/);
+  assert.equal((h.match(/data-eksempel-kort/g) ?? []).length, 3);
+  assert.equal((h.match(/Eksempel<\/span>/g) ?? []).length, 3, 'every example card is marked');
+  assert.match(h, /Lørdag: to ting kl\. 10/);
+  assert.equal((h.match(/<li>Clawco (betaler|sender|sletter) aldrig/g) ?? []).length, 3, 'the three refusals');
+  assert.match(h, /data-aktion="situation-bekraeft"/);
+});
+
+test('Kold start: ny installation på engelsk — the whole step 0 is English, the example and the refusals too', async () => {
+  const v = await verden;
+  assert.deepEqual(await v.hop('kold-situation-engelsk'), { url: '/rum/start' });
+  const h = await side('/rum/start');
+  assert.match(h, /<html lang="en">/);
+  assert.match(h, /What should Clawco take off your plate\?/);
+  assert.match(h, /data-eksempel="mail"/);
+  assert.match(h, /Statistics 2 hand-in/);
+  assert.match(h, /Clawco never pays for anything on your behalf\./);
+  assert.doesNotMatch(h, /Clawco betaler aldrig/);
+  await v.hop('kold-situation');
+  assert.match(await side('/rum/start'), /<html lang="da">/);
+});
+
+test('Kold start: valget klaret — step 0 folded to its pick, step 1 is the open step', async () => {
+  const v = await verden;
+  assert.deepEqual(await v.hop('kold-situation-klaret'), { url: '/rum/start' });
+  const h = await side('/rum/start');
+  assert.match(h, /data-trin="situation" data-trin-status="klaret"/);
+  assert.match(h, /data-situation-valgt="familie"/);
+  assert.match(h, /data-trin="velkommen" data-trin-status="ikke-startet" data-trin-aaben/);
+  assert.match(h, /id="velkommen-form"/);
 });
 
 test('Kold start: velkommen klaret — step 1 Klaret, the calendar suggested', async () => {

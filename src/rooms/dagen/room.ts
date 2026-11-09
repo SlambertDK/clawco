@@ -8,7 +8,7 @@ import { handlingIndhold } from '../../graenser/tegn.ts';
 import type { LogEntry } from '../../store/types.ts';
 import type { RunRecord, DoneResult } from '../../runs.ts';
 import type { RoomDeps, RoomModule, RoomView } from '../module.ts';
-import { extractJson, handlingensVerb, handlingerI, KORSEL, kraevJson, parseDagenState, synligDagen, venterDagen, type DagenState } from './schema.ts';
+import { extractJson, handlingensVerb, handlingerI, KORSEL, kraevJson, parseDagenState, synligDagen, udenVaerktoejshandlinger, venterDagen, type DagenState } from './schema.ts';
 import { synligFor, type DataZone } from '../../identitet/zoner.ts';
 import { dagFraUge, readDagenSource } from './source.ts';
 import { trimUge } from './uge.ts';
@@ -31,19 +31,19 @@ async function current(deps: DagenDeps): Promise<{ state: DagenState | null; log
 /** KC-0117: what the person looking may see — the only thing shown, counted, spoken or acted on (writes go on the full `current`). */
 async function synlig(deps: DagenDeps): Promise<{ state: DagenState | null; log: LogEntry[] }> {
   const { state, log } = await current(deps);
-  return { state: state ? synligDagen(state, deps.person) : null, log: log.filter((e) => synligFor(deps.person, e)) };
+  return { state: state ? udenVaerktoejshandlinger(synligDagen(state, deps.person), deps.hermes.harVaerktoejer) : null, log: log.filter((e) => synligFor(deps.person, e)) };
 }
 
 async function rendered(deps: DagenDeps, extra: Partial<DoneResult> = {}): Promise<DoneResult> {
   deps.live.notify(RUM);
   const { state, log } = await synlig(deps);
-  const html = state ? String(renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender'))) : String(renderDagenEmpty(dagenTekst().ingenDataIDagEndnu));
+  const html = state ? String(renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender'), deps.hermes.harVaerktoejer)) : String(renderDagenEmpty(dagenTekst().ingenDataIDagEndnu, deps.hermes.harVaerktoejer));
   return { html, venter: { [RUM]: venterDagen(state, log, deps.now()) }, hermesStatus: state ? dagenStatus(state.hermesStatus) : tekst().klar, ...extra };
 }
 
 export async function viewDagen(deps: DagenDeps): Promise<RoomView> {
   const { state, log } = await synlig(deps);
-  const main = state ? renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender')) : renderDagenEmpty(dagenTekst().ingenDataIDagEndnu);
+  const main = state ? renderDagen(state, log, deps.now(), deps.runs.igang(RUM), await deps.kildeFriskhed?.('kalender'), deps.hermes.harVaerktoejer) : renderDagenEmpty(dagenTekst().ingenDataIDagEndnu, deps.hermes.harVaerktoejer);
   return { main, hermesStatus: state ? dagenStatus(state.hermesStatus) : tekst().klar };
 }
 
@@ -51,14 +51,17 @@ export async function startOpdater(deps: DagenDeps, mode: string): Promise<RunRe
   if (mode !== 'opdater' && mode !== 'hent') return null;
   const now = deps.now();
   let spec;
+  // KC-0259: "hent" and a day with no data to build from ask the agent to fetch with its terminal: not without tools.
   if (mode === 'hent') {
+    if (!deps.hermes.harVaerktoejer) return null;
     spec = buildHentRun(now);
   } else {
     // KC-0133: the week from the connected calendar source. Without a morning paper, a calendar the user connected
     // builds the day; the host's own (Kira's) install still asks Hermes to fetch the paper, as before.
     const kal = deps.ugeKalender ? await deps.ugeKalender() : null;
     const data = (await readDagenSource(deps.dagenSourceGlob, now)) ?? (kal && !kal.fraVaerten ? dagFraUge(kal.uge, now) : null);
-    spec = data ? buildRefreshRun(data, now, kal ? trimUge(kal.uge) : null) : buildHentRun(now);
+    if (!data && !deps.hermes.harVaerktoejer) return null;
+    spec = data ? buildRefreshRun(data, now, kal ? trimUge(kal.uge) : null, { vaerktoejer: deps.hermes.harVaerktoejer }) : buildHentRun(now);
   }
   return deps.runs.start({
     kind: 'opdater',

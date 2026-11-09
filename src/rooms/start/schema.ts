@@ -37,7 +37,17 @@ export type StartState = {
   regel?: StartRegel;
   /** KC-0129: step 5 — the import's pile of proposals on offer, and the imports saved (what makes the step Klaret). */
   import?: StartImport;
+  /** KC-0248: step 0 — what Clawco should take off the person's plate (the pick), and when they confirmed it. */
+  situation?: StartSituation;
 };
+
+// ---------- KC-0248: step 0 (the situation pick) ----------
+
+export const SITUATIONER = ['mail', 'familie', 'alt'] as const;
+export type Situation = (typeof SITUATIONER)[number];
+/** The pick (`valg`) and when it was made; `bekraeftet` is set when the person went on with it (step 0 Klaret). */
+export type StartSituation = { valg: Situation; tid: string; bekraeftet?: string };
+export const erSituation = (v: unknown): v is Situation => (SITUATIONER as readonly unknown[]).includes(v);
 
 /** The first Ret / Ikke relevant: which kind, when, the element's title, its card id when known, Henrik's own words (shortened). */
 export type StartRet = { art: 'ret' | 'ikke-relevant'; tid: string; titel: string; kortId?: string; tekst?: string };
@@ -113,7 +123,13 @@ export function parseStartState(raw: unknown): StartState | null {
   const ret = parseRet(raw['ret']);
   const regel = parseRegel(raw['regel']);
   const imp = parseImport(raw['import']);
-  return { startet: raw['startet'], trin, afvist, ...(erIso(raw['faerdig']) ? { faerdig: raw['faerdig'] } : {}), ...(forslag ? { forslag } : {}), ...(model ? { model } : {}), ...parseKildeFelter(raw), ...(ret ? { ret } : {}), ...(regel ? { regel } : {}), ...(imp ? { import: imp } : {}) };
+  const sit = parseSituation(raw['situation']);
+  return { startet: raw['startet'], trin, afvist, ...(erIso(raw['faerdig']) ? { faerdig: raw['faerdig'] } : {}), ...(forslag ? { forslag } : {}), ...(model ? { model } : {}), ...parseKildeFelter(raw), ...(ret ? { ret } : {}), ...(regel ? { regel } : {}), ...(imp ? { import: imp } : {}), ...(sit ? { situation: sit } : {}) };
+}
+
+function parseSituation(v: unknown): StartSituation | undefined {
+  if (!erObj(v) || !erSituation(v['valg']) || !erIso(v['tid'])) return undefined;
+  return { valg: v['valg'], tid: v['tid'], ...(erIso(v['bekraeftet']) ? { bekraeftet: v['bekraeftet'] } : {}) };
 }
 
 // ---------- KC-0129: step 5 (import) ----------

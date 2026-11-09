@@ -280,5 +280,5 @@ export function createHermesHttp(opts: {
     return { slags: 'gemt', noegle: navn, laengde };
   }
 
-  return { mode: 'hermes-http', run, health, status, saetModelNoegle, cancel };
+  return { mode: 'hermes-http', harVaerktoejer: true, run, health, status, saetModelNoegle, cancel };
 }

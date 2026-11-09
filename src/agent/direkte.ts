@@ -244,5 +244,5 @@ export function createDirekte(o: {
     return { slags: 'gemt', noegle: u.envNavn, laengde };
   }
 
-  return { mode: 'direkte', run, health, status, saetModelNoegle };
+  return { mode: 'direkte', harVaerktoejer: false, run, health, status, saetModelNoegle };
 }

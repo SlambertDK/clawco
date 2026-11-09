@@ -14,9 +14,9 @@ export type FremmedGrund = 'side' | 'oprindelse' | 'vaert';
  * method when an address is configured or in laptop mode (loopback only): a name that is neither is DNS rebinding.
  * `/health` is exempt from the host rule: the deploy script and Docker's healthcheck call it by whatever name they have.
  */
-export function fremmedGrund(req: Request, o: { laptop?: boolean; adresse?: string }): FremmedGrund | null {
+export function fremmedGrund(req: Request, o: { laptop?: boolean; adresse?: string; udenVaert?: boolean }): FremmedGrund | null {
   const url = new URL(req.url);
-  if (url.pathname !== '/health' && (o.laptop || o.adresse)) {
+  if (url.pathname !== '/health' && !o.udenVaert && (o.laptop || o.adresse)) {
     const egen = o.adresse ? vaertAf(o.adresse) : null;
     if (!LOOPBACK.has(url.hostname) && url.host !== egen && url.hostname !== egen) return 'vaert';
   }
