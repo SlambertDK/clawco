@@ -4,8 +4,8 @@
 # Postgres is the host's system cluster over its unix socket (peer auth, no password).
 [Unit]
 Description=Clawco Sky (kontrolplanet)
-After=network-online.target postgresql.service
-Wants=network-online.target
+After=network-online.target postgresql.service clawco-sky-netfilter.service
+Wants=network-online.target clawco-sky-netfilter.service
 Requires=postgresql.service
 
 [Service]

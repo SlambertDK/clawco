@@ -14,15 +14,18 @@ const skriver = (o: { klar: boolean; lavMappe?: boolean }): ImportSkriver => ({
   fjernPerson: async () => false, fjernProfil: async () => false,
   opdaterPerson: async () => { throw new Error('ikke her'); }, gendanPerson: async () => false,
 });
-const model = (udbyder?: string): RoomDepsModel => ({ laes: async () => ({ ...(udbyder ? { udbyder } : {}), modeller: {}, test: {}, rev: { lille: 'a', taenker: 'b' } } as ModelSyn) }) as unknown as RoomDepsModel;
+// KC-0247: both tiers tested, so step 2 is Klaret and step 5 can be the open step (the steps before it are done: `forbi`).
+const testet = { ok: true, tid: STARTET, ms: 800, rev: 'r' };
+const model = (udbyder?: string): RoomDepsModel => ({ laes: async () => ({ ...(udbyder ? { udbyder } : {}), modeller: { lille: 'm', taenker: 'm' }, test: { lille: testet, taenker: testet }, rev: { lille: 'r', taenker: 'r' } } as ModelSyn) }) as unknown as RoomDepsModel;
 type RoomDepsModel = NonNullable<Parameters<typeof medStart>[0]['model']>;
 const kilde = { id: 'falsk-kalender', navn: 'Kalender', slags: 'kalender', forbundet: true };
-const KILDER: StartState = { startet: STARTET, trin: { 'foerste-kilde': { status: 'klaret' } }, afvist: {}, kilder: { 'falsk-kalender': { foersteVaerdiMs: 1, tid: STARTET, forhaandsvisning: { kildeId: 'falsk-kalender', navn: 'Kalender', slags: 'kalender', titel: 'x', linje: '', hentet: STARTET } } } };
+// KC-0247: the first source works and the first Ret is made, so step 5 is the open step.
+const KILDER: StartState = { startet: STARTET, trin: { 'foerste-kilde': { status: 'klaret' } }, afvist: {}, ret: { art: 'ret', tid: STARTET, titel: 'x' }, kilder: { 'falsk-kalender': { foersteVaerdiMs: 1, tid: STARTET, forhaandsvisning: { kildeId: 'falsk-kalender', navn: 'Kalender', slags: 'kalender', titel: 'x', linje: '', hentet: STARTET } } } };
 const kort = (h: string): string => /<article[^>]*data-trin="import"[\s\S]*?<\/article>/.exec(h)?.[0] ?? '';
 const bunkeHtml = (h: string): string => /<div[^>]*data-import-bunke[\s\S]*?<\/div>\s*(?=<\/div>|<div class="card|$)/.exec(h)?.[0] ?? '';
 
 test('the card is there once a first source works, and says what it does and does not read, before anything is sent', async () => {
-  await medStart({ state: KILDER, importSkriver: skriver({ klar: true }), model: model('anthropic') }, async (s) => {
+  await medStart({ forbi: true, state: KILDER, importSkriver: skriver({ klar: true }), model: model('anthropic') }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     const k = kort(await s.main());
     assert.match(k, /data-trin-status="ikke-startet"/);
@@ -41,7 +44,7 @@ test('the card is there once a first source works, and says what it does and doe
 
 test('a local model says nothing leaves the machine; no chosen provider says which model reads it', async () => {
   for (const [udbyder, fund] of [['ollama', /ingen forlader maskinen/i], [undefined, /den model, Hermes er sat op med/]] as const) {
-    await medStart({ state: KILDER, importSkriver: skriver({ klar: true }), model: model(udbyder) }, async (s) => {
+    await medStart({ forbi: true, state: KILDER, importSkriver: skriver({ klar: true }), model: model(udbyder) }, async (s) => {
       s.d.rejse!.kilder = async () => [kilde];
       assert.match(kort(await s.main()), fund);
     });
@@ -49,13 +52,13 @@ test('a local model says nothing leaves the machine; no chosen provider says whi
 });
 
 test('without a notes folder the card says so and offers to make one (when it can)', async () => {
-  await medStart({ state: KILDER, importSkriver: skriver({ klar: false, lavMappe: true }) }, async (s) => {
+  await medStart({ forbi: true, state: KILDER, importSkriver: skriver({ klar: false, lavMappe: true }) }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     const k = kort(await s.main());
     assert.doesNotMatch(k, /id="import-form"/);
     assert.match(k, /data-aktion="import-lav-mappe"/);
   });
-  await medStart({ state: KILDER, importSkriver: skriver({ klar: false }) }, async (s) => {
+  await medStart({ forbi: true, state: KILDER, importSkriver: skriver({ klar: false }) }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     const k = kort(await s.main());
     assert.doesNotMatch(k, /import-lav-mappe/);
@@ -64,7 +67,7 @@ test('without a notes folder the card says so and offers to make one (when it ca
 });
 
 test('without the seam there is no import card at all', async () => {
-  await medStart({ state: KILDER }, async (s) => {
+  await medStart({ forbi: true, state: KILDER }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     const h = await s.main();
     assert.doesNotMatch(kort(h), /import-form|import-laes/);
@@ -79,7 +82,7 @@ const BUNKE: StartState = { ...KILDER, import: { bunke: { tid: STARTET, slags: '
 ] } } };
 
 test('the pile: one line per proposal with Gem and Spring over, Gem alle, zone shown, the diff in plain words, everything escaped', async () => {
-  await medStart({ state: BUNKE, importSkriver: skriver({ klar: true }), model: model('anthropic') }, async (s) => {
+  await medStart({ forbi: true, state: BUNKE, importSkriver: skriver({ klar: true }), model: model('anthropic') }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     const h = await s.main();
     assert.match(h, /data-blok="bunke"[^>]*data-import-bunke|data-import-bunke[^>]*data-blok="bunke"/);
@@ -104,14 +107,14 @@ test('the pile: one line per proposal with Gem and Spring over, Gem alle, zone s
 
 test('after a saved import the card says what was taken with and that the files are plain files; the owner only sees the buttons', async () => {
   const gemt: StartState = { ...KILDER, trin: { ...KILDER.trin, import: { status: 'klaret' } }, import: { gemt: [{ logId: 'l1', tid: STARTET, slags: 'chatgpt', antal: 3 }] } };
-  await medStart({ state: gemt, importSkriver: skriver({ klar: true }) }, async (s) => {
+  await medStart({ forbi: true, state: gemt, importSkriver: skriver({ klar: true }) }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     const k = kort(await s.main());
     assert.match(k, /data-trin-status="klaret"/);
     assert.match(k, /3 filer/);
     assert.match(k, /Obsidian/);
   });
-  await medStart({ state: BUNKE, importSkriver: skriver({ klar: true }), person: { id: 'ella', login: null, navn: 'Ella', rolle: 'barn' } as never }, async (s) => {
+  await medStart({ forbi: true, state: BUNKE, importSkriver: skriver({ klar: true }), person: { id: 'ella', login: null, navn: 'Ella', rolle: 'barn' } as never }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     assert.doesNotMatch(await s.main(), /data-aktion="import-(gem|laes|spring)/);
   });
@@ -122,7 +125,7 @@ test('KC-0219: a person who already exists offers Opdater (primary) beside Behol
     ...BUNKE.import!.bunke!.forslag,
     { id: 'p5', art: 'profil', status: 'findes', navn: 'Din profil', tekst: 'ny tekst', diff: [{ felt: 'tekst', nu: 'gammel', ny: 'ny tekst' }] },
   ] } } };
-  await medStart({ state, importSkriver: skriver({ klar: true }), model: model('anthropic') }, async (s) => {
+  await medStart({ forbi: true, state, importSkriver: skriver({ klar: true }), model: model('anthropic') }, async (s) => {
     s.d.rejse!.kilder = async () => [kilde];
     const h = await s.main();
     const raekke = (id: string): string => new RegExp(`<div class="row" data-import-forslag="${id}"[\\s\\S]*?(?=<div class="row" data-import-forslag|<p class="row-note">\\d|<div class="actions">)`).exec(h)?.[0] ?? '';

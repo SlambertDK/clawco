@@ -20,6 +20,7 @@ import { googleKalender } from '../src/kilder/google-kalender/kilde.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import type { RumLager } from '../src/store/types.ts';
 import type { StartState } from '../src/rooms/start/schema.ts';
+import { forbiTil } from './helpers/start-forbi.ts';
 
 const NOW = new Date('2026-10-31T09:30:00Z');
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
@@ -42,6 +43,7 @@ async function medApp(o: { tilstand?: Partial<Record<Slags, FalskTilstand>>; eks
   // The agent is scripted to wait until the test opens the gate: Hermes has not answered yet.
   const hermes: AgentClient = { ...fake, run: async (req) => { await port; return fake.run(req); } };
   try {
+    await forbiTil(dir, 'model'); // KC-0247: steps 1–2 done, so step 3 is the open step
     const store = createFileStore(dir);
     const app = createApp({
       store, hermes, sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW,
@@ -89,7 +91,7 @@ test('connect mail: the preview stands in Nu before Hermes answers, then the cur
 
     s.aabn();
     await venPaaKoersler(s);
-    await indtil(async () => Boolean((await startState(s)).kilder?.['falsk-mail']?.erstattet));
+    for (let i = 0; i < 500 && !(await startState(s)).kilder?.['falsk-mail']?.erstattet; i++) await new Promise((res) => setTimeout(res, 10));
     const efter = await nu(s);
     assert.doesNotMatch(efter, /forhaandsvisning-falsk-mail/, 'replaced, not beside');
     assert.match(efter, /href="\/rum\/mail"/, 'the curated Mail line is in Nu');
@@ -174,8 +176,16 @@ test('connect with another zone: the source and its preview are in that zone', a
 
 test('step 4 offers one source at a time — the other of calendar/mail first — and Spring over takes it off screen', async () => {
   await medApp({}, async (s) => {
-    s.aabn();
     await forbindMail(s);
+    // KC-0247: one step at a time, mandatory first — step 4 is the open card once the first Ret is made. The Ret goes the
+    // user's way: a correction in the chat about the preview standing in Nu, before Hermes has answered (the curated
+    // view that replaces it carries no Ret of its own).
+    const kort = /data-ask="(Kortet: [^"]+)"/.exec(await nu(s))?.[1] ?? '';
+    assert.ok(kort, 'the preview in Nu carries Ret');
+    assert.equal((await post(s, '/api/rum/hjem/chat', { besked: 'Det passer ikke helt.', kontekst: kort.replace(/&quot;/g, '"') })).status, 202);
+    assert.ok((await startState(s)).ret, 'the first Ret is recorded');
+    s.aabn();
+    await venPaaKoersler(s);
     let h = await side(s, '/rum/start');
     assert.match(h, /data-trin="flere-kilder"/);
     const flere = (x: string): string[] => [...(/data-trin="flere-kilder"[\s\S]*?<\/article>/.exec(x)?.[0] ?? '').matchAll(/data-kilde-kort="([^"]+)"/g)].map((m) => m[1]!);

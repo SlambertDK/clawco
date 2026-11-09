@@ -15,6 +15,7 @@ import { MODEL_TEST } from '../src/agent/prompt.ts';
 import type { AgentClient } from '../src/agent/types.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import { anthropicStream, startFalskUdbyder } from './helpers/falsk-udbyder.ts';
+import { forbiTil } from './helpers/start-forbi.ts';
 
 const NOEGLE = 'sk-ant-test-HEMMELIG-selvhost-0245';
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
@@ -50,6 +51,7 @@ const side = async (s: ReturnType<typeof createApp>): Promise<string> => (await 
 test('direkte: step 2 shows the providers that work without Hermes (local models too; Copilot only where GitHub sign-in is set up, KC-0263), and no Hermes wording', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-direkte-'));
   try {
+    await forbiTil(dir, 'velkommen'); // KC-0247: step 2 is the open step
     await medFalskUdbyder(async ({ omdiriger }) => {
       const s = app(dir, lavAgent({ KC_AGENT: 'direkte', KC_DATA_DIR: dir }, { env: {}, fetchImpl: omdiriger }), omdiriger);
       const kort = modelKort(await side(s));
@@ -73,6 +75,7 @@ test('direkte: step 2 shows the providers that work without Hermes (local models
 test('direkte: a pasted Copilot token is refused (KC-0263: GitHub sign-in only) and nothing is saved', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-direkte-'));
   try {
+    await forbiTil(dir, 'velkommen'); // KC-0247: step 2 is the open step
     await medFalskUdbyder(async ({ omdiriger, modtaget }) => {
       const s = app(dir, lavAgent({ KC_AGENT: 'direkte', KC_DATA_DIR: dir }, { env: {}, fetchImpl: omdiriger }), omdiriger);
       const res = await post(s, '/api/rum/start/aktion/model-gem', { udbyder: 'copilot', noegle: NOEGLE });
@@ -88,6 +91,7 @@ test('direkte: a pasted Copilot token is refused (KC-0263: GitHub sign-in only) 
 test('with another agent Start still offers every provider, Copilot included, and the key line is unchanged', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-direkte-'));
   try {
+    await forbiTil(dir, 'velkommen'); // KC-0247: step 2 is the open step
     const hermes = createFakeAgent();
     const s = app(dir, hermes, (async () => new Response('{"data":[]}', { status: 200 })) as typeof fetch);
     const valg = [...modelKort(await side(s)).matchAll(/<option value="([a-z]+)"/g)].map((m) => m[1]);

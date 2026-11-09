@@ -20,6 +20,7 @@ import type { Person } from '../src/identitet/husstand.ts';
 import type { RumLager } from '../src/store/types.ts';
 import { lavForslag } from '../src/tillid/forslag.ts';
 import type { StartState } from '../src/rooms/start/schema.ts';
+import { forbiTil, FORBI_KILDER } from './helpers/start-forbi.ts';
 
 const NOW = new Date('2026-10-31T10:00:00Z');
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
@@ -173,7 +174,8 @@ test('after Done, Start returns with a suggestion (calendar, three invites in ma
 // explanation card stands, and Done follows (derived, once). KC-0227: a rule proposal pending in Nu is on the card in
 // Start too, and Start creates nothing itself (the answer is the one route of Nu's card: test/server-start-regelforslag.test.ts).
 test('KC-0130: Ikke relevant through Luk completes step 6 and Done; the proposal waiting in Nu shows under the explanation (KC-0227)', async () => {
-  await medApp({}, async (s) => {
+  await medApp({ kilder: FORBI_KILDER() }, async (s) => {
+    await forbiTil(s.dir, 'foerste-kilde', { nu: NOW }); // KC-0247: steps 1–3 done, so step 6 is the open step
     await side(s, '/rum/start'); // the journey begins: Start has a state
     await s.store.writeState('hjem', { kort: [{ id: 'k1', type: 'regning', titel: 'Elregningen', betyder: 'Den er steget.', grundlag: [], kilder: [], anbefaling: 'Tjek aftalen', prioritet: 1 }], intet: [], afvist: [], sete: [] });
     const foer = await side(s, '/rum/start');

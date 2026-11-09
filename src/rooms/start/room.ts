@@ -31,6 +31,7 @@ import type { ImportVisning } from './import/render.ts';
 import { visTailscaleKort } from './tailscalekort.ts';
 import { TsFejl } from '../../shell/tailscale.ts';
 import { STANDARD_SPROG, tekst } from '../../shell/tekster.ts';
+import { enAdGangen, endreStart } from './laas.ts';
 import { startTekst } from './tekster.ts';
 
 const RUM = 'start';
@@ -56,18 +57,10 @@ async function forslagAf(deps: RoomDeps, s: StartState | null): Promise<Forslag[
   let kilder;
   try { kilder = utenPakke(await deps.rejse.kilder()); } catch { return []; } // a registry that cannot be read suggests nothing (fail closed); the Danmark-pakke's sources have their own group (KC-0236)
   const liste = await foreslaaTilfoejelse({ kilder, mail: () => deps.rejse!.mail(), nu, afvist: s?.afvist ?? {} });
-  if (s) await deps.store.writeState(RUM, { ...s, forslag: { tid: nu.toISOString(), liste } });
+  if (s) await endreStart(deps, (n) => (n ? { ...n, forslag: { tid: nu.toISOString(), liste } } : null));
   return liste;
 }
 
-// One chain per store for the writes that must happen once even when two requests race (the Done line, a rule from a Ja).
-const kaeder = new WeakMap<object, Promise<unknown>>();
-function enAdGangen<T>(deps: RoomDeps, fn: () => Promise<T>): Promise<T> {
-  const foer = kaeder.get(deps.store) ?? Promise.resolve();
-  const nu = foer.then(fn, fn);
-  kaeder.set(deps.store, nu.catch(() => undefined));
-  return nu;
-}
 
 /** Writes the Done latch and its one log line, unless another request already did. */
 const laasFaerdig = (deps: RoomDeps): Promise<StartState> => enAdGangen(deps, async () => {
@@ -201,9 +194,8 @@ export async function inkluderetSikr(deps: RoomDeps): Promise<void> {
       if (deps.now().getTime() - nyeste < GENPROEV_MS) return;
       if (await ink.brugt().catch(() => undefined)) return;
     } else {
-      const s = (await laesState(deps)) ?? ny(deps.now());
       await m.vaelg({ udbyder: INKLUDERET.id, lille: INKLUDERET.standardModeller.lille, taenker: INKLUDERET.standardModeller.taenker });
-      await deps.store.writeState(RUM, { ...s, model: { udbyder: INKLUDERET.id } });
+      await endreStart(deps, (s) => ({ ...(s ?? ny(deps.now())), model: { udbyder: INKLUDERET.id } }));
       await deps.store.appendLog(RUM, { kilde: 'system', zone: KORSEL, tekst: startTekst().inkluderet.valgtLog });
       deps.live.notify(RUM);
     }
@@ -214,14 +206,18 @@ export async function inkluderetSikr(deps: RoomDeps): Promise<void> {
 
 async function view(deps: RoomDeps): Promise<RoomView> {
   let s = await laesState(deps);
-  if (!s) { s = ny(deps.now()); await deps.store.writeState(RUM, s); } // the first visit: the journey has begun
+  if (!s) s = (await endreStart(deps, (n) => n ?? ny(deps.now()))) ?? ny(deps.now()); // the first visit: the journey has begun
   const { faerdig, forslag } = await rejsen(deps);
   s = (await laesState(deps)) ?? s;
   const { ctx, trin: alle } = await trinNu(deps, s);
   // KC-0128: step 4 is relevant only once the first source works (KC-0052: absent before, not greyed out).
   // KC-0129: step 5 follows the same rule (and stays once it has been done).
   const foersteKlaret = alle.some((y) => y.trin.id === 'foerste-kilde' && y.status === 'klaret');
-  const trin = alle.filter((x) => (x.trin.id !== 'flere-kilder' && x.trin.id !== 'import') || foersteKlaret || (x.trin.id === 'import' && x.status === 'klaret'));
+  // KC-0247: the open step is the only card, so an open step always has something to do: step 4 with nothing left to
+  // offer and step 5 without a notes writer are gone rather than an empty card.
+  const tom = (x: (typeof alle)[number]): boolean => x.status !== 'klaret'
+    && ((x.trin.id === 'flere-kilder' && flereKilderKoe(s, ctx).length === 0) || (x.trin.id === 'import' && !deps.importSkriver));
+  const trin = alle.filter((x) => ((x.trin.id !== 'flere-kilder' && x.trin.id !== 'import') || foersteKlaret || (x.trin.id === 'import' && x.status === 'klaret')) && !tom(x));
   const kilder = await kildeVisning(deps, s, ctx);
   // One count for the nav and the room (KC-0093): open mandatory steps until the journey is Done.
   const venter = faerdig ? 0 : trin.filter((x) => x.trin.krav === 'obligatorisk' && x.status !== 'klaret').length;
@@ -241,7 +237,7 @@ async function view(deps: RoomDeps): Promise<RoomView> {
       ...(await digitalPostSyn(deps)),
       ...(await aulaSyn(deps, kilder)),
       ...(deps.laptop?.() ? { laptop: true } : {}),
-      trin, profil: ctx.profil, forslag, log, now: deps.now(), igang: deps.runs.igang(RUM), venter,
+      trin, profil: ctx.profil, forslag, log, now: deps.now(), igang: deps.runs.igang(RUM), venter, faerdig,
       standardNavn: p.rolle === 'ejer' && p.id !== ENEBRUGER.id ? p.navn : '',
       kanGemme: kan(p.rolle, 'aendre-indstillinger') && Boolean(deps.profil),
       ...(ctx.model ? { model: { syn: ctx.model, agent, ...(s.model ? { gemt: s.model } : {}), kanGemme: kan(p.rolle, 'aendre-indstillinger'), ...(deps.hermes.mode === 'direkte' ? { direkte: true } : {}), ...(github ? { github } : {}), ...(inkluderet ? { inkluderet } : {}) } } : {}),
@@ -277,8 +273,7 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     return deps.runs.local('gem', async () => {
       const forrige = await lager.laes().catch(() => null);
       await lager.skriv(profil);
-      const s = (await laesState(deps)) ?? ny(deps.now());
-      await deps.store.writeState(RUM, { ...s, trin: { ...s.trin, velkommen: { status: 'klaret', tid: deps.now().toISOString() } } });
+      await endreStart(deps, (n) => { const s = n ?? ny(deps.now()); return { ...s, trin: { ...s.trin, velkommen: { status: 'klaret', tid: deps.now().toISOString() } } }; });
       // AGENTS §1: the undo restores the previous profile (none = back to no profile).
       await deps.store.appendLog(RUM, {
         kilde: 'henrik', zone: KORSEL, ejer: p.id, handlingId: 'velkommen-gem', fortryd: `lokal:${JSON.stringify({ forrige })}`,
@@ -294,9 +289,11 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     const f = (await rejsen(deps)).forslag.find((x) => x.kildeId === kildeId);
     if (!f) throw new ActionError(A.forslagFindesIkke);
     return deps.runs.local('afvis', async () => {
-      const s = (await laesState(deps)) ?? ny(deps.now());
-      const forslag = s.forslag ? { ...s.forslag, liste: s.forslag.liste.filter((x) => x.kildeId !== kildeId) } : undefined;
-      await deps.store.writeState(RUM, { ...s, afvist: { ...s.afvist, [kildeId]: deps.now().toISOString() }, ...(forslag ? { forslag } : {}) });
+      await endreStart(deps, (n) => {
+        const s = n ?? ny(deps.now());
+        const forslag = s.forslag ? { ...s.forslag, liste: s.forslag.liste.filter((x) => x.kildeId !== kildeId) } : undefined;
+        return { ...s, afvist: { ...s.afvist, [kildeId]: deps.now().toISOString() }, ...(forslag ? { forslag } : {}) };
+      });
       await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.lagdeForslagVaek(f.navn) });
       return faerdigt(deps, A.lagtVaek);
     }, { room: RUM, label: T.label.forslag });
@@ -308,9 +305,8 @@ async function startAction(deps: RoomDeps, name: string, body: Record<string, un
     if (status === 'klaret') throw new ActionError(A.trinKlaret);
     if (status === 'sprunget-over') throw new ActionError(A.trinSprunget);
     return deps.runs.local('afvis', async () => {
-      const s = (await laesState(deps)) ?? ny(deps.now());
       const titel = T.trin['foerste-ret'].titel;
-      await deps.store.writeState(RUM, { ...s, trin: { ...s.trin, 'foerste-ret': { status: 'sprunget-over', tid: deps.now().toISOString() } } });
+      await endreStart(deps, (n) => { const s = n ?? ny(deps.now()); return { ...s, trin: { ...s.trin, 'foerste-ret': { status: 'sprunget-over', tid: deps.now().toISOString() } } }; });
       await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.sprangRet(titel) });
       return faerdigt(deps, A.sprunget);
     }, { room: RUM, label: T.label.trin });
@@ -508,7 +504,7 @@ async function modelAktion(deps: RoomDeps, name: string, body: Record<string, un
     const samme = nu.udbyder === u.id;
     const valg = (n: Niveau): string => modelTil(n, { samme, posted: posted[n], nu, std: u.standardModeller[n], ...(gemt.navne ? { navne: gemt.navne } : {}) });
     await m.vaelg({ udbyder: u.id, lille: valg('lille'), taenker: valg('taenker') });
-    await deps.store.writeState(RUM, { ...s, model: gemt });
+    await endreStart(deps, (n) => ({ ...(n ?? s), model: gemt }));
     const hvad = github ? A.hvadGithub(gemt.github?.login) : gemt.noegle ? (deps.hermes.mode === 'direkte' ? A.hvadNoegleGemt : A.hvadNoegle)(gemt.noegle.laengde) : gemt.url ? A.hvadAdresse(gemt.url) : '';
     // KC-0265: the log of the included AI names no model (the person it is for never sees one).
     await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: u.inkluderet ? T.inkluderet.valgtLog : A.valgteModel(T.udbyderNavn(u), hvad, valg('lille'), valg('taenker')) });
@@ -539,8 +535,7 @@ async function githubAktion(deps: RoomDeps, name: 'github-start' | 'github-ud'):
       if (syn.udbyder === u.id) {
         for (const n of NIVEAUER) if (syn.modeller[n]) await m.saetTest(n, { ok: false, tid: deps.now().toISOString(), ms: 0, rev: syn.rev[n], fejl: 'model-noegle' });
       }
-      const s = (await laesState(deps)) ?? ny(deps.now());
-      if (s.model?.udbyder === u.id) { const { model: _vaek, ...uden } = s; await deps.store.writeState(RUM, uden); }
+      await endreStart(deps, (s) => { if (s?.model?.udbyder !== u.id) return null; const { model: _vaek, ...uden } = s; return uden; });
       await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.loggedeUd });
       return faerdigt(deps, A.loggedeUd);
     }, { room: RUM, label: T.label.githubUd });
@@ -549,8 +544,7 @@ async function githubAktion(deps: RoomDeps, name: 'github-start' | 'github-ud'):
   return deps.runs.local('gem', async () => {
     const t = await gh.start(async ({ login, laengde }) => {
       const nu = await m.laes();
-      const s = (await laesState(deps)) ?? ny(deps.now());
-      await deps.store.writeState(RUM, { ...s, model: { udbyder: u.id, noegle: { laengde, tid: deps.now().toISOString() }, ...(login ? { github: { login } } : {}) } });
+      await endreStart(deps, (n) => ({ ...(n ?? ny(deps.now())), model: { udbyder: u.id, noegle: { laengde, tid: deps.now().toISOString() }, ...(login ? { github: { login } } : {}) } }));
       const samme = nu.udbyder === u.id;
       await m.vaelg({ udbyder: u.id, lille: modelTil('lille', { samme, posted: '', nu, std: u.standardModeller.lille }), taenker: modelTil('taenker', { samme, posted: '', nu, std: u.standardModeller.taenker }) });
       await deps.store.appendLog(RUM, { kilde: 'henrik', zone: KORSEL, ejer: p.id, tekst: A.loggedeInd(login, laengde) });

@@ -20,6 +20,7 @@ BARE="/home/$HENRIK/kontrolcenter.git"
 UNITS=/etc/systemd/system
 SKY_UNIT=sky.service
 TUNNEL_UNIT=clawco-sky-tunnel.service
+NETFILTER_UNIT=clawco-sky-netfilter.service
 SUDOERS=/etc/sudoers.d/clawco-sky
 JOURNALD_KONF=/etc/systemd/journald.conf.d/clawco-30-dage.conf
 PG_KONF_NAVN=clawco-sky.conf
@@ -43,11 +44,14 @@ sudoers_tekst() {
   cat <<EOF
 # Clawco Sky (KC-0212), installed by sky/deploy/opsaet-root.sh — rerun the script, never edit by hand.
 # $HENRIK (and the agent over ssh as $HENRIK) may act as the service user $SKY_USER without a password
-# for exactly three fixed scripts in $SKY_USER's checkout (KC-0276; it was "ALL", which made a compromised
+# for exactly four fixed scripts in $SKY_USER's checkout (KC-0276; it was "ALL", which made a compromised
 # $HENRIK session equal to $SKY_USER and its secrets file): deploy.sh (no arguments), saet-env.sh (one SKY_*
-# name, the value on stdin; called by sky/scripts/saet-hemmelighed.sh) and masternoegle.sh (ny, --roter or
-# --afslut; called by sky/scripts/ny-masternoegle.sh). Anything else as $SKY_USER needs $HENRIK's password.
-$HENRIK ALL=($SKY_USER) NOPASSWD: /usr/bin/bash $CHECKOUT/sky/deploy/deploy.sh "", /usr/bin/bash $CHECKOUT/sky/deploy/saet-env.sh SKY_*, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh ny, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh --roter, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh --afslut
+# name, the value on stdin; called by sky/scripts/saet-hemmelighed.sh), masternoegle.sh (ny, --roter or
+# --afslut; called by sky/scripts/ny-masternoegle.sh) and (KC-0279) udrul.sh (the tenant-image rollout). udrul.sh
+# takes a trailing wildcard here, which is acceptable ONLY because the wrapper validates its arguments before it
+# runs anything (status|fortsaet|tilbage, hold <slug> <cohort>, start clawco:<hex>; else exit 2). Anything else as
+# $SKY_USER needs $HENRIK's password.
+$HENRIK ALL=($SKY_USER) NOPASSWD: /usr/bin/bash $CHECKOUT/sky/deploy/deploy.sh "", /usr/bin/bash $CHECKOUT/sky/deploy/saet-env.sh SKY_*, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh ny, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh --roter, /usr/bin/bash $CHECKOUT/sky/deploy/masternoegle.sh --afslut, /usr/bin/bash $CHECKOUT/sky/deploy/udrul.sh *
 # ... and restarts exactly Sky's two units. Nothing that opens a pager (status, journalctl) runs as root.
 $HENRIK ALL=(root) NOPASSWD: /usr/bin/systemctl restart sky, /usr/bin/systemctl restart clawco-sky-tunnel, /usr/bin/systemctl is-active sky, /usr/bin/systemctl is-active clawco-sky-tunnel
 # deploy.sh, run as $SKY_USER, restarts the control plane after a pull, then (KC-0273) puts the tenant pool's
@@ -195,6 +199,9 @@ tjek_sky_unit() { cmp -s "$HER/$SKY_UNIT" "$UNITS/$SKY_UNIT" && systemctl is-ena
 goer_sky_unit() { installer_unit "$SKY_UNIT"; systemctl enable "$SKY_UNIT"; }
 tjek_tunnel_unit() { cmp -s "$HER/$TUNNEL_UNIT" "$UNITS/$TUNNEL_UNIT" && systemctl is-enabled --quiet "$TUNNEL_UNIT" 2>/dev/null; }
 goer_tunnel_unit() { installer_unit "$TUNNEL_UNIT"; systemctl enable "$TUNNEL_UNIT"; }
+# KC-0279: the boot-time filter (a root oneshot before sky.service); `enable --now` also files the rules right away.
+tjek_netfilter_unit() { cmp -s "$HER/$NETFILTER_UNIT" "$UNITS/$NETFILTER_UNIT" && systemctl is-enabled --quiet "$NETFILTER_UNIT" 2>/dev/null; }
+goer_netfilter_unit() { installer_unit "$NETFILTER_UNIT"; systemctl enable --now "$NETFILTER_UNIT"; }
 
 tjek_sudoers() { sudoers_tekst | cmp -s - "$SUDOERS"; }
 goer_sudoers() {
@@ -232,6 +239,7 @@ trin "databasen sky ejet af sky" tjek_pg_db goer_pg_db
 trin "$ENV_FIL er 0600, ejes af $SKY_USER, har SKY_DATABASE_URL og SKY_PORT" tjek_env goer_env
 trin "$SKY_UNIT installeret og slået til" tjek_sky_unit goer_sky_unit
 trin "$TUNNEL_UNIT installeret og slået til" tjek_tunnel_unit goer_tunnel_unit
+trin "$NETFILTER_UNIT installeret og slået til" tjek_netfilter_unit goer_netfilter_unit
 trin "sudoers-filen $SUDOERS (tjekket med visudo)" tjek_sudoers goer_sudoers
 trin "journald gemmer logs højst 30 dage ($JOURNALD_KONF)" tjek_journald goer_journald
 if [ "$TOER" = 1 ]; then echo "Tørkørsel: intet er ændret."; else echo "Færdig. Næste skridt (agenten): sky/deploy/README.md, \"Efter root-trinnet\"."; fi

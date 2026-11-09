@@ -42,6 +42,8 @@ export type StartVisning = {
   log?: LogEntry[];
   now?: Date;
   igang?: IgangRaekke[];
+  /** KC-0247: the journey is Done (latched): the cards under the steps no longer wait for the first source. */
+  faerdig?: boolean;
   /** The room's count (the nav's number): open mandatory steps, 0 once the journey is Done. Absent = the open mandatory steps. */
   venter?: number;
   /** KC-0127: step 2 — the model choice, the agent's state, what Start recorded of the key; absent = no data dir. */
@@ -264,13 +266,31 @@ function indholdAf(t: Trin, status: TrinStatus, v: StartVisning): Markup {
   return html`<p class="row-note">${T.duHedder(p.navn, p.sprog)}${v.laptop ? '' : T.duEr(p.husstand)}.</p>${v.kanGemme ? mere(velkommenForm(p, v.standardNavn, T.gemAendringen, v.laptop), T.retProfilen) : ''}`;
 }
 
-function trinKort(t: Trin, status: TrinStatus, v: StartVisning): Markup {
+/** The one open step (KC-0247): the whole card, with which step it is of how many. */
+function trinKort(t: Trin, status: TrinStatus, v: StartVisning, nr: number, af: number): Markup {
   const T = startTekst();
-  const chip = status === 'klaret' ? tilstandChip('ordnet', T.status.klaret) : tilstandChip(t.krav === 'obligatorisk' ? 'kraever' : 'rolig', t.krav === 'valgfri' && status === 'ikke-startet' ? T.valgfrit : T.status[status]);
-  return html`<article class="card kort trin-kort" data-blok="kort" data-trin="${t.id}" data-trin-status="${status}" data-element="${T.trinElement(t.titel)}">
-    <div class="kort-head">${chip}<span class="row-title">${t.titel}</span></div>
-    ${status === 'klaret' ? '' : html`<p>${v.laptop && t.id === 'velkommen' ? T.laptopVelkommen : t.id === 'model' && v.model?.inkluderet?.valgt ? T.inkluderet.trinTekst : t.tekst}</p>`}
+  const chip = tilstandChip(t.krav === 'obligatorisk' ? 'kraever' : 'rolig', t.krav === 'valgfri' && status === 'ikke-startet' ? T.valgfrit : T.status[status]);
+  return html`<article class="card kort trin-kort" data-blok="kort" data-trin="${t.id}" data-trin-status="${status}" data-trin-aaben data-element="${T.trinElement(t.titel)}">
+    <div class="kort-head">${chip}<span class="row-title">${t.titel}</span><span class="muted mono trin-taeller">${T.taeller(nr, af)}</span></div>
+    <p>${v.laptop && t.id === 'velkommen' ? T.laptopVelkommen : t.id === 'model' && v.model?.inkluderet?.valgt ? T.inkluderet.trinTekst : t.tekst}</p>
     ${indholdAf(t, status, v)}
+  </article>`;
+}
+
+/** A step not reached yet (KC-0247): its title and the estimate, nothing of its content. */
+function naesteLinje(t: Trin, status: TrinStatus): Markup {
+  const T = startTekst();
+  return html`<article class="trin-linje" data-trin="${t.id}" data-trin-status="${status}" data-trin-naeste>
+    <span class="row-title">${t.titel}</span><span class="muted mono">${t.krav === 'valgfri' ? `${T.valgfrit} · ` : ''}${T.omtrent(t.minutter)}</span>
+  </article>`;
+}
+
+/** A done or skipped step (KC-0247): one line with its tick; what it showed (and its "change" forms) behind the fold. */
+function foldetLinje(t: Trin, status: TrinStatus, v: StartVisning): Markup {
+  const T = startTekst();
+  const chip = status === 'klaret' ? tilstandChip('ordnet', T.status.klaret) : tilstandChip('rolig', T.status[status]);
+  return html`<article class="trin-linje" data-trin="${t.id}" data-trin-status="${status}" data-trin-foldet data-element="${T.trinElement(t.titel)}">
+    <details><summary class="trin-linje-head">${chip}<span class="row-title">${t.titel}</span></summary><div class="trin-linje-indhold">${indholdAf(t, status, v)}</div></details>
   </article>`;
 }
 
@@ -294,11 +314,22 @@ function logRaekke(e: LogEntry, now: Date): Markup {
 
 export function renderStart(v: StartVisning): Markup {
   const now = v.now ?? new Date();
-  // The open steps on top, in journey order; what is done or skipped below them.
-  const aabne = v.trin.filter((x) => x.status !== 'klaret' && x.status !== 'sprunget-over');
-  const rest = v.trin.filter((x) => x.status === 'klaret' || x.status === 'sprunget-over');
-  const venter = v.venter ?? aabne.filter((x) => x.trin.krav === 'obligatorisk').length;
-  const bunke = html`<div class="stack" data-trin-bunke>${[...aabne, ...rest].map((x) => html`${trinKort(x.trin, x.status, v)}${x.trin.id === 'foerste-ret' ? efterRet(v) : ''}`)}${v.tailscale ? renderTailscaleKort(v.tailscale) : ''}${renderDanmarkPakke({ aula: v.aula, post: v.digitalPost })}</div>`;
+  // KC-0247: one step at a time. Mandatory steps come before optional ones (spec §5: the first Ret right after the first
+  // source); the first open one is the only card; the later ones are lines with an estimate; done ones fold to a tick.
+  const erAaben = (x: StartVisning['trin'][number]): boolean => x.status !== 'klaret' && x.status !== 'sprunget-over';
+  const orden = [...v.trin.filter((x) => x.trin.krav === 'obligatorisk'), ...v.trin.filter((x) => x.trin.krav !== 'obligatorisk')];
+  const aktiv = orden.find(erAaben);
+  const naeste = orden.filter((x) => erAaben(x) && x !== aktiv);
+  const faerdige = orden.filter((x) => !erAaben(x));
+  const venter = v.venter ?? v.trin.filter((x) => erAaben(x) && x.trin.krav === 'obligatorisk').length;
+  // The cards under the steps (the phone, the Danmark-pakke) wait until the first source works (spec §4 P2: show, then
+  // ask) — or until the journey is Done, for an installation whose first source predates Start's record of it.
+  const foer = !v.faerdig && v.trin.some((x) => x.trin.id === 'foerste-kilde' && erAaben(x));
+  const under = foer ? '' : html`${v.tailscale ? renderTailscaleKort(v.tailscale) : ''}${renderDanmarkPakke({ aula: v.aula, post: v.digitalPost })}`;
+  const linjer = naeste.length || faerdige.length
+    ? html`<div class="card card-list trin-linjer" data-trin-linjer>${naeste.map((x) => naesteLinje(x.trin, x.status))}${faerdige.map((x) => foldetLinje(x.trin, x.status, v))}</div>`
+    : '';
+  const bunke = html`<div class="stack" data-trin-bunke>${aktiv ? trinKort(aktiv.trin, aktiv.status, v, orden.indexOf(aktiv) + 1, orden.length) : ''}${efterRet(v)}${linjer}${under}</div>`;
   // Optional, so not under Kræver dig: a source worth adding sits under the steps, one line each (a bunke).
   const T = startTekst();
   const forslag = v.forslag.length ? html`<div class="card card-list gruppe" data-blok="bunke" data-gruppe="${T.vaerdAtTilfoeje}"><div class="card-head"><h3 class="eyebrow">${T.vaerdAtTilfoeje}</h3><span class="muted mono">${v.forslag.length}</span></div>${v.forslag.map(forslagRaekke)}</div>` : '';

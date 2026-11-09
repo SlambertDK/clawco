@@ -12,6 +12,7 @@ import { createFileStore } from '../src/store/fileStore.ts';
 import { createFakeAgent } from '../src/agent/fake.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import type { TsKoerer, TsSvar } from '../src/shell/tailscale.ts';
+import { forbiTil, FORBI_KILDER } from './helpers/start-forbi.ts';
 
 const NOW = new Date('2026-10-31T10:00:00Z');
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
@@ -41,9 +42,10 @@ type Sut = ReturnType<typeof createApp> & { dir: string; store: ReturnType<typeo
 async function medApp(o: { cli?: TsKoerer; person?: Person; port?: number; laptop?: boolean }, fn: (s: Sut) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-tailscale-'));
   try {
+    await forbiTil(dir, 'foerste-kilde', { nu: NOW }); // KC-0247: the phone card waits until the first source works
     const store = createFileStore(dir);
     const app = createApp({
-      store, hermes: createFakeAgent({ answer: () => 'Hej.' }), sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW,
+      store, hermes: createFakeAgent({ answer: () => 'Hej.' }), kilder: FORBI_KILDER(), sourceGlob: '/nonexistent/{date}.json', dataDir: dir, now: () => NOW,
       mailRunner: async () => ({ code: 1, stdout: '', stderr: 'x' }), mailStateDir: '/nonexistent', identitet: { fast: o.person ?? EJER },
       ...(o.cli ? { tailscale: { koerer: o.cli, port: o.port ?? PORT, ...(o.laptop ? { laptop: () => true } : {}) } } : {}),
     });

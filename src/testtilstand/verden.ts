@@ -26,7 +26,7 @@ import type { Froe, Moment } from './typer.ts';
 import { idagKbh, lavUr, type Ur } from './ur.ts';
 import { skrivFroe, testMailRunner } from './skriv.ts';
 import { ALLE_MOMENTER, froe as lavFroe, MOMENTER, svar } from './indhold.ts';
-import { erGithubMoment, erInkluderetMoment, erKold, KOLD_GOOGLE, modelTestUdfald, testGithub, testInkluderet } from './indhold/start.ts';
+import { erGithubMoment, erInkluderetMoment, erKold, KOLD_GOOGLE, KOLD_GOOGLE_AFVIST, modelTestUdfald, testGithub, testInkluderet } from './indhold/start.ts';
 import { falskTailscale, tailscaleLaptop } from './indhold/tailscale.ts'; // KC-0161
 import { fakta, KOE, momentNr, momentPlus, plusDag } from './indhold/fakta.ts';
 import { familiekalender, TEST_EJER, testKanal } from './indhold/husstand.ts';
@@ -213,7 +213,7 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
   const tailscaleDelt = new Set<string>();
   // KC-0133: the world's fake Google — the story's calendar; it knows every moment's seeded refresh token and refuses them in GOOGLE_AFVIST.
   // KC-0135: the cold moment with the calendar connected has the Google app set up (it could not be connected otherwise).
-  const harGoogleApp = (): boolean => !erKold(nu.id) || nu.id === KOLD_GOOGLE;
+  const harGoogleApp = (): boolean => !erKold(nu.id) || nu.id === KOLD_GOOGLE || nu.id === KOLD_GOOGLE_AFVIST;
   const googleMiljoe = {
     get KC_GOOGLE_CLIENT_ID(): string { return harGoogleApp() ? TEST_GOOGLE_KLIENT.id : ''; },
     get KC_GOOGLE_CLIENT_SECRET(): string { return harGoogleApp() ? TEST_GOOGLE_KLIENT.hemmelighed : ''; },
@@ -221,7 +221,7 @@ export async function lavTestverden(o: TestverdenOpts): Promise<Testverden> {
   const google = falskGoogle({
     klient: TEST_GOOGLE_KLIENT, nu: ur.now, konto: TEST_GMAIL,
     // Each grant is refused in its own moment: the calendar's the next morning, Gmail's at "Gmail er logget ud".
-    afvis: (scopes) => (nu.id === GOOGLE_AFVIST && scopes.includes(SCOPE_KALENDER)) || (nu.id === GMAIL_AFVIST && scopes.includes(SCOPE_MAIL)),
+    afvis: (scopes) => ((nu.id === GOOGLE_AFVIST || nu.id === KOLD_GOOGLE_AFVIST) && scopes.includes(SCOPE_KALENDER)) || (nu.id === GMAIL_AFVIST && scopes.includes(SCOPE_MAIL)),
     kendteRefresh: ALLE_MOMENTER.map((m) => googleRefresh(m.id)), kendteMailRefresh: ALLE_MOMENTER.map((m) => googleMailRefresh(m.id)),
     kalendere: () => googleKalendere(erKold(nu.id) ? 0 : momentNr(nu.id), fakta(dag)),
   });

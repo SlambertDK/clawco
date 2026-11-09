@@ -3,17 +3,8 @@
     <div><h1>Start</h1><p class="muted">Rejsen fra kold start: ét kort per trin. Svar på det øverste, så står det næste klar.</p></div>
   </header>
 
-  <p class="taellelinje"><span class="tilstand-kraever">4 venter på dig</span></p><div class="baand-indhold" data-baand="indhold"><div class="stack" data-trin-bunke><article class="card kort trin-kort" data-blok="kort" data-trin="velkommen" data-trin-status="ikke-startet" data-element="Trin: Velkommen">
-    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Velkommen</span></div>
-    <p>Fortæl Clawco, hvad du hedder, hvilket sprog Hermes skal svare på, og om du er alene eller en husstand.</p>
-    <form id="velkommen-form" class="nyt-form" onsubmit="return false" autocomplete="off">
-    <label class="field"><span class="row-note">Hvad hedder du?</span><input name="navn" type="text" maxlength="60" required value="" placeholder="Fx Alma"></label>
-    <label class="field"><span class="row-note">Hvilket sprog skal Hermes svare på?</span><select name="sprog"><option value="da" selected>Dansk</option><option value="en">Engelsk</option></select></label>
-    <label class="field"><span class="row-note">Er du alene, eller er I en husstand?</span><select name="husstand"><option value="alene" selected>Alene</option><option value="husstand">En husstand</option></select></label>
-    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="velkommen-gem" data-form="velkommen-form" data-status="gemmer">Gem</button></div>
-  </form>
-  </article><article class="card kort trin-kort" data-blok="kort" data-trin="model" data-trin-status="ikke-startet" data-element="Trin: Vælg din model">
-    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Vælg din model</span></div>
+  <p class="taellelinje"><span class="tilstand-kraever">3 venter på dig</span></p><div class="baand-indhold" data-baand="indhold"><div class="stack" data-trin-bunke><article class="card kort trin-kort" data-blok="kort" data-trin="model" data-trin-status="ikke-startet" data-trin-aaben data-element="Trin: Vælg din model">
+    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Vælg din model</span><span class="muted mono trin-taeller">2 af 6</span></div>
     <p>Indsæt en nøgle fra din udbyder, eller brug en model på din egen maskine. Clawco prøver den straks, så du kan se, at den virker.</p>
     <div class="model-kommando" data-model-kommando>
       <p class="row-note">Clawco kan ikke skrive til Hermes' indstillinger herfra. Kør kommandoen på Hermes' maskine, indsæt værdien, når den spørger, og tryk så Test.</p>
@@ -33,20 +24,19 @@
     <datalist id="model-navne"><option value="claude-haiku-4-5"></option><option value="claude-sonnet-4-5"></option></datalist>
     <div class="actions"><button type="button" class="btn btn-primary" data-aktion="model-gem" data-form="model-form" data-status="gemmer og prøver modellen">Gem og test</button></div>
   </form>
-  </article><article class="card kort trin-kort" data-blok="kort" data-trin="foerste-kilde" data-trin-status="ikke-startet" data-element="Trin: Første kilde">
-    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Første kilde</span></div>
-    <p>Vælg, om du vil starte med kalenderen eller mailen. Lige efter står der noget at se på i Nu.</p>
-    
-  </article><article class="card kort trin-kort" data-blok="kort" data-trin="flere-kilder" data-trin-status="ikke-startet" data-element="Trin: Flere kilder">
-    <div class="kort-head"><span class="chip tilstand-rolig">Valgfrit</span><span class="row-title">Flere kilder</span></div>
-    <p>Én kilde ad gangen, og kun hvis du vil. Hver ny kilde giver straks noget at se på.</p>
-    
-  </article><article class="card kort trin-kort" data-blok="kort" data-trin="import" data-trin-status="ikke-startet" data-element="Trin: Tag det med">
-    <div class="kort-head"><span class="chip tilstand-rolig">Valgfrit</span><span class="row-title">Tag det med</span></div>
-    <p>Fortæl Hermes det, de andre assistenter ved om dig: indsæt deres svar, eller læg en kontaktfil eller nogle noter ind. Intet bliver skrevet, før du har trykket Gem.</p>
-    
-  </article><article class="card kort trin-kort" data-blok="kort" data-trin="foerste-ret" data-trin-status="ikke-startet" data-element="Trin: Ret én ting">
-    <div class="kort-head"><span class="chip tilstand-kraever">Næste</span><span class="row-title">Ret én ting</span></div>
-    <p>Tryk Ret på et kort, der ikke passer, eller Ikke relevant på et, du ikke vil se. Så lærer Hermes dig at kende.</p>
-    
-  </article></div></div><!--/baand-->
+  </article><div class="card card-list trin-linjer" data-trin-linjer><article class="trin-linje" data-trin="foerste-kilde" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Første kilde</span><span class="muted mono">≈ 2 min</span>
+  </article><article class="trin-linje" data-trin="foerste-ret" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Ret én ting</span><span class="muted mono">≈ 1 min</span>
+  </article><article class="trin-linje" data-trin="flere-kilder" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Flere kilder</span><span class="muted mono">Valgfrit · ≈ 2 min</span>
+  </article><article class="trin-linje" data-trin="import" data-trin-status="ikke-startet" data-trin-naeste>
+    <span class="row-title">Tag det med</span><span class="muted mono">Valgfrit · ≈ 3 min</span>
+  </article><article class="trin-linje" data-trin="velkommen" data-trin-status="klaret" data-trin-foldet data-element="Trin: Velkommen">
+    <details><summary class="trin-linje-head"><span class="chip tilstand-ordnet"><svg class="ikon" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>Klaret</span><span class="row-title">Velkommen</span></summary><div class="trin-linje-indhold"><form id="velkommen-form" class="nyt-form" onsubmit="return false" autocomplete="off">
+    <label class="field"><span class="row-note">Hvad hedder du?</span><input name="navn" type="text" maxlength="60" required value="" placeholder="Fx Alma"></label>
+    <label class="field"><span class="row-note">Hvilket sprog skal Hermes svare på?</span><select name="sprog"><option value="da" selected>Dansk</option><option value="en">Engelsk</option></select></label>
+    <label class="field"><span class="row-note">Er du alene, eller er I en husstand?</span><select name="husstand"><option value="alene" selected>Alene</option><option value="husstand">En husstand</option></select></label>
+    <div class="actions"><button type="button" class="btn btn-primary" data-aktion="velkommen-gem" data-form="velkommen-form" data-status="gemmer">Gem</button></div>
+  </form></div></details>
+  </article></div></div></div><!--/baand-->

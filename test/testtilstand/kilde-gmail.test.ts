@@ -26,6 +26,7 @@ test('the cold start: no Google app yet, so the card walks through making one â€
   assert.equal(g.forbundet, false);
   assert.ok(g.kort.trin!.some((t) => t.kopier === 'https://testverden.example/api/kilder/mail-gmail/tilbage'));
   assert.ok(g.kort.trin!.some((t) => t.kopier === 'https://mail.google.com/'));
+  await verden.hop('kold-model'); // KC-0247: step 3 is the open step once steps 1â€“2 are done
   assert.match(await side('/rum/start'), /data-kilde-trin="mail-gmail"/);
 });
 

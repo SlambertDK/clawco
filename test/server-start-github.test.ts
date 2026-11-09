@@ -13,6 +13,7 @@ import { createApp, lavAgentMedLogin } from '../src/server.ts';
 import { createFileStore } from '../src/store/fileStore.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import { FALSK_ENHED, FALSK_KODE, FALSK_TOKEN, falskCopilotKlient, falskGithubFetch } from './helpers/falsk-copilot.ts';
+import { forbiTil } from './helpers/start-forbi.ts';
 
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
 const MEDLEM: Person = { id: 'clara', login: null, navn: 'Clara', rolle: 'medlem' };
@@ -27,6 +28,7 @@ function port(): { vent: () => Promise<void>; aabn: () => void } {
 
 async function opsaet(o: { klientId?: string; person?: Person; github?: ReturnType<typeof falskGithubFetch> } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-github-'));
+  await forbiTil(dir, 'velkommen'); // KC-0247: step 2 is the open step
   const noeglefil = path.join(dir, '..', `kc-key-github-${randomBytes(4).toString('hex')}`);
   await writeFile(noeglefil, `${randomBytes(32).toString('base64')}\n`, { mode: 0o600 });
   const gh = o.github ?? falskGithubFetch();

@@ -27,11 +27,11 @@ test('velkommen is Klaret exactly when a profile exists, whatever the stored sta
 
 test('registrerTrin appends in order, keeps optional steps optional and rejects a duplicate id', () => {
   const foer = alleTrin().length;
-  registrerTrin({ id: 'test-valgfri', titel: 'Valgfrit', tekst: 'Et valgfrit trin.', krav: 'valgfri', erKlaret: () => false });
+  registrerTrin({ id: 'test-valgfri', titel: 'Valgfrit', tekst: 'Et valgfrit trin.', krav: 'valgfri', minutter: 1, erKlaret: () => false });
   const alle = alleTrin();
   assert.equal(alle.length, foer + 1);
   assert.equal(alle.at(-1)?.id, 'test-valgfri');
   assert.equal(alle.at(-1)?.krav, 'valgfri');
-  assert.throws(() => registrerTrin({ id: 'velkommen', titel: 'x', tekst: 'x', krav: 'valgfri', erKlaret: () => true }), /findes allerede/);
-  assert.throws(() => registrerTrin({ id: 'Ugyldig Id', titel: 'x', tekst: 'x', krav: 'valgfri', erKlaret: () => true }), /ugyldigt/);
+  assert.throws(() => registrerTrin({ id: 'velkommen', titel: 'x', tekst: 'x', krav: 'valgfri', minutter: 1, erKlaret: () => true }), /findes allerede/);
+  assert.throws(() => registrerTrin({ id: 'Ugyldig Id', titel: 'x', tekst: 'x', krav: 'valgfri', minutter: 1, erKlaret: () => true }), /ugyldigt/);
 });

@@ -116,7 +116,7 @@ const kort = (h: string): string => /<article[^>]*data-trin="foerste-ret"[\s\S]*
 const RETTET: StartState = { ...tom, trin: { 'foerste-ret': { status: 'klaret' } }, ret: { art: 'ret', tid: '2026-10-31T08:30:00.000Z', titel: 'Elregningen' } };
 
 test('open step with something in Nu names the element and says what Ret and Ikke relevant do — without a Ret button of its own', async () => {
-  await medStart({ nu: { foersteKort: 'Elregningen <b>' } }, async (s) => {
+  await medStart({ forbi: true, nu: { foersteKort: 'Elregningen <b>' } }, async (s) => {
     const k = kort(await s.main());
     assert.match(k, /data-foerste-ret="aaben"/);
     assert.match(k, /Elregningen &lt;b&gt;/, 'the title, escaped');
@@ -128,13 +128,13 @@ test('open step with something in Nu names the element and says what Ret and Ikk
 });
 
 test('open step with something in Nu but no named card still points at Nu', async () => {
-  await medStart({ nu: { foersteKort: null } }, async (s) => {
+  await medStart({ forbi: true, nu: { foersteKort: null } }, async (s) => {
     assert.match(kort(await s.main()), /data-foerste-ret="aaben"/);
   });
 });
 
 test('edge: Nu empty — the step says there is nothing to correct yet, no dead end', async () => {
-  await medStart({ nu: { elementer: 0, foersteKort: null } }, async (s) => {
+  await medStart({ forbi: true, nu: { elementer: 0, foersteKort: null } }, async (s) => {
     const k = kort(await s.main());
     assert.match(k, /data-foerste-ret="tom"/);
     assert.match(k, /Der er ikke noget at rette endnu; Hermes lægger det første op, når der er noget/);

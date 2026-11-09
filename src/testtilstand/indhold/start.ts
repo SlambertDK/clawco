@@ -36,6 +36,8 @@ export const KOLD_ENGELSK = 'kold-engelsk';
 
 /** KC-0135: the cold moment where the Google calendar is connected (so the world's Google app is set up) and mail is not. */
 export const KOLD_GOOGLE = 'kold-google';
+/** KC-0247: the same, but Google has refused the login since: step 3 is the open step and its card says to log in again. */
+export const KOLD_GOOGLE_AFVIST = 'kold-google-afvist';
 
 /** KC-0128: steps 3–4 — the first source's preview in Nu, a connect whose first read failed, the second source on offer. */
 const KOLD_KILDER: readonly Moment[] = [
@@ -43,6 +45,7 @@ const KOLD_KILDER: readonly Moment[] = [
   { id: 'kold-kilde-fejl', tid: '09:18', navn: 'Kold start: kilden svarer ikke', url: '/rum/start', replik: 'Hvorfor står der ingenting?' },
   // KC-0135: the Google calendar logged in but its first read not yet taken as the first value: step 3 still offers the mail, and Gmail's card says only mail is missing.
   { id: KOLD_GOOGLE, tid: '09:14', navn: 'Kold start: Google koblet, mail mangler', url: '/rum/start', replik: 'Hvad mangler jeg at koble?' },
+  { id: KOLD_GOOGLE_AFVIST, tid: '09:15', navn: 'Kold start: Google afviste logget ind', url: '/rum/start', replik: 'Hvorfor virker kalenderen ikke?' },
   { id: 'kold-anden', tid: '09:20', navn: 'Kold start: anden kilde tilbudt', url: '/rum/start', replik: 'Hvad kan jeg mere?' },
   // KC-0130: step 6 open (two sources, the rest skipped, nothing corrected yet) and right after the first Ret (the explanation card).
   { id: 'kold-ret-aaben', tid: '09:26', navn: 'Kold start: ret-trinnet åbent', url: '/rum/start', replik: 'Hvad skal jeg rette?' },
@@ -152,7 +155,8 @@ function koldMailState(f: Fakta): MailState {
 export function koldFroe(momentId: string, f: Fakta): Froe {
   const tom: Froe = { rum: {}, mappe: {}, avis: null, mailPlan: null, husstand: TEST_HUSSTAND };
   if (momentId === 'kold') return tom;
-  if (erTailscaleMoment(momentId)) return koldFroe('kold-velkommen', f); // KC-0161: the cold start a few minutes in; the moment sets the Tailscale state
+  // KC-0161: the cold start with its sources working (KC-0247: the phone card waits until then), Done not latched yet; the moment sets the Tailscale state.
+  if (erTailscaleMoment(momentId)) return koldFroe('kold-ret-aaben', f);
   if (KOLD_KILDER.some((m) => m.id === momentId)) return kildeFroe(momentId, f);
   const gemt = f.iso('09:03');
   const kilder: KilderKonfig = { kilder: [{ id: 'falsk-mail', status: 'forbundet', zone: 'privat', valg: { brugernavn: 'henrik' }, tid: f.iso('09:05'), af: TEST_EJER.id }] };
@@ -204,7 +208,7 @@ function kildeFroe(momentId: string, f: Fakta): Froe {
   if (momentId === 'kold-ret-efter') return faerdigFroe(f, 'efter');
   const basis = koldFroe('kold-model', f); // KC-0127: steps 1 and 2 Klaret (the model works)
   const post = (id: string, hhmm: string, valg: Record<string, string> = {}) => ({ id, status: 'forbundet' as const, zone: 'privat' as const, valg, tid: f.iso(hhmm), af: TEST_EJER.id });
-  if (momentId === KOLD_GOOGLE) return { ...basis, kilder: { kilder: [post('google-kalender', '09:13')] } };
+  if (momentId === KOLD_GOOGLE || momentId === KOLD_GOOGLE_AFVIST) return { ...basis, kilder: { kilder: [post('google-kalender', '09:13')] } };
   if (momentId === 'kold-kilde-fejl') return { ...basis, kilder: { kilder: [post('falsk-mail', '09:17', { brugernavn: 'henrik' })] } };
   const start = basis.rum['start'];
   const state = start?.state as StartState;
@@ -327,12 +331,12 @@ const bunkeAf = (f: Fakta): ImportBunke => ({
 });
 
 /**
- * The step-5 moments, on top of "ret-trinnet åbent" (two sources, step 6 open) with the notes folder connected (the
+ * The step-5 moments, on top of "efter første Ret" (two sources, step 6 done) with the notes folder connected (the
  * world's own vault) so the card can take things in: `aaben` — the form; `bunke` — a pile of proposals read from a
  * pasted answer; `gemt` — one import saved (step 5 Klaret), the pile empty.
  */
 function importFroe(momentId: string, f: Fakta): Froe {
-  const basis = faerdigFroe(f, 'aaben');
+  const basis = faerdigFroe(f, 'efter'); // KC-0247: step 5 opens once the mandatory steps (the first Ret) are done
   const start = basis.rum['start'];
   const state = start?.state as StartState;
   const { [NOTER_ID]: _sprunget, ...sprunget } = state.sprunget ?? {};

@@ -7,6 +7,7 @@
 
 import { html, type Markup } from '../../shell/html.ts';
 import { tilstandChip } from '../../shell/sprog.ts';
+import { ikon } from '../../shell/visuel.ts';
 import type { KildeKortSyn } from '../module.ts';
 import { DATAZONER } from '../../identitet/zoner.ts';
 import { renderForhaandsvisning, type Forhaandsvisning } from './forhaandsvisning.ts';
@@ -52,25 +53,43 @@ function opsaetTrin(k: KildeKortSyn): Markup {
   return html`<div class="stack kilde-trin" data-kilde-trin="${k.id}">${trin.map((t, i) => html`<details class="kilde-trin-et" name="${navn}"${i === 0 ? html` open` : ''}><summary class="row-note">${T.trinAf(i + 1, trin.length)}</summary><p>${t.tekst}</p>${t.kopier ? html`<p class="mono row-note">${t.kopier}</p><div class="actions"><button type="button" class="btn btn-ghost" data-kopier="${t.kopier}">${T.kopierAdressen}</button></div>` : ''}</details>`)}</div>`;
 }
 
-/** One source's connect card. `efter`: where the browser goes once connected (step 3 → Nu, where the first value stands). */
+/**
+ * One source's connect card. `efter`: where the browser goes once connected (step 3 → Nu, where the first value stands).
+ * KC-0247: a card that asks for something (a visible field or setup steps) folds its form under "I'll do it myself" (the
+ * third door, spec §6); Spring over and Ikke nu stay in sight beside the fold. A one-tap card keeps its button in sight.
+ */
 export function forbindKort(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean; ikkeNu?: string }): Markup {
-  const form = forbindForm(k, o);
+  const head = html`<p class="row-title">${k.kort.titel}</p><p class="row-note">${k.kort.tekst}</p>`;
+  const spoerger = Boolean(k.kort.trin?.length) || k.kort.felter.some((f) => !f.skjult);
+  const indhold = spoerger
+    ? html`<details class="vis-mere" data-doer="selv"><summary>${ikon('wrench')}<span>${startTekst().selv}</span></summary><div class="vis-mere-indhold">${opsaetTrin(k)}${forbindForm(k, { ...o, udenValg: true })}</div></details>${valgKnapper(k, o)}`
+    : html`${opsaetTrin(k)}${forbindForm(k, o)}`;
   return html`<div class="kilde-kort" data-kilde-kort="${k.id}" data-kilde-slags="${k.slags}" data-element="${startTekst().kildeElement(k.kort.titel)}">
-    <p class="row-title">${k.kort.titel}</p><p class="row-note">${k.kort.tekst}</p>${opsaetTrin(k)}${form}
+    ${head}${indhold}
   </div>`;
 }
 
-/** The card's form: its fields, the zone choice and the button (Spring over in step 4). */
-function forbindForm(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean; ikkeNu?: string }): Markup {
-  const formId = `kilde-form-${k.id}`;
+/** Spring over (step 4) and Ikke nu (a pack card) for a card, in the language being rendered. */
+function knapper(k: KildeKortSyn, o: { spring: boolean; ikkeNu?: string }): Markup {
   const T = startTekst();
-  const zone = html`<label class="field kilde-zone"><span class="row-note">${T.detHerEr}</span><select name="zone">${DATAZONER.filter((z) => !(o.laptop && z === 'husstand')).map((z) => html`<option value="${z}"${z === k.zone ? html` selected` : ''}>${T.zoneTekst[z]}</option>`)}</select></label>`;
   const spring = o.spring ? html`<button type="button" class="btn btn-ghost" data-aktion="kilde-spring-over" data-arg="${JSON.stringify({ kildeId: k.id })}" data-status="${T.springerOver}">${T.springOver}</button>` : '';
   // KC-0236: a pack card is put away for a while, not skipped for good (the handling named here; Start's own state is not touched).
   const ikkeNu = o.ikkeNu ? html`<button type="button" class="btn btn-ghost" data-aktion="${o.ikkeNu}" data-status="${T.laeggerVaekKort}">${T.ikkeNu}</button>` : '';
+  return html`${spring}${ikkeNu}`;
+}
+
+/** KC-0247: Spring over / Ikke nu on their own, beside a folded form. */
+const valgKnapper = (k: KildeKortSyn, o: { spring: boolean; ikkeNu?: string }): Markup =>
+  o.spring || o.ikkeNu ? html`<div class="actions">${knapper(k, o)}</div>` : html``;
+
+/** The card's form: its fields, the zone choice and the button (Spring over in step 4; `udenValg`: those sit beside the fold). */
+function forbindForm(k: KildeKortSyn, o: { spring: boolean; efter?: string; igen?: boolean; laptop?: boolean; ikkeNu?: string; udenValg?: boolean }): Markup {
+  const formId = `kilde-form-${k.id}`;
+  const T = startTekst();
+  const zone = html`<label class="field kilde-zone"><span class="row-note">${T.detHerEr}</span><select name="zone">${DATAZONER.filter((z) => !(o.laptop && z === 'husstand')).map((z) => html`<option value="${z}"${z === k.zone ? html` selected` : ''}>${T.zoneTekst[z]}</option>`)}</select></label>`;
   return html`<form id="${formId}" class="nyt-form" onsubmit="return false" autocomplete="off">
       ${k.kort.felter.filter((f) => !f.skjult).map((f) => felt(f, formId))}${zone}
-      <div class="actions"><button type="button" class="btn btn-primary" data-kilde-forbind="${k.id}" data-form="${formId}"${o.efter ? html` data-efter="${o.efter}"` : ''} data-status="${T.forbinder}">${o.igen ? T.proevIgen : k.kort.handling}</button>${spring}${ikkeNu}</div>
+      <div class="actions"><button type="button" class="btn btn-primary" data-kilde-forbind="${k.id}" data-form="${formId}"${o.efter ? html` data-efter="${o.efter}"` : ''} data-status="${T.forbinder}">${o.igen ? T.proevIgen : k.kort.handling}</button>${o.udenValg ? '' : knapper(k, o)}</div>
     </form>`;
 }
 

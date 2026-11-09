@@ -14,6 +14,7 @@ import { createFakeAgent } from '../../src/agent/fake.ts';
 import { skrivHusstand } from '../../src/identitet/husstand.ts';
 import { aulaKalender, AULA_KALENDER_ID } from '../../src/kilder/aula-kalender/kilde.ts';
 import { falskHenter, LINK } from '../kilder/aula-kalender/hjaelp.ts';
+import { forbiTil, FORBI_KILDER, type Forbi } from '../helpers/start-forbi.ts';
 
 const rod = await mkdtemp(path.join(tmpdir(), 'kc-aula-pakke-'));
 const apps: { helbred: { tom(): Promise<void> } }[] = [];
@@ -39,13 +40,14 @@ const ICS = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'X-WR-CALNAME:Kløvermarkskolen',
 ].join('') + 'END:VCALENDAR\r\n';
 
 let nr = 0;
-async function lav(o: { personer?: typeof PERSONER | null; tid?: { nu: Date } } = {}) {
+async function lav(o: { personer?: typeof PERSONER | null; tid?: { nu: Date }; forbi?: Forbi } = {}) {
   const dataDir = path.join(rod, `t${++nr}`);
   const ur = o.tid ?? { nu: NU };
   if (o.personer !== null) await skrivHusstand(dataDir, { personer: o.personer ?? PERSONER });
+  if (o.forbi) await forbiTil(dataDir, o.forbi, { nu: NU }); // KC-0247: the pack waits until the first source works
   const sut = createApp({
     store: createFileStore(dataDir), hermes: createFakeAgent({ answer: () => 'ok' }), sourceGlob: '/nonexistent/{date}.json', dataDir, sha: 'abc', now: () => ur.nu,
-    mailRunner: async () => ({ code: 1, stdout: '', stderr: 'ingen' }), mailStateDir: '/nonexistent', kilder: [aulaKalender({ hent: falskHenter({ tekst: ICS }), ur: () => ur.nu.getTime() })],
+    mailRunner: async () => ({ code: 1, stdout: '', stderr: 'ingen' }), mailStateDir: '/nonexistent', kilder: [aulaKalender({ hent: falskHenter({ tekst: ICS }), ur: () => ur.nu.getTime() }), ...(o.forbi ? FORBI_KILDER() : [])],
     danmark: { cacheMs: 0 },
   });
   apps.push(sut);
@@ -72,8 +74,8 @@ const aulaDel = (h: string): string => {
 
 // ---------- Start ----------
 
-test('Start, nothing connected: the pack\'s group with Aula\'s card — once, headed "Danmark-pakke", and not among step 3\'s offers', async () => {
-  const t = await lav();
+test('Start, the first source working (KC-0247), Aula not connected: the pack\'s group with Aula\'s card — once, headed "Danmark-pakke", and not among step 3\'s offers', async () => {
+  const t = await lav({ forbi: 'foerste-kilde' });
   const { h } = await t.side(HENRIK, '/rum/start');
   assert.equal(antal(h, /data-danmark-pakke/g), 1);
   assert.match(h, /<h3 class="eyebrow">Danmark-pakke<\/h3>/);
@@ -89,7 +91,7 @@ test('Start: Aula\'s card is the owner\'s — a member and a child see no group 
 });
 
 test('Start: "Ikke nu" puts the card away — the group is gone entirely (nothing else in it) — and it returns after 30 days; a member cannot', async () => {
-  const t = await lav();
+  const t = await lav({ forbi: 'foerste-kilde' });
   assert.equal((await t.aktion(MAJA, 'aula-ikke-nu')).status, 403);
   await assert.rejects(() => t.fil(), /ENOENT/);
   assert.equal((await t.aktion(HENRIK, 'aula-ikke-nu')).status, 202);

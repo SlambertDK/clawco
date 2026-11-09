@@ -20,6 +20,7 @@ import type { AgentClient } from '../src/agent/types.ts';
 import { MODEL_TEST } from '../src/agent/prompt.ts';
 import { lavAgentNoegleSkriver } from '../src/kilder/hemmeligheder.ts';
 import type { Person } from '../src/identitet/husstand.ts';
+import { forbiTil } from './helpers/start-forbi.ts';
 
 const NOW = new Date('2026-10-31T10:00:00Z');
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
@@ -39,6 +40,7 @@ function opdagFetch(opdag: Sut['opdag']): typeof fetch {
 async function medApp(o: { hermes?: AgentClient; udfald?: ModelTestUdfald; person?: Person; testMs?: number; env?: Record<string, string | undefined>; foer?: (dir: string) => Promise<void> }, fn: (s: Sut) => Promise<void>): Promise<void> {
   const dir = await mkdtemp(path.join(tmpdir(), 'kc-start-model-'));
   try {
+    await forbiTil(dir, 'velkommen'); // KC-0247: step 2 is the open step
     await o.foer?.(dir);
     const svar: string[] = [];
     const opdag: Sut['opdag'] = [];

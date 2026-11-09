@@ -31,7 +31,7 @@ test('the file has what must be dropped (so the tests below are not vacuous)', (
 });
 
 test('the cold start: Aula\'s card and its steps in Aula\'s own words are in Start, with one secret field', async () => {
-  await verden.hop('kold');
+  await verden.hop('kold-kilde'); // KC-0247: the pack waits until the first source works
   const a = await aula();
   assert.deepEqual([a.forbundet, a.zone, a.kort.handling], [false, 'husstand', 'Forbind Aula']);
   assert.deepEqual(a.kort.felter.map((f) => [f.navn, f.type]), [['link', 'hemmelig']]);
@@ -45,7 +45,7 @@ test('the cold start: Aula\'s card and its steps in Aula\'s own words are in Sta
 // ---------- KC-0236: the Danmark-pakke ----------
 
 test('KC-0236 the cold start: Start has ONE group "Danmark-pakke" holding Aula\'s card (no Digital Post step: no mail yet), and step 3 does not offer Aula', async () => {
-  await verden.hop('kold');
+  await verden.hop('kold-kilde'); // KC-0247: the pack waits until the first source works
   const h = await side('/rum/start');
   assert.equal((h.match(/data-danmark-pakke/g) ?? []).length, 1);
   assert.match(h, /<h3 class="eyebrow">Danmark-pakke<\/h3>/);

@@ -414,6 +414,16 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
 .kort { gap: 10px; }
 .kort-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .kort-head .row-title { flex: 1 1 200px; min-width: 0; overflow-wrap: anywhere; }
+/* KC-0247: Start, one step at a time — the open step's count, then one line per later or done step. */
+.trin-taeller { font-size: 12px; white-space: nowrap; }
+.trin-linje { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--raised); }
+.trin-linje:first-child { border-top: none; }
+.trin-linje[data-trin-naeste] .row-title { color: var(--muted); font-weight: 400; }
+.trin-linje[data-trin-foldet] { display: block; }
+.trin-linje > details > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; min-height: 28px; }
+.trin-linje > details > summary::-webkit-details-marker { display: none; }
+.trin-linje > details > summary .row-title { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.trin-linje-indhold { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
 .kort .betydning, .kort .row-note, .kort .lines { overflow-wrap: anywhere; }
 .kort .row-note a { color: var(--handling); }
 /* "Intet at gøre": folded on every device — the button shows on the laptop too, the content stays hidden until opened */
@@ -642,6 +652,7 @@ body { padding-left: env(safe-area-inset-left); padding-right: env(safe-area-ins
   button, .btn, .chip-btn, .lyt, .msg .lyt, .actions-small .btn, .vis-smaa .btn { min-height: 44px; min-width: 44px; }
   .btn, .chip-btn { display: inline-flex; align-items: center; justify-content: center; }
   .vis-mere > summary { min-height: 44px; }
+  .trin-linje > details > summary { min-height: 44px; }
   select, input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), #chat-form input, .field input, .cc-svar-form input { min-height: 44px; }
   /* a news title is a link on its own line, not part of a sentence */
   a.row-title { display: block; min-height: 44px; padding: 10px 0; box-sizing: border-box; }

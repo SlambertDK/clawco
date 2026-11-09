@@ -19,8 +19,9 @@ kira-home showed no Postgres server there; installing it is now a step of the ro
 | `/srv/sky/.env` | secrets, 0600, owned by `sky`, **outside** the checkout |
 | system Postgres | kira-home (Ubuntu 22.04) has only `postgresql-client-14`, so the root script installs the distro server — `postgresql-common` first, then `create_main_cluster = false` in `/etc/postgresql-common/createcluster.conf`, then `postgresql`, so no default cluster ever appears on TCP 5432. It then creates one cluster for Sky, stopped (`pg_createcluster <ver> main -p 5433`; 5433 only names its socket), makes it **socket-only** (`conf.d/clawco-sky.conf`: `listen_addresses = ''`) before its first start, and starts it. Role + database `sky`, peer auth. TCP 127.0.0.1:5432 belongs to honcho's Docker Postgres and is never touched |
 | `sky.service` | `node src/server.ts` on 127.0.0.1:8781 (`SKY_PORT`) |
+| `clawco-sky-netfilter.service` | root oneshot at boot (before `sky.service`): the tenant pool's iptables filter and `/run/sky/netfilter.ok` (KC-0279) |
 | `clawco-sky-tunnel.service` | `cloudflared tunnel run --token-file …` as `sky`; needs cloudflared ≥ 2025.4.0. The host's own `cloudflared.service` and `cloudflared-petrilab.service` (other sites) are never touched |
-| `/etc/sudoers.d/clawco-sky` | `henrik` may act as `sky` through three fixed scripts only (`deploy.sh`, `saet-env.sh SKY_*`, `masternoegle.sh ny\|--roter\|--afslut`; KC-0276), and restart exactly Sky's two units; `sky` may restart `sky`. Any other command as `sky` needs henrik's password |
+| `/etc/sudoers.d/clawco-sky` | `henrik` may act as `sky` through four fixed scripts only (`deploy.sh`, `saet-env.sh SKY_*`, `masternoegle.sh ny\|--roter\|--afslut`; KC-0276; `udrul.sh`, which validates its own arguments; KC-0279), and restart exactly Sky's two units; `sky` may restart `sky`. Any other command as `sky` needs henrik's password |
 | `/etc/systemd/journald.conf.d/clawco-30-dage.conf` | `MaxRetentionSec=30day`: the legal texts promise server logs for at most 30 days (KC-0204); the app, Sky and the tenants (Docker's `journald` log driver) all log to journald |
 
 `SKY_DATABASE_URL` is written by the root script: `postgres:///sky?host=/var/run/postgresql&port=<cluster port>`.
@@ -55,6 +56,10 @@ sky/scripts/saet-hemmelighed.sh --fra-bws DEV__R2_ACCOUNT_ID        # → SKY_R2
 ssh kira-home 'sudo -u sky bash /srv/sky/kontrolcenter/sky/deploy/deploy.sh'
 ssh kira-home 'sudo systemctl restart clawco-sky-tunnel && sudo systemctl is-active clawco-sky-tunnel'
 ```
+
+After a reboot of kira-home, `clawco-sky-netfilter.service` (a root oneshot before `sky.service`, KC-0279) puts the tenant
+pool's iptables filter and `/run/sky/netfilter.ok` back by itself (`netfilter-ved-boot.sh` reads `SKY_TENANT_POOL`), so Sky does
+not refuse tenants until the next deploy; `opsaet-root.sh` installs and enables it.
 
 `--fra-bws` reads Bitwarden Secrets Manager (project `shelfatlas`) through
 `~/projects/ShelfAtlas/scripts/secrets/runtime.mjs`, which loads its own machine token; Henrik is never
@@ -163,17 +168,22 @@ previous image on that same disk (scratch `clawco-u-…`, removed after).
    docker build --build-arg GIT_SHA=$sha -t clawco:$sha .
    ```
 
-2. Roll it out (as the user Sky runs as; it needs Docker, like `SKY_FLAADE=lokal`). The command runs in the
-   foreground through every soak; run it under `tmux` or `nohup`. Killed, `fortsaet` continues where it stopped.
+2. Roll it out from the Mac through the fixed wrapper `sky/deploy/udrul.sh` (KC-0279): it runs as the user Sky runs
+   as (it needs Docker, like `SKY_FLAADE=lokal`), `cd`s into the checkout itself (`/srv/sky` is 0750) and accepts only
+   the forms below, so `henrik` may run it without a password (sudoers line from `opsaet-root.sh`). `start` runs in the
+   foreground through every soak: run it under `nohup … &` on the host (or `tmux`), and watch with a second ssh
+   running `status`. Killed, `fortsaet` continues where it stopped.
 
    ```bash
-   cd /srv/sky/kontrolcenter
-   node --env-file=/srv/sky/.env sky/scripts/udrul.ts hold <henriks-slug> intern   # once
-   node --env-file=/srv/sky/.env sky/scripts/udrul.ts start clawco:<sha>
-   node --env-file=/srv/sky/.env sky/scripts/udrul.ts status
-   node --env-file=/srv/sky/.env sky/scripts/udrul.ts fortsaet   # after a kill, or past a halt (failed tenants stay old)
-   node --env-file=/srv/sky/.env sky/scripts/udrul.ts tilbage    # every tenant of the rollout back to its old image
+   U='sudo -n -u sky /usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/udrul.sh'
+   ssh kira-home "$U hold <henriks-slug> intern"        # once; <slug> = hus- and eight characters
+   ssh kira-home "$U start clawco:<sha>"
+   ssh kira-home "$U status"
+   ssh kira-home "$U fortsaet"                          # after a kill, or past a halt (failed tenants stay old)
+   ssh kira-home "$U tilbage"                           # every tenant of the rollout back to its old image
    ```
+
+   The one-liner for a release is `ssh kira-home 'sudo -n -u sky /usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/udrul.sh start clawco:<sha>'`.
 
 3. When it is done, set `SKY_TENANT_BILLEDE=clawco:<sha>` in `/srv/sky/.env` and restart Sky, so new tenants start
    on the release too (a rollout only moves tenants that exist when it starts).

@@ -16,6 +16,7 @@ import { IMPORT_MARKOER } from '../src/rooms/start/import/foreslaa.ts';
 import type { Person } from '../src/identitet/husstand.ts';
 import type { StartState } from '../src/rooms/start/schema.ts';
 import type { LogEntry } from '../src/store/types.ts';
+import { forbiTil } from './helpers/start-forbi.ts';
 
 const NOW = new Date('2026-10-31T09:30:00Z');
 const EJER: Person = { id: 'henrik', login: null, navn: 'Henrik', rolle: 'ejer' };
@@ -51,11 +52,21 @@ const log = async (s: S): Promise<LogEntry[]> => (await readFile(path.join(s.dir
 const fil = (s: S, rel: string): Promise<string | null> => readFile(path.join(s.vault, rel), 'utf8').catch(() => null);
 const trinKort = (h: string): string => /<article[^>]*data-trin="import"[\s\S]*?<\/article>/.exec(h)?.[0] ?? '';
 
-/** The notes folder made, and a first source connected (step 3), so step 5 is on screen. */
+/**
+ * The notes folder made and the mail connected; KC-0247: steps 1–3 and the first Ret done and step 4's other offers
+ * skipped, so step 5 is the open step (one step at a time, mandatory first).
+ */
 async function klargoer(s: S): Promise<void> {
+  await forbiTil(s.dir, 'foerste-ret', { nu: NOW });
   assert.equal((await post(s, '/api/kilder/noter/forbind', { felter: { opsaetning: 'ny' } })).status, 200);
   assert.equal((await post(s, '/api/kilder/falsk-mail/forbind', { felter: { brugernavn: 'alma', adgangskode: 'hemmelig' } })).status, 200);
   await rolig(s);
+  for (let i = 0; i < 10; i++) {
+    const arg = /data-aktion="kilde-spring-over" data-arg="([^"]+)"/.exec(await start(s))?.[1];
+    if (!arg) break;
+    assert.equal((await post(s, '/api/rum/start/aktion/kilde-spring-over', JSON.parse(arg.replace(/&quot;/g, '"')))).status, 202);
+    await rolig(s);
+  }
 }
 
 test('paste → proposal pile → Gem → files with frontmatter → Fortryd removes only those files', async () => {

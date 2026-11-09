@@ -31,6 +31,8 @@ export type Trin = {
   /** One sentence: what the step is for. */
   tekst: string;
   krav: 'obligatorisk' | 'valgfri';
+  /** KC-0247: about how many minutes the step takes (the "≈ 1 min" a later step shows). */
+  minutter: number;
   erKlaret(state: StartState | null, ctx: TrinKontekst): boolean;
 };
 
@@ -58,6 +60,7 @@ registrerTrin({
   id: 'velkommen',
   get titel() { return startTekst().trin['velkommen'].titel; },
   get tekst() { return startTekst().trin['velkommen'].tekst; },
+  minutter: 1,
   krav: 'obligatorisk',
   erKlaret: (_s, ctx) => ctx.profil !== null,
 });
@@ -67,6 +70,7 @@ registrerTrin({
   id: 'model',
   get titel() { return startTekst().trin['model'].titel; },
   get tekst() { return startTekst().trin['model'].tekst; },
+  minutter: 2,
   krav: 'obligatorisk',
   erKlaret: (_s, ctx) => Boolean(ctx.model && modelKlaret(ctx.model)),
 });
@@ -115,6 +119,7 @@ registrerTrin({
   id: 'foerste-kilde',
   get titel() { return startTekst().trin['foerste-kilde'].titel; },
   get tekst() { return startTekst().trin['foerste-kilde'].tekst; },
+  minutter: 2,
   krav: 'obligatorisk',
   erKlaret: harFoersteKilde,
 });
@@ -123,6 +128,7 @@ registrerTrin({
   id: 'flere-kilder',
   get titel() { return startTekst().trin['flere-kilder'].titel; },
   get tekst() { return startTekst().trin['flere-kilder'].tekst; },
+  minutter: 2,
   krav: 'valgfri',
   // Klaret when nothing more is offered and a source beyond the first is connected; all skipped is not Klaret.
   erKlaret: (s, ctx) => harFoersteKilde(s, ctx) && flereKilderKoe(s, ctx).length === 0
@@ -137,6 +143,7 @@ registrerTrin({
   id: 'import',
   get titel() { return startTekst().trin['import'].titel; },
   get tekst() { return startTekst().trin['import'].tekst; },
+  minutter: 3,
   krav: 'valgfri',
   erKlaret: (s) => Boolean(s?.import?.gemt?.length),
 });
@@ -149,6 +156,7 @@ registrerTrin({
   id: 'foerste-ret',
   get titel() { return startTekst().trin['foerste-ret'].titel; },
   get tekst() { return startTekst().trin['foerste-ret'].tekst; },
+  minutter: 1,
   krav: 'obligatorisk',
   erKlaret: (s) => Boolean(s?.ret),
 });

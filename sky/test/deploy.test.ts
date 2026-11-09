@@ -27,7 +27,7 @@ const bash = (args: string[], o: { env?: Record<string, string>; input?: string 
 
 function tmp(): string { return fs.mkdtempSync(path.join(os.tmpdir(), 'sky-deploy-')); }
 
-const TRIN = ['brugeren sky', '/srv/sky er 0750', 'sky kan læse /home/henrik/kontrolcenter.git', 'checkout i /srv/sky/kontrolcenter', 'Postgres-serveren installeret uden automatisk klynge', 'én Postgres-klynge til Sky på port 5433', 'Postgres lytter kun på unix-socket', 'Postgres er slået til', 'Postgres-rollen sky', 'databasen sky', '/srv/sky/.env er 0600', 'sky.service installeret', 'clawco-sky-tunnel.service installeret', 'sudoers-filen', 'journald gemmer logs højst 30 dage'];
+const TRIN = ['brugeren sky', '/srv/sky er 0750', 'sky kan læse /home/henrik/kontrolcenter.git', 'checkout i /srv/sky/kontrolcenter', 'Postgres-serveren installeret uden automatisk klynge', 'én Postgres-klynge til Sky på port 5433', 'Postgres lytter kun på unix-socket', 'Postgres er slået til', 'Postgres-rollen sky', 'databasen sky', '/srv/sky/.env er 0600', 'sky.service installeret', 'clawco-sky-tunnel.service installeret', 'clawco-sky-netfilter.service installeret', 'sudoers-filen', 'journald gemmer logs højst 30 dage'];
 
 test('opsaet-root.sh --dry-run prints every step and changes nothing (no root needed)', () => {
   const r = bash([ROOT_SCRIPT, '--dry-run']);
@@ -108,7 +108,7 @@ test('the two foreign cloudflared units are never named outside the guard list',
   }
 });
 
-test('the sudoers drop-in parses (visudo -cf), grants nothing that opens a pager as root and acts as sky only through three fixed scripts', { skip: !fs.existsSync('/usr/sbin/visudo') && !fs.existsSync('/usr/bin/visudo') }, () => {
+test('the sudoers drop-in parses (visudo -cf), grants nothing that opens a pager as root and acts as sky only through four fixed scripts', { skip: !fs.existsSync('/usr/sbin/visudo') && !fs.existsSync('/usr/bin/visudo') }, () => {
   const tekst = bash([ROOT_SCRIPT, '--sudoers']).stdout;
   const dir = tmp();
   try {
@@ -121,13 +121,13 @@ test('the sudoers drop-in parses (visudo -cf), grants nothing that opens a pager
   const rod = tekst.split('\n').filter((l) => /\(root\)/.test(l));
   assert.equal(rod.length, 2);
   for (const l of rod) assert.ok(!/journalctl|systemctl status|less|ALL$/.test(l), l);
-  // KC-0276: henrik acts as sky only through three fixed scripts of sky's checkout, never "ALL" or a shell.
+  // KC-0276: henrik acts as sky only through four fixed scripts of sky's checkout (KC-0279 added udrul.sh, whose wildcard is safe only because the wrapper validates its arguments), never "ALL" or a shell.
   const sky = tekst.split('\n').filter((l) => /^henrik ALL=\(sky\)/.test(l));
   assert.equal(sky.length, 1);
   assert.ok(!/NOPASSWD:\s*ALL\b/.test(sky[0]!), sky[0]);
   const regler = sky[0]!.replace(/^[^:]*NOPASSWD:\s*/, '').split(/,\s*(?=\/)/);
-  assert.equal(regler.length, 5);
-  for (const r of regler) assert.match(r, /^\/usr\/bin\/bash \/srv\/sky\/kontrolcenter\/sky\/deploy\/(deploy|saet-env|masternoegle)\.sh /, r);
+  assert.equal(regler.length, 6);
+  for (const r of regler) assert.match(r, /^\/usr\/bin\/bash \/srv\/sky\/kontrolcenter\/sky\/deploy\/(deploy|saet-env|masternoegle|udrul)\.sh /, r);
   assert.ok(!/bash -c/.test(sky[0]!), 'no shell text as sky');
   // Every script the sudoers line names exists in this checkout, and what the two Mac-side scripts call is on the list.
   for (const m of sky[0]!.matchAll(/\/srv\/sky\/kontrolcenter\/(sky\/deploy\/[a-z-]+\.sh)/g)) assert.ok(fs.existsSync(path.join(skyRod, '..', m[1]!)), m[1]);
@@ -135,6 +135,8 @@ test('the sudoers drop-in parses (visudo -cf), grants nothing that opens a pager
   assert.ok(kald('saet-hemmelighed.sh') && sky[0]!.includes(kald('saet-hemmelighed.sh')!));
   assert.ok(kald('ny-masternoegle.sh') && sky[0]!.includes(kald('ny-masternoegle.sh')!));
   assert.ok(sky[0]!.includes('/usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/deploy.sh ""'));
+  assert.ok(regler.includes('/usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/udrul.sh *'), 'KC-0279: the rollout wrapper by path');
+  assert.match(tekst, /wildcard[^\n]*(validates|validated)/i, 'the comment says why the wildcard is acceptable');
   // KC-0273: sky itself may run exactly two things as root: restart its unit, and the netfilter script by path.
   const somRod = tekst.split('\n').filter((l) => /^sky ALL=\(root\)/.test(l));
   assert.equal(somRod.length, 1);
@@ -272,4 +274,136 @@ test('the sky-side wrappers refuse a bad name or mode and need no shell text fro
     assert.equal(bash([path.join(deploy, 'masternoegle.sh')], { env: e }).status, 2);
     assert.equal(fs.readFileSync(env, 'utf8'), 'SKY_PORT=8781\n');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// ---- KC-0279: the rollout wrapper and the boot-time filter ----
+
+/** A scratch checkout holding udrul.sh and a stub `node` that records its directory and arguments. */
+function udrulOpsaetning() {
+  const dir = tmp();
+  fs.mkdirSync(path.join(dir, 'co/sky/deploy'), { recursive: true });
+  fs.mkdirSync(path.join(dir, 'bin'));
+  fs.copyFileSync(path.join(deploy, 'udrul.sh'), path.join(dir, 'co/sky/deploy/udrul.sh'));
+  const logfil = path.join(dir, 'node.log');
+  fs.writeFileSync(path.join(dir, 'bin/node'), `#!/bin/sh\npwd >> '${logfil}'\nfor a in "$@"; do printf '%s\\n' "$a" >> '${logfil}'; done\n`, { mode: 0o755 });
+  const envFil = path.join(dir, 'env');
+  fs.writeFileSync(envFil, 'SKY_PORT=1\n');
+  const koer = (...args: string[]) => {
+    fs.rmSync(logfil, { force: true });
+    const r = spawnSync('bash', [path.join(dir, 'co/sky/deploy/udrul.sh'), ...args], { encoding: 'utf8', cwd: '/', env: rentMiljoe({ PATH: `${path.join(dir, 'bin')}:${process.env.PATH ?? ''}`, SKY_ENV_FIL: envFil }) });
+    const log = fs.existsSync(logfil) ? fs.readFileSync(logfil, 'utf8').split('\n').filter(Boolean) : null;
+    return { r, log };
+  };
+  return { dir, envFil, koer };
+}
+
+test('KC-0279: udrul.sh runs node in the checkout with the env file and exactly the validated arguments', () => {
+  const o = udrulOpsaetning();
+  try {
+    const co = fs.realpathSync(path.join(o.dir, 'co'));
+    const ok: [string[], string[]][] = [
+      [['status'], ['status']], [['fortsaet'], ['fortsaet']], [['tilbage'], ['tilbage']],
+      [['hold', 'hus-abcdefg2', 'intern'], ['hold', 'hus-abcdefg2', 'intern']],
+      [['hold', 'hus-abcdefg7', 'kanari'], ['hold', 'hus-abcdefg7', 'kanari']],
+      [['hold', 'hus-abcdefg2', 'alle'], ['hold', 'hus-abcdefg2', 'alle']],
+      [['start', 'clawco:abc1234'], ['start', 'clawco:abc1234']],
+      [['start', 'clawco:0123456789abcdef0123456789abcdef01234567'], ['start', 'clawco:0123456789abcdef0123456789abcdef01234567']],
+    ];
+    for (const [args, rest] of ok) {
+      const { r, log } = o.koer(...args);
+      assert.equal(r.status, 0, `${args.join(' ')}: ${r.stderr}`);
+      assert.deepEqual(log && [fs.realpathSync(log[0]!), ...log.slice(1)], [co, `--env-file=${o.envFil}`, 'sky/scripts/udrul.ts', ...rest], args.join(' '));
+    }
+  } finally { fs.rmSync(o.dir, { recursive: true, force: true }); }
+});
+
+test('KC-0279: udrul.sh refuses everything else with exit 2 and never runs node', () => {
+  const o = udrulOpsaetning();
+  try {
+    const nej: string[][] = [
+      [], [''], ['rm'], ['status', 'x'], ['fortsaet', 'x'], ['tilbage', '--alle'], ['STATUS'], ['--env-file=/etc/passwd'],
+      ['hold'], ['hold', 'hus-abcdefg2'], ['hold', 'hus-abcdefg2', 'ingen'], ['hold', 'hus-abcdefg2', 'intern', 'x'],
+      ['hold', 'hus-abcdefg1', 'intern'], ['hold', 'hus-abcdefg', 'intern'], ['hold', 'hus-abcdefg22', 'intern'], ['hold', 'hus-ABCDEFG2', 'intern'],
+      ['hold', 'hus-abcdefg2; id', 'intern'], ['hold', 'intern', 'hus-abcdefg2'], ['hold', 'hus-abcdefg2\n', 'intern'],
+      ['start'], ['start', 'abc1234'], ['start', 'clawco:abc123'], ['start', 'clawco:' + 'a'.repeat(41)], ['start', 'clawco:ABC1234'],
+      ['start', 'clawco:abc1234', 'x'], ['start', 'clawco:abc1234; id'], ['start', 'clawco:abc1234\n'], ['start', 'ghcr.io/x/clawco:abc1234'], ['start', 'clawco:latest'],
+    ];
+    for (const args of nej) {
+      const { r, log } = o.koer(...args);
+      assert.equal(r.status, 2, JSON.stringify(args));
+      assert.equal(log, null, `${JSON.stringify(args)}: node must not run`);
+    }
+  } finally { fs.rmSync(o.dir, { recursive: true, force: true }); }
+});
+
+test('KC-0279: udrul.sh defaults to /srv/sky/.env and takes its checkout from its own location', () => {
+  const k = laes('udrul.sh');
+  assert.match(k, /SKY_ENV_FIL:-\/srv\/sky\/\.env/);
+  assert.match(k, /sudo's env_reset/);
+  assert.match(k, /cd "\$\(dirname "\$0"\)\/\.\.\/\.\."/);
+  assert.match(k, /^exec node --env-file="\$f" sky\/scripts\/udrul\.ts /m);
+  assert.ok(!/\beval\b|bash -c|\$\*/.test(k.replace(/^#.*$/gm, '')), 'no eval, shell text or unquoted $*');
+});
+
+test('KC-0279: the netfilter unit is a root oneshot before Sky, started after Docker, and sky.service wants it without requiring it', () => {
+  const u = laes('clawco-sky-netfilter.service');
+  assert.match(u, /^Type=oneshot$/m);
+  assert.match(u, /^RemainAfterExit=yes$/m);
+  assert.match(u, /^After=docker\.service network-online\.target$/m);
+  assert.match(u, /^Requires=docker\.service$/m);
+  assert.match(u, /^Before=sky\.service$/m);
+  assert.match(u, /^WantedBy=multi-user\.target$/m);
+  assert.ok(!/^User=/m.test(u), 'runs as root');
+  assert.match(u, /^ExecStart=\/usr\/bin\/bash \/srv\/sky\/kontrolcenter\/sky\/deploy\/netfilter-ved-boot\.sh$/m);
+  const s = laes('sky.service');
+  assert.match(s, /^After=.*\bclawco-sky-netfilter\.service\b/m);
+  assert.match(s, /^Wants=.*\bclawco-sky-netfilter\.service\b/m);
+  assert.ok(!/^Requires=.*netfilter/m.test(s), 'Sky fails closed by itself; it must still start if the filter unit fails');
+});
+
+test('KC-0279: netfilter-ved-boot.sh hands the pool from the env file (or the default) to netfilter.sh and prints nothing else from it', () => {
+  const dir = tmp();
+  try {
+    fs.mkdirSync(path.join(dir, 'deploy'));
+    fs.copyFileSync(path.join(deploy, 'netfilter-ved-boot.sh'), path.join(dir, 'deploy/netfilter-ved-boot.sh'));
+    const logfil = path.join(dir, 'kald.log');
+    fs.writeFileSync(path.join(dir, 'deploy/netfilter.sh'), `#!/bin/bash\nprintf '%s\\n' "$#" "$@" >> '${logfil}'\n`, { mode: 0o755 });
+    const env = path.join(dir, 'env');
+    const koer = (indhold: string | null) => {
+      fs.rmSync(logfil, { force: true });
+      if (indhold === null) fs.rmSync(env, { force: true }); else fs.writeFileSync(env, indhold);
+      const r = bash([path.join(dir, 'deploy/netfilter-ved-boot.sh')], { env: { SKY_ENV_FIL: env } });
+      return { r, kald: fs.existsSync(logfil) ? fs.readFileSync(logfil, 'utf8').split('\n').filter(Boolean) : null };
+    };
+    let k = koer('SKY_STRIPE_SECRET_KEY=hemmelig-nok-1234\nSKY_TENANT_POOL=10.201.0.0/16\nSKY_PORT=8781\n');
+    assert.equal(k.r.status, 0, k.r.stderr);
+    assert.deepEqual(k.kald, ['1', '10.201.0.0/16']);
+    assert.ok(!(k.r.stdout + k.r.stderr).includes('hemmelig-nok'), 'no other line of the env file is printed');
+    k = koer('SKY_PORT=8781\n');
+    assert.deepEqual(k.kald, ['1', '10.200.0.0/16'], 'default pool');
+    k = koer(null);
+    assert.deepEqual(k.kald, ['1', '10.200.0.0/16'], 'a missing env file means the default pool');
+    k = koer('SKY_TENANT_POOL=10.0.0.0/8 ; id\n');
+    assert.notEqual(k.r.status, 0);
+    assert.equal(k.kald, null, 'a malformed pool never reaches netfilter.sh');
+    k = koer('SKY_TENANT_POOL=\n');
+    assert.deepEqual(k.kald, ['1', '10.200.0.0/16'], 'an empty value means the default');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  const t = laes('netfilter-ved-boot.sh').replace(/^#.*$/gm, '');
+  assert.ok(!/\bcat\b[^\n]*\.env|source|^\. /m.test(t), 'the env file is grepped for one line, never dumped or sourced');
+});
+
+test('KC-0279: opsaet-root.sh installs and enables the netfilter unit like the sky unit', () => {
+  const k = laes('opsaet-root.sh');
+  assert.match(k, /^NETFILTER_UNIT=clawco-sky-netfilter\.service$/m);
+  assert.match(k, /goer_netfilter_unit\(\) \{ installer_unit "\$NETFILTER_UNIT"; systemctl enable --now "\$NETFILTER_UNIT"; \}/);
+  assert.match(k, /^trin "\$NETFILTER_UNIT installeret og slået til" tjek_netfilter_unit goer_netfilter_unit$/m);
+  assert.match(k, /tjek_netfilter_unit\(\) \{ cmp -s "\$HER\/\$NETFILTER_UNIT" "\$UNITS\/\$NETFILTER_UNIT" && systemctl is-enabled --quiet/);
+});
+
+test('KC-0279: the README rolls out through the wrapper, not by hand as sky', () => {
+  const r = laes('README.md');
+  assert.match(r, /sudo -n -u sky \/usr\/bin\/bash \/srv\/sky\/kontrolcenter\/sky\/deploy\/udrul\.sh start clawco:<sha>/);
+  assert.ok(!/cd \/srv\/sky\/kontrolcenter\n\s*node --env-file=\/srv\/sky\/\.env sky\/scripts\/udrul\.ts/.test(r));
+  assert.match(r, /clawco-sky-netfilter\.service/);
 });

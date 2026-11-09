@@ -71,10 +71,11 @@ const basis = (o: Partial<StartVisning>): string => String(renderStart({
   trin: trin('ikke-startet'), profil: null, standardNavn: '', forslag: [], kanGemme: true, now: NU, ...o,
 }));
 
+// KC-0247: Start shows one step at a time, so the cases about step 2 have step 1 done (step 2 is then the open card).
 export const START: Record<string, () => string> = {
   koldt: () => basis({ model: { syn: { modeller: {}, test: {}, rev }, agent: 'klar', kanGemme: true } }),
   koldtLaptop: () => basis({ laptop: true }),
-  ikkeEjer: () => basis({ kanGemme: false, model: { syn: syn(true), agent: 'klar', kanGemme: false } }),
+  ikkeEjer: () => basis({ trin: trin('klaret'), kanGemme: false, model: { syn: syn(true), agent: 'klar', kanGemme: false } }),
   profil: () => basis({
     trin: trin('klaret'),
     profil: { navn: FAMILIE.ejer.navn, sprog: 'da', husstand: 'husstand' },
@@ -84,10 +85,10 @@ export const START: Record<string, () => string> = {
     igang: [{ id: 'r1', label: 'Prøver modellen', status: 'running' }],
   }),
   profilEngelsk: () => basis({ trin: trin('klaret'), profil: { navn: FAMILIE.medlem.navn, sprog: 'en', husstand: 'alene' } }),
-  manglerNoegle: () => basis({ model: { syn: syn(true), agent: 'mangler-noegle', kanGemme: true } }),
-  manglerNoegleIkkeEjer: () => basis({ model: { syn: syn(true), agent: 'mangler-noegle', kanGemme: false } }),
-  utilgaengelig: () => basis({ model: { syn: syn(true), agent: 'utilgaengelig', kanGemme: true } }),
-  kommando: () => basis({ model: { syn: syn(true), agent: 'klar', kanGemme: true, gemt: { udbyder: 'anthropic', kommando: 'hermes config set ANTHROPIC_API_KEY' } } }),
-  lokal: () => basis({ model: { syn: { ...syn(true), udbyder: 'ollama' }, agent: 'klar', kanGemme: true, gemt: { udbyder: 'ollama', url: 'http://127.0.0.1:11434' } } }),
+  manglerNoegle: () => basis({ trin: trin('klaret'), model: { syn: syn(true), agent: 'mangler-noegle', kanGemme: true } }),
+  manglerNoegleIkkeEjer: () => basis({ trin: trin('klaret'), model: { syn: syn(true), agent: 'mangler-noegle', kanGemme: false } }),
+  utilgaengelig: () => basis({ trin: trin('klaret'), model: { syn: syn(true), agent: 'utilgaengelig', kanGemme: true } }),
+  kommando: () => basis({ trin: trin('klaret'), model: { syn: syn(true), agent: 'klar', kanGemme: true, gemt: { udbyder: 'anthropic', kommando: 'hermes config set ANTHROPIC_API_KEY' } } }),
+  lokal: () => basis({ trin: trin('klaret'), model: { syn: { ...syn(true), udbyder: 'ollama' }, agent: 'klar', kanGemme: true, gemt: { udbyder: 'ollama', url: 'http://127.0.0.1:11434' } } }),
   ingenDatamappe: () => basis({}),
 };

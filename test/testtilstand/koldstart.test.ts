@@ -165,7 +165,8 @@ test('kold start: a fresh install walks the whole journey to Done in under five 
       const h = await start();
       assert.equal(status(h, 'foerste-kilde'), 'klaret');
       assert.equal(status(h, 'flere-kilder'), 'ikke-startet', 'step 4 shows once the first source works');
-      assert.match(h, /data-kilde-kort="falsk-mail"/, 'the mail is offered next');
+      // KC-0247: one step at a time, mandatory first — the first Ret is the open card; step 4 is a line until then.
+      assert.match(h, /data-trin="flere-kilder" data-trin-status="ikke-startet" data-trin-naeste/);
       assert.ok(iNav(await side('/rum/hjem')), 'not Done yet: no Ret');
       // KC-0130: step 6 now asks for the one small thing, and points at the card that stands in Nu.
       assert.match(trinKort(h, 'foerste-ret'), /data-foerste-ret="aaben"/);
@@ -199,6 +200,8 @@ test('kold start: a fresh install walks the whole journey to Done in under five 
     });
 
     await t.test('4 second source: the mail, then the rest skipped one at a time — step 4 Klaret', async () => {
+      const h4 = await start();
+      assert.match(trinKort(h4, 'flere-kilder'), /data-kilde-kort="falsk-mail"/, `the mail is offered next (KC-0247: once the first Ret is made) — ${[...h4.matchAll(/data-trin="([a-z-]+)" data-trin-status="([a-z-]+)"( data-trin-[a-z]+)?/g)].map((m) => m[1] + ':' + m[2] + (m[3] ?? '')).join(' ')}`);
       const r = await post('/api/kilder/falsk-mail/forbind', { felter: { brugernavn: 'alma', adgangskode: ADGANGSKODE } });
       assert.equal(r.status, 200, await r.clone().text());
       await rolig();

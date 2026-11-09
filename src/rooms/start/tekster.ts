@@ -139,6 +139,12 @@ const da = {
   detHerEr: 'Det her er',
   kildeElement: (titel: string): string => `Kilde: ${titel}`,
   trinAf: (i: number, n: number): string => `Trin ${i} af ${n}`,
+  /** KC-0247: where the open step is in the journey (bare, so it never reads like a card's own "Trin 1 af 7"). */
+  taeller: (i: number, n: number): string => `${i} af ${n}`,
+  /** KC-0247: a later step's estimate. */
+  omtrent: (min: number): string => `≈ ${min} min`,
+  /** KC-0247: the door to today's full form (spec §6: the third door). */
+  selv: 'Jeg gør det selv',
   kopierAdressen: 'Kopiér adressen',
   forbinder: 'forbinder',
   proevIgen: 'Prøv igen',
@@ -569,6 +575,9 @@ const en: StartTekster = {
   detHerEr: 'This is',
   kildeElement: (titel) => `Source: ${titel}`,
   trinAf: (i, n) => `Step ${i} of ${n}`,
+  taeller: (i, n) => `${i} of ${n}`,
+  omtrent: (min) => `≈ ${min} min`,
+  selv: 'I\'ll do it myself',
   kopierAdressen: 'Copy the address',
   forbinder: 'connecting',
   proevIgen: 'Try again',

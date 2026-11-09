@@ -19,6 +19,7 @@ import { skrivHusstand } from '../src/identitet/husstand.ts';
 import { laptopFraMiljoe } from '../src/identitet/laptop.ts';
 import type { TsKoerer } from '../src/shell/tailscale.ts';
 import { falskeKilder, type FalskData } from '../src/kilder/falsk/falsk.ts';
+import { forbiTil } from './helpers/start-forbi.ts';
 
 const rod = await mkdtemp(path.join(tmpdir(), 'kc-laptop-'));
 after(() => rm(rod, { recursive: true, force: true }));
@@ -124,20 +125,30 @@ test('Start in laptop mode: the profile saves as alone and the step is Klaret wi
 });
 
 test('a source card in laptop mode offers no household zone; household mode does', async () => {
-  const baerbar = await (await lav({ laptop: true, kilder: true }).sut.app.request('/rum/start', {}, LOOPBACK)).text();
+  // KC-0247: steps 1–2 done, so step 3 (the connect cards) is the open step.
+  const b = lav({ laptop: true, kilder: true });
+  await forbiTil(b.dataDir, 'model');
+  const baerbar = await (await b.sut.app.request('/rum/start', {}, LOOPBACK)).text();
   assert.match(baerbar, /<select name="zone">/, 'the connect card is there');
   assert.doesNotMatch(baerbar, /<option value="husstand"/);
   assert.match(baerbar, /<option value="privat"/);
-  const husstand = await (await lav({ kilder: true }).sut.app.request('/rum/start', {}, LOOPBACK)).text();
+  const h = lav({ kilder: true });
+  await forbiTil(h.dataDir, 'model');
+  const husstand = await (await h.sut.app.request('/rum/start', {}, LOOPBACK)).text();
   assert.match(husstand, /<option value="husstand"/);
 });
 
 test('the Tailscale card in laptop mode without Tailscale says the phone limit; the card in household mode does not', async () => {
   const ingen: TsKoerer = async () => ({ fundet: false });
-  const baerbar = await (await lav({ laptop: true, tailscale: ingen }).sut.app.request('/rum/start', {}, LOOPBACK)).text();
+  // KC-0247: the phone card waits until the first source works.
+  const b = lav({ laptop: true, tailscale: ingen, kilder: true });
+  await forbiTil(b.dataDir, 'foerste-kilde');
+  const baerbar = await (await b.sut.app.request('/rum/start', {}, LOOPBACK)).text();
   assert.match(baerbar, /data-tailscale="laptop"/);
   assert.match(tekstAf(baerbar), /Uden Tailscale kan telefonen ikke nå Clawco; med Tailscale kan den, men kun når den bærbare er vågen/);
-  const husstand = await (await lav({ tailscale: ingen }).sut.app.request('/rum/start', {}, LOOPBACK)).text();
+  const h = lav({ tailscale: ingen, kilder: true });
+  await forbiTil(h.dataDir, 'foerste-kilde');
+  const husstand = await (await h.sut.app.request('/rum/start', {}, LOOPBACK)).text();
   assert.match(husstand, /data-tailscale="mangler"/);
 });
 

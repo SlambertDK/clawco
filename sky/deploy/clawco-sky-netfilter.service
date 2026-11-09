@@ -1,0 +1,18 @@
+# Clawco Sky (KC-0279): the tenant pool's host-side filter at boot. A SYSTEM unit, root, run once per boot after
+# Docker is up and before Sky: the iptables rules and /run/sky/netfilter.ok do not survive a reboot, but the tenant
+# containers do (Docker restarts them), and Sky starts no tenant until the marker is there (KC-0273). Installed by
+# sky/deploy/opsaet-root.sh. sky.service wants (not requires) it: if the filter fails, Sky still starts and fails
+# closed by itself.
+[Unit]
+Description=Clawco Sky: lejernes netfilter ved opstart
+After=docker.service network-online.target
+Requires=docker.service
+Before=sky.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/bash /srv/sky/kontrolcenter/sky/deploy/netfilter-ved-boot.sh
+
+[Install]
+WantedBy=multi-user.target

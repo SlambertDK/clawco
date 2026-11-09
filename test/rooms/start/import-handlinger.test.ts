@@ -23,8 +23,8 @@ const SVAR = { personer: [
   { navn: 'Tore Nyvang', relation: 'kollega', mappe: 'arbejde', org: 'Fyrtaarn A/S' },
 ], profil: { tekst: `Jeg løber tirsdag og torsdag.\n${INJEKTION}` } };
 const fenced = (o: unknown): string => `Her er forslaget.\n\`\`\`json\n${JSON.stringify(o)}\n\`\`\``;
-// A first source works (step 3 Klaret), so step 5 is on screen.
-const tom: StartState = { startet: STARTET, trin: {}, afvist: {}, kilder: { 'falsk-kalender': { foersteVaerdiMs: 1, tid: STARTET, forhaandsvisning: { kildeId: 'falsk-kalender', navn: 'Kalender', slags: 'kalender', titel: 'x', linje: '', hentet: STARTET } } } };
+// A first source works (step 3 Klaret) and the first Ret is made, so step 5 is the open step (KC-0247; the rest: `forbi`).
+const tom: StartState = { startet: STARTET, trin: {}, afvist: {}, ret: { art: 'ret', tid: STARTET, titel: 'x' }, kilder: { 'falsk-kalender': { foersteVaerdiMs: 1, tid: STARTET, forhaandsvisning: { kildeId: 'falsk-kalender', navn: 'Kalender', slags: 'kalender', titel: 'x', linje: '', hentet: STARTET } } } };
 
 type Opsaet = { svar?: (r: AgentRunRequest) => string; person?: 'ejer' | 'barn'; udenVault?: boolean; foer?: (personer: string, rod: string) => Promise<void> };
 async function medVault(o: Opsaet, fn: (s: Sut & { rod: string; personer: string; tmp: string; fil: (rel: string) => Promise<string | null>; kald: AgentRunRequest[] }) => Promise<void>): Promise<void> {
@@ -38,7 +38,7 @@ async function medVault(o: Opsaet, fn: (s: Sut & { rod: string; personer: string
     const kald: AgentRunRequest[] = [];
     const skriver = lavImportSkriver({ stier: () => (o.udenVault ? { rod: '', valgt: '', indbakke: '', personer: '' } : { rod: vault, valgt: vault, indbakke: path.join(vault, '00-Indbakke'), personer }) });
     await medStart({
-      state: tom, importSkriver: skriver, importTmp: tmp,
+      forbi: true, state: tom, importSkriver: skriver, importTmp: tmp,
       svar: (r) => { kald.push(r); return (o.svar ?? (() => fenced(SVAR)))(r); },
       ...(o.person === 'barn' ? { person: { id: 'ella', login: null, navn: 'Ella', rolle: 'barn' } as never } : {}),
     }, (s) => { s.d.rejse!.kilder = async () => [{ id: 'falsk-kalender', navn: 'Kalender', slags: 'kalender', forbundet: true }]; return fn({ ...s, rod: vault, personer, tmp, kald, fil: (rel) => readFile(path.join(vault, rel), 'utf8').catch(() => null) }); });
